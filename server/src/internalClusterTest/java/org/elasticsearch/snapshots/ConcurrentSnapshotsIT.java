@@ -73,9 +73,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         final String indexSlow = "index-slow";
-        createIndex(indexSlow, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(indexSlow);
-        indexDoc(indexSlow, "some_id", "foo", "bar");
+        createIndexWithContent(indexSlow);
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
                 client().admin().cluster().prepareCreateSnapshot(repoName, "slow-snapshot").setWaitForCompletion(true).execute();
@@ -85,11 +83,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String indexFast = "index-fast";
-        createIndex(indexFast, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
-                .put("index.routing.allocation.include._name", dataNode2)
-                .put("index.routing.allocation.exclude._name", dataNode).build());
-        ensureGreen(indexFast);
-        indexDoc(indexFast, "some_id", "foo", "bar");
+        createIndexWithContent(indexFast, dataNode2, dataNode);
 
         assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot")
                 .setIndices(indexFast).setWaitForCompletion(true).execute());
@@ -127,9 +121,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         final String indexSlow = "index-slow";
-        createIndex(indexSlow, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(indexSlow);
-        indexDoc(indexSlow, "some_id", "foo", "bar");
+        createIndexWithContent(indexSlow);
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
                 client().admin().cluster().prepareCreateSnapshot(repoName, "blocked-snapshot").setWaitForCompletion(true).execute();
@@ -184,9 +176,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockMasterFromFinalizingSnapshotOnIndexFile(blockedRepoName);
 
         final String indexSlow = "index-slow";
-        createIndex(indexSlow, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(indexSlow);
-        indexDoc(indexSlow, "some_id", "foo", "bar");
+        createIndexWithContent(indexSlow);
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
                 client().admin().cluster().prepareCreateSnapshot(blockedRepoName, "blocked-snapshot").setWaitForCompletion(true).execute();
@@ -220,9 +210,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(blockedRepoName, dataNode);
 
         final String testIndex = "test-index";
-        createIndex(testIndex, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(testIndex);
-        indexDoc(testIndex, "some_id", "foo", "bar");
+        createIndexWithContent(testIndex);
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
                 client().admin().cluster().prepareCreateSnapshot(blockedRepoName, "blocked-snapshot").setWaitForCompletion(true).execute();
@@ -246,9 +234,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureGreen();
 
         final String indexSlow = "index-slow";
-        createIndex(indexSlow, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(indexSlow);
-        indexDoc(indexSlow, "some_id", "foo", "bar");
+        createIndexWithContent(indexSlow);
 
         final String firstSnapshot = "first-snapshot";
         assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
@@ -279,9 +265,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         final String firstIndex = "index-one";
-        createIndex(firstIndex, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(firstIndex);
-        indexDoc(firstIndex, "some_id", "foo", "bar");
+        createIndexWithContent(firstIndex);
 
         final String firstSnapshot = "snapshot-one";
         final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse =
@@ -292,11 +276,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String secondIndex = "index-two";
-        createIndex(secondIndex, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
-                .put("index.routing.allocation.include._name", dataNode2)
-                .put("index.routing.allocation.exclude._name", dataNode).build());
-        ensureGreen(secondIndex);
-        indexDoc(secondIndex, "some_id", "foo", "bar");
+        createIndexWithContent(secondIndex, dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final PlainActionFuture<Void> shardFinishedLatch = awaitClusterState(state -> {
@@ -348,9 +328,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         final String firstIndex = "index-one";
-        createIndex(firstIndex, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(firstIndex);
-        indexDoc(firstIndex, "some_id", "foo", "bar");
+        createIndexWithContent(firstIndex);
 
         final String firstSnapshot = "snapshot-one";
         final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse =
@@ -361,11 +339,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);
         final String secondIndex = "index-two";
-        createIndex(secondIndex, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
-                .put("index.routing.allocation.include._name", dataNode2)
-                .put("index.routing.allocation.exclude._name", dataNode).build());
-        ensureGreen(secondIndex);
-        indexDoc(secondIndex, "some_id", "foo", "bar");
+        createIndexWithContent(secondIndex, dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final PlainActionFuture<Void> shardFinishedLatch = awaitClusterState(state -> {
@@ -439,9 +413,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
 
         final String firstIndex = "index-one";
-        createIndex(firstIndex, SINGLE_SHARD_NO_REPLICA);
-        ensureGreen(firstIndex);
-        indexDoc(firstIndex, "some_id", "foo", "bar");
+        createIndexWithContent(firstIndex);
 
         final String firstSnapshot = "snapshot-one";
         final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse =
@@ -452,12 +424,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode2 = internalCluster().startDataOnlyNode();
         ensureStableCluster(5);
         final String secondIndex = "index-two";
-        createIndex(secondIndex, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
-                .put("index.routing.allocation.include._name", dataNode2)
-                .put("index.routing.allocation.exclude._name", dataNode).build());
-        ensureGreen(secondIndex);
-        indexDoc(secondIndex, "some_id", "foo", "bar");
-
+        createIndexWithContent(secondIndex, dataNode2, dataNode);
 
         final String secondSnapshot = "snapshot-two";
         final PlainActionFuture<Void> shardFinishedLatch = awaitClusterState(state -> {
@@ -590,6 +557,23 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
         });
         return future;
+    }
+
+    private void createIndexWithContent(String indexName) {
+        createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
+    }
+
+    private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
+        createIndexWithContent(indexName, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
+                .put("index.routing.allocation.include._name", nodeInclude)
+                .put("index.routing.allocation.exclude._name", nodeExclude).build());
+    }
+
+    private void createIndexWithContent(String indexName, Settings indexSettings) {
+        logger.info("--> creating index [{}]", indexName);
+        createIndex(indexName, indexSettings);
+        ensureGreen(indexName);
+        indexDoc(indexName, "some_id", "foo", "bar");
     }
 
     private static boolean snapshotHasCompletedShard(String snapshot, SnapshotsInProgress snapshotsInProgress) {

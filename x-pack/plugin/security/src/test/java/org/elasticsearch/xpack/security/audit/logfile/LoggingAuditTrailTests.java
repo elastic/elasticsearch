@@ -1022,7 +1022,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String requestId = randomRequestId();
 
         // event by default disabled
-        auditTrail.authenticationSuccess(requestId, realm, user, request);
+        auditTrail.authenticationSuccess(requestId, , realm, request);
         assertEmptyLog(logger);
 
         settings = Settings.builder()
@@ -1030,7 +1030,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.include", "authentication_success")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.authenticationSuccess(requestId, realm, user, request);
+        auditTrail.authenticationSuccess(requestId, , realm, request);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")

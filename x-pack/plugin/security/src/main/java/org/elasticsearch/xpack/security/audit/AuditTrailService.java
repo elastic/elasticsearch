@@ -12,8 +12,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
@@ -54,10 +54,10 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {}
+        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {}
+        public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {}
 
         @Override
         public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {}
@@ -143,16 +143,16 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
+        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(requestId, realm, user, request);
+                auditTrail.authenticationSuccess(requestId, authentication, request);
             }
         }
 
         @Override
-        public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {
+        public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+                auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
             }
         }
 

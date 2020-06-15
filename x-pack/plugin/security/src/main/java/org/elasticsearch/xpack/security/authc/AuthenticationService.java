@@ -676,13 +676,13 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
             Runnable action = () -> {
                 logger.trace("Established authentication [{}] for request [{}]", authentication, request);
                 listener.onResponse(authentication);
             };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
+                request.authenticationSuccess(authentication);
             } catch (Exception e) {
                 action = () -> {
                     logger.debug(
@@ -725,7 +725,7 @@ public class AuthenticationService {
 
         abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
-        abstract void authenticationSuccess(String realm, User user);
+        abstract void authenticationSuccess(Authentication authentication);
 
     }
 
@@ -745,8 +745,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
         }
 
         @Override
@@ -809,8 +809,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, request);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, request);
         }
 
         @Override

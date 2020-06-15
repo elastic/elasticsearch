@@ -10,8 +10,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
@@ -22,9 +22,9 @@ public interface AuditTrail {
 
     String name();
 
-    void authenticationSuccess(String requestId, String realm, User user, RestRequest request);
+    void authenticationSuccess(String requestId, Authentication authentication, RestRequest request);
 
-    void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest);
+    void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest);
 
     void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest);
 

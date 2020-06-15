@@ -215,11 +215,11 @@ public class AuditTrailServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         String realm = "_realm";
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationSuccess(requestId, realm, user, restRequest);
+        service.get().authenticationSuccess(requestId, , realm, restRequest);
         verify(licenseState).isAllowed(Feature.SECURITY_AUDITING);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationSuccess(requestId, realm, user, restRequest);
+                verify(auditTrail).authenticationSuccess(requestId, , realm, restRequest);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

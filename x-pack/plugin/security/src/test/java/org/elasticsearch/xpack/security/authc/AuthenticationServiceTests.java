@@ -661,7 +661,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
         String reqId = expectAuditRequestId();
-        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user1, restRequest);
+        verify(auditTrail).authenticationSuccess(reqId, , firstRealm.name(), restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -835,7 +835,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result.getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
         assertThreadContextContainsAuthentication(result);
         String reqId = expectAuditRequestId();
-        verify(auditTrail).authenticationSuccess(reqId, "__anonymous", new AnonymousUser(settings), request);
+        verify(auditTrail).authenticationSuccess(reqId, , "__anonymous", request);
         verifyNoMoreInteractions(auditTrail);
     }
 

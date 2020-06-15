@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -106,6 +107,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_AS_REALM_FIELD_NAME = "user.run_as.realm";
+    public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
+    public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
     public static final String REALM_FIELD_NAME = "realm";
     public static final String URL_PATH_FIELD_NAME = "url.path";
@@ -231,7 +234,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
+    public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
@@ -813,6 +816,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
             } else {
                 logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+            }
+            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                final String apiKeyName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                logEntry.with(API_KEY_ID_FIELD_NAME, apiKeyId)
+                        .with(API_KEY_NAME_FIELD_NAME, apiKeyName);
             }
             return this;
         }

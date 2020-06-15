@@ -16,8 +16,8 @@ integTest.enabled = false
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(":test:framework")
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(":test:framework")
 }
 
 // copied from CCR

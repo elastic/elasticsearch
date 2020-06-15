@@ -142,7 +142,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         }
 
         public void setSettings(final Settings settings) {
-            this.settings = settings;
+            this.settings = Objects.requireNonNull(settings);
         }
 
         public FollowParameters getParameters() {
@@ -183,11 +183,13 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
                 }
-                builder.startObject(SETTINGS_FIELD.getPreferredName());
-                {
-                    settings.toXContent(builder, params);
+                if (settings.isEmpty() == false) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    {
+                        settings.toXContent(builder, params);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
                 parameters.toXContentFragment(builder);
             }
             builder.endObject();

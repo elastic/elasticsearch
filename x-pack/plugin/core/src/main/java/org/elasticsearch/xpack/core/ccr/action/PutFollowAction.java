@@ -111,7 +111,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         }
 
         public void setSettings(final Settings settings) {
-            this.settings = settings;
+            this.settings = Objects.requireNonNull(settings);
         }
 
         public FollowParameters getParameters() {
@@ -195,11 +195,13 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                builder.startObject(SETTINGS_FIELD.getPreferredName());
-                {
-                    settings.toXContent(builder, params);
+                if (settings.isEmpty() == false) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    {
+                        settings.toXContent(builder, params);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
                 parameters.toXContentFragment(builder);
             }
             builder.endObject();

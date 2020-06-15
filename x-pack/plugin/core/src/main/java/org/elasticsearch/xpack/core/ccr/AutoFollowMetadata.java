@@ -244,7 +244,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
-            this.settings = settings;
+            this.settings = Objects.requireNonNull(settings);
             this.active = active;
         }
 
@@ -264,7 +264,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
-            this.settings = settings;
+            this.settings = Objects.requireNonNull(settings);
             if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 this.active = in.readBoolean();
             } else {
@@ -320,11 +320,13 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             if (followIndexPattern != null) {
                 builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexPattern);
             }
-            builder.startObject(SETTINGS_FIELD.getPreferredName());
-            {
-                settings.toXContent(builder, params);
+            if (settings.isEmpty() == false) {
+                builder.startObject(SETTINGS_FIELD.getPreferredName());
+                {
+                    settings.toXContent(builder, params);
+                }
+                builder.endObject();
             }
-            builder.endObject();
             toXContentFragment(builder);
             return builder;
         }

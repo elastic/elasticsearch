@@ -84,7 +84,7 @@ public class FollowConfig {
         return PARSER.apply(parser, null);
     }
 
-    private Settings settings;
+    private Settings settings = Settings.EMPTY;
     private Integer maxReadRequestOperationCount;
     private Integer maxOutstandingReadRequests;
     private ByteSizeValue maxReadRequestSize;
@@ -188,7 +188,7 @@ public class FollowConfig {
     }
 
     void toXContentFragment(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (settings != null) {
+        if (settings.isEmpty() == false) {
             builder.startObject(SETTINGS.getPreferredName());
             {
                 settings.toXContent(builder, params);

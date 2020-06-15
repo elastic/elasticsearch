@@ -845,16 +845,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Alias> aliases = new ArrayList<>();
             named.forEach(n -> {
                 if (n instanceof Alias) {
-                    aliases.add((Alias) n);
+                    Alias a = (Alias) n;
+                    if ((a.child() instanceof UnresolvedAttribute && Objects.equals(((UnresolvedAttribute) a.child()).name(),a.name())) == false) {
+                        aliases.add(a);
+                    }
                 }
             });
 
             return condition.transformDown(u -> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
-                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())
-                        && !(alias.child() instanceof UnresolvedAttribute
-                        && Objects.equals(((UnresolvedAttribute) alias.child()).name(), alias.name()))) {
+                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())) {
                         return alias;
                     }
                 }

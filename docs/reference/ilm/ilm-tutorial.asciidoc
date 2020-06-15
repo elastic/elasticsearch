@@ -129,6 +129,13 @@ PUT _index_template/timeseries_template
       "number_of_shards": 1,
       "number_of_replicas": 1,
       "index.lifecycle.name": "timeseries_policy"     <3>
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"                              <4>
+        }
+      }
     }
   }
 }
@@ -139,6 +146,8 @@ PUT _index_template/timeseries_template
 <2> Identifies the timestamp field for the data source. This field must be present
 in all documents indexed into the `timeseries` data stream.
 <3> The name of the {ilm-init} policy used to manage the data stream.
+<4> A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
+timestamp field specified in the `timestamp_field` property
 
 You can also invoke this API directly to add templates.
 

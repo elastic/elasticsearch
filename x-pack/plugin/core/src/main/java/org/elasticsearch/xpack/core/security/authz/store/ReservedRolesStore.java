@@ -70,9 +70,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
                                 "manage_index_templates", "manage_ingest_pipelines", "monitor",
+                                GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
                                 "cluster:monitor/xpack/watcher/watch/get",
                                 "cluster:admin/xpack/watcher/watch/put",
-                                "cluster:admin/xpack/watcher/watch/delete",
+                                "cluster:admin/xpack/watcher/watch/delete"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),

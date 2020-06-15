@@ -132,5 +132,6 @@
  *
  * In either of the above scenarios, in-progress snapshots will be aborted in the same cluster state update that adds a delete to the
  * cluster state, if a delete applies to them.
+ * TODO: explain why the approach prioritizes finalization over deletion
  */
 package org.elasticsearch.snapshots;

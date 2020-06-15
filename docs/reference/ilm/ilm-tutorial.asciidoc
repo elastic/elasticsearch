@@ -202,8 +202,8 @@ GET .ds-timeseries-*/_ilm/explain
 
 The following response shows the data stream's first generation backing index is waiting for the `hot`
 phase's `rollover` action.
-It remains in this state and {ilm-init} continues to call `check-rollover-ready` until the rollover conditions
-are met.
+It remains in this state and {ilm-init} continues to call `check-rollover-ready` until a rollover condition
+is met.
 
 // [[36818c6d9f434d387819c30bd9addb14]]
 [source,console-result]
@@ -220,7 +220,7 @@ are met.
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "check-rollover-ready",                <3>
+      "step": "check-rollover-ready",            <3>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "timeseries_policy",

@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -79,13 +80,13 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  */
 public class NativePrivilegeStore {
 
-    private static final Setting<Integer> DESCRIPTOR_CACHE_SIZE_SETTING =
+
+    public static final Setting<Integer> CACHE_MAX_APPLICATIONS_SETTING =
         Setting.intSetting("xpack.security.authz.store.privileges.cache.max_size",
             10_000, Setting.Property.NodeScope);
 
-    private static final Setting<Integer> APPLICATION_NAME_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.privileges.application_name.cache.max_size",
-            10_000, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authz.store.privileges.cache.ttl",
+        TimeValue.timeValueHours(24L), Setting.Property.NodeScope);
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
@@ -110,21 +111,24 @@ public class NativePrivilegeStore {
         this.settings = settings;
         this.client = client;
         this.securityIndexManager = securityIndexManager;
-        CacheBuilder<String, Set<ApplicationPrivilegeDescriptor>> builder = CacheBuilder.builder();
-        final int cacheSize = DESCRIPTOR_CACHE_SIZE_SETTING.get(settings);
-        if (cacheSize >= 0) {
-            builder.setMaximumWeight(cacheSize);
-            builder.weigher((k, v) -> v.size());
+        final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
+        if (ttl.getNanos() > 0) {
+            final int cacheSize = CACHE_MAX_APPLICATIONS_SETTING.get(settings);
+            descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> v.size())
+                .setExpireAfterWrite(ttl).build();
+            applicationNamesCache = CacheBuilder.<Set<String>, Set<String>>builder()
+                .setMaximumWeight(cacheSize)
+                .weigher((k, v) -> k.size() + v.size())
+                .setExpireAfterWrite(ttl).build();
+        } else {
+            descriptorsCache = null;
+            applicationNamesCache = null;
         }
-        descriptorsCache = builder.build();
-
-        CacheBuilder<Set<String>, Set<String>> applicationNamesCacheBuilder = CacheBuilder.builder();
-        final int nameCacheSize = APPLICATION_NAME_CACHE_SIZE_SETTING.get(settings);
-        if (nameCacheSize >= 0) {
-            applicationNamesCacheBuilder.setMaximumWeight(nameCacheSize);
-            applicationNamesCacheBuilder.weigher((k, v) -> k.size() + v.size());
-        }
-        applicationNamesCache = applicationNamesCacheBuilder.build();
+        assert (descriptorsCache == null && applicationNamesCache == null)
+            || (descriptorsCache != null && applicationNamesCache != null)
+            : "descriptor and application names cache must be enabled or disabled together";
     }
 
     public void getPrivileges(Collection<String> applications, Collection<String> names,
@@ -136,7 +140,7 @@ public class NativePrivilegeStore {
 
         // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
         // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
-        Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
+        Set<String> concreteApplicationNames = applicationNamesCache == null ? null : applicationNamesCache.get(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
             logger.debug("returning empty application privileges for [{}] as application names result in empty list",
@@ -269,7 +273,9 @@ public class NativePrivilegeStore {
      * name, this means any wildcard will result in null.
      */
     private Set<ApplicationPrivilegeDescriptor> cachedDescriptorsForApplicationNames(Set<String> applicationNames) {
-
+        if (descriptorsCache == null) {
+            return null;
+        }
         final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = new HashSet<>();
         for (String applicationName: applicationNames) {
             if (applicationName.endsWith("*")) {
@@ -301,6 +307,9 @@ public class NativePrivilegeStore {
     // protected for tests
     protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
         Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
+        if (descriptorsCache == null) {
+            return;
+        }
         final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
         // Do not cache the names if expansion has no effect
         if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
@@ -418,6 +427,9 @@ public class NativePrivilegeStore {
     }
 
     public void invalidate(Collection<String> updatedApplicationNames) {
+        if (descriptorsCache == null) {
+            return;
+        }
         logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
         try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
             numInvalidation.incrementAndGet();
@@ -429,6 +441,9 @@ public class NativePrivilegeStore {
     }
 
     public void invalidateAll() {
+        if (descriptorsCache == null) {
+            return;
+        }
         logger.debug("Invalidating all application privileges caches");
         try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
             numInvalidation.incrementAndGet();

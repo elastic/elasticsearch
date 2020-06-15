@@ -15,6 +15,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
@@ -86,6 +87,15 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         return super.configUsersRoles()
             + "app_role:" + APP_USER_NAME + "\n"
             + TEST_ROLE + ":" + APP_USER_NAME + "\n";
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        // Ensure the new settings can be configured
+        builder.put("xpack.security.authz.store.privileges.cache.max_size", 5000);
+        builder.put("xpack.security.authz.store.privileges.cache.ttl", "12h");
+        return builder.build();
     }
 
     @Before

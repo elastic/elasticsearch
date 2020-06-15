@@ -579,6 +579,32 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertEquals(++count, store.getNumInvalidation().get());
     }
 
+    public void testCacheWillBeDisabledWhenTtlIsZero() {
+        final Settings settings = Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build();
+        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex);
+        assertNull(store1.getApplicationNamesCache());
+        assertNull(store1.getDescriptorsCache());
+    }
+    public void testGetPrivilegesWorkWithoutCache() throws Exception {
+        final Settings settings = Settings.builder().put("xpack.security.authz.store.privileges.cache.ttl", 0).build();
+        final NativePrivilegeStore store1 = new NativePrivilegeStore(settings, client, securityIndex);
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
+        );
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store1.getPrivileges(singletonList("myapp"), null, future);
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
+
+        assertResult(sourcePrivileges, future);
+        // They are no-op but should "work" (pass-through)
+        store1.invalidate(singleton("myapp"));
+        store1.invalidateAll();
+    }
+
     private SecurityIndexManager.State dummyState(
         String concreteSecurityIndexName, boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(

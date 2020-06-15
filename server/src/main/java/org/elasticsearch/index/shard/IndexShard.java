@@ -1007,7 +1007,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final LongSupplier remainingRecoveryBytesSupplier;
         synchronized (mutex) {
             if (recoveryState == null) {
-                remainingRecoveryBytesSupplier = () -> 0L;
+                remainingRecoveryBytesSupplier = () -> StoreStats.UNKNOWN_RESERVED_BYTES;
             } else if (recoveryState.getStage() == RecoveryState.Stage.INIT) {
                 remainingRecoveryBytesSupplier = () -> StoreStats.UNKNOWN_RESERVED_BYTES;
             } else if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {

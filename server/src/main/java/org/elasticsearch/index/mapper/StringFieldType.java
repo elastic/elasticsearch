@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,7 +52,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType() {}
+    public StringFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+        super(name, isSearchable, hasDocValues, meta);
+    }
 
     protected StringFieldType(MappedFieldType ref) {
         super(ref);
@@ -122,8 +125,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             sb.append(normalized);
         }
         return sb.toBytesRef().utf8ToString();
-    }    
-    
+    }
+
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();

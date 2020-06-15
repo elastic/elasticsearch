@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
@@ -329,7 +330,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param bucketOrds hash of values to the bucket ordinal
      */
     protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongKeyedBucketOrds bucketOrds,
-            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+            BucketBuilderForVariable<B> bucketBuilder, ResultBuilderForVariable<B> resultBuilder) throws IOException {
         long totalOrdsToCollect = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
@@ -360,13 +361,17 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 }
                 buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }
-            results[ordIdx] = resultBuilder.apply(buckets);
+            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], buckets);
         }
         return results;
     }
     @FunctionalInterface
     protected interface BucketBuilderForVariable<B> {
         B build(long bucketValue, int docCount, InternalAggregations subAggregationResults);
+    }
+    @FunctionalInterface
+    protected interface ResultBuilderForVariable<B> {
+        InternalAggregation build(long owninigBucketOrd, List<B> buckets);
     }
 
     /**
@@ -407,4 +412,15 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
                 ".doc_count\") or \"key\".");
     }
+
+    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent.getClass() == GlobalAggregator.class) {
+                return true;
+            }
+            parent = parent.parent();
+        }
+        return false;
+    }
+
 }

@@ -224,6 +224,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static void blockDataNode(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).blockOnDataFiles(true);
+    }
+
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);

@@ -161,6 +161,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(entry, entry.state, shards, entry.failure);
         }
 
+        public Entry withRepoGen(long newRepoGen) {
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, newRepoGen, shards, failure,
+                    userMetadata, version);
+        }
+
+        public Entry withShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, failure,
+                    userMetadata, version);
+        }
+
         @Override
         public String repository() {
             return snapshot.getRepository();
@@ -334,7 +344,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public static class ShardSnapshotStatus {
+
+        public static final ShardSnapshotStatus UNASSIGNED_WAITING =
+                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.WAITING, null);
+
         private final ShardState state;
+
+        @Nullable
         private final String nodeId;
 
         @Nullable
@@ -347,11 +363,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(nodeId, ShardState.INIT, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String generation) {
             this(nodeId, state, null, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String reason, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable String generation) {
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
@@ -375,10 +391,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return state;
         }
 
+        @Nullable
         public String nodeId() {
             return nodeId;
         }
 
+        @Nullable
         public String generation() {
             return this.generation;
         }
@@ -466,10 +484,25 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public SnapshotsInProgress(List<Entry> entries) {
         this.entries = entries;
+        assert assertConsistentEntries(entries);
     }
 
     public SnapshotsInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+        this(Arrays.asList(entries));
+    }
+
+    private static boolean assertConsistentEntries(List<Entry> entries) {
+        final Map<String, Set<ShardId>> startedShardsByRepo = new HashMap<>();
+        for (Entry entry : entries) {
+            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
+                final ShardState shardState = shard.value.state();
+                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
+                    assert startedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
+                            "Found duplicate shard assignments in " + entries;
+                }
+            }
+        }
+        return true;
     }
 
     public List<Entry> entries() {

@@ -355,7 +355,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
                 Collections.singletonList(new SnapshotDeletionsInProgress.Entry(
-                        Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0)));
+                        Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0,
+                        SnapshotDeletionsInProgress.State.META_DATA)));
         state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotDeletionsInProgress.TYPE, delInProgress)
             .build();

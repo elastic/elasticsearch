@@ -425,7 +425,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private long bestGeneration(Collection<? extends RepositoryOperation> operations) {
         final String repoName = metadata.name();
-        assert operations.size() <= 1 : "Assumed one or no operations but received " + operations;
         return operations.stream().filter(e -> e.repository().equals(repoName)).mapToLong(RepositoryOperation::repositoryStateId)
             .max().orElse(RepositoryData.EMPTY_REPO_GEN);
     }
@@ -1579,10 +1578,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 "Tried to update from unexpected pending repo generation [" + meta.pendingGeneration() +
                                     "] after write to generation [" + newGen + "]");
                         }
-                        return stateFilter.apply(ClusterState.builder(currentState).metadata(Metadata.builder(currentState.getMetadata())
-                            .putCustom(RepositoriesMetadata.TYPE,
-                                currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).withUpdatedGeneration(
-                                    metadata.name(), newGen, newGen))).build());
+                        return updateRepositoryGenerations(stateFilter.apply(ClusterState.builder(currentState)
+                                .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE,
+                                        currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                                .withUpdatedGeneration(metadata.name(), newGen, newGen))).build()), expectedGen, newGen);
                     }
 
                     @Override
@@ -1614,6 +1613,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 });
         }, listener::onFailure);
+    }
+
+    private ClusterState updateRepositoryGenerations(ClusterState state, long oldGen, long newGen) {
+        // TODO: cleanups
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        final String repoName = metadata.name();
+        final List<SnapshotsInProgress.Entry> snapshotEntries;
+        if (snapshotsInProgress == null) {
+            snapshotEntries = List.of();
+        } else {
+            snapshotEntries = new ArrayList<>();
+            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
+                    snapshotEntries.add(entry.withRepoGen(newGen));
+                } else {
+                    snapshotEntries.add(entry);
+                }
+            }
+        }
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        final List<SnapshotDeletionsInProgress.Entry> deletionEntries;
+        if (snapshotDeletionsInProgress == null) {
+            deletionEntries = List.of();
+        } else {
+            deletionEntries = new ArrayList<>();
+            for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
+                if (entry.repositoryStateId() == oldGen) {
+                    deletionEntries.add(entry.withRepoGen(newGen));
+                } else {
+                    deletionEntries.add(entry);
+                }
+            }
+        }
+        return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.copyOf(snapshotEntries)))
+                .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(List.copyOf(deletionEntries)))
+                .build();
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {

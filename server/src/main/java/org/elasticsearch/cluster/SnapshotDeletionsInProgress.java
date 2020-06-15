@@ -21,12 +21,13 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -34,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -80,8 +82,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * the given entry from the invoking instance.
      */
     public SnapshotDeletionsInProgress withRemovedEntry(Entry entry) {
+        if (entry == null) {
+            // TODO: nicer API
+            return this;
+        }
         List<Entry> entries = new ArrayList<>(getEntries());
-        entries.remove(entry);
+        entries.removeIf(e -> e.uuid().equals(entry.uuid));
         return new SnapshotDeletionsInProgress(entries);
     }
 
@@ -176,17 +182,23 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public static final class Entry implements Writeable, RepositoryOperation {
         private final List<SnapshotId> snapshots;
         private final String repoName;
+        private final State state;
         private final long startTime;
         private final long repositoryStateId;
+        private final String uuid;
 
-        public Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId) {
+        public Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state) {
+            this(snapshots, repoName, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
+        }
+
+        private Entry(List<SnapshotId> snapshots, String repoName, long startTime, long repositoryStateId, State state, String uuid) {
             this.snapshots = snapshots;
             assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
             this.repoName = repoName;
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
-            assert repositoryStateId > RepositoryData.EMPTY_REPO_GEN :
-                "Can't delete based on an empty or unknown repository generation but saw [" + repositoryStateId + "]";
+            this.state = state;
+            this.uuid = uuid;
         }
 
         public Entry(StreamInput in) throws IOException {
@@ -200,6 +212,39 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
+            if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
+                this.state = State.fromValue(in.readByte());
+                this.uuid = in.readString();
+            } else {
+                this.state = State.META_DATA;
+                this.uuid = IndexMetadata.INDEX_UUID_NA_VALUE;
+            }
+        }
+
+        public Entry started() {
+            assert state == State.WAITING;
+            return new Entry(snapshots, repository(), startTime, repositoryStateId, State.META_DATA, uuid);
+        }
+
+        public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
+            assert state == State.WAITING;
+            final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
+            if (updatedSnapshots.addAll(newSnapshots) == false) {
+                return this;
+            }
+            return new Entry(List.copyOf(updatedSnapshots), repository(), startTime, repositoryStateId, State.WAITING, uuid);
+        }
+
+        public Entry withRepoGen(long repoGen) {
+            return new Entry(snapshots, repository(), startTime, repoGen, state, uuid);
+        }
+
+        public State state() {
+            return state;
+        }
+
+        public String uuid() {
+            return uuid;
         }
 
         public List<SnapshotId> getSnapshots() {
@@ -225,12 +270,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             return repoName.equals(that.repoName)
                        && snapshots.equals(that.snapshots)
                        && startTime == that.startTime
-                       && repositoryStateId == that.repositoryStateId;
+                       && repositoryStateId == that.repositoryStateId
+                       && state == that.state
+                       && uuid.equals(that.uuid);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshots, repoName, startTime, repositoryStateId);
+            return Objects.hash(snapshots, repoName, startTime, repositoryStateId, state, uuid);
         }
 
         @Override
@@ -245,6 +292,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
+            if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
+                out.writeByte(state.value);
+                out.writeString(uuid);
+            }
         }
 
         @Override
@@ -255,6 +306,28 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         @Override
         public long repositoryStateId() {
             return repositoryStateId;
+        }
+    }
+
+    public enum State {
+        WAITING((byte) 0),
+        META_DATA((byte) 1);
+
+        private final byte value;
+
+        State(byte value) {
+            this.value = value;
+        }
+
+        public static State fromValue(byte value) {
+            switch (value) {
+                case 0:
+                    return WAITING;
+                case 1:
+                    return META_DATA;
+                default:
+                    throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
+            }
         }
     }
 }

@@ -20,18 +20,15 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
-
-final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
-    BytesBinaryDVLeafFieldData(BinaryDocValues values) {
+final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData{
+    StringBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);
     }
 
     @Override
-    public ScriptDocValues<BytesRef> getScriptValues() {
-        return new ScriptDocValues.BytesRefs(getBytesValues());
+    public ScriptDocValues<String> getScriptValues() {
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 }
-

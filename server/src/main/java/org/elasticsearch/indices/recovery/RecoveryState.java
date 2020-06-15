@@ -174,10 +174,18 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     private void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
+            assert false : "can't move recovery to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
             throw new IllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
                     + stage + "] (expected [" + expected + "])");
         }
         stage = next;
+    }
+
+    public synchronized void validateCurrentStage(Stage expected) {
+        if (stage != expected) {
+            assert false : "expected stage [" + expected + "]; but current stage is [" + stage + "]";
+            throw new IllegalStateException("expected stage [" + expected + "] but current stage is [" + stage + "]");
+        }
     }
 
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe

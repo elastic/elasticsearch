@@ -169,7 +169,7 @@ POST timeseries/_doc
 
 When a rollover condition in the lifecycle policy is met, the `rollover` action:
 
-* Creates the second generation backing index, name `.ds-timeseries-000002`.
+* Creates the second generation backing index, named `.ds-timeseries-000002`.
 As it is the backing index of the `timeseries` data stream which was created using the `timeseries_template`
 the template configuration will be applied to the new index.
 * As it is the latest generation index of the `timeseries` data stream, the newly created

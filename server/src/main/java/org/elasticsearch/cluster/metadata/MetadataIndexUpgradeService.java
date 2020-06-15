@@ -42,8 +42,6 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.function.Supplier;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -61,18 +59,15 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final Supplier<SortedMap<String, IndexAbstraction>> indicesLookupSupplier;
 
     public MetadataIndexUpgradeService(Settings settings,
                                        NamedXContentRegistry xContentRegistry,
                                        MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings,
-                                       Supplier<SortedMap<String, IndexAbstraction>> indicesLookupSupplier) {
+                                       IndexScopedSettings indexScopedSettings) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.indicesLookupSupplier = indicesLookupSupplier;
     }
 
     /**

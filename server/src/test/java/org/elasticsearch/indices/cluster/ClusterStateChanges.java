@@ -191,7 +191,7 @@ public class ClusterStateChanges {
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings,
             Collections.emptySet());
         MetadataIndexUpgradeService metadataIndexUpgradeService =
-            new MetadataIndexUpgradeService(SETTINGS, xContentRegistry, null, null, () -> null) {
+            new MetadataIndexUpgradeService(SETTINGS, xContentRegistry, null, null) {
             // metadata upgrader should do nothing
             @Override
             public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {

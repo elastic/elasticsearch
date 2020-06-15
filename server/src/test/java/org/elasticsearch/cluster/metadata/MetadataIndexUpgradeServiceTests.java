@@ -137,7 +137,7 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections::emptySortedMap);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

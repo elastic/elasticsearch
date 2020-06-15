@@ -46,7 +46,7 @@ dependencies {
   testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 

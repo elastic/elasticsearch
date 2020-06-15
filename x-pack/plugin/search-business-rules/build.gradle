@@ -21,7 +21,7 @@ dependencies {
 }
 
 // copied from CCR
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 

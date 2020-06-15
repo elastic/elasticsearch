@@ -34,7 +34,7 @@ dependencies {
   testImplementation project(":test:framework")
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
   mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
   mapping from: /jackson-.*/, to: 'jackson'

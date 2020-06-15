@@ -30,7 +30,7 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 

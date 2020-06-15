@@ -103,7 +103,7 @@ For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 To create a data stream we'll create a composable template with a `data_stream` definition
 that will specify the lifecycle policy.
 
-For example, you might create a `timeseries_template` that is will bootstrap a data stream
+For example, you might create a `timeseries_template` to use for a future data stream
 named `timeseries`.
 
 To enable the ILM to manage the data stream, the template configures one {ilm-init} setting:

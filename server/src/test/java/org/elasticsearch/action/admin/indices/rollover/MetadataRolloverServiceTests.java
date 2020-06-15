@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -79,7 +80,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
@@ -352,8 +358,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), new Template(null, null, aliases),
-            null, null, null, null);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"),
+            new Template(null, null, aliases), null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template).build();
@@ -369,7 +375,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), null,
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"), null,
             Collections.singletonList("ct"), null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -404,7 +410,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), new Template(null, null, aliases),
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"),
+            new Template(null, null, aliases),
             null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -425,7 +432,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), null,
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"), null,
             Collections.singletonList("ct"), null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -485,7 +492,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult =
                 rolloverService.rolloverClusterState(clusterState, aliasName, newIndexName, createIndexRequest, metConditions,
-                    randomBoolean());
+                    randomBoolean(), false);
             long after = testThreadPool.absoluteTimeInMillis();
 
             newIndexName = newIndexName == null ? indexPrefix + "2" : newIndexName;
@@ -547,7 +554,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult =
                 rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
-                    randomBoolean());
+                    randomBoolean(), false);
             long after = testThreadPool.absoluteTimeInMillis();
 
             String sourceIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -573,6 +580,66 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    public void testValidation() throws Exception {
+        final String rolloverTarget;
+        final String sourceIndexName;
+        final String defaultRolloverIndexName;
+        final boolean useDataStream = randomBoolean();
+        final Metadata.Builder builder = Metadata.builder();
+        if (useDataStream) {
+            DataStream dataStream = DataStreamTests.randomInstance();
+            rolloverTarget = dataStream.getName();
+            sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
+            defaultRolloverIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            for (Index index : dataStream.getIndices()) {
+                builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+            }
+            builder.put(dataStream);
+        } else {
+            String indexPrefix = "logs-index-00000";
+            rolloverTarget = "logs-alias";
+            sourceIndexName = indexPrefix + "1";
+            defaultRolloverIndexName = indexPrefix + "2";
+            final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(sourceIndexName)
+                .putAlias(AliasMetadata.builder(rolloverTarget).writeIndex(true).build()).settings(settings(Version.CURRENT))
+                .numberOfShards(1).numberOfReplicas(1);
+            builder.put(indexMetadata);
+        }
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+
+        MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
+        MetadataIndexAliasesService metadataIndexAliasesService = mock(MetadataIndexAliasesService.class);
+        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
+        MetadataRolloverService rolloverService = new MetadataRolloverService(null, createIndexService, metadataIndexAliasesService,
+            mockIndexNameExpressionResolver);
+
+        String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
+
+        MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(clusterState, rolloverTarget,
+            newIndexName, new CreateIndexRequest("_na_"), null, randomBoolean(), true);
+
+        newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
+        assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
+        assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+        assertSame(rolloverResult.clusterState, clusterState);
+
+        verify(createIndexService).validateIndexName(any(), same(clusterState));
+        verifyZeroInteractions(createIndexService);
+        verifyZeroInteractions(metadataIndexAliasesService);
+
+        reset(createIndexService);
+        doThrow(new InvalidIndexNameException("test", "invalid")).when(createIndexService).validateIndexName(any(), any());
+
+        expectThrows(InvalidIndexNameException.class,
+            () -> rolloverService.rolloverClusterState(clusterState, rolloverTarget, null, new CreateIndexRequest("_na_"), null,
+                randomBoolean(), randomBoolean()));
+
+        verify(createIndexService).validateIndexName(any(), same(clusterState));
+        verifyZeroInteractions(createIndexService);
+        verifyZeroInteractions(metadataIndexAliasesService);
     }
 
     private IndicesService mockIndicesServices() throws Exception {

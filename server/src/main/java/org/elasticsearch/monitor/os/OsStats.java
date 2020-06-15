@@ -183,17 +183,23 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Swap implements Writeable, ToXContentFragment {
 
+        private static final Logger logger = LogManager.getLogger(Swap.class);
+
         private final long total;
         private final long free;
 
         public Swap(long total, long free) {
+            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            assert free >= 0 : "expected free swap to be positive, got: " + total;
             this.total = total;
             this.free = free;
         }
 
         public Swap(StreamInput in) throws IOException {
             this.total = in.readLong();
+            assert total >= 0 : "expected total swap to be positive, got: " + total;
             this.free = in.readLong();
+            assert free >= 0 : "expected free swap to be positive, got: " + total;
         }
 
         @Override
@@ -207,6 +213,19 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getUsed() {
+            if (total == 0) {
+                // The work in https://github.com/elastic/elasticsearch/pull/42725 established that total memory
+                // can be reported as negative in some cases. Swap can similarly be reported as negative and in
+                // those cases, we force it to zero in which case we can no longer correctly report the used swap
+                // as (total-free) and should report it as zero.
+                //
+                // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
+                // cases where (free > total) which would be a different bug.
+                if (free > 0) {
+                    logger.warn("cannot compute used swap when total swap is 0 and free swap is " + free);
+                }
+                return new ByteSizeValue(0);
+            }
             return new ByteSizeValue(total - free);
         }
 
@@ -264,7 +283,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 //
                 // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
                 // cases where (free > total) which would be a different bug.
-                logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                if (free > 0) {
+                    logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                }
                 return new ByteSizeValue(0);
             }
             return new ByteSizeValue(total - free);

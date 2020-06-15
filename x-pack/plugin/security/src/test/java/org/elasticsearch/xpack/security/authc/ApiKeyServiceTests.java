@@ -534,7 +534,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hashCounter.incrementAndGet();
             hashWait.acquire();
             return invocationOnMock.callRealMethod();
-        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class));
+        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), any(ActionListener.class));
 
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
@@ -610,7 +610,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals("looked_up_by_type", ApiKeyService.getCreatorRealmType(authentication));
     }
 
-    public void testWillTerminateAuthIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {
+    public void testAuthWillTerminateIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {
         final String apiKey = randomAlphaOfLength(16);
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         writeCredentialsToThreadContext(creds);
@@ -623,7 +623,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
     }
 
-    public void testWillTerminateAuthIfHashingThreadPoolIsSaturated() throws IOException, ExecutionException, InterruptedException {
+    public void testAuthWillTerminateIfHashingThreadPoolIsSaturated() throws IOException, ExecutionException, InterruptedException {
         final String apiKey = randomAlphaOfLength(16);
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         writeCredentialsToThreadContext(creds);
@@ -634,7 +634,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         mockSourceDocument(creds.getId(), sourceMap);
         final ExecutorService mockExecutorService = mock(ExecutorService.class);
         when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
-        when(mockExecutorService.submit(any(Runnable.class))).thenThrow(new EsRejectedExecutionException("rejected"));
+        Mockito.doThrow(new EsRejectedExecutionException("rejected")).when(mockExecutorService).execute(any(Runnable.class));
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -642,6 +642,49 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AuthenticationResult authenticationResult = future.get();
         assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult.getStatus());
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
+    }
+
+    public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
+        final String apiKey1 = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey1.toCharArray()));
+        writeCredentialsToThreadContext(creds);
+
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey1.toCharArray()));
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+        mockSourceDocument(creds.getId(), sourceMap);
+
+        // Authenticate the key once to cache it
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future);
+        final AuthenticationResult authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult.getStatus());
+
+        // Now force the hashing thread pool to saturate so that any un-cached keys cannot be validated
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        Mockito.doThrow(new EsRejectedExecutionException("rejected")).when(mockExecutorService).execute(any(Runnable.class));
+
+        // A new API key trying to connect that must go through full hash computation
+        final String apiKey2 = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds2 = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey2.toCharArray()));
+        mockSourceDocument(creds2.getId(), buildApiKeySourceDoc(hasher.hash(new SecureString(apiKey2.toCharArray()))));
+        final PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
+        final ThreadContext.StoredContext storedContext = threadPool.getThreadContext().stashContext();
+        writeCredentialsToThreadContext(creds2);
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future2);
+        final AuthenticationResult authenticationResult2 = future2.get();
+        assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult2.getStatus());
+        assertThat(authenticationResult2.getMessage(), containsString("server is too busy to respond"));
+
+        // The cached API key should not be affected
+        mockSourceDocument(creds.getId(), sourceMap);
+        final PlainActionFuture<AuthenticationResult> future3 = new PlainActionFuture<>();
+        storedContext.restore();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future3);
+        final AuthenticationResult authenticationResult3 = future3.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult3.getStatus());
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

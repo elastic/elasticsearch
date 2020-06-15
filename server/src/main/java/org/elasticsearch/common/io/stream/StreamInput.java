@@ -736,8 +736,6 @@ public abstract class StreamInput extends InputStream {
                 return readGeoPoint();
             case 23:
                 return readZonedDateTime();
-            case 24:
-                return readAbstractGeomteryType();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -834,9 +832,9 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
-    public AbstractGeometryFieldMapper.AbstractGeometryFieldType readAbstractGeomteryType() throws Exception{
-        return AbstractGeometryFieldMapper.AbstractGeometryFieldType();
-    }
+//    public AbstractGeometryFieldMapper.AbstractGeometryFieldType readAbstractGeomteryType() throws Exception{
+//        return AbstractGeometryFieldMapper.AbstractGeometryFieldType();
+//    }
     /**
      * Read a {@linkplain DateTimeZone}.
      */

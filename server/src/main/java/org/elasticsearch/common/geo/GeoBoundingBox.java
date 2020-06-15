@@ -55,18 +55,18 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     public static final ParseField LON_FIELD = new ParseField("lon");
     public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
-    private AbstractGeometryFieldType abstractGeometryFieldType;
+//    private AbstractGeometryFieldType abstractGeometryFieldType;
 
-//    private final GeoPoint topLeft;
-//    private final GeoPoint bottomRight;
-//
-//    public GeoBoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
-//        this.topLeft = topLeft;
-//        this.bottomRight = bottomRight;
-//    }
+    private final GeoPoint topLeft;
+    private final GeoPoint bottomRight;
+
+    public GeoBoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+        this.topLeft = topLeft;
+        this.bottomRight = bottomRight;
+    }
 
     public GeoBoundingBox(StreamInput input) throws IOException {
-        this.topLeft = input.reada;
+        this.topLeft = input.readGeoPoint();
         this.bottomRight = input.readGeoPoint();
     }
 
@@ -75,9 +75,6 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
             || Double.isNaN(bottomRight.lon()) || Double.isNaN(bottomRight.lat());
     }
 
-    public GeoBoundingBox(AbstractGeometryFieldType abstractGeometryFieldType){
-        this.abstractGeometryFieldType = abstractGeometryFieldType;
-    }
     public GeoPoint topLeft() {
         return topLeft;
     }

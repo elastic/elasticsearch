@@ -37,10 +37,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -75,6 +80,16 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private GeoExecType type = DEFAULT_TYPE;
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(
+            Arrays.asList(
+                GeoShapeFieldMapper.CONTENT_TYPE,
+                GeoPointFieldMapper.CONTENT_TYPE));
+
+    protected List<String> validContentTypes() {
+        return validContentTypes;
+    }
 
     /**
      * Create new bounding box query.
@@ -312,10 +327,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+//        if (!(fieldType instanceof GeoPointFieldType)) {
+//            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+//        }
+        if (!validContentTypes().contains(fieldType.typeName())) {
+            throw new QueryShardException(context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
+                    + NAME + "] query supports the following types ["
+                    + String.join(",", validContentTypes()) +  "]");
         }
-
         QueryValidationException exception = checkLatLon();
         if (exception != null) {
             throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);

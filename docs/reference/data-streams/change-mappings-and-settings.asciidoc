@@ -118,8 +118,7 @@ PUT /_index_template/logs_data_stream
 +
 If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
 stream>> to immediately apply the new mappings and settings to the data stream's
-write index. This means any new data added to the data stream use the new
-mappings and settings.
+write index. This affects any new data added to the stream after the rollover.
 +
 .*Example*
 [%collapsible]
@@ -154,7 +153,7 @@ stream as well as any future ones, follow these steps:
 . Choose a name or wildcard (`*`) pattern for a new data stream. This new data
 stream will contain data from your existing stream.
 +
-You can use the resolve index API to check if the name or pattern matches an
+You can use the resolve index API to check if the name or pattern matches any
 existing indices, index aliases, or data streams. If so, you should consider
 using another name or pattern.
 +
@@ -189,7 +188,7 @@ like to apply to the new data stream's backing indices.
 +
 This composable template must meet the
 <<create-a-data-stream-template,requirements for a data stream template>>. It
-should also contain your previously chosen name or wildcard (`*`) pattern in the
+should also contain your previously chosen name or wildcard pattern in the
 `index_patterns` property.
 +
 TIP: If you are only adding or changing a few things, we recommend you duplicate
@@ -238,7 +237,7 @@ PUT /_index_template/new_logs_data_stream
 ----
 // TEST[continued]
 
-<1>  Changes the `@timestamp` field mapping the `date_nanos` field datatype.
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` field datatype.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
 ====
@@ -429,7 +428,7 @@ request.
 The following <<docs-reindex,reindex API>> request copies documents from the
 `logs` data stream to the `new_logs` data stream. The request uses a
 <<query-dsl-range-query,`range` query>> to only reindex documents with a
-timestamp from last week. Note the request's `op_type` is `create`.
+timestamp from the last week. Note the request's `op_type` is `create`.
 
 [source,console]
 ----
@@ -481,7 +480,7 @@ PUT /_cluster/settings
 query your new data and the reindexed data.
 
 . Once you have verified that all reindexed data is available in the new
-data stream, you can safely remove the old  stream.
+data stream, you can safely remove the old stream.
 +
 .*Example*
 [%collapsible]

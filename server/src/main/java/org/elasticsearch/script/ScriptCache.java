@@ -98,39 +98,39 @@ public class ScriptCache {
         // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
         try {
             return context.factoryClazz.cast(cache.computeIfAbsent(cacheKey, key -> {
-                try {
-                    // Either an un-cached inline script or indexed script
-                    // If the script type is inline the name will be the same as the code for identification in exceptions
-                    // but give the script engine the chance to be better, give it separate name + source code
-                    // for the inline case, then its anonymous: null.
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
-                            lang, options);
-                    }
-                    // Check whether too many compilations have happened
-                    checkCompilationLimit();
-                    Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
-                    // Since the cache key is the script content itself we don't need to
-                    // invalidate/check the cache if an indexed script changes.
-                    scriptMetrics.onCompilation();
-                    return compiledScript;
-                } catch (ScriptException good) {
-                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                    throw good; // its already good
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
-                            exception);
+                // Either an un-cached inline script or indexed script
+                // If the script type is inline the name will be the same as the code for identification in exceptions
+                // but give the script engine the chance to be better, give it separate name + source code
+                // for the inline case, then its anonymous: null.
+                if (logger.isTraceEnabled()) {
+                    logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
+                        lang, options);
                 }
+                // Check whether too many compilations have happened
+                checkCompilationLimit();
+                Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
+                // Since the cache key is the script content itself we don't need to
+                // invalidate/check the cache if an indexed script changes.
+                scriptMetrics.onCompilation();
+                return compiledScript;
             }));
         } catch (ExecutionException executionException) {
             Throwable cause = executionException.getCause();
-            if(cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
+            if (cause instanceof ScriptException) {
+                throw (ScriptException) cause;
+            } else if (cause instanceof Exception) {
+                throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", cause);
             } else {
-                // No non-RuntimeExceptions are thrown from the loader, this should not happen. -> throwing generic exception.
-                throw new ElasticsearchException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", cause);
+                rethrow(cause);
+                throw new AssertionError(cause);
             }
         }
+    }
+
+    /** Hack to rethrow unknown Exceptions from compile: */
+    @SuppressWarnings("unchecked")
+    static <T extends Throwable> void rethrow(Throwable t) throws T {
+        throw (T) t;
     }
 
     public ScriptStats stats() {

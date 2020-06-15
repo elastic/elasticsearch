@@ -226,7 +226,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     }
 
     protected boolean shouldIncludeDataStreams() {
-        return false;
+        return true;
     }
 
     protected class AsyncAction {

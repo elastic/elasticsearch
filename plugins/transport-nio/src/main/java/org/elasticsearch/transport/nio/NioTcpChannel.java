@@ -22,8 +22,10 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.TcpChannel;
 
+import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
 public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
@@ -38,8 +40,16 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
         this.profile = profile;
     }
 
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+    @Override
+    public void sendMessage(OutboundHandler.SendContext sendContext) {
+        final BytesReference message;
+        try {
+            message = sendContext.get();
+        } catch (IOException e) {
+            sendContext.onFailure(e);
+            return;
+        }
+        getContext().sendMessage(BytesReference.toByteBuffers(message), ActionListener.toBiConsumer(sendContext));
     }
 
     @Override

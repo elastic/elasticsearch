@@ -150,7 +150,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
-                verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
+                verify.accept((InternalTDigestPercentiles) aggregator.buildTopLevel());
 
             }
         }

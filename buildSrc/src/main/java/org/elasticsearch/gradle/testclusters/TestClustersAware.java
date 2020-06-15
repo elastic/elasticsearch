@@ -5,7 +5,7 @@ import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
 
-interface TestClustersAware extends Task {
+public interface TestClustersAware extends Task {
 
     @Nested
     Collection<ElasticsearchCluster> getClusters();

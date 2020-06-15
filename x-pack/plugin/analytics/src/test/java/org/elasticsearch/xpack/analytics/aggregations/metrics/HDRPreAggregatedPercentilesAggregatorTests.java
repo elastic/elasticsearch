@@ -153,7 +153,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
-                verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
+                verify.accept((InternalHDRPercentiles) aggregator.buildTopLevel());
 
             }
         }

@@ -34,47 +34,66 @@ import java.util.Objects;
  */
 public class SDeclaration extends AStatement {
 
-    protected final DType type;
-    protected final String name;
-    protected final boolean requiresDefault;
-    protected final AExpression expression;
+    private final DType type;
+    private final String symbol;
+    private final boolean requiresDefault;
+    private final AExpression valueNode;
 
-    public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
-        super(location);
+    public SDeclaration(int identifier, Location location, DType type, String symbol, boolean requiresDefault, AExpression valueNode) {
+        super(identifier, location);
 
         this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
+        this.symbol = Objects.requireNonNull(symbol);
         this.requiresDefault = requiresDefault;
-        this.expression = expression;
+        this.valueNode = valueNode;
+    }
+
+    public DType getType() {
+        return type;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public boolean requiresDefault() {
+        return requiresDefault;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
+        }
 
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
         AExpression.Output expressionOutput = null;
         PainlessCast expressionCast = null;
 
-        if (expression != null) {
+        if (valueNode != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+            expressionOutput = AExpression.analyze(valueNode, classNode, scriptRoot, scope, expressionInput);
+            expressionCast = AnalyzerCaster.getLegalCast(valueNode.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
-        scope.defineVariable(location, resolvedType.getType(), name, false);
+        scope.defineVariable(getLocation(), resolvedType.getType(), symbol, false);
 
         DeclarationNode declarationNode = new DeclarationNode();
-        declarationNode.setExpressionNode(expression == null ? null :
+        declarationNode.setExpressionNode(valueNode == null ? null :
                 AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        declarationNode.setLocation(location);
+        declarationNode.setLocation(getLocation());
         declarationNode.setDeclarationType(resolvedType.getType());
-        declarationNode.setName(name);
+        declarationNode.setName(symbol);
         declarationNode.setRequiresDefault(requiresDefault);
 
+        Output output = new Output();
         output.statementNode = declarationNode;
 
         return output;

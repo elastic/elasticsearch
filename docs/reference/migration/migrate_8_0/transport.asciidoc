@@ -19,6 +19,11 @@ setting that was introduced in 6.7.
 - `transport.profiles.profile_name.reuse_address` replaced by `transport.profiles.profile_name.tcp.reuse_address`
 - `transport.profiles.profile_name.send_buffer_size` replaced by `transport.profiles.profile_name.tcp.send_buffer_size`
 - `transport.profiles.profile_name.receive_buffer_size` replaced by `transport.profiles.profile_name.tcp.receive_buffer_size`
+
+*Impact* +
+Use the replacement settings. Discontinue use of the removed settings.
+Specifying the removed settings in `elasticsearch.yml` will result in an error
+on startup.
 ====
 
 // end::notable-breaking-changes[]

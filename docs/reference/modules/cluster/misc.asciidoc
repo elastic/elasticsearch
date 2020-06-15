@@ -1,8 +1,8 @@
-[[misc-cluster]]
-=== Miscellaneous cluster settings
+[[misc-cluster-settings]]
+==== Miscellaneous cluster settings
 
 [[cluster-read-only]]
-==== Metadata
+===== Metadata
 
 An entire cluster may be set to read-only with the following _dynamic_ setting:
 
@@ -23,8 +23,7 @@ API can make the cluster read-write again.
 
 
 [[cluster-shard-limit]]
-
-==== Cluster Shard Limit
+===== Cluster shard limit
 
 There is a soft limit on the number of shards in a cluster, based on the number
 of nodes in the cluster. This is intended to prevent operations which may
@@ -66,7 +65,7 @@ This allows the creation of indices during cluster creation if dedicated master
 nodes are set up before data nodes.
 
 [[user-defined-data]]
-==== User Defined Cluster Metadata
+===== User-defined cluster metadata
 
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
 This can be used to store arbitrary, infrequently-changing data about the cluster
@@ -92,7 +91,7 @@ metadata will be viewable by anyone with access to the
 {es} logs.
 
 [[cluster-max-tombstones]]
-==== Index Tombstones
+===== Index tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that
 have been deleted.  The number of tombstones maintained in the cluster state is
@@ -109,7 +108,7 @@ than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
 
 [[cluster-logger]]
-==== Logger
+===== Logger
 
 The settings which control logging can be updated dynamically with the
 `logger.` prefix.  For instance, to increase the logging level of the
@@ -127,10 +126,10 @@ PUT /_cluster/settings
 
 
 [[persistent-tasks-allocation]]
-==== Persistent Tasks Allocations
+===== Persistent tasks allocation
 
 Plugins can create a kind of tasks called persistent tasks. Those tasks are
-usually long-live tasks and are stored in the cluster state, allowing the
+usually long-lived tasks and are stored in the cluster state, allowing the
 tasks to be revived after a full cluster restart.
 
 Every time a persistent task is created, the master node takes care of

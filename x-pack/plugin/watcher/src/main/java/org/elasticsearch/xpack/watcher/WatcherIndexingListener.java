@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
@@ -38,11 +39,13 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -66,12 +69,14 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private final WatchParser parser;
     private final Clock clock;
     private final TriggerService triggerService;
+    private final Supplier<WatcherState> watcherState;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService, Supplier<WatcherState> watcherState) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
+        this.watcherState = watcherState;
     }
 
     // package private for testing
@@ -119,8 +124,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
-                if (shouldBeTriggered) {
-                    if (watch.status().state().isActive()) {
+                WatcherState currentState = watcherState.get();
+                if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
+                    if (watch.status().state().isActive() ) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
@@ -128,7 +134,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                         triggerService.remove(watch.id());
                     }
                 } else {
-                    logger.debug("watch [{}] should not be triggered", watch.id());
+                    logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
                 }
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());

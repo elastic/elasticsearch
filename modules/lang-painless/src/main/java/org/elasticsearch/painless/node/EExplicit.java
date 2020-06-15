@@ -33,41 +33,46 @@ import java.util.Objects;
  */
 public class EExplicit extends AExpression {
 
-    protected final String type;
-    protected final AExpression child;
+    private final DType type;
+    private final AExpression childNode;
 
-    public EExplicit(Location location, String type, AExpression child) {
-        super(location);
+    public EExplicit(int identifier, Location location, DType type, AExpression childNode) {
+        super(identifier, location);
 
         this.type = Objects.requireNonNull(type);
-        this.child = Objects.requireNonNull(child);
+        this.childNode = Objects.requireNonNull(childNode);
+    }
+
+    public DType getType() {
+        return type;
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        String canonicalTypeName = type.getCanonicalTypeName();
+
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + type + "]"));
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from explicit cast with target type [" + type + "]"));
+                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         Output output = new Output();
-
-        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
-
-        if (output.actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
-        }
+        output.actual = type.resolveType(scriptRoot.getPainlessLookup()).getType();
 
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-        PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
+        Output childOutput = analyze(childNode, classNode, scriptRoot, scope, childInput);
+        PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
         output.expressionNode = cast(childOutput.expressionNode, childCast);

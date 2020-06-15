@@ -98,6 +98,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 assertBusy(() -> assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode)));
                 for (int i = 0; i < 10; i++) {
                     RemoteClusterConnection remoteClusterConnection = remoteClusterService.getRemoteClusterConnection("test");
+                    assertBusy(remoteClusterConnection::assertNoRunningConnections);
                     ConnectionManager connectionManager = remoteClusterConnection.getConnectionManager();
                     Transport.Connection connection = connectionManager.getConnection(remoteNode);
                     PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
@@ -109,7 +110,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                     ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                     assertNotNull(clusterStateResponse);
                     assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
-                    assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                    assertTrue(remoteClusterConnection.isNodeConnected(remoteNode));
                 }
             }
         }

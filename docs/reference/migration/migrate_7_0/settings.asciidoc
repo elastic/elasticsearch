@@ -288,33 +288,3 @@ still be adjusted as desired using the cluster settings API.
 ==== HTTP Max content length setting is no longer parsed leniently
 Previously, `http.max_content_length` would reset to `100mb` if the setting was
 greater than `Integer.MAX_VALUE`.  This leniency has been removed.
-
-[float]
-==== Option to disable basic license features is deprecated
-
-In Elasticsearch 7.8.0, the following settings no longer have any effect, and
-have been deprecated:
-
-* `xpack.ilm.enabled`
-* `xpack.monitoring.enabled`
-
-Previously, these settings could be set to `false` in order to disable the
-feature's APIs in a cluster. As of 7.8.0, these basic license features are
-always enabled for the {default-dist}.
-
-If you have disabled ILM so that you can use another tool to manage Watcher
-indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
-may be set to false.
-
-Additionally, the following settings have been deprecated:
-
-* `xpack.enrich.enabled`
-* `xpack.flattened.enabled`
-* `xpack.rollup.enabled`
-* `xpack.slm.enabled`
-* `xpack.sql.enabled`
-* `xpack.transform.enabled`
-* `xpack.vectors.enabled`
-
-In future releases, it will not be possible to disable the APIs for Enrichment,
-Flattened mappings, Rollup, SLM, SQL, Transforms, and Vectors.

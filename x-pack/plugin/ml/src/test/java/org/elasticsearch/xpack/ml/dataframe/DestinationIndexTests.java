@@ -282,8 +282,8 @@ public class DestinationIndexTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
-            new GetIndexResponse(
-                new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+            new GetIndexResponse(new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
+                ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
 
@@ -356,8 +356,8 @@ public class DestinationIndexTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
-            new GetIndexResponse(
-                new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+            new GetIndexResponse(new String[] { DEST_INDEX }, mappings.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of(),
+                ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         ElasticsearchStatusException e =
             expectThrows(

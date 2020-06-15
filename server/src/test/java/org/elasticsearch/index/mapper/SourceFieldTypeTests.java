@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-
-public class SourceFieldTypeTests extends FieldTypeTestCase {
+public class SourceFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new SourceFieldMapper.SourceFieldType();

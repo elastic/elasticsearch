@@ -32,11 +32,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
-import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -73,14 +74,23 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(
-            new PipelineAggregationSpec(
-                CumulativeCardinalityPipelineAggregationBuilder.NAME,
-                CumulativeCardinalityPipelineAggregationBuilder::new,
-                CumulativeCardinalityPipelineAggregator::new,
-                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
-        );
+        List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
+        pipelineAggs.add(new PipelineAggregationSpec(
+            CumulativeCardinalityPipelineAggregationBuilder.NAME,
+            CumulativeCardinalityPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
+                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            MovingPercentilesPipelineAggregationBuilder.NAME,
+            MovingPercentilesPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
+                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            NormalizePipelineAggregationBuilder.NAME,
+            NormalizePipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.NORMALIZE,
+                checkLicense(NormalizePipelineAggregationBuilder.PARSER))));
+        return pipelineAggs;
     }
 
     @Override

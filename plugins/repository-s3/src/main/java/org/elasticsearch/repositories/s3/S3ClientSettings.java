@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -179,14 +178,13 @@ final class S3ClientSettings {
     /**
      * Overrides the settings in this instance with settings found in repository metadata.
      *
-     * @param metadata RepositoryMetadata
+     * @param repositorySettings found in repository metadata
      * @return S3ClientSettings
      */
-    S3ClientSettings refine(RepositoryMetadata metadata) {
-        final Settings repoSettings = metadata.settings();
+    S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
         final Settings normalizedSettings =
-            Settings.builder().put(repoSettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
+            Settings.builder().put(repositorySettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
@@ -200,8 +198,8 @@ final class S3ClientSettings {
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
         final S3BasicCredentials newCredentials;
-        if (checkDeprecatedCredentials(repoSettings)) {
-            newCredentials = loadDeprecatedCredentials(repoSettings);
+        if (checkDeprecatedCredentials(repositorySettings)) {
+            newCredentials = loadDeprecatedCredentials(repositorySettings);
         } else {
             newCredentials = credentials;
         }

@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
@@ -139,9 +140,11 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLitera
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private final Map<Token, SqlTypedParamValue> params;
+    private final ZoneId zoneId;
 
-    ExpressionBuilder(Map<Token, SqlTypedParamValue> params) {
+    ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         this.params = params;
+        this.zoneId = zoneId;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -191,19 +194,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         switch (op.getSymbol().getType()) {
             case SqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, zoneId);
             case SqlBaseParser.NULLEQ:
-                return new NullEquals(source, left, right);
+                return new NullEquals(source, left, right, zoneId);
             case SqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, zoneId);
             case SqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, zoneId);
             case SqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, zoneId);
             case SqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, zoneId);
             case SqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, zoneId);
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }
@@ -224,7 +227,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression e = null;
         switch (pCtx.kind.getType()) {
             case SqlBaseParser.BETWEEN:
-                e = new Range(source, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
+                e = new Range(source, exp, expression(pCtx.lower), true, expression(pCtx.upper), true, zoneId);
                 break;
             case SqlBaseParser.IN:
                 if (pCtx.query() != null) {
@@ -473,7 +476,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (SqlBaseParser.WhenClauseContext when : ctx.whenClause()) {
             if (ctx.operand != null) {
                 expressions.add(new IfConditional(source(when),
-                    new Equals(source(when), expression(ctx.operand), expression(when.condition)), expression(when.result)));
+                    new Equals(source(when), expression(ctx.operand), expression(when.condition), zoneId), expression(when.result)));
             } else {
                 expressions.add(new IfConditional(source(when), expression(when.condition), expression(when.result)));
             }

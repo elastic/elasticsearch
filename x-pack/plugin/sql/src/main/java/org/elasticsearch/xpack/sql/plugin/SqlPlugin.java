@@ -32,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.sql.SqlFeatureSet;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
@@ -47,11 +46,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
-    private final boolean enabled;
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
         (mode) -> {
             XPackLicenseState licenseState = getLicenseState();
@@ -78,8 +74,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         }
     );
 
+    // remove unneeded Settings
     public SqlPlugin(Settings settings) {
-        this.enabled = XPackSettings.SQL_ENABLED.get(settings);
     }
 
     // overridable by tests
@@ -100,9 +96,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
      * Create components used by the sql plugin.
      */
     Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
-        if (false == enabled) {
-            return emptyList();
-        }
         IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
@@ -120,10 +113,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                              SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
-        if (false == enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(new RestSqlQueryAction(),
                 new RestSqlTranslateAction(),
                 new RestSqlClearCursorAction(),
@@ -132,10 +121,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (false == enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),

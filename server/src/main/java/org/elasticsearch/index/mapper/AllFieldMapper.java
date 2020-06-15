@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,7 +52,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, AllFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
         private boolean disableExplicit = false;
 
         public Builder(MappedFieldType existing) {
@@ -75,7 +73,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -150,7 +148,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // noop mapper
         return;
     }

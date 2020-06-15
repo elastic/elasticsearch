@@ -118,9 +118,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         return settings.build();
     }
 

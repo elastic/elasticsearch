@@ -99,6 +99,12 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Base class for Watcher integration tests
+ *
+ * Note that SLM has been observed to cause timing issues during testsuite teardown:
+ * https://github.com/elastic/elasticsearch/issues/50302
+ */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
 
@@ -118,9 +124,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put("indices.lifecycle.history_index_enabled", false)
-                // SLM can cause timing issues during testsuite teardown: https://github.com/elastic/elasticsearch/issues/50302
-                // SLM is not required for tests extending from this base class and only add noise.
-                .put("xpack.slm.enabled", false)
                 .build();
     }
 
@@ -273,7 +276,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
             }
 
-            String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
+            String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC), null);
             assertAcked(client().admin().indices().prepareCreate(historyIndex));
             logger.info("creating watch history index [{}]", historyIndex);
             ensureGreen(historyIndex, watchIndexName, triggeredWatchIndexName);

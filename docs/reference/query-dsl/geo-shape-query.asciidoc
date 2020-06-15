@@ -6,7 +6,8 @@
 
 Filter documents indexed using the `geo_shape` or `geo_point` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>> or the <<geo-point,`geo_point` Mapping>>.
+Requires the <<geo-shape,`geo_shape` Mapping>> or the 
+<<geo-point,`geo_point` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects
@@ -18,12 +19,13 @@ providing a whole shape definition, or by referencing the name of a shape
 pre-indexed in another index. Both formats are defined below with
 examples.
 
+
 ==== Inline Shape Definition
 
 Similar to the `geo_shape` type, the `geo_shape` query uses
 http://www.geojson.org[GeoJSON] to represent shapes.
 
-Given the following index:
+Given the following index with locations as `geo_shape` fields:
 
 [source,console]
 --------------------------------------------------
@@ -49,8 +51,9 @@ POST /example/_doc?refresh
 --------------------------------------------------
 // TESTSETUP
 
-The following query will find the point using the Elasticsearch's
-`envelope` GeoJSON extension:
+
+The following query will find the point using {es}'s `envelope` GeoJSON 
+extension:
 
 [source,console]
 --------------------------------------------------
@@ -77,19 +80,107 @@ GET /example/_search
 }
 --------------------------------------------------
 
+
+The above query can, similarly, be queried on `geo_point` fields.
+
+[source,console]
+--------------------------------------------------
+PUT /example_points
+{
+    "mappings": {
+        "properties": {
+            "location": {
+                "type": "geo_point"
+            }
+        }
+    }
+}
+
+PUT /example_points/_doc/1?refresh
+{
+    "name": "Wind & Wetter, Berlin, Germany",
+    "location": [13.400544, 52.530286]
+}
+--------------------------------------------------
+// TEST[continued]
+
+
+Using the same query, the documents with matching `geo_point` fields are 
+returned.
+
+[source,console]
+--------------------------------------------------
+GET /example_points/_search
+{
+    "query":{
+        "bool": {
+            "must": {
+                "match_all": {}
+            },
+            "filter": {
+                "geo_shape": {
+                    "location": {
+                        "shape": {
+                            "type": "envelope",
+                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+                        },
+                        "relation": "intersects"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "example_points",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "name": "Wind & Wetter, Berlin, Germany",
+          "location": [13.400544, 52.530286]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
+
+
 ==== Pre-Indexed Shape
 
-The Query also supports using a shape which has already been indexed in
-another index. This is particularly useful for when
-you have a pre-defined list of shapes which are useful to your
-application and you want to reference this using a logical name (for
-example 'New Zealand') rather than having to provide their coordinates
-each time. In this situation it is only necessary to provide:
+The query also supports using a shape which has already been indexed in another 
+index. This is particularly useful for when you have a pre-defined list of 
+shapes and you want to reference the list using 
+a logical name (for example 'New Zealand') rather than having to provide 
+coordinates each time. In this situation, it is only necessary to provide:
 
 * `id` - The ID of the document that containing the pre-indexed shape.
-* `index` - Name of the index where the pre-indexed shape is. Defaults
-to 'shapes'.
-* `path` - The field specified as path containing the pre-indexed shape.
+* `index` - Name of the index where the pre-indexed shape is. Defaults to 
+'shapes'.
+* `path` - The field specified as path containing the pre-indexed shape. 
 Defaults to 'shape'.
 * `routing` - The routing of the shape document if required.
 
@@ -137,26 +228,30 @@ GET /example/_search
 }
 --------------------------------------------------
 
+
 ==== Spatial Relations
 
-The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
-which spatial relation operators may be used at search time.
+The <<spatial-strategy, geo_shape strategy>> mapping parameter determines which 
+spatial relation operators may be used at search time.
 
-The following is a complete list of spatial relation operators available when searching a field of type `geo_shape`:
+The following is a complete list of spatial relation operators available when 
+searching a field of type `geo_shape`:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field
 intersects the query geometry.
-* `DISJOINT` - Return all documents whose `geo_shape` field
-has nothing in common with the query geometry.
-* `WITHIN` - Return all documents whose `geo_shape` field
-is within the query geometry.
-* `CONTAINS` - Return all documents whose `geo_shape` field
-contains the query geometry.
+* `DISJOINT` - Return all documents whose `geo_shape` field has nothing in 
+common with the query geometry.
+* `WITHIN` - Return all documents whose `geo_shape` field is within the query 
+geometry.
+* `CONTAINS` - Return all documents whose `geo_shape` field contains the query 
+geometry.
 
-When searching a field of type `geo_point` there is a single supported spatial relation operator:
+When searching a field of type `geo_point` there is a single supported spatial 
+relation operator:
 
-* `INTERSECTS` - (default) Return all documents whose `geo_point` field
+* `INTERSECTS` - (default) Return all documents whose `geo_point` field 
 intersects the query geometry.
+
 
 [float]
 ==== Ignore Unmapped
@@ -167,9 +262,11 @@ querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
 
+
 ==== Shape Types supported for Geo-Point
 
-When searching a field of type `geo_point` the following shape types are not supported:
+When searching a field of type `geo_point` the following shape types are not 
+supported:
 
 * `POINT`
 * `LINE`
@@ -177,5 +274,43 @@ When searching a field of type `geo_point` the following shape types are not sup
 * `MULTILINE`
 
 ==== Notes
-Geo-shape queries on geo-shapes implemented with <<prefix-trees, `PrefixTrees`>> will not be executed if
-<<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set to false.
+
+* Geo-shape queries on geo-shapes implemented with 
+  <<prefix-trees, `PrefixTrees`>> will not be executed if 
+  <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set 
+  to false.
+
+
+* When data is indexed in a `geo_shape` field as an array of shapes, the arrays 
+  are treated as one shape. For this reason, the following requests are 
+  equivalent.
+
+[source,console]
+--------------------------------------------------
+PUT /test/_doc/1
+{
+  "location": [
+    {
+      "coordinates": [46.25,20.14],
+      "type": "point"
+    },
+    {
+      "coordinates": [47.49,19.04],
+      "type": "point"
+    }
+  ]
+}
+--------------------------------------------------
+
+
+[source,console]
+--------------------------------------------------
+PUT /test/_doc/1
+{
+  "location": 
+    {
+      "coordinates": [[46.25,20.14],[47.49,19.04]],
+      "type": "multipoint"
+    }
+}
+--------------------------------------------------

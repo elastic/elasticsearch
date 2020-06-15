@@ -7,7 +7,6 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
@@ -140,17 +139,10 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             // Cache prewarming runs on a dedicated thread pool.
             || threadName.contains('[' + SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME + ']')
 
-            // Today processExistingRecoveries considers all shards and constructs a shard store snapshot on this thread, this needs
-            // addressing. TODO NORELEASE
-            || threadName.contains('[' + ThreadPool.Names.FETCH_SHARD_STORE + ']')
-
-            // Today for as-yet-unknown reasons we sometimes try and compute the snapshot size on the cluster applier thread, which needs
-            // addressing. TODO NORELEASE
-            || threadName.contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.
-            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
+            || threadName.startsWith("TEST-")
+            || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;
     }
 

@@ -82,7 +82,7 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
+        InternalGlobal result = (InternalGlobal) aggregator.buildTopLevel();
         verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
 
         indexReader.close();

@@ -406,7 +406,15 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return settings.keySet().contains(getKey());
+        return exists(settings.keySet());
+    }
+
+    public boolean exists(final Settings.Builder builder) {
+        return exists(builder.keys());
+    }
+
+    private boolean exists(final Set<String> keys) {
+        return keys.contains(getKey());
     }
 
     /**
@@ -740,6 +748,15 @@ public class Setting<T> implements ToXContentObject {
 
         private Stream<String> matchStream(Settings settings) {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
+        }
+
+        /**
+         * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
+         * should be preferred for most all cases.
+         * @return the raw list of dependencies for this setting
+         */
+        public Set<AffixSettingDependency> getDependencies() {
+            return Collections.unmodifiableSet(dependencies);
         }
 
         @Override

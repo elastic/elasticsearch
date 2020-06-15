@@ -137,6 +137,14 @@ The same script in the normal form:
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
+If the {es} {security-features} are enabled, you must have the following 
+privileges to create, retrieve, and delete stored scripts:
+
+* cluster: `all` or `manage`
+
+For more information, see <<security-privileges>>.
+
+
 [float]
 ==== Request examples
 

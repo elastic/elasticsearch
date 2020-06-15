@@ -11,14 +11,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.sql.plugin.SqlStatsAction;
@@ -53,30 +51,10 @@ public class SqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SqlFeatureSet featureSet = new SqlFeatureSet(Settings.EMPTY, licenseState, client);
+        SqlFeatureSet featureSet = new SqlFeatureSet(licenseState, client);
         boolean available = randomBoolean();
         when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-    }
-
-    public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        boolean isExplicitlySet = false;
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.sql.enabled", enabled);
-                isExplicitlySet = true;
-            }
-        } else {
-            settings.put("xpack.sql.enabled", enabled);
-            isExplicitlySet = true;
-        }
-        SqlFeatureSet featureSet = new SqlFeatureSet(settings.build(), licenseState, client);
-        assertThat(featureSet.enabled(), is(enabled));
-        if (isExplicitlySet) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.SQL_ENABLED } );
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -107,7 +85,7 @@ public class SqlFeatureSetTests extends ESTestCase {
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<SqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new SqlFeatureSet(Settings.EMPTY, licenseState, client).usage(future);
+        new SqlFeatureSet(licenseState, client).usage(future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());

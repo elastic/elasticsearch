@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -33,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -99,69 +96,41 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
+    private final Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
 
     public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
                                 AggregationUsageService usageService) {
-        Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> tmp = new HashMap<>();
-        aggregatorRegistry.forEach((key, value) -> tmp.put(key, Collections.unmodifiableList(value)));
+        Map<String, Map<ValuesSourceType, AggregatorSupplier>> tmp = new HashMap<>();
+        aggregatorRegistry.forEach((key, value) -> tmp.put(key, value.stream().collect(
+            Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
         this.aggregatorRegistry = Collections.unmodifiableMap(tmp);
         this.usageService = usageService;
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<ValuesSourceType, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<ValuesSourceType, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().equals(valuesSourceType)) {
-                return candidate.getValue();
-            }
-        }
-        return null;
+                                                   Map<ValuesSourceType, AggregatorSupplier> supportedTypes) {
+        return supportedTypes.get(valuesSourceType);
     }
 
-    public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {
+    public boolean isRegistered(String aggregationName) {
+        return aggregatorRegistry.containsKey(aggregationName);
+    }
+
+    public AggregatorSupplier getAggregator(ValuesSourceConfig valuesSourceConfig, String aggregationName) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
-            AggregatorSupplier supplier = findMatchingSuppier(valuesSourceType, aggregatorRegistry.get(aggregationName));
+            AggregatorSupplier supplier = findMatchingSuppier(
+                valuesSourceConfig.valueSourceType(),
+                aggregatorRegistry.get(aggregationName)
+            );
             if (supplier == null) {
-                throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
-                    " is not supported for aggregation" + aggregationName);
-            }
+                // TODO: push building the description into ValuesSourceConfig
+                MappedFieldType fieldType = valuesSourceConfig.fieldContext().fieldType();
+                String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
+                throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
+                    "] is not supported for aggregation [" + aggregationName + "]");            }
             return supplier;
         }
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");
-    }
-
-    public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
-                                                // TODO: the following arguments are only needed for the legacy case
-                                                IndexFieldData<?> indexFieldData,
-                                                ValueType valueType,
-                                                ValuesSourceType defaultValuesSourceType) {
-        if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
-            // This will throw if the field doesn't support values sources, although really we probably threw much earlier in that case
-            ValuesSourceType valuesSourceType = fieldType.getValuesSourceType();
-            if (aggregatorRegistry.get(aggregationName) != null
-                && findMatchingSuppier(valuesSourceType, aggregatorRegistry.get(aggregationName)) != null) {
-                return valuesSourceType;
-            }
-            String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
-                "] is not supported for aggregation [" + aggregationName + "]");
-        } else {
-            // TODO: Legacy resolve logic; remove this after converting all aggregations to the new system
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                return CoreValuesSourceType.NUMERIC;
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                return CoreValuesSourceType.GEOPOINT;
-            } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-                return CoreValuesSourceType.RANGE;
-            } else {
-                if (valueType == null) {
-                    return defaultValuesSourceType;
-                } else {
-                    return valueType.getValuesSourceType();
-                }
-            }
-        }
     }
 
     public AggregationUsageService getUsageService() {

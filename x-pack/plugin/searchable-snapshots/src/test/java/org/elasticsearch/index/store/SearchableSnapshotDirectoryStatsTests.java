@@ -37,6 +37,7 @@ import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -520,7 +521,10 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
     private static void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
         executeTestCase(
             createCacheService(random()),
-            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .build(),
             test
         );
     }
@@ -554,7 +558,10 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
     ) {
         executeTestCase(
             new CacheService(cacheSize, cacheRangeSize),
-            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .build(),
             test
         );
     }

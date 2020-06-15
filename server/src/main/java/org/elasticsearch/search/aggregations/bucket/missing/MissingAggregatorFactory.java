@@ -20,11 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -50,16 +51,23 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
     }
 
     @Override
-    protected MissingAggregator doCreateInternal(ValuesSource valuesSource,
-                                                    SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
-                                                    Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, metadata);
+    protected MissingAggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
+        final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config, MissingAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+
+        return (MissingAggregator) ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent,
+            metadata);
     }
 
 }

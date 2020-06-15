@@ -172,6 +172,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEventFilter(EqlBaseParser.EventFilterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEventFilter(EqlBaseParser.EventFilterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExpression(EqlBaseParser.ExpressionContext ctx) { }
   /**
    * {@inheritDoc}

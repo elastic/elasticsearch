@@ -67,6 +67,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
                 null,
                 null,
+                null,
+                null,
                 null)
         );
         putAnalytics(config);
@@ -180,7 +182,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null));
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -291,6 +293,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55807")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
@@ -307,7 +310,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null, null, null));
         putAnalytics(firstJob);
 
         String secondJobId = "regression_two_jobs_with_same_randomize_seed_2";
@@ -315,7 +318,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Regression) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed, null, null));
 
         putAnalytics(secondJob);
 
@@ -376,7 +379,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null));
+                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);

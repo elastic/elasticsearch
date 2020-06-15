@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -30,7 +32,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.DeprecationMap;
+import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -38,9 +40,8 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -49,15 +50,14 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  */
 public final class ScriptProcessor extends AbstractProcessor {
 
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-                "_type",
-                "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+            "_type", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("script_processor",
+                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+                return value;
+            });
 
     public static final String TYPE = "script";
 
@@ -86,7 +86,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
         factory.newInstance(script.getParams()).execute(
-                new DeprecationMap(document.getSourceAndMetadata(), DEPRECATIONS, "script_processor"));
+                new DynamicMap(document.getSourceAndMetadata(), PARAMS_FUNCTIONS));
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }

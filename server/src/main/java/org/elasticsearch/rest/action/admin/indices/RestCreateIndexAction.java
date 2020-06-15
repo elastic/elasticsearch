@@ -23,8 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -58,11 +56,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         return "create_index_action";
     }
 
-    @Nullable
-    public static Boolean preferV2Templates(final RestRequest request) {
-        return request.paramAsBoolean(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, null);
-    }
-
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
@@ -73,7 +66,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
-        createIndexRequest.preferV2Templates(preferV2Templates(request));
 
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,

@@ -83,13 +83,12 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             PercentilesAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
@@ -97,7 +96,16 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
-        return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, percents, percentilesConfig, keyed,
-            config.format(), metadata);
+        return percentilesAggregatorSupplier.build(
+            name,
+            config.getValuesSource(),
+            searchContext,
+            parent,
+            percents,
+            percentilesConfig,
+            keyed,
+            config.format(),
+            metadata
+        );
     }
 }

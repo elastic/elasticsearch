@@ -58,6 +58,8 @@ public class OutlierDetection implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
 
+    private static final List<String> PROGRESS_PHASES = Collections.singletonList("computing_outliers");
+
     /**
      * The number of neighbors. Leave unspecified for dynamic detection.
      */
@@ -251,7 +253,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public List<String> getProgressPhases() {
-        return Collections.singletonList("analyzing");
+        return PROGRESS_PHASES;
     }
 
     public enum Method {

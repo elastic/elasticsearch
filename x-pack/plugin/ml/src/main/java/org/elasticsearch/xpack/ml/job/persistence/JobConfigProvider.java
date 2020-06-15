@@ -66,12 +66,14 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -305,7 +307,6 @@ public class JobConfigProvider {
                     return;
                 }
 
-                final long version = getResponse.getVersion();
                 final long seqNo = getResponse.getSeqNo();
                 final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
@@ -517,7 +518,7 @@ public class JobConfigProvider {
                               boolean allowMissingConfigs,
                               ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
@@ -530,7 +531,7 @@ public class JobConfigProvider {
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
-        Set<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
+        Collection<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -578,7 +579,7 @@ public class JobConfigProvider {
      */
     public void expandJobs(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
@@ -749,28 +750,8 @@ public class JobConfigProvider {
         ));
     }
 
-    static Set<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
-        Set<String> openjobs = MlTasks.openJobIds(tasksMetadata);
-        if (openjobs.isEmpty()) {
-            return Collections.emptySet();
-        }
-        if (Strings.isAllOrWildcard(jobIdPatterns)) {
-            return openjobs;
-        }
-
-        Set<String> matchingJobIds = new HashSet<>();
-        for (String jobIdPattern : jobIdPatterns) {
-            if (openjobs.contains(jobIdPattern))  {
-                matchingJobIds.add(jobIdPattern);
-            } else if (Regex.isSimpleMatchPattern(jobIdPattern)) {
-                for (String openJobId : openjobs) {
-                    if (Regex.simpleMatch(jobIdPattern, openJobId)) {
-                        matchingJobIds.add(openJobId);
-                    }
-                }
-            }
-        }
-        return matchingJobIds;
+    static Collection<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 
 
@@ -792,7 +773,7 @@ public class JobConfigProvider {
         }
     }
 
-    private QueryBuilder buildQuery(String [] tokens, boolean excludeDeleting) {
+    public static QueryBuilder buildJobWildcardQuery(String [] tokens, boolean excludeDeleting) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
         if (Strings.isAllOrWildcard(tokens) && excludeDeleting == false) {
             // match all

@@ -98,19 +98,26 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     private final String bucketName;
     private final String clientName;
+    private final String repositoryName;
     private final GoogleCloudStorageService storageService;
+    private final GoogleCloudStorageOperationsStats stats;
 
-    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+    GoogleCloudStorageBlobStore(String bucketName,
+                                String clientName,
+                                String repositoryName,
+                                GoogleCloudStorageService storageService) {
         this.bucketName = bucketName;
         this.clientName = clientName;
+        this.repositoryName = repositoryName;
         this.storageService = storageService;
+        this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
     }
 
     private Storage client() throws IOException {
-        return storageService.client(clientName);
+        return storageService.client(clientName, repositoryName, stats);
     }
 
     @Override
@@ -119,7 +126,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        storageService.closeRepositoryClient(repositoryName);
     }
 
     /**
@@ -285,6 +293,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                 }));
+                // We don't track this operation on the http layer as
+                // we do with the GET/LIST operations since this operations
+                // can trigger multiple underlying http requests but only one
+                // operation is billed.
+                stats.trackPutOperation();
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -327,6 +340,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 new Storage.BlobTargetOption[0];
             SocketAccess.doPrivilegedVoidIOException(
                     () -> client().create(blobInfo, buffer, targetOptions));
+            // We don't track this operation on the http layer as
+            // we do with the GET/LIST operations since this operations
+            // can trigger multiple underlying http requests but only one
+            // operation is billed.
+            stats.trackPostOperation();
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -410,5 +428,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private static String buildKey(String keyPath, String s) {
         assert s != null;
         return keyPath + s;
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
     }
 }

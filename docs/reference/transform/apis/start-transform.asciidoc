@@ -55,7 +55,7 @@ required privileges on the source and destination indices, the
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[start-transform-example]]
 ==== {api-examples-title}

@@ -63,18 +63,18 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
             assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
                 {
-                    template.field("index_patterns", "*");
+                    template.field("index_patterns", "token_backwards_compatibility_it");
                     template.startObject("settings");
                     template.field("number_of_shards", 5);
                     template.endObject();
                 }
                 template.endObject();
-                Request createTemplate = new Request("PUT", "/_template/template");
+                Request createTemplate = new Request("PUT", "/_template/gen-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
                 client().performRequest(createTemplate);
             }
@@ -105,18 +105,18 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
             assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
                 {
-                    template.field("index_patterns", "*");
+                    template.field("index_patterns", "token_backwards_compatibility_it");
                     template.startObject("settings");
                     template.field("number_of_shards", 5);
                     template.endObject();
                 }
                 template.endObject();
-                Request createTemplate = new Request("PUT", "/_template/template");
+                Request createTemplate = new Request("PUT", "/_template/refresh-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
                 client().performRequest(createTemplate);
             }
@@ -150,18 +150,18 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
             assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
                 {
-                    template.field("index_patterns", "*");
+                    template.field("index_patterns", "token_backwards_compatibility_it");
                     template.startObject("settings");
                     template.field("number_of_shards", 5);
                     template.endObject();
                 }
                 template.endObject();
-                Request createTemplate = new Request("PUT", "/_template/template");
+                Request createTemplate = new Request("PUT", "/_template/invalid-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
                 client().performRequest(createTemplate);
             }
@@ -228,7 +228,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
-        // verify new nodes can refresh tokens created by old nodes and vice versa 
+        // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");

@@ -214,7 +214,15 @@
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
   #- match: { transforms.0.state: "stopped" }
-
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "description": "Simple continuous transform"
+          }
 ---
 "Test GET, start, and stop old cluster batch transforms":
   - skip:
@@ -321,7 +329,15 @@
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
   #- match: { transforms.0.state: "stopped" }
-
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "old-complex-transform"
+        body: >
+          {
+            "description": "old complex transform"
+          }
 ---
 "Test GET, stop, start, old continuous transforms":
   - skip:
@@ -380,3 +396,12 @@
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
   #- match: { transforms.0.state: "stopped" }
+  - do:
+      allowed_warnings:
+        - '[_data_frame/transforms/] is deprecated, use [_transform/] in the future.'
+      data_frame_transform_deprecated.update_transform:
+        transform_id: "old-simple-continuous-transform"
+        body: >
+          {
+            "description": "old simple continuous transform"
+          }

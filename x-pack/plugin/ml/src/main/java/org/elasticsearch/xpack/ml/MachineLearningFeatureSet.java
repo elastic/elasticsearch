@@ -72,8 +72,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     /**
      * List of platforms for which the native processes are available
      */
-    private static final List<String> mlPlatforms =
-            Arrays.asList("darwin-x86_64", "linux-x86_64", "windows-x86_64");
+    private static final List<String> mlPlatforms = Collections.unmodifiableList(
+            Arrays.asList("darwin-x86_64", "linux-aarch64", "linux-x86_64", "windows-x86_64"));
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -215,9 +215,14 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             Map<String, Long> allJobsCreatedBy = jobs.stream().map(this::jobCreatedBy)
                     .collect(Collectors.groupingBy(item -> item, Collectors.counting()));;
             for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
-                ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
                 Job job = jobMap.get(jobStats.getJobId());
+                if (job == null) {
+                    // It's possible we can get job stats without a corresponding job config, if a
+                    // persistent task is orphaned. Omit these corrupt jobs from the usage info.
+                    continue;
+                }
                 int detectorsCount = job.getAnalysisConfig().getDetectors().size();
+                ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
                 double modelSize = modelSizeStats == null ? 0.0
                         : jobStats.getModelSizeStats().getModelBytes();
 

@@ -9,15 +9,10 @@ your application to Elasticsearch 7.7.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.7.0]
-
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-//end::notable-breaking-changes[]
-
 [discrete]
 [[breaking_77_logging_changes]]
 === Logging changes
@@ -30,7 +25,22 @@ loggers in the `org.elasticsearch.action.*` hierarchy emitted log messages at
 `DEBUG` level by default. This sometimes resulted in a good deal of unnecessary
 log noise. From 7.7 onwards the default log level for logger in this hierarchy
 is now `INFO`, in line with most other loggers. If needed, you can recover the
-pre-7.7 default behaviour by adjusting your <<logging>>.
+pre-7.7 default behaviour by adjusting your {ref}/logging.html[logging].
+
+[discrete]
+[[breaking_77_mapping_changes]]
+=== Mapping changes
+
+[discrete]
+[[stricter-mapping-validation]]
+==== Validation for dynamic templates
+
+So far misconfiguration of dynamic templates have been discovered when indexing
+a document with an unmapped field only. In {es} 8.0 and later versions, dynamic mappings
+have stricter validation, done at mapping update time. Invalid updates, such as using
+incorrect analyzer settings or unknown field types, fail. For
+indices created in {es} 7.7 and later version, the update succeeds but emits a warning.
+
 
 [discrete]
 [[breaking_77_settings_changes]]
@@ -86,7 +96,14 @@ happen when using date math or dates that don't specify up to the last
 millisecond. While queries on `date` field round up to the latest millisecond
 for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
 do this. The behavior is now the same for both field types like documented in
-<<range-query-date-math-rounding>>.
+{ref}/query-dsl-range-query.html#range-query-date-math-rounding[Date math and rounding].
+
+[discrete]
+==== Pipeline aggregation validation errors
+The pipeline aggregation validation has been moved to the coordinating node.
+Those errors that used to return HTTP 500s/Internal Server Errors now return
+400/Bad Request and we now return a list of validation errors rather than the
+first one we encounter.
 
 [discrete]
 [[breaking_77_highlighters_changes]]
@@ -98,3 +115,4 @@ If a keyword value was ignored during indexing because of its length
 (`ignore_above` parameter was applied), {es} doesn't attempt to
 highlight it anymore, which means no highlights are produced for
 ignored values.
+//end::notable-breaking-changes[]

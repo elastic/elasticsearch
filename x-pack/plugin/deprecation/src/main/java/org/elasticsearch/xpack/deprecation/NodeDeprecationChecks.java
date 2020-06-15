@@ -138,6 +138,14 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkNodeBasicLicenseFeatureEnabledSetting(final Settings settings, Setting<?> setting) {
+        return checkRemovedSetting(
+            settings,
+            setting,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-basic-license-feature-enabled"
+        );
+    }
+
     public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return checkDeprecatedSetting(
             settings,
@@ -145,29 +153,29 @@ class NodeDeprecationChecks {
             ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-cache-size"
         );
     }
 
-     public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-expire"
         );
     }
 
-     public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-compile-rate"
         );
     }
 
@@ -241,4 +249,5 @@ class NodeDeprecationChecks {
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
+
 }

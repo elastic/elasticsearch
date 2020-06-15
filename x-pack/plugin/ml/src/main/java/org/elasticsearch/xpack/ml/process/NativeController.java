@@ -58,19 +58,20 @@ public class NativeController {
 
     NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
-                true, true, false, false, false, false);
-        processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
+                true, false, false, false, false);
+        processPipes.connectLogStream(CONTROLLER_CONNECT_TIMEOUT);
+        tailLogsInThread(processPipes.getLogStreamHandler());
+        processPipes.connectOtherStreams(CONTROLLER_CONNECT_TIMEOUT);
         this.localNodeName = localNodeName;
-        this.cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
+        this.cppLogHandler = processPipes.getLogStreamHandler();
         this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
     }
 
-    void tailLogsInThread() {
+    static void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
         final Thread logTailThread = new Thread(
                 () -> {
-                    try {
-                        cppLogHandler.tailStream();
-                        cppLogHandler.close();
+                    try (CppLogMessageHandler h = cppLogHandler) {
+                        h.tailStream();
                     } catch (IOException e) {
                         LOGGER.error("Error tailing C++ controller logs", e);
                     }

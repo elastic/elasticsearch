@@ -31,7 +31,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
 
 import java.io.IOException;
 import java.text.ParseException;

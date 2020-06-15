@@ -64,7 +64,6 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-        addBooleanModifier("null_value", false, BooleanFieldMapper.Builder::nullValue);
     }
 
     @Override

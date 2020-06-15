@@ -16,7 +16,8 @@ A rollover target can be a <<data-streams, data stream>> or an <<indices-aliases
 When targeting a data stream, the new index becomes the data stream's
 <<data-stream-write-index,write index>> and its generation is incremented.
 
-In order for an <<indices-aliases, index alias>> target to be rolled over:
+To roll over an <<indices-aliases, index alias>>, the alias and its write index
+must meet the following conditions:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my_index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 

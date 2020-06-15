@@ -196,8 +196,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
-        Map<String, Object> requestUserMeta = repository.adaptUserMetadata(request.userMetadata());
-        final Map<String, Object> userMeta = requestUserMeta == null ? new HashMap<>() : requestUserMeta;
+        Map<String, Object> adaptedUserMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -239,7 +238,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
                 }
 
+                Map<String, Object> userMeta = adaptedUserMeta;
                 if (dataStreams.size() > 0) {
+                    userMeta = userMeta == null ? new HashMap<>() : new HashMap<>(userMeta);
                     userMeta.put(DataStream.DATA_STREAMS_METADATA_FIELD, dataStreams);
                 }
 

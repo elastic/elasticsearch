@@ -53,10 +53,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     public SnapshotDeletionsInProgress(List<Entry> entries) {
         this.entries = Collections.unmodifiableList(entries);
+        assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this.entries = Collections.unmodifiableList(in.readList(Entry::new));
+        this(Collections.unmodifiableList(in.readList(Entry::new)));
     }
 
     /**
@@ -78,17 +79,17 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} which removes
-     * the given entry from the invoking instance.
+     * Returns a new instance of {@link SnapshotDeletionsInProgress} that has the entry with the given {@code deleteUUID} removed from its
+     * entries.
      */
-    public SnapshotDeletionsInProgress withRemovedEntry(Entry entry) {
-        if (entry == null) {
-            // TODO: nicer API
-            return this;
+    public SnapshotDeletionsInProgress withRemovedEntry(String deleteUUID) {
+        List<Entry> updatedEntries = new ArrayList<>(entries.size() - 1);
+        for (Entry entry : entries) {
+            if (entry.uuid().equals(deleteUUID) == false) {
+                updatedEntries.add(entry);
+            }
         }
-        List<Entry> entries = new ArrayList<>(getEntries());
-        entries.removeIf(e -> e.uuid().equals(entry.uuid));
-        return new SnapshotDeletionsInProgress(entries);
+        return new SnapshotDeletionsInProgress(updatedEntries);
     }
 
     /**

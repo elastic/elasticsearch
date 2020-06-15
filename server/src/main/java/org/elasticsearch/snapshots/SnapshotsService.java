@@ -1295,7 +1295,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
                 }
                 if (deletionsInProgress != null) {
-                    deletionsInProgress = deletionsInProgress.withRemovedEntry(replacedEntry).withAddedEntry(newDelete);
+                    if (replacedEntry != null) {
+                        deletionsInProgress = deletionsInProgress.withRemovedEntry(replacedEntry.uuid());
+                    }
+                    deletionsInProgress = deletionsInProgress.withAddedEntry(newDelete);
                 } else {
                     deletionsInProgress = SnapshotDeletionsInProgress.newInstance(newDelete);
                 }
@@ -1452,7 +1455,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (deletions != null) {
                             boolean changed = false;
                             if (deletions.hasDeletionsInProgress()) {
-                                deletions = deletions.withRemovedEntry(deleteEntry);
+                                deletions = deletions.withRemovedEntry(deleteEntry.uuid());
                                 changed = true;
                             }
                             if (changed) {

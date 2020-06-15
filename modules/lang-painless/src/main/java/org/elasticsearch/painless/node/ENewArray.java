@@ -37,16 +37,28 @@ import java.util.Objects;
  */
 public class ENewArray extends AExpression {
 
-    protected final String type;
-    protected final List<AExpression> arguments;
-    protected final boolean initialize;
+    private final String canonicalTypeName;
+    private final List<AExpression> valueNodes;
+    private final boolean isInitializer;
 
-    public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
-        super(location);
+    public ENewArray(int identifier, Location location, String canonicalTypeName, List<AExpression> valueNodes, boolean isInitializer) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
-        this.initialize = initialize;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.valueNodes = Collections.unmodifiableList(Objects.requireNonNull(valueNodes));
+        this.isInitializer = isInitializer;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public List<AExpression> getValueNodes() {
+        return valueNodes;
+    }
+
+    public boolean isInitializer() {
+        return isInitializer;
     }
 
     @Override
@@ -61,22 +73,22 @@ public class ENewArray extends AExpression {
 
         Output output = new Output();
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
         List<Output> argumentOutputs = new ArrayList<>();
         List<PainlessCast> argumentCasts = new ArrayList<>();
 
-        for (AExpression expression : arguments) {
+        for (AExpression expression : valueNodes) {
             Input expressionInput = new Input();
-            expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
+            expressionInput.expected = isInitializer ? clazz.getComponentType() : int.class;
             expressionInput.internal = true;
             Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
@@ -84,13 +96,13 @@ public class ENewArray extends AExpression {
 
         NewArrayNode newArrayNode = new NewArrayNode();
 
-        for (int i = 0; i < arguments.size(); ++ i) {
+        for (int i = 0; i < valueNodes.size(); ++ i) {
             newArrayNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
         }
 
-        newArrayNode.setLocation(location);
+        newArrayNode.setLocation(getLocation());
         newArrayNode.setExpressionType(output.actual);
-        newArrayNode.setInitialize(initialize);
+        newArrayNode.setInitialize(isInitializer);
 
         output.expressionNode = newArrayNode;
 

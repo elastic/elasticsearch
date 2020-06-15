@@ -12,19 +12,22 @@ Using rolling indices enables you to:
 * Shift older, less frequently accessed data to less expensive _cold_ nodes,
 * Delete data according to your retention policies by removing entire indices.
 
-<<indices-create-data-stream, Data streams>> are the recommended abstraction for managing time-series
-data as they automatically track the write index whilst also keeping the amount of configuration to a
-minimum.
+We recommend using <<indices-create-data-stream, data streams>> to manage time-series
+data. Data streams automatically track the write index while keeping configuration to a minimum.
 
-Rolling over using <<indices-create-data-stream, data streams>> only requires creating a
-<<indices-templates,composable index template>> containing a name or a wildcard pattern for the data stream
-in the `index_patterns` and a `data_stream` definiton that contains the `timestamp_field` property which
-will be present in the time-series documents that will be ingested.
+Each data stream requires a <<indices-templates,composable index template>> that contains:
 
-<<indices-create-data-stream, Data streams>> are designed for append-only data, where the data stream name
+* A name or wildcard (`*`) pattern for the data stream.
+
+* The data stream's timestamp field. This field must be mapped as a
+  <<date,`date`>> or <<date_nanos,`date_nanos`>> field datatype and must be
+  included in every document indexed to the data stream.
+  
+  * The mappings and settings applied to each backing index when it's created.
+
+Data streams are designed for append-only data, where the data stream name
 can be used as the operations (read, write, rollover, shrink etc.) target.
-For other use cases, where data needs to be updated in place, the management of time-series data can be
-done using <<indices-aliases, indices aliases>>, however there are a few more configuration steps and
+If your use case requires data to be updated in place, you can instead manage your time-series data using <<indices-aliases, indices aliases>>. However, there are a few more configuration steps and
 concepts:
 
 * An _index template_ that specifies the settings for each new index in the series.

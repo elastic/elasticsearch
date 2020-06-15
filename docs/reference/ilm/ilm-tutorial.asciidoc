@@ -100,8 +100,8 @@ For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 [[ilm-gs-apply-policy]]
 === Create a composable template to create the data stream and apply the lifecycle policy
 
-To create a data stream we'll create a composable template with a `data_stream` definition
-that will specify the lifecycle policy.
+To set up a data stream, first create a composable template to specify the lifecycle policy. Because
+the template is for a data stream, it must also include a `data_stream` definition.
 
 For example, you might create a `timeseries_template` to use for a future data stream
 named `timeseries`.
@@ -275,13 +275,13 @@ DELETE /_index_template/timeseries_template
 Even though <<data-streams, data streams>> are a convenient way to scale
 and manage time-series data, they are designed to be append-only. We recognise there
 might be use-cases where data needs to be updated or deleted in place and the
-<<data-streams, data streams>> APIs don't support the delete and update APIs directly,
+data streams don't support delete and update requests directly,
 so the index APIs would need to be used directly on the data stream's backing indices.
 
-Another option to manage the time-series data in these cases is to use an index alias
-so you can periodically roll over to a new index.
+In these cases, you can use an index alias to manage indices containing the time-series data
+and periodically roll over to a new index.
 
-To automate rollover and management of time-series indices with {ilm-init} over an index
+To automate rollover and management of time-series indices with {ilm-init} using an index
 alias, you:
 
 . Create a lifecycle policy that defines the appropriate phases and actions.

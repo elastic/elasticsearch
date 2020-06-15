@@ -67,8 +67,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            () -> false,
-            null
+            () -> false
         );
     }
 }

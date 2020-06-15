@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -52,9 +53,17 @@ public class DocumentMapperParser {
 
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
+    private final DataStream dataStream;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry, Supplier<QueryShardContext> queryShardContextSupplier) {
+                                SimilarityService similarityService, MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier) {
+        this(indexSettings, mapperService, xContentRegistry, similarityService, mapperRegistry, queryShardContextSupplier, null);
+    }
+
+    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
+                                SimilarityService similarityService, MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier, DataStream dataStream) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -62,6 +71,7 @@ public class DocumentMapperParser {
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
+        this.dataStream = dataStream;
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
@@ -92,7 +102,7 @@ public class DocumentMapperParser {
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
-                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService, dataStream);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

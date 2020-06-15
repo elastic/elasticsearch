@@ -128,7 +128,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     final MapperRegistry mapperRegistry;
 
     private final BooleanSupplier idFieldDataEnabled;
-    private final DataStream dataStream;
+
+    public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
+                         SimilarityService similarityService, MapperRegistry mapperRegistry,
+                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
+        this(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry, queryShardContextSupplier,
+            idFieldDataEnabled, null);
+    }
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -139,13 +145,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
-                queryShardContextSupplier);
+                queryShardContextSupplier, dataStream);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
-        this.dataStream = dataStream;
     }
 
     public boolean hasNested() {
@@ -659,10 +664,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.isMetadataField(indexVersionCreated, field);
-    }
-
-    public DataStream getDataStream() {
-        return dataStream;
     }
 
     /** An analyzer wrapper that can lookup fields within the index mappings */

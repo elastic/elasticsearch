@@ -28,6 +28,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -66,7 +67,13 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final Mapper.BuilderContext builderContext;
 
+        private final DataStream dataStream;
+
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
+            this(builder, mapperService, null);
+        }
+
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, DataStream dataStream) {
             final Settings indexSettings = mapperService.getIndexSettings().getSettings();
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
@@ -89,6 +96,7 @@ public class DocumentMapper implements ToXContentFragment {
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             }
+            this.dataStream = dataStream;
         }
 
         public Builder meta(Map<String, Object> meta) {
@@ -109,7 +117,7 @@ public class DocumentMapper implements ToXContentFragment {
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
                     meta);
-            return new DocumentMapper(mapperService, mapping);
+            return new DocumentMapper(mapperService, mapping, dataStream);
         }
     }
 
@@ -122,6 +130,8 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final Mapping mapping;
 
+    private final DataStream dataStream;
+
     private final DocumentParser documentParser;
 
     private final DocumentFieldMappers fieldMappers;
@@ -132,14 +142,14 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    public DocumentMapper(MapperService mapperService, Mapping mapping) {
+    public DocumentMapper(MapperService mapperService, Mapping mapping, DataStream dataStream) {
         this.mapperService = mapperService;
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(),
-            mapperService.getDataStream(), this);
+        this.dataStream = dataStream;
+        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), dataStream, this);
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -305,7 +315,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public DocumentMapper merge(Mapping mapping) {
         Mapping merged = this.mapping.merge(mapping);
-        return new DocumentMapper(mapperService, merged);
+        return new DocumentMapper(mapperService, merged, dataStream);
     }
 
     @Override

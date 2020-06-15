@@ -644,12 +644,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), unfilteredAuthentication.getUser(), "_action", request);
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), , request, "_action", );
         assertThat("Tampered message: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), filteredAuthentication.getUser(), "_action", request);
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), , request, "_action", );
         assertThat("Tampered message: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -941,7 +941,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), user, "_action", request);
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), , request, "_action", );
         if (filterMissingRealm) {
             assertThat("Tampered message: is not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {

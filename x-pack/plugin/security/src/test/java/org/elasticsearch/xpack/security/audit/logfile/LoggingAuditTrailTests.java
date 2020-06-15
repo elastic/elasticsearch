@@ -831,7 +831,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
 
         final String requestId = randomRequestId();
-        auditTrail.tamperedRequest(requestId, user, "_action", request);
+        auditTrail.tamperedRequest(requestId, , request, "_action", );
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -858,7 +858,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.exclude", "tampered_request")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.tamperedRequest(requestId, user, "_action", request);
+        auditTrail.tamperedRequest(requestId, , request, "_action", );
         assertEmptyLog(logger);
     }
 
@@ -1137,7 +1137,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             auditTrail.tamperedRequest("_req_id", "_action", request);
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
-            auditTrail.tamperedRequest("_req_id", user, "_action", request);
+            auditTrail.tamperedRequest("_req_id", , request, "_action", );
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.runAsGranted("_req_id", createAuthentication(), "_action", request, authorizationInfo);

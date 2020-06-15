@@ -13,7 +13,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
@@ -99,7 +98,7 @@ public class AuditTrailService {
         public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {}
 
         @Override
-        public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {}
+        public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {}
 
         @Override
         public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {}
@@ -244,9 +243,9 @@ public class AuditTrailService {
         }
 
         @Override
-        public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {
+        public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.tamperedRequest(requestId, user, action, transportRequest);
+                auditTrail.tamperedRequest(requestId, authentication, action, transportRequest);
             }
         }
 

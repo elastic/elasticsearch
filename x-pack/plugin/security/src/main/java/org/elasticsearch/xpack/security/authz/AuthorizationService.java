@@ -176,7 +176,7 @@ public class AuthorizationService {
             if (isInternalUser(authentication.getUser()) != false) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
-                auditTrailService.get().tamperedRequest(null, authentication.getUser(), action, originalRequest);
+                auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
                 final String message = "Attempt to authorize action [" + action + "] for [" + authentication.getUser().principal()
                     + "] without an existing request-id";
                 assert false : message;

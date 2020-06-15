@@ -243,6 +243,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(REALM_FIELD_NAME, realm)
                     .withRestUriAndMethod(request)
                     .withRequestId(requestId)
+                    .withSubject(authentication)
                     .withPrincipal(user)
                     .withRestOrigin(request)
                     .withRequestBody(request)
@@ -254,7 +255,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportRequest transportRequest) {
+    public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -574,7 +575,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void tamperedRequest(String requestId, User user, String action, TransportRequest transportRequest) {
+    public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -796,14 +797,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final String xForwardedFor = threadContext.getHeader(AuditTrail.X_FORWARDED_FOR_HEADER);
             if (xForwardedFor != null) {
                 logEntry.with(X_FORWARDED_FOR_FIELD_NAME, xForwardedFor);
-            }
-            return this;
-        }
-
-        LogEntryBuilder withPrincipal(User user) {
-            logEntry.with(PRINCIPAL_FIELD_NAME, user.principal());
-            if (user.isRunAs()) {
-                logEntry.with(PRINCIPAL_RUN_BY_FIELD_NAME, user.authenticatedUser().principal());
             }
             return this;
         }

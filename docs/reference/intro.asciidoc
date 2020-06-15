@@ -9,9 +9,9 @@ the {stack}. {ls} and {beats} facilitate collecting, aggregating, and
 enriching your data and storing it in {es}. {kib} enables you to
 interactively explore, visualize, and share insights into your data and manage
 and monitor the stack. {es} is where the indexing, search, and analysis
-magic happen.
+magic happens.
 
-{es} provides real-time search and analytics for all types of data. Whether you
+{es} provides near real-time search and analytics for all types of data. Whether you
 have structured or unstructured text, numerical data, or geospatial data,
 {es} can efficiently store and index it in a way that supports fast searches.
 You can go far beyond simple data retrieval and aggregate information to discover
@@ -46,8 +46,7 @@ as JSON documents. When you have multiple {es} nodes in a cluster, stored
 documents are distributed across the cluster and can be accessed immediately
 from any node.
 
-When a document is stored, it is indexed and fully searchable in near
-real-time--within 1 second. {es} uses a data structure called an
+When a document is stored, it is indexed and fully searchable in <<near-real-time,near real-time>>--within 1 second. {es} uses a data structure called an
 inverted index that supports very fast full-text searches. An inverted index
 lists every unique word that appears in any document and identifies all of the
 documents each word occurs in.

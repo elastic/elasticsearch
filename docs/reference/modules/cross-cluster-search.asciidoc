@@ -383,7 +383,7 @@ to which other versions but there are at least three nodes involved The
 "gateway node" in each cluster. The "gateway nodes" in turn send your search
 request to "data nodes" that have a copy of the shards.
 
-During a <<rolling-upgrades rolling upgrade>> all three nodes could be running
+During a <<rolling-upgrades, rolling upgrade>> all three nodes could be running
 a different version of Elasticsearch! This is supported *but* it gets less
 testing than the more common scenarios where the remote cluster is on the same
 version. Everything should work either way, but don't tempt fate, ok?

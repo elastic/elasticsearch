@@ -1615,8 +1615,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure);
     }
 
+    /**
+     * Updates the repository generation that running deletes and snapshot finalizations will be based on for this repository if any such
+     * operations are found in the cluster state while setting the safe repository generation.
+     *
+     * @param state  cluster state to update
+     * @param oldGen previous safe repository generation
+     * @param newGen new safe repository generation
+     * @return updated cluster state
+     */
     private ClusterState updateRepositoryGenerations(ClusterState state, long oldGen, long newGen) {
-        // TODO: cleanups
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final String repoName = metadata.name();
         final List<SnapshotsInProgress.Entry> snapshotEntries;

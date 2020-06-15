@@ -296,7 +296,11 @@ PUT /_cluster/settings
 ----
 DELETE /_data_stream/logs
 
+DELETE /_data_stream/new_logs
+
 DELETE /_index_template/logs_data_stream
+
+DELETE /_index_template/new_logs_data_stream
 
 DELETE /_ilm/policy/logs_policy
 ----
@@ -380,7 +384,7 @@ PUT /_index_template/logs_data_stream
   }
 }
 
-PUT /_index_template/logs_data_stream
+PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
   "data_stream": {
@@ -428,7 +432,7 @@ request.
 The following <<docs-reindex,reindex API>> request copies documents from the
 `logs` data stream to the `new_logs` data stream. The request uses a
 <<query-dsl-range-query,`range` query>> to only reindex documents with a
-timestamp from the last week. Note the request's `op_type` is `create`.
+timestamp within the last week. Note the request's `op_type` is `create`.
 
 [source,console]
 ----
@@ -439,8 +443,8 @@ POST /_reindex
     "query": {
       "range": {
         "@timestamp": {
-          "gte" : "now/w-1d",
-          "lt" :  "(now+1w)/w - 1d"
+          "gte": "now-7d/d",
+          "lte": "now/d"
         }
       }
     }

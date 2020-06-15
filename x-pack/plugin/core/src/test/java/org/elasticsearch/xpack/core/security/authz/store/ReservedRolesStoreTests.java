@@ -609,6 +609,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        // ILM
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
 
         // we get this from the cluster:monitor privilege
         assertThat(remoteMonitoringAgentRole.cluster().check(WatcherStatsAction.NAME, request, authentication), is(true));

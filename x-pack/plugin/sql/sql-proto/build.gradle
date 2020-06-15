@@ -15,7 +15,7 @@ dependencies {
   }
   runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
-  testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
 tasks.named('forbiddenApisMain').configure {

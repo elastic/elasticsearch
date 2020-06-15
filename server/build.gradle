@@ -131,11 +131,11 @@ dependencies {
     java12Compile sourceSets.main.output
   }
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
-  internalClusterTestCompile(project(":test:framework")) {
+  internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
@@ -346,5 +346,3 @@ tasks.named('internalClusterTest').configure {
     systemProperty 'es.datastreams_feature_enabled', 'true'
   }
 }
-
-

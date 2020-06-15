@@ -884,8 +884,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         /**
-         * number of bytes still to recover, i.e. {@link Index#totalRecoverBytes()} minus {@link Index#recoveredBytes()}, or {@code -1}
-         * if the full set of files to recover is not yet known
+         * @return number of bytes still to recover, i.e. {@link Index#totalRecoverBytes()} minus {@link Index#recoveredBytes()}, or
+         * {@code -1} if the full set of files to recover is not yet known
          */
         public synchronized long bytesStillToRecover() {
             if (fileDetailsComplete == false) {

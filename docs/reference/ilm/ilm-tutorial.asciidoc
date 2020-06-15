@@ -106,7 +106,7 @@ that will specify the lifecycle policy.
 For example, you might create a `timeseries_template` to use for a future data stream
 named `timeseries`.
 
-To enable the ILM to manage the data stream, the template configures one {ilm-init} setting:
+To enable the {ilm-init} to manage the data stream, the template configures one {ilm-init} setting:
 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to the data stream.
 

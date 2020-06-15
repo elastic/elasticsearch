@@ -1,5 +1,5 @@
 [[data-streams-change-mappings-and-settings]]
-== Change mappings and settings for backing indices
+== Change mappings and settings of backing indices
 ++++
 <titleabbrev>Change mappings and settings</titleabbrev>
 ++++

@@ -191,7 +191,8 @@ This lets you find out things like:
 * The current action and what step is being performed.
 * If any errors have occurred or progress is blocked.
 
-For example, the following request gets information about the `timeseries` indices:
+For example, the following request gets information about the `timeseries` data stream's
+backing indices:
 
 [source,console]
 --------------------------------------------------

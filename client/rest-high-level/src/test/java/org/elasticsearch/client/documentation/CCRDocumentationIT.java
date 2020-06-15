@@ -92,7 +92,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             "follower", // <3>
             ActiveShardCount.ONE // <4>
         );
-        putFollowRequest.setSettings(Settings.builder().put("index.number_of_replicas", 0L).build()); // <5>
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        putFollowRequest.setSettings(settings); // <5>
         // end::ccr-put-follow-request
 
         // tag::ccr-put-follow-execute

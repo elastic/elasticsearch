@@ -500,6 +500,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return true;
     }
 
+    // Assert that there are no snapshots that have a shard that is waiting to be assigned even though the cluster state would allow for it
+    // to be assigned
     private static boolean assertNoDanglingSnapshots(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final Set<String> reposWithRunningDelete;

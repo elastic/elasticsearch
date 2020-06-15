@@ -157,6 +157,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         int roundingIndex = reduced.getBucketInfo().roundingIdx;
         RoundingInfo roundingInfo = AutoDateHistogramAggregationBuilder.buildRoundings(null, null)[roundingIndex];
+        Rounding.Prepared prepared = roundingInfo.rounding.prepare(lowest, highest);
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         int innerIntervalIndex = 0;
@@ -185,7 +186,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         } else {
             do {
                 innerIntervalToUse = roundingInfo.innerIntervals[innerIntervalIndex];
-                int bucketCountAtInterval = getBucketCount(lowest, highest, roundingInfo.rounding, innerIntervalToUse);
+                int bucketCountAtInterval = getBucketCount(lowest, highest, prepared, innerIntervalToUse);
                 if (bucketCountAtInterval == reduced.getBuckets().size()) {
                     break;
                 }
@@ -199,11 +200,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(reduced.getInterval().toString(), equalTo(innerIntervalToUse + roundingInfo.unitAbbreviation));
         Map<Instant, Long> expectedCounts = new TreeMap<>();
         if (totalBucketConut > 0) {
-            long keyForBucket = roundingInfo.rounding.round(lowest);
-            while (keyForBucket <= roundingInfo.rounding.round(highest)) {
+            long keyForBucket = prepared.round(lowest);
+            while (keyForBucket <= prepared.round(highest)) {
                 long nextKey = keyForBucket;
                 for (int i = 0; i < innerIntervalToUse; i++) {
-                    nextKey = roundingInfo.rounding.nextRoundingValue(nextKey);
+                    nextKey = prepared.nextRoundingValue(nextKey);
                 }
                 Instant key = Instant.ofEpochMilli(keyForBucket);
                 expectedCounts.put(key, 0L);
@@ -214,7 +215,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
                 for (InternalAutoDateHistogram histogram : inputs) {
                     for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                        long roundedBucketKey = roundingInfo.rounding.round(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli());
+                        long roundedBucketKey = prepared.round(((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli());
                         long docCount = bucket.getDocCount();
                         if (roundedBucketKey >= keyForBucket && roundedBucketKey < nextKey) {
                             expectedCounts.compute(key,
@@ -227,8 +228,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
             // If there is only a single bucket, and we haven't added it above, add a bucket with no documents.
             // this step is necessary because of the roundedBucketKey < keyForBucket + intervalInMillis above.
-            if (roundingInfo.rounding.round(lowest) == roundingInfo.rounding.round(highest) && expectedCounts.isEmpty()) {
-                expectedCounts.put(Instant.ofEpochMilli(roundingInfo.rounding.round(lowest)), 0L);
+            if (prepared.round(lowest) == prepared.round(highest) && expectedCounts.isEmpty()) {
+                expectedCounts.put(Instant.ofEpochMilli(prepared.round(lowest)), 0L);
             }
         }
 
@@ -249,12 +250,12 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(reduced.getInterval(), equalTo(expectedInterval));
     }
 
-    private int getBucketCount(long min, long max, Rounding rounding, int interval) {
+    private int getBucketCount(long min, long max, Rounding.Prepared prepared, int interval) {
         int bucketCount = 0;
-        long key = rounding.round(min);
+        long key = prepared.round(min);
         while (key < max) {
             for (int i = 0; i < interval; i++) {
-                key = rounding.nextRoundingValue(key);
+                key = prepared.nextRoundingValue(key);
             }
             bucketCount++;
         }

@@ -37,9 +37,9 @@ dependencies {
 
   compile project(':libs:elasticsearch-core')
 
-  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 tasks.named('forbiddenApisTest').configure {

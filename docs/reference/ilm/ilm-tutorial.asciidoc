@@ -220,7 +220,7 @@ are met.
       "phase_time_millis": 1538475653317,
       "action": "rollover",
       "action_time_millis": 1538475653317,
-      "step": "attempt-rollover",                <3>
+      "step": "check-rollover-ready",                <3>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "timeseries_policy",

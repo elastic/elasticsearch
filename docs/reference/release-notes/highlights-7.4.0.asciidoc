@@ -1,4 +1,4 @@
-[[release-highlights-7.4.0, role="exclude"]]
+[[release-highlights-7.4.0]]
 == 7.4.0 release highlights
 ++++
 <titleabbrev>7.4.0</titleabbrev>

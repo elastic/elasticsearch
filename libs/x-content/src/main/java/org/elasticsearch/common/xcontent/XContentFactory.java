@@ -294,7 +294,7 @@ public class XContentFactory {
             return null;
         }
         byte first = bytes[offset];
-        if (first == '{' || first == '[') {
+        if (first == '{') {
             return XContentType.JSON;
         }
         if (length > 2

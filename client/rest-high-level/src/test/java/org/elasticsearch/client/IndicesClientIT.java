@@ -58,7 +58,6 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
-import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
@@ -66,22 +65,23 @@ import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
-import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
-import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.GetDataStreamResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
-import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -91,9 +91,9 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -236,7 +236,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("2", XContentMapValues.extractValue(indexName + ".settings.index.number_of_replicas", getIndexResponse));
 
             Map<String, Object> aliasData =
-                (Map<String, Object>) XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
+                (Map<String, Object>)XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
             assertNotNull(aliasData);
             assertEquals("1", aliasData.get("index_routing"));
             Map<String, Object> filter = (Map) aliasData.get("filter");
@@ -869,11 +869,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
         Map<String, Object> getIndexResponse = getAsMap("target");
-        Map<String, Object> indexSettings = (Map<String, Object>) XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
         assertNotNull(indexSettings);
         assertEquals("2", indexSettings.get("number_of_shards"));
         assertEquals("0", indexSettings.get("number_of_replicas"));
-        Map<String, Object> aliasData = (Map<String, Object>) XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
 
@@ -893,11 +893,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
         Map<String, Object> getIndexResponse = getAsMap("target");
-        Map<String, Object> indexSettings = (Map<String, Object>) XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
         assertNotNull(indexSettings);
         assertEquals("4", indexSettings.get("number_of_shards"));
         assertEquals("0", indexSettings.get("number_of_replicas"));
-        Map<String, Object> aliasData = (Map<String, Object>) XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
 
@@ -917,11 +917,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
         Map<String, Object> getIndexResponse = getAsMap("target");
-        Map<String, Object> indexSettings = (Map<String, Object>) XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
         assertNotNull(indexSettings);
         assertEquals("2", indexSettings.get("number_of_shards"));
         assertEquals("0", indexSettings.get("number_of_replicas"));
-        Map<String, Object> aliasData = (Map<String, Object>) XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
 
@@ -1353,7 +1353,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 
-    public void testValidateQuery() throws IOException {
+    public void testValidateQuery() throws IOException{
         String index = "some_index";
         createIndex(index, Settings.EMPTY);
         QueryBuilder builder = QueryBuilders
@@ -1367,7 +1367,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isValid());
     }
 
-    public void testInvalidValidateQuery() throws IOException {
+    public void testInvalidValidateQuery() throws IOException{
         String index = "shakespeare";
 
         createIndex(index, Settings.EMPTY);
@@ -1431,6 +1431,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> props = (Map<String, Object>) template2.mappings().sourceAsMap().get("properties");
         assertTrue(props.containsKey("name"));
+
 
 
         List<String> names = randomBoolean()
@@ -1620,6 +1621,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             indices::getDataStream, indices::getDataStreamAsync));
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
     }
+
 
     public void testIndexTemplates() throws Exception {
         String templateName = "my-template";

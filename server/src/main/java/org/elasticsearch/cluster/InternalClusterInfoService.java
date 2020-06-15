@@ -407,9 +407,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             final long reserved = storeStats.getReservedSize().getBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
-            if (logger.isTraceEnabled()) {
-                logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);
-            }
+            logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);
             shardSizes.put(shardIdentifier, size);
 
             if (reserved != StoreStats.UNKNOWN_RESERVED_BYTES) {

@@ -413,7 +413,6 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 } finally {
                     index.setFileDetailsComplete();
-
                 }
             } else {
                 store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);

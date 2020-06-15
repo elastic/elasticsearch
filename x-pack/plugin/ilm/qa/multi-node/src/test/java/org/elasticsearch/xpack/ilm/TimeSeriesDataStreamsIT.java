@@ -131,6 +131,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58125")
     public void testSearchableSnapshotAction() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(5, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());

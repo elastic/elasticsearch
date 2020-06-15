@@ -138,7 +138,7 @@ PUT _index_template/timeseries_template
 <1> Apply the template when a document is indexed into the `timeseries` target.
 <2> Identifies the timestamp field for the data source. This field must be present
 in all documents indexed into the `timeseries` data stream.
-<3> The name of the ILM policy used to manage the data stream.
+<3> The name of the {ilm-init} policy used to manage the data stream.
 
 You can also invoke this API directly to add templates.
 

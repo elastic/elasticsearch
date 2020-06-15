@@ -1416,18 +1416,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
                                                long repositoryStateId, Version minNodeVersion) {
         if (runningDeletions.add(deleteEntry.uuid())) {
-            Repository repository = repositoriesService.repository(deleteEntry.repository());
-            final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
-            assert deleteEntry.state() == SnapshotDeletionsInProgress.State.META_DATA : "incorrect state for entry [" + deleteEntry + "]";
-            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(
-                    snapshotIds,
-                    repositoryStateId,
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    ActionListener.wrap(v -> {
-                                logger.info("snapshots {} deleted", snapshotIds);
-                                removeSnapshotDeletionFromClusterState(deleteEntry, null);
-                            }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex)
-                    )), ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex)));
+            synchronized (finalizationMutex) {
+                if (currentlyFinalizing.add(deleteEntry.repository())) {
+                    Repository repository = repositoriesService.repository(deleteEntry.repository());
+                    final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
+                    assert deleteEntry.state() == SnapshotDeletionsInProgress.State.META_DATA :
+                            "incorrect state for entry [" + deleteEntry + "]";
+                    repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(
+                            snapshotIds,
+                            repositoryStateId,
+                            minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                            ActionListener.wrap(v -> {
+                                        logger.info("snapshots {} deleted", snapshotIds);
+                                        removeSnapshotDeletionFromClusterState(deleteEntry, null);
+                                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex)
+                            )), ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex)));
+                } else {
+                   throw new AssertionError("TODO");
+                }
+            }
         }
     }
 
@@ -1447,6 +1454,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             runningDeletions.remove(deleteEntry.uuid());
+            synchronized (finalizationMutex) {
+                currentlyFinalizing.remove(deleteEntry.repository());
+            }
         };
         repositoriesService.repository(deleteEntry.repository()).executeConsistentStateUpdate(
                 repositoryData -> new ClusterStateUpdateTask() {
@@ -1456,8 +1466,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (deletions != null) {
                             boolean changed = false;
                             if (deletions.hasDeletionsInProgress()) {
-                                deletions = deletions.withRemovedEntry(deleteEntry.uuid());
-                                changed = true;
+                                final SnapshotDeletionsInProgress updatedDeletions = deletions.withRemovedEntry(deleteEntry.uuid());
+                                changed = updatedDeletions != deletions;
+                                deletions = updatedDeletions;
+                                if (failure == null) {
+                                    deletions = deletions.withRemovedSnapshotIds(deleteEntry.repository(), deleteEntry.getSnapshots());
+                                }
                             }
                             if (changed) {
                                 final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
@@ -1532,6 +1546,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         runningDeletions.remove(deleteEntry.uuid());
+                        runNextQueuedOperation(repositoryData.getGenId(), deleteEntry.repository());
                     }
                 }, "remove snapshot deletion metadata", onFailure);
     }

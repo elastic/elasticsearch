@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A class that represents the snapshot deletions that are in progress in the cluster.
@@ -54,10 +55,22 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public SnapshotDeletionsInProgress(List<Entry> entries) {
         this.entries = Collections.unmodifiableList(entries);
         assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
+        assert assertConsistency(entries);
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
         this(Collections.unmodifiableList(in.readList(Entry::new)));
+    }
+
+    private static boolean assertConsistency(List<Entry> entries) {
+        final Set<String> activeRepositories = new HashSet<>();
+        for (Entry entry : entries) {
+            if (entry.state() == State.META_DATA) {
+                final boolean added = activeRepositories.add(entry.repository());
+                assert added : "Found multiple running deletes for for a single repository in " + entries;
+            }
+        }
+        return true;
     }
 
     /**
@@ -84,12 +97,34 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public SnapshotDeletionsInProgress withRemovedEntry(String deleteUUID) {
         List<Entry> updatedEntries = new ArrayList<>(entries.size() - 1);
+        boolean removed = false;
         for (Entry entry : entries) {
-            if (entry.uuid().equals(deleteUUID) == false) {
+            if (entry.uuid().equals(deleteUUID)) {
+                removed = true;
+            } else {
                 updatedEntries.add(entry);
             }
         }
-        return new SnapshotDeletionsInProgress(updatedEntries);
+        return removed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
+    }
+
+    public SnapshotDeletionsInProgress withRemovedSnapshotIds(String repository, Collection<SnapshotId> snapshotIds) {
+        boolean changed = false;
+        List<Entry> updatedEntries = new ArrayList<>(entries.size());
+        for (Entry entry : entries) {
+            if (entry.repository().equals(repository)) {
+                final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.getSnapshots());
+                if (updatedSnapshotIds.removeAll(snapshotIds)) {
+                    changed = true;
+                    updatedEntries.add(entry.withSnapshots(updatedSnapshotIds));
+                } else {
+                    updatedEntries.add(entry);
+                }
+            } else {
+                updatedEntries.add(entry);
+            }
+        }
+        return changed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
     }
 
     /**
@@ -234,6 +269,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return this;
             }
             return new Entry(List.copyOf(updatedSnapshots), repository(), startTime, repositoryStateId, State.WAITING, uuid);
+        }
+
+        public Entry withSnapshots(Collection<SnapshotId> snapshots) {
+            return new Entry(List.copyOf(snapshots), repository(), startTime, repositoryStateId, state, uuid);
         }
 
         public Entry withRepoGen(long repoGen) {

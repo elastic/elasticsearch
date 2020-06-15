@@ -179,6 +179,10 @@ public class MockRepository extends FsRepository {
         blockOnDataFiles = blocked;
     }
 
+    public void setBlockOnControlFiles(boolean blocked) {
+        blockOnControlFiles = blocked;
+    }
+
     public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
         blockAndFailOnWriteSnapFile = blocked;
     }

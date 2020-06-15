@@ -224,15 +224,18 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Rectangle rectangle) {
-            double sumX = rectangle.getMaxX() + rectangle.getMinX();
-            double sumY = rectangle.getMaxY() + rectangle.getMinY();
             double diffX = rectangle.getMaxX() - rectangle.getMinX();
             double diffY = rectangle.getMaxY() - rectangle.getMinY();
-            if (diffX != 0 && diffY != 0) {
-                calculator.addCoordinate(sumX / 2, sumY / 2, Math.abs(diffX * diffY), DimensionalShapeType.POLYGON);
+            double rectWeight = Math.abs(diffX * diffY);
+            if (rectWeight != 0) {
+                double sumX = rectangle.getMaxX() + rectangle.getMinX();
+                double sumY = rectangle.getMaxY() + rectangle.getMinY();
+                calculator.addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
             } else if (diffX != 0) {
+                double sumX = rectangle.getMaxX() + rectangle.getMinX();
                 calculator.addCoordinate(sumX / 2, rectangle.getMinY(), diffX, DimensionalShapeType.LINE);
             } else if (diffY != 0) {
+                double sumY = rectangle.getMaxY() + rectangle.getMinY();
                 calculator.addCoordinate(rectangle.getMinX(), sumY / 2, diffY, DimensionalShapeType.LINE);
             } else {
                 visitPoint(rectangle.getMinX(), rectangle.getMinY());

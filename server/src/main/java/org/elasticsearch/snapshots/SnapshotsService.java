@@ -995,7 +995,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         if (repository.isReadOnly()) {
             listener.onFailure(
-                    new RepositoryException(repository.getMetadata().name(), "cannot delete snapshot from readonly repository"));
+                    new RepositoryException(repository.getMetadata().name(), "cannot delete snapshot from a readonly repository"));
             return;
         }
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.NORMAL) {

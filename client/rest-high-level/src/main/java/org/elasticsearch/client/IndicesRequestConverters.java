@@ -75,9 +75,6 @@ final class IndicesRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream")
             .addPathPart(createDataStreamRequest.getName()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withMasterTimeout(createDataStreamRequest.masterNodeTimeout());
-        request.addParameters(params.asMap());
         return request;
     }
 
@@ -85,9 +82,6 @@ final class IndicesRequestConverters {
         String name = deleteDataStreamRequest.getName();
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream").addPathPart(name).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withMasterTimeout(deleteDataStreamRequest.masterNodeTimeout());
-        request.addParameters(params.asMap());
         return request;
     }
 
@@ -96,12 +90,7 @@ final class IndicesRequestConverters {
             .addPathPartAsIs("_data_stream")
             .addPathPart(dataStreamRequest.getName())
             .build();
-        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withLocal(dataStreamRequest.isLocal());
-        params.withMasterTimeout(dataStreamRequest.getMasterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {

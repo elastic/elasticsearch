@@ -19,43 +19,9 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-
 public class GetDataStreamRequest extends AbstractDataStreamRequest {
-
-    private TimeValue masterNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-    private boolean local = false;
 
     public GetDataStreamRequest(String name) {
         super(name);
-    }
-
-    /**
-     * @return the timeout for waiting for the master node to respond
-     */
-    public TimeValue getMasterNodeTimeout() {
-        return masterNodeTimeout;
-    }
-
-    public void setMasterNodeTimeout(@Nullable TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
-    }
-
-    public void setMasterNodeTimeout(String masterNodeTimeout) {
-        final TimeValue timeValue = TimeValue.parseTimeValue(masterNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
-        setMasterNodeTimeout(timeValue);
-    }
-
-    /**
-     * @return true if this request is to read from the local cluster state, rather than the master node - false otherwise
-     */
-    public boolean isLocal() {
-        return local;
-    }
-
-    public void setLocal(boolean local) {
-        this.local = local;
     }
 }

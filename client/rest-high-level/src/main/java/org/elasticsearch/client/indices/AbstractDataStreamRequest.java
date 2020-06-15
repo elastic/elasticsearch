@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
 
-public abstract class AbstractDataStreamRequest extends TimedRequest {
+public abstract class AbstractDataStreamRequest implements Validatable {
     protected final String name;
 
     public AbstractDataStreamRequest(String name) {

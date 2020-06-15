@@ -189,9 +189,8 @@ public class MetadataIndexUpgradeService {
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
-                DataStream dataStream = lookupDataStream(indicesLookupSupplier.get(), indexMetadata.getIndex());
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false, dataStream);
+                        mapperRegistry, () -> null, () -> false, null);
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

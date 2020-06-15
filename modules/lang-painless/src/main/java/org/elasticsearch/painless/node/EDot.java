@@ -52,16 +52,28 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class EDot extends AExpression {
 
-    protected final AExpression prefix;
-    protected final boolean nullSafe;
-    protected final String value;
+    private final AExpression prefixNode;
+    private final String index;
+    private final boolean isNullSafe;
 
-    public EDot(Location location, AExpression prefix, boolean nullSafe, String value) {
-        super(location);
+    public EDot(int identifier, Location location, AExpression prefixNode, String index, boolean isNullSafe) {
+        super(identifier, location);
 
-        this.prefix = Objects.requireNonNull(prefix);
-        this.nullSafe = nullSafe;
-        this.value = Objects.requireNonNull(value);
+        this.prefixNode = Objects.requireNonNull(prefixNode);
+        this.index = Objects.requireNonNull(index);
+        this.isNullSafe = isNullSafe;
+    }
+
+    public AExpression getPrefixNode() {
+        return prefixNode;
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public boolean isNullSafe() {
+        return isNullSafe;
     }
 
     @Override
@@ -71,7 +83,7 @@ public class EDot extends AExpression {
         }
 
         Output output = new Output();
-        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, new Input());
+        Output prefixOutput = prefixNode.analyze(classNode, scriptRoot, scope, new Input());
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             if (output.isStaticType) {
@@ -79,7 +91,7 @@ public class EDot extends AExpression {
                         "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
             }
 
-            String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + value;
+            String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
             Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
             if (type == null) {
@@ -100,7 +112,7 @@ public class EDot extends AExpression {
 
                 StaticNode staticNode = new StaticNode();
 
-                staticNode.setLocation(location);
+                staticNode.setLocation(getLocation());
                 staticNode.setExpressionType(output.actual);
 
                 output.expressionNode = staticNode;
@@ -117,7 +129,7 @@ public class EDot extends AExpression {
                             "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
                 }
 
-                if ("length".equals(value)) {
+                if ("length".equals(index)) {
                     if (input.write) {
                         throw createError(new IllegalArgumentException(
                                 "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
@@ -126,11 +138,11 @@ public class EDot extends AExpression {
                     output.actual = int.class;
                 } else {
                     throw createError(new IllegalArgumentException(
-                            "Field [" + value + "] does not exist for type [" + targetCanonicalTypeName + "]."));
+                            "Field [" + index + "] does not exist for type [" + targetCanonicalTypeName + "]."));
                 }
 
                 DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
-                dotSubArrayLengthNode.setLocation(location);
+                dotSubArrayLengthNode.setLocation(getLocation());
                 dotSubArrayLengthNode.setExpressionType(output.actual);
                 expressionNode = dotSubArrayLengthNode;
             } else if (prefixOutput.actual == def.class) {
@@ -145,38 +157,38 @@ public class EDot extends AExpression {
                 output.isDefOptimized = true;
 
                 DotSubDefNode dotSubDefNode = new DotSubDefNode();
-                dotSubDefNode.setLocation(location);
+                dotSubDefNode.setLocation(getLocation());
                 dotSubDefNode.setExpressionType(output.actual);
-                dotSubDefNode.setValue(value);
+                dotSubDefNode.setValue(index);
                 expressionNode = dotSubDefNode;
             } else {
                 PainlessField field =
-                        scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefixOutput.isStaticType, value);
+                        scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefixOutput.isStaticType, index);
 
                 if (field == null) {
                     PainlessMethod getter;
                     PainlessMethod setter;
 
                     getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
-                            "get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                            "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter == null) {
                         getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
-                                "is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                                "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
                     }
 
                     setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
-                            "set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0);
+                            "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter != null || setter != null) {
                         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal get shortcut on field [" + value + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal get shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
                         }
 
                         if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal set shortcut on field [" + value + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal set shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
                         }
 
                         if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
@@ -187,11 +199,11 @@ public class EDot extends AExpression {
                             output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
                         } else {
                             throw createError(new IllegalArgumentException(
-                                    "Illegal shortcut on field [" + value + "] for type [" + targetCanonicalTypeName + "]."));
+                                    "Illegal shortcut on field [" + index + "] for type [" + targetCanonicalTypeName + "]."));
                         }
 
                         DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
-                        dotSubShortcutNode.setLocation(location);
+                        dotSubShortcutNode.setLocation(getLocation());
                         dotSubShortcutNode.setExpressionType(output.actual);
                         dotSubShortcutNode.setGetter(getter);
                         dotSubShortcutNode.setSetter(setter);
@@ -224,13 +236,13 @@ public class EDot extends AExpression {
                             }
 
                             ConstantNode constantNode = new ConstantNode();
-                            constantNode.setLocation(location);
+                            constantNode.setLocation(getLocation());
                             constantNode.setExpressionType(String.class);
-                            constantNode.setConstant(value);
+                            constantNode.setConstant(index);
 
                             MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
                             mapSubShortcutNode.setChildNode(constantNode);
-                            mapSubShortcutNode.setLocation(location);
+                            mapSubShortcutNode.setLocation(getLocation());
                             mapSubShortcutNode.setExpressionType(output.actual);
                             mapSubShortcutNode.setGetter(getter);
                             mapSubShortcutNode.setSetter(setter);
@@ -241,9 +253,9 @@ public class EDot extends AExpression {
                             int index;
 
                             try {
-                                index = Integer.parseInt(value);
+                                index = Integer.parseInt(this.index);
                             } catch (NumberFormatException nfe) {
-                                throw createError(new IllegalArgumentException("invalid list index [" + value + "]"));
+                                throw createError(new IllegalArgumentException("invalid list index [" + this.index + "]"));
                             }
 
                             getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
@@ -273,13 +285,13 @@ public class EDot extends AExpression {
                             }
 
                             ConstantNode constantNode = new ConstantNode();
-                            constantNode.setLocation(location);
+                            constantNode.setLocation(getLocation());
                             constantNode.setExpressionType(int.class);
                             constantNode.setConstant(index);
 
                             ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
                             listSubShortcutNode.setChildNode(constantNode);
-                            listSubShortcutNode.setLocation(location);
+                            listSubShortcutNode.setLocation(getLocation());
                             listSubShortcutNode.setExpressionType(output.actual);
                             listSubShortcutNode.setGetter(getter);
                             listSubShortcutNode.setSetter(setter);
@@ -289,7 +301,7 @@ public class EDot extends AExpression {
 
                     if (expressionNode == null) {
                         throw createError(new IllegalArgumentException(
-                                "field [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + value + "] not found"));
+                                "field [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + index + "] not found"));
                     }
                 } else {
                     if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
@@ -300,14 +312,14 @@ public class EDot extends AExpression {
                     output.actual = field.typeParameter;
 
                     DotSubNode dotSubNode = new DotSubNode();
-                    dotSubNode.setLocation(location);
+                    dotSubNode.setLocation(getLocation());
                     dotSubNode.setExpressionType(output.actual);
                     dotSubNode.setField(field);
                     expressionNode = dotSubNode;
                 }
             }
 
-            if (nullSafe) {
+            if (isNullSafe) {
                 if (input.write) {
                     throw createError(new IllegalArgumentException(
                             "invalid assignment: cannot assign a value to a null safe operation [?.]"));
@@ -319,7 +331,7 @@ public class EDot extends AExpression {
 
                 NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
                 nullSafeSubNode.setChildNode(expressionNode);
-                nullSafeSubNode.setLocation(location);
+                nullSafeSubNode.setLocation(getLocation());
                 nullSafeSubNode.setExpressionType(output.actual);
                 expressionNode = nullSafeSubNode;
             }
@@ -327,7 +339,7 @@ public class EDot extends AExpression {
             DotNode dotNode = new DotNode();
             dotNode.setLeftNode(prefixOutput.expressionNode);
             dotNode.setRightNode(expressionNode);
-            dotNode.setLocation(location);
+            dotNode.setLocation(getLocation());
             dotNode.setExpressionType(output.actual);
             output.expressionNode = dotNode;
         }

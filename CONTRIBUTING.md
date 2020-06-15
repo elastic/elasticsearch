@@ -581,7 +581,7 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
+<dt>`testImplementation`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
 </dl>

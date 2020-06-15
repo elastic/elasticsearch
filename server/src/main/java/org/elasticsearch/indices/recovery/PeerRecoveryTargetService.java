@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -366,13 +367,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        try {
+                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
                             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                                 performTranslogOps(request, listener, recoveryRef);
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        }));
                     }
 
                     @Override

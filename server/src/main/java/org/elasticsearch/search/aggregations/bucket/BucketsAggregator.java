@@ -237,23 +237,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
-     * @param buckets the buckets to finish building
-     * @param bucketToOrd how to convert a bucket into an ordinal
-     * @param setAggs how to set the sub-aggregation results on a bucket
-     */
-    protected final <B> void buildSubAggsForBuckets(List<B> buckets,
-            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
-        InternalAggregations[] results = buildSubAggsForBuckets(buckets.stream().mapToLong(bucketToOrd).toArray());
-        for (int i = 0; i < buckets.size(); i++) {
-            setAggs.accept(buckets.get(i), results[i]);
-        }
-    }
-
-    /**
      * Build aggregation results for an aggregator that has a fixed number of buckets per owning ordinal.
      * @param <B> the type of the bucket
      * @param owningBucketOrds owning bucket ordinals for which to build the results

@@ -14,7 +14,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -34,16 +33,14 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
     private Map<String, String> bucketPathMap;
     private InferenceConfigUpdate configUpdate;
-    private final BucketHelpers.GapPolicy gapPolicy;
     private Model model;
 
-    public InferencePipelineAggregator(String name, Map<String, String> bucketPathMap, Map<String, Object> metaData,
-                                       BucketHelpers.GapPolicy gapPolicy,
+    public InferencePipelineAggregator(String name, Map<String,
+                                       String> bucketPathMap, Map<String, Object> metaData,
                                        InferenceConfigUpdate configUpdate,
                                        Model model) {
         super(name, bucketPathMap.values().toArray(new String[] {}), metaData);
         this.bucketPathMap = bucketPathMap;
-        this.gapPolicy = gapPolicy;
         this.configUpdate = configUpdate;
         this.model = model;
     }
@@ -59,7 +56,15 @@ public class InferencePipelineAggregator extends PipelineAggregator {
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> inputFields = new HashMap<>();
-            boolean skipBucket = false;
+
+            if (bucket.getDocCount() == 0) {
+                // ignore this empty bucket unless the doc count is used
+                if (bucketPathMap.containsKey("_count") == false) {
+                    newBuckets.add(bucket);
+                    continue;
+                }
+            }
+
             for (Map.Entry<String, String> entry : bucketPathMap.entrySet()) {
                 String aggName = entry.getKey();
                 String bucketPath = entry.getValue();
@@ -67,31 +72,24 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
                 if (propertyValue instanceof String) {
                     inputFields.put(aggName, propertyValue);
-                } else {
-                    double doubleVal;
-                    if (propertyValue instanceof Number) {
-                        doubleVal = ((Number) propertyValue).doubleValue();
-                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                        doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-                    } else {
-                        throw aggPathError(bucketPath, propertyValue);
+                } else if (propertyValue instanceof Number) {
+                    double doubleVal = ((Number) propertyValue).doubleValue();
+                    // NaN or infinite values may indicate a missing value
+                    if (Double.isFinite(doubleVal)) {
+                        inputFields.put(aggName, doubleVal);
                     }
-
-                    // A missing value will be NaN or +/- infinity
-                    if (Double.isFinite(doubleVal) == false ||
-                        (bucket.getDocCount() == 0 && "_count".equals(bucketPath)== false)) {
-                        if (gapPolicy == BucketHelpers.GapPolicy.SKIP)
-                            skipBucket = true;
-                            break;
-                        }
+                } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+                    double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                    if (Double.isFinite(doubleVal)) {
+                        inputFields.put(aggName, doubleVal);
                     }
-                    inputFields.put(aggName, doubleVal);
+                } else if (propertyValue != null) {
+                    // Doubles, String or null is valid, any other
+                    // type is an error
+                    throw aggPathError(bucketPath, propertyValue);
                 }
             }
-            if (skipBucket) {
-                newBuckets.add(bucket);
-                continue;
-            }
+
 
             InferenceResults inference;
             try {
@@ -118,13 +116,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                                             String aggPath) {
 
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
-        Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
-
-        if (propertyValue == null) {
-            throw aggPathError(aggPath, null);
-        }
-
-        return propertyValue;
+        return bucket.getProperty(agg.getName(), aggPathsList);
     }
 
     private static AggregationExecutionException aggPathError(String aggPath, @Nullable Object propertyValue) {

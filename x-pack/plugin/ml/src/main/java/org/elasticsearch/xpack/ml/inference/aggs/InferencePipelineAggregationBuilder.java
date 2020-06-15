@@ -164,7 +164,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
         }
 
-        return new InferencePipelineAggregator(name, bucketPathMap, metaData, gapPolicy, update, model.get());
+        return new InferencePipelineAggregator(name, bucketPathMap, metaData, update, model.get());
     }
 
     @Override

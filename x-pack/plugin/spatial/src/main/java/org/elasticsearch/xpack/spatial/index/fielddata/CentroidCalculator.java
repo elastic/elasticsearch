@@ -231,14 +231,11 @@ public class CentroidCalculator {
                 double sumX = rectangle.getMaxX() + rectangle.getMinX();
                 double sumY = rectangle.getMaxY() + rectangle.getMinY();
                 calculator.addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
-            } else if (diffX != 0) {
-                double sumX = rectangle.getMaxX() + rectangle.getMinX();
-                calculator.addCoordinate(sumX / 2, rectangle.getMinY(), diffX, DimensionalShapeType.LINE);
-            } else if (diffY != 0) {
-                double sumY = rectangle.getMaxY() + rectangle.getMinY();
-                calculator.addCoordinate(rectangle.getMinX(), sumY / 2, diffY, DimensionalShapeType.LINE);
             } else {
-                visitPoint(rectangle.getMinX(), rectangle.getMinY());
+                // degenerated rectangle, transform to Line
+                Line line = new Line(new double[]{rectangle.getMinX(), rectangle.getMaxX()},
+                    new double[]{rectangle.getMinY(), rectangle.getMaxY()});
+                visit(line);
             }
             return null;
         }

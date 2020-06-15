@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeTy
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class CentroidCalculatorTests extends ESTestCase {
     private static final double DELTA = 0.000000001;
@@ -187,6 +188,13 @@ public class CentroidCalculatorTests extends ESTestCase {
                 assertEquals(POLY_CENTROID, calculator.getY(), DELTA);
                 assertThat(calculator.sumWeight(), equalTo(5100.0));
             }
+        }
+    }
+
+    public void testRectangle() {
+        for (int i = 0; i < 100; i++) {
+            CentroidCalculator calculator = new CentroidCalculator(GeometryTestUtils.randomRectangle());
+            assertThat(calculator.sumWeight(), greaterThan(0.0));
         }
     }
 

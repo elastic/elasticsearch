@@ -236,7 +236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
     @Nullable
-    private RecoveryState recoveryState;
+    private volatile RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -1004,24 +1004,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StoreStats storeStats() {
-        final LongSupplier remainingRecoveryBytesSupplier;
-        synchronized (mutex) {
-            if (recoveryState == null) {
-                remainingRecoveryBytesSupplier = () -> StoreStats.UNKNOWN_RESERVED_BYTES;
-            } else if (recoveryState.getStage() == RecoveryState.Stage.INIT) {
-                remainingRecoveryBytesSupplier = () -> StoreStats.UNKNOWN_RESERVED_BYTES;
-            } else if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
-                final RecoveryState.Index indexStageRecoveryState = recoveryState.getIndex();
-                remainingRecoveryBytesSupplier = () -> {
-                    final long bytesStillToRecover = indexStageRecoveryState.bytesStillToRecover();
-                    return bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
-                };
-            } else {
-                remainingRecoveryBytesSupplier = () -> 0L;
-            }
-        }
         try {
-            return store.stats(remainingRecoveryBytesSupplier.getAsLong());
+            final RecoveryState recoveryState = this.recoveryState;
+            final long remainingRecoveryBytes;
+            if (recoveryState == null) {
+                remainingRecoveryBytes = StoreStats.UNKNOWN_RESERVED_BYTES;
+            } else if (recoveryState.getStage() == RecoveryState.Stage.INIT) {
+                remainingRecoveryBytes = StoreStats.UNKNOWN_RESERVED_BYTES;
+            } else if (recoveryState.getStage() == RecoveryState.Stage.INDEX) {
+                final long bytesStillToRecover = recoveryState.getIndex().bytesStillToRecover();
+                remainingRecoveryBytes =  bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover;
+            } else {
+                remainingRecoveryBytes = 0L;
+            }
+            return store.stats(remainingRecoveryBytes);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
             throw new ElasticsearchException("io exception while building 'store stats'", e);

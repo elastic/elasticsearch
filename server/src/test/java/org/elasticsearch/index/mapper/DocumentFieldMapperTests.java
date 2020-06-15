@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -74,8 +75,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldType extends TermBasedFieldType {
 
-        FakeFieldType() {
-            super();
+        FakeFieldType(String name) {
+            super(name, true, true, Collections.emptyMap());
         }
 
         FakeFieldType(FakeFieldType other) {
@@ -107,8 +108,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         private static final Settings SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
-            super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty());
+        FakeFieldMapper(FakeFieldType fieldType) {
+            super(fieldType.name(), new FieldType(), fieldType, SETTINGS, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
@@ -128,16 +129,14 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
     }
 
     public void testAnalyzers() throws IOException {
-        FakeFieldType fieldType1 = new FakeFieldType();
-        fieldType1.setName("field1");
+        FakeFieldType fieldType1 = new FakeFieldType("field1");
         fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new FakeAnalyzer("index")));
         fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new FakeAnalyzer("search")));
         fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", AnalyzerScope.INDEX, new FakeAnalyzer("search_quote")));
-        FieldMapper fieldMapper1 = new FakeFieldMapper("field1", fieldType1);
+        FieldMapper fieldMapper1 = new FakeFieldMapper(fieldType1);
 
-        FakeFieldType fieldType2 = new FakeFieldType();
-        fieldType2.setName("field2");
-        FieldMapper fieldMapper2 = new FakeFieldMapper("field2", fieldType2);
+        FakeFieldType fieldType2 = new FakeFieldType("field2");
+        FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2);
 
         Analyzer defaultIndex = new FakeAnalyzer("default_index");
         Analyzer defaultSearch = new FakeAnalyzer("default_search");

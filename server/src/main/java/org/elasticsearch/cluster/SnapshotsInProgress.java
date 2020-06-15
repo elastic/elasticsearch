@@ -345,6 +345,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static class ShardSnapshotStatus {
 
+        /**
+         * Shard snapshot status for shards that are waiting for another operation to finish before they can be assigned to a node.
+         */
         public static final ShardSnapshotStatus UNASSIGNED_WAITING =
                 new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.WAITING, null);
 

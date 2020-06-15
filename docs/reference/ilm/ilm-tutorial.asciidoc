@@ -146,7 +146,7 @@ You can also invoke this API directly to add templates.
 [[ilm-gs-create-the-data-stream]]
 === Create the data stream
 
-To get things started, you simply index a document into the name or wildcard pattern defined
+To get things started, index a document into the name or wildcard pattern defined
 in the `index_patterns` of the <<indices-templates,composable index template>> that will
 create the data stream.
 {es} will automatically create the corresponding data stream and will index the document into

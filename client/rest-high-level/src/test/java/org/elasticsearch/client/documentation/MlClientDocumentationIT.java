@@ -2037,8 +2037,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
        {
             // tag::delete-expired-data-request
             DeleteExpiredDataRequest request = new DeleteExpiredDataRequest( // <1>
-               1000.0f, // <2>
-               TimeValue.timeValueHours(12) // <3>
+                null, // <2>
+                1000.0f, // <3>
+                TimeValue.timeValueHours(12) // <4>
             );
 
             // end::delete-expired-data-request

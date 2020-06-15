@@ -91,8 +91,8 @@ value of `[ "p" ]` skips the `<p>` HTML element.
 [[analysis-htmlstrip-charfilter-customize]]
 ==== Customize
 
-To customize the `html_strip` filter, duplicate it to create the basis
-for a new custom token filter. You can modify the filter using its configurable
+To customize the `html_strip` filter, duplicate it to create the basis for a new
+custom character filter. You can modify the filter using its configurable
 parameters.
 
 The following <<indices-create-index,create index API>> request

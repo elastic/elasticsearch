@@ -41,6 +41,7 @@ public class SequenceRuntimeTests extends ESTestCase {
     private final boolean hasKeys;
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor tsExtractor;
+    private final HitExtractor tbExtractor;
 
     abstract static class EmptyHitExtractor implements HitExtractor {
         @Override
@@ -78,7 +79,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         private final int ordinal;
 
         TestCriterion(int ordinal) {
-            super(SearchSourceBuilder.searchSource().size(ordinal), keyExtractors, tsExtractor);
+            super(SearchSourceBuilder.searchSource().size(ordinal), keyExtractors, tsExtractor, tbExtractor);
             this.ordinal = ordinal;
         }
 
@@ -162,6 +163,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         this.hasKeys = spec.hasKeys;
         this.keyExtractors = hasKeys ? singletonList(new KeyExtractor()) : emptyList();
         this.tsExtractor = TimestampExtractor.INSTANCE;
+        this.tbExtractor = null;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%0$s")

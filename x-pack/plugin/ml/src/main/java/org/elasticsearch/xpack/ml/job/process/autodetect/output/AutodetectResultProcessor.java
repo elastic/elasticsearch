@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -269,6 +271,10 @@ public class AutodetectResultProcessor {
         if (categoryDefinition != null) {
             persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
+        CategorizerStats categorizerStats = result.getCategorizerStats();
+        if (categorizerStats != null) {
+            bulkResultsPersister.persistCategorizerStats(categorizerStats);
+        }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
             bulkResultsPersister.persistModelPlot(modelPlot);
@@ -346,6 +352,7 @@ public class AutodetectResultProcessor {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
+                persister.commitAnnotationWrites();
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
                 LOGGER.error(
@@ -413,9 +420,9 @@ public class AutodetectResultProcessor {
     }
 
     private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
-        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
         if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
-            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+            if (categorizationStatus == CategorizationStatus.WARN) {
                 auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
                     priorRunsBucketCount + currentRunBucketCount));
             }
@@ -470,6 +477,7 @@ public class AutodetectResultProcessor {
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
             waitUntilRenormalizerIsIdle();
             persister.commitResultWrites(jobId);
+            persister.commitAnnotationWrites();
             persister.commitStateWrites(jobId);
 
         } catch (InterruptedException e) {

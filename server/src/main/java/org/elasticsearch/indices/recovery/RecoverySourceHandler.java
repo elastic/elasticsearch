@@ -51,8 +51,10 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -114,6 +116,7 @@ public class RecoverySourceHandler {
     private final ThreadPool threadPool;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
+    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
@@ -132,12 +135,16 @@ public class RecoverySourceHandler {
         return request;
     }
 
+    public void addListener(ActionListener<RecoveryResponse> listener) {
+        future.addListener(listener, EsExecutors.newDirectExecutorService());
+    }
+
     /**
      * performs the recovery from the local engine to the target
      */
     public void recoverToTarget(ActionListener<RecoveryResponse> listener) {
+        addListener(listener);
         final Closeable releaseResources = () -> IOUtils.close(resources);
-        final ActionListener<RecoveryResponse> wrappedListener = ActionListener.notifyOnce(listener);
         try {
             cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
                 final RuntimeException e;
@@ -149,12 +156,12 @@ public class RecoverySourceHandler {
                 if (beforeCancelEx != null) {
                     e.addSuppressed(beforeCancelEx);
                 }
-                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
                 throw e;
             });
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
-                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
             };
 
             final boolean softDeletesEnabled = shard.indexSettings().isSoftDeleteEnabled();
@@ -336,13 +343,13 @@ public class RecoverySourceHandler {
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
                     prepareEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
                 try {
-                    wrappedListener.onResponse(response);
+                    future.onResponse(response);
                 } finally {
                     IOUtils.close(resources);
                 }
             }, onFailure);
         } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+            IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }
     }
 

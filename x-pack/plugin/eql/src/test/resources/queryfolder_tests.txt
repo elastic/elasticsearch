@@ -102,24 +102,44 @@ process where cidrMatch(source_address, "10.0.0.0/8") != false
 {"terms":{"source_address":["10.0.0.0/8"]
 ;
 
-twoFunctionsEqualsBooleanLiterals
+twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process",
-{"bool":{"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless",
-"params":{"v0":"process_path","v1":"x"}}
-{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)))","lang":"painless",
-"params":{"v0":"process_path","v1":"yx"}}
+"bool":{"must":[{"term":{"event.category":{"value":"process"
+"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
+"params":{"v0":"process_path","v1":"x","v2":true}}
+"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx","v2":true}}
 ;
 
-endsWithFunction
+twoFunctionsEqualsBooleanLiterals-caseInsensitive
+process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+;
+"bool":{"must":[{"term":{"event.category":{"value":"process"
+"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
+"params":{"v0":"process_path","v1":"x","v2":false}}
+"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx","v2":false}}
+;
+
+endsWithFunction-caseSensitive
 process where endsWith(user_name, 'c')
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"c"}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"c","v2":true}}
+;
+
+endsWithFunction-caseInsensitive
+process where endsWith(user_name, 'c')
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"c","v2":false}}
 ;
 
 lengthFunctionWithExactSubField
@@ -146,7 +166,7 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
-startsWithFunction-caseInSensitive
+startsWithFunction-caseInsensitive
 process where startsWith(user_name, 'A')
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
@@ -185,14 +205,21 @@ InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"pid","v1":"123"}
 ;
 
-indexOfFunction
+indexOfFunction-caseSensitive
 process where indexOf(user_name, 'A', 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
-InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-"params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":true,"v4":0}
 ;
 
+indexOfFunction-caseInsensitive
+process where indexOf(user_name, 'A', 2) > 0
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":false,"v4":0}
+;
 
 substringFunction
 process where substring(file_name, -4) == '.exe'

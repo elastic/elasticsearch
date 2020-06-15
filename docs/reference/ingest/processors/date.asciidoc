@@ -31,7 +31,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
       "date" : {
         "field" : "initial_date",
         "target_field" : "timestamp",
-        "formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "formats" : ["dd/MM/yyyy HH:mm:ss"],
         "timezone" : "Europe/Amsterdam"
       }
     }

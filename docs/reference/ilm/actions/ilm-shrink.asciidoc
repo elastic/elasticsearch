@@ -29,6 +29,9 @@ This action will fail if the source index is a <<data-streams, data stream's>>
 write index. Manually rolling over the data stream will change the
 <<data-streams, data stream's>> write index and the action will be able to resume
 shrinking the source index.
+Using a policy that makes use of the <<ilm-rollover, rollover>> action
+in the hot phase will avoid this situation and the need for a manual rollover for future
+managed indices.
 
 [[ilm-shrink-options]]
 ==== Shrink options

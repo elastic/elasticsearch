@@ -488,7 +488,9 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
                 Arrays.asList("logs-*", "metrics-*") // <3>
         );
         request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
-        request.setSettings(Settings.builder().put("index.number_of_replicas", 0L).build()); // <5>
+        Settings settings =
+            Settings.builder().put("index.number_of_replicas", 0L).build();
+        request.setSettings(settings); // <5>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute

@@ -178,7 +178,7 @@ backing index `.ds-timeseries-000002` becomes the data stream's write index.
 This process repeats each time rollover conditions are met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
 with the `timeseries` data stream name.
-Write operations are routed to the current write index, whilst read operations will be handled by all
+Write operations are routed to the current write index. Read operations will be handled by all
 backing indices.
 
 [discrete]

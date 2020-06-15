@@ -10,10 +10,11 @@ If the managed index is part of a <<data-streams, data stream>>,
 the mounted index replaces the original index in the data stream.
 
 [NOTE]
-This action will fail if the managed index is a <<data-streams, data stream's>>
-write index. Manually rolling over the data stream will change the <<data-streams, data stream's>>
-write index and the action will be able to continue converting the managed
-index to a searchable snapshot.
+This action cannot be performed on a data stream's write index. Attempts to do
+so will fail. To convert the index to a searchable snapshot, first
+<<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
+creates a new write index. Because the index is no longer the stream's write
+index, the action can then convert it to a searchable snapshot.
 
 By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.

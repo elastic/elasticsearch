@@ -566,7 +566,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
 
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
-        // Second snapshot never executes on the restarted primary so it should complete successfully
+        // Second snapshot runs after the primary node restarted so it should complete successfully
         assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
     }
 

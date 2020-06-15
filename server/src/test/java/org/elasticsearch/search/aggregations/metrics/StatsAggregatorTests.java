@@ -74,8 +74,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     // TODO: Script tests, should fail with defaultValuesSourceType disabled.
 
     public void testEmpty() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("field");
+        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
         testCase(
             stats("_name").field(ft.name()),
             iw -> {},
@@ -92,8 +91,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRandomDoubles() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE);
-        ft.setName("field");
+        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
         final SimpleStatsAggregator expected = new SimpleStatsAggregator();
         testCase(
             stats("_name").field(ft.name()),
@@ -171,8 +169,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     private void verifySummationOfDoubles(double[] values, double expectedSum,
                                           double expectedAvg, double delta) throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.DOUBLE);
-        ft.setName("field");
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
 
         double max = Double.NEGATIVE_INFINITY;
         double min = Double.POSITIVE_INFINITY;
@@ -222,8 +219,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
              RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory);
              RandomIndexWriter unmappedWriter = new RandomIndexWriter(random(), unmappedDirectory)) {
 
-            final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-            ft.setName("field");
+            final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
             final SimpleStatsAggregator expected = new SimpleStatsAggregator();
             final int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
@@ -347,8 +343,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissing() throws IOException {
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("field");
+        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
 
         final long missingValue = randomIntBetween(-100, 100);
 
@@ -407,8 +402,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                                      StatsAggregationBuilder builder,
                                      BiConsumer<SimpleStatsAggregator, InternalStats> verify) throws IOException {
 
-        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("field");
+        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
 
         final int numDocs = randomIntBetween(10, 50);
         final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);

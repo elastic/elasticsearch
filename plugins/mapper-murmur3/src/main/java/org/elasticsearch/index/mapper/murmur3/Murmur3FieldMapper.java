@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -48,8 +49,9 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "murmur3";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new Murmur3FieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
         static {
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }
     }
@@ -57,24 +59,14 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new Murmur3FieldMapper(name, fieldType, defaultFieldType,
+            return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), meta),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            fieldType.setIndexOptions(IndexOptions.NONE);
-            defaultFieldType.setIndexOptions(IndexOptions.NONE);
-            fieldType.setHasDocValues(true);
-            defaultFieldType.setHasDocValues(true);
         }
     }
 
@@ -100,7 +92,8 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
-        public Murmur3FieldType() {
+        public Murmur3FieldType(String name, Map<String, String> meta) {
+            super(name, false, true, meta);
         }
 
         protected Murmur3FieldType(Murmur3FieldType ref) {
@@ -134,9 +127,9 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    protected Murmur3FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    protected Murmur3FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
     }
 
     @Override
@@ -157,10 +150,15 @@ public class Murmur3FieldMapper extends FieldMapper {
             final BytesRef bytes = new BytesRef(value.toString());
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
-            if (fieldType().stored()) {
+            if (fieldType.stored()) {
                 context.doc().add(new StoredField(name(), hash));
             }
         }
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
     }
 
     @Override

@@ -1,8 +1,8 @@
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: "all"
-      reason: muting
+      version: " - 7.99.99"
+      reason: change after backporting
 
   - do:
       indices.resolve_index:

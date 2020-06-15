@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +54,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "constant_keyword";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new ConstantKeywordFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
@@ -61,26 +63,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder> {
 
+        String value;
+
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         public Builder setValue(String value) {
-            fieldType().setValue(value);
+            this.value = value;
             return this;
         }
 
         @Override
-        public ConstantKeywordFieldType fieldType() {
-            return (ConstantKeywordFieldType) super.fieldType();
-        }
-
-        @Override
         public ConstantKeywordFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new ConstantKeywordFieldMapper(
-                    name, fieldType, defaultFieldType,
+                    name, fieldType, new ConstantKeywordFieldType(buildFullName(context), value, meta),
                     context.indexSettings());
         }
     }
@@ -110,10 +108,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final class ConstantKeywordFieldType extends ConstantFieldType {
 
-        private String value;
+        private final String value;
 
-        public ConstantKeywordFieldType() {
-            super();
+        public ConstantKeywordFieldType(String name, String value, Map<String, String> meta) {
+            super(name, meta);
+            this.value = value;
+        }
+
+        public ConstantKeywordFieldType(String name, String value) {
+            this(name, value, Collections.emptyMap());
         }
 
         protected ConstantKeywordFieldType(ConstantKeywordFieldType ref) {
@@ -142,12 +145,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
         public String value() {
             return value;
-        }
-
-        /** Set the value. */
-        public void setValue(String value) {
-            checkIfFrozen();
-            this.value = Objects.requireNonNull(value);
         }
 
         @Override
@@ -241,9 +238,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    ConstantKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                  Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -271,11 +268,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType());
-            newFieldType.setValue(value);
-            newFieldType.freeze();
+            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
             Mapper update = new ConstantKeywordFieldMapper(
-                    simpleName(), newFieldType, defaultFieldType, context.indexSettings().getSettings());
+                    simpleName(), fieldType, newFieldType, context.indexSettings().getSettings());
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +

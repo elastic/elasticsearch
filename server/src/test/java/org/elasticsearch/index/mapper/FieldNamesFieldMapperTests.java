@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,22 +38,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFieldMapper.Builder> {
-
-    @Override
-    protected FieldNamesFieldMapper.Builder newBuilder() {
-        return new FieldNamesFieldMapper.Builder(null);
-    }
-
-    @Before
-    public void addModifiers() {
-        addBooleanModifier("enabled", true, FieldNamesFieldMapper.Builder::enabled);
-    }
-
-    @Override
-    protected boolean supportsDocValues() {
-        return false;
-    }
+public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();
@@ -91,10 +76,11 @@ public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFi
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
-        assertFalse(fieldNamesMapper.fieldType().tokenized());
-        assertFalse(fieldNamesMapper.fieldType().stored());
-        assertTrue(fieldNamesMapper.fieldType().omitNorms());
+
+        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType.indexOptions());
+        assertFalse(fieldNamesMapper.fieldType.tokenized());
+        assertFalse(fieldNamesMapper.fieldType.stored());
+        assertTrue(fieldNamesMapper.fieldType.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
@@ -172,13 +158,13 @@ public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFi
                         VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                 .build()).mapperService();
 
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapperEnabled
+            = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
         assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }

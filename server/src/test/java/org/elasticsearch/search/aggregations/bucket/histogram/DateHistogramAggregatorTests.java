@@ -24,7 +24,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -170,12 +169,8 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAsSubAgg() throws IOException {
-        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType();
-        k1ft.setName("k1");
-        k1ft.setHasDocValues(true);
-        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType();
-        k2ft.setName("k2");
-        k2ft.setHasDocValues(true);
+        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType("k1");
+        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(List.of(
@@ -1280,14 +1275,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     private DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(AGGREGABLE_DATE);
-        if (useNanosecondResolution) {
-            builder.withResolution(DateFieldMapper.Resolution.NANOSECONDS);
-        }
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setIndexOptions(isSearchable ? IndexOptions.DOCS : IndexOptions.NONE);
-        fieldType.setName(AGGREGABLE_DATE);
-        return fieldType;
+        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
+            Collections.emptyMap());
     }
 
     private static long asLong(String dateTime) {

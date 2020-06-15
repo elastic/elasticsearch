@@ -10,6 +10,7 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -43,7 +44,11 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return GradleRunner.create().withProjectDir(getProjectDir(sampleProject)).withPluginClasspath().withTestKitDir(testkit);
+        return GradleRunner.create()
+            .withProjectDir(getProjectDir(sampleProject))
+            .withPluginClasspath()
+            .withTestKitDir(testkit)
+            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0);
     }
 
     protected File getBuildDir(String name) {

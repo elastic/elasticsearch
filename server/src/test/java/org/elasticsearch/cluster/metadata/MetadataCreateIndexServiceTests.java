@@ -1118,6 +1118,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             dynamicMapping.get("path_match"), is("docker.container.labels.*"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
     public void testDedupRequestDynamicTemplates() throws Exception {
         String requestMappingJson = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
             "{\n" +
@@ -1179,6 +1180,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(mapping.get("type"), is("keyword"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
     public void testMultipleComponentTemplatesDefineSameDynamicTemplate() throws Exception {
         String ct1Mapping = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
             "{\n" +

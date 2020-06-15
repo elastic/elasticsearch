@@ -249,7 +249,7 @@ public class DateHistogramValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        ValuesSource orig = config.toValuesSource();
+        ValuesSource orig = config.hasValues() ? config.getValuesSource() : null;
         if (orig == null) {
             orig = ValuesSource.Numeric.EMPTY;
         }

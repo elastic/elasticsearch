@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -611,6 +612,40 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
             assertThat(snapshotDeletionsInProgress.getEntries(), empty());
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testAssertMultipleSnapshotsAndPrimaryFailOver() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        blockDataNode(repoName, dataNode);
+
+        final String testIndex = "index-one";
+        createIndex(testIndex, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        ensureYellow(testIndex);
+        indexDoc(testIndex, "some_id", "foo", "bar");
+
+
+        final String firstSnapshot = "snapshot-one";
+        final ActionFuture<CreateSnapshotResponse> firstSnapshotResponse = internalCluster().masterClient().admin().cluster()
+                .prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute();
+
+        waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(3);
+        ensureGreen(testIndex);
+
+        final String secondSnapshot = "snapshot-two";
+        final ActionFuture<CreateSnapshotResponse> secondSnapshotResponse = internalCluster().masterClient().admin().cluster()
+                .prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute();
+
+        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+
+        assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        // Second snapshot never executes on the restarted primary so it should complete successfully
+        assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
     }
 
     private static SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {

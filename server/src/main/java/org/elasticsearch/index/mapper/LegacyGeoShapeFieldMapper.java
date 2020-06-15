@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -49,7 +49,9 @@ import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -179,7 +181,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,
         LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
@@ -189,27 +191,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public Builder(String name, DeprecatedParameters deprecatedParameters) {
-            super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            super(name, Defaults.FIELD_TYPE);
             this.deprecatedParameters = deprecatedParameters;
         }
 
-        @Override
-        protected void setGeometryParser(GeoShapeFieldType fieldType) {
-            fieldType().setGeometryParser(ShapeParser::parse);
-        }
-
-        @Override
-        public void setGeometryIndexer(LegacyGeoShapeFieldMapper.GeoShapeFieldType fieldType) {
-            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType));
-        }
-
-        @Override
-        protected void setGeometryQueryBuilder(GeoShapeFieldType fieldType) {
-            fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
-        }
-
-        private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
-            GeoShapeFieldType ft = fieldType();
+        private void setupFieldTypeDeprecatedParameters(GeoShapeFieldType ft) {
             if (deprecatedParameters.strategy != null) {
                 ft.setStrategy(deprecatedParameters.strategy);
             }
@@ -231,15 +217,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 ft.setPointsOnly(deprecatedParameters.pointsOnly);
             }
 
-            GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
-
-            if (geoShapeFieldType.treeLevels() == 0 && geoShapeFieldType.precisionInMeters() < 0) {
-                geoShapeFieldType.setDefaultDistanceErrorPct(DeprecatedParameters.Defaults.DISTANCE_ERROR_PCT);
+            if (ft.treeLevels() == 0 && ft.precisionInMeters() < 0) {
+                ft.setDefaultDistanceErrorPct(DeprecatedParameters.Defaults.DISTANCE_ERROR_PCT);
             }
         }
 
-        private void setupPrefixTrees() {
-            GeoShapeFieldType ft = fieldType();
+        private void setupPrefixTrees(GeoShapeFieldType ft) {
             SpatialPrefixTree prefixTree;
             if (ft.tree().equals(DeprecatedParameters.PrefixTrees.GEOHASH)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
@@ -271,13 +254,15 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             ft.defaultPrefixTreeStrategy.setPointsOnly(ft.pointsOnly());
         }
 
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-
-            // setup the deprecated parameters and the prefix tree configuration
-            setupFieldTypeDeprecatedParameters(context);
-            setupPrefixTrees();
+        private GeoShapeFieldType buildFieldType(BuilderContext context) {
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, false, meta);
+            setupFieldTypeDeprecatedParameters(ft);
+            setupPrefixTrees(ft);
+            ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
+            ft.setGeometryParser(ShapeParser::parse);
+            ft.setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(ft));
+            ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
+            return ft;
         }
 
         private static int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
@@ -290,9 +275,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public LegacyGeoShapeFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-
-            return new LegacyGeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+            return new LegacyGeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -313,12 +296,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType() {
-            setIndexOptions(IndexOptions.DOCS);
-            setTokenized(false);
-            setStored(false);
-            setStoreTermVectors(false);
-            setOmitNorms(true);
+        public GeoShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
+        }
+
+        public GeoShapeFieldType(String name) {
+            this(name, true, true, Collections.emptyMap());
         }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
@@ -330,6 +313,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             this.precisionInMeters = ref.precisionInMeters;
             this.distanceErrorPct = ref.distanceErrorPct;
             this.defaultDistanceErrorPct = ref.defaultDistanceErrorPct;
+            this.defaultPrefixTreeStrategy = ref.defaultPrefixTreeStrategy;
+            this.recursiveStrategy = ref.recursiveStrategy;
+            this.termStrategy = ref.termStrategy;
         }
 
         @Override
@@ -366,7 +352,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setTree(String tree) {
-            checkIfFrozen();
             this.tree = tree;
         }
 
@@ -375,7 +360,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setStrategy(SpatialStrategy strategy) {
-            checkIfFrozen();
             this.strategy = strategy;
             if (this.strategy.equals(SpatialStrategy.TERM)) {
                 this.pointsOnly = true;
@@ -387,7 +371,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setPointsOnly(boolean pointsOnly) {
-            checkIfFrozen();
             this.pointsOnly = pointsOnly;
         }
         public int treeLevels() {
@@ -395,7 +378,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setTreeLevels(int treeLevels) {
-            checkIfFrozen();
             this.treeLevels = treeLevels;
         }
 
@@ -404,7 +386,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setPrecisionInMeters(double precisionInMeters) {
-            checkIfFrozen();
             this.precisionInMeters = precisionInMeters;
         }
 
@@ -413,12 +394,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public void setDistanceErrorPct(double distanceErrorPct) {
-            checkIfFrozen();
             this.distanceErrorPct = distanceErrorPct;
         }
 
         public void setDefaultDistanceErrorPct(double defaultDistanceErrorPct) {
-            checkIfFrozen();
             this.defaultDistanceErrorPct = defaultDistanceErrorPct;
         }
 
@@ -441,11 +420,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
-                               MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
+    public LegacyGeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                     Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
+                                     Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                                     MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
     }
 
@@ -467,6 +446,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     protected void addMultiFields(ParseContext context, Shape geometry) {
         // noop (completion suggester currently not compatible with geo_shape)
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override
@@ -554,6 +538,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         if (fieldType().precisionInMeters() != g.precisionInMeters()) {
             conflicts.add("mapper [" + name() + "] has different [precision]");
         }
+
+        this.orientation = mergeWith.orientation;
     }
 
     @Override

@@ -70,11 +70,8 @@ SELECT LEFT('Elasticsearch', LENGTH('abcdefghijklmnop')) leftchars;
 ltrimFilter
 SELECT LTRIM(first_name) lt FROM "test_emp" WHERE LTRIM(first_name) = 'Bob';
 
-ltrimInline1
-SELECT LTRIM('   Elastic   ') trimmed;
-
-ltrimInline2
-SELECT LTRIM('             ') trimmed;
+ltrimInline
+SELECT LTRIM('   Elastic   ') lt1, LTRIM('             ') lt2;
 
 locateInline1
 SELECT LOCATE('a', 'Elasticsearch', 8) location;
@@ -127,11 +124,8 @@ SELECT LTRIM("first_name") lt FROM "test_emp" WHERE LTRIM("first_name") LIKE '%a
 rtrimFilter
 SELECT RTRIM(first_name) rt FROM "test_emp" WHERE RTRIM(first_name) = 'Johnny';
 
-rtrimInline1
-SELECT RTRIM('   Elastic   ') trimmed;
-
-rtrimInline2
-SELECT RTRIM('             ') trimmed;
+rtrimInline
+SELECT RTRIM('   Elastic   ') rt1, RTRIM('             ') rt2;
 
 spaceFilter
 SELECT SPACE(languages) spaces, languages FROM "test_emp" WHERE SPACE(languages) = '   ';

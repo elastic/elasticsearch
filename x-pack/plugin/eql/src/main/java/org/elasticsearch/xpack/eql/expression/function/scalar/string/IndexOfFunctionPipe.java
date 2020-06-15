@@ -18,12 +18,14 @@ import java.util.Objects;
 public class IndexOfFunctionPipe extends Pipe {
 
     private final Pipe source, substring, start;
+    private final boolean isCaseSensitive;
 
-    public IndexOfFunctionPipe(Source source, Expression expression, Pipe src, Pipe substring, Pipe start) {
+    public IndexOfFunctionPipe(Source source, Expression expression, Pipe src, Pipe substring, Pipe start, boolean isCaseSensitive) {
         super(source, expression, Arrays.asList(src, substring, start));
         this.source = src;
         this.substring = substring;
         this.start = start;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     @Override
@@ -56,7 +58,7 @@ public class IndexOfFunctionPipe extends Pipe {
     }
 
     protected Pipe replaceChildren(Pipe newSource, Pipe newSubstring, Pipe newStart) {
-        return new IndexOfFunctionPipe(source(), expression(), newSource, newSubstring, newStart);
+        return new IndexOfFunctionPipe(source(), expression(), newSource, newSubstring, newStart, isCaseSensitive);
     }
 
     @Override
@@ -68,12 +70,12 @@ public class IndexOfFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<IndexOfFunctionPipe> info() {
-        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), source, substring, start);
+        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), source, substring, start, isCaseSensitive);
     }
 
     @Override
     public IndexOfFunctionProcessor asProcessor() {
-        return new IndexOfFunctionProcessor(source.asProcessor(), substring.asProcessor(), start.asProcessor());
+        return new IndexOfFunctionProcessor(source.asProcessor(), substring.asProcessor(), start.asProcessor(), isCaseSensitive);
     }
     
     public Pipe src() {
@@ -90,7 +92,7 @@ public class IndexOfFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, substring, start);
+        return Objects.hash(source, substring, start, isCaseSensitive);
     }
 
     @Override
@@ -106,6 +108,7 @@ public class IndexOfFunctionPipe extends Pipe {
         IndexOfFunctionPipe other = (IndexOfFunctionPipe) obj;
         return Objects.equals(source, other.source)
                 && Objects.equals(substring, other.substring)
-                && Objects.equals(start, other.start);
+                && Objects.equals(start, other.start)
+                && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }
 }

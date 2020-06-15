@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,7 +50,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType() {}
+    public StringFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+        super(name, isSearchable, hasDocValues, meta);
+    }
 
     protected StringFieldType(MappedFieldType ref) {
         super(ref);

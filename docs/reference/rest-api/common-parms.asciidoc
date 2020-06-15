@@ -846,14 +846,26 @@ end::source[]
 
 tag::source_excludes[]
 `_source_excludes`::
-(Optional, string) A list of fields to exclude from the returned `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to exclude from
+the response.
++
+You can also use this parameter to exclude fields from the subset specified in
+`_source_includes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_excludes[]
 
 tag::source_includes[]
 `_source_includes`::
-(Optional, string) A list of fields to extract and return from the `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to
+include in the response.
++
+If this parameter is specified, only these source fields are returned. You can
+exclude fields from this subset using the `_source_excludes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_includes[]
 
 tag::source-transforms[]
@@ -928,7 +940,7 @@ end::transform-settings[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
-throttles the {transform} by adding a wait time between search requests. The 
+throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
@@ -1004,7 +1016,7 @@ information for all {transforms}.
 end::transform-id-wildcard[]
 
 tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For 
+The number of times the {transform} has been triggered by the scheduler. For
 example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

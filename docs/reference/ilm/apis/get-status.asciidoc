@@ -25,9 +25,10 @@ Retrieves the current {ilm} ({ilm-init}) status.
 [[ilm-get-status-desc]]
 ==== {api-description-title}
 
-Returns the status of the {ilm-init} plugin. The `operation_mode` field in the
-response shows one of three states: `STARTED`, `STOPPING`,
-or `STOPPED`. You can change the status of the {ilm-init} plugin with the
+[[ilm-operating-modes]]
+Returns the status of the {ilm-init} plugin. 
+The `operation_mode` in the response shows one of three states: `STARTED`, `STOPPING`, or `STOPPED`. 
+You can start or stop {ilm-init} with the
 <<ilm-start,start {ilm-init}>> and <<ilm-stop,stop {ilm-init}>> APIs.
 
 [[ilm-get-status-query-params]]

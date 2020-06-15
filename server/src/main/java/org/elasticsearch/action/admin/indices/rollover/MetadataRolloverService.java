@@ -88,16 +88,16 @@ public class MetadataRolloverService {
 
     public RolloverResult rolloverClusterState(ClusterState currentState, String rolloverTarget, String newIndexName,
                                                CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                               boolean silent) throws Exception {
+                                               boolean silent, boolean onlyValidate) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
             case ALIAS:
                 return rolloverAlias(currentState, (IndexAbstraction.Alias) indexAbstraction, rolloverTarget, newIndexName,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, silent, onlyValidate);
             case DATA_STREAM:
                 return  rolloverDataStream(currentState, (IndexAbstraction.DataStream) indexAbstraction, rolloverTarget,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, silent, onlyValidate);
             default:
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -106,7 +106,7 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverAlias(ClusterState currentState, IndexAbstraction.Alias alias, String aliasName,
                                          String newIndexName, CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                         boolean silent) throws Exception {
+                                         boolean silent, boolean onlyValidate) throws Exception {
         final Metadata metadata = currentState.metadata();
         final IndexMetadata writeIndex = alias.getWriteIndex();
         final AliasMetadata aliasMetadata = writeIndex.getAliases().get(alias.getName());
@@ -122,6 +122,9 @@ public class MetadataRolloverService {
             IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings()) : null;
         createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
+        if (onlyValidate) {
+            return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
+        }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
@@ -140,12 +143,16 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                              boolean silent) throws Exception {
+                                              boolean silent, boolean onlyValidate) throws Exception {
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
         final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1);
+        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        if (onlyValidate) {
+            return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), currentState);
+        }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareDataStreamCreateIndexRequest(dataStreamName, newWriteIndexName, createIndexRequest);

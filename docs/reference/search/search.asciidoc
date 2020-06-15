@@ -270,6 +270,35 @@ If `true`, returns document version as part of a hit. Defaults to `false`.
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
+[[search-docvalue-fields-param]]
+`docvalue_fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The request returns doc values for field names
+matching these patterns in the `hits.fields` property of the response.
++
+You can specify items in the array as a string or object.
+See <<docvalue-fields>>.
++
+.Properties of `docvalue_fields` objects
+[%collapsible]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns doc values for field names matching this
+pattern.
+
+`format`::
+(Optional, string)
+Format in which the doc values are returned.
++
+For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+`format`>>. For <<number,numeric fields>> fields, you can specify a
+https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+pattern].
++
+For other field datatypes, this parameter is not supported.
+====
+
 [[request-body-search-explain]]
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -528,6 +557,28 @@ Original JSON body passed for the document at index time.
 +
 You can use the `_source` parameter to exclude this property from the response
 or specify which source fields to return.
+
+`fields`::
++
+--
+(object)
+Contains field values for the documents. These fields must be specified in the
+request using one or more of the following request parameters:
+
+* <<search-docvalue-fields-param,`docvalue_fields`>>
+* <<request-body-search-script-fields,`script_fields`>>
+* <<request-body-search-stored-fields,`stored_fields`>>
+
+This property is returned only if one or more of these parameters are set.
+--
++
+.Properties of `fields`
+[%collapsible%open]
+======
+`<field>`::
+(array)
+Key is the field name. Value is the value for the field.
+======
 =====
 ====
 

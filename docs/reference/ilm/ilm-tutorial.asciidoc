@@ -174,7 +174,7 @@ Because it is a backing index of the `timeseries` data stream, the configuration
 * As it is the latest generation index of the `timeseries` data stream, the newly created
 backing index `.ds-timeseries-000002` becomes the data stream's write index.
 
-This process repeats each time rollover conditions are met.
+This process repeats each time a rollover condition is met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
 with the `timeseries` data stream name.
 Write operations are routed to the current write index. Read operations will be handled by all

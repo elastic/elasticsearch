@@ -875,12 +875,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
                     final String repo = entry.repository();
                     if (repositoriesSeen.add(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                            && snapshotsInProgress.entries().stream().noneMatch(se -> {
-                        if (se.repository().equals(repo) == false) {
-                            return false;
-                        }
-                        return isDoingWork(se);
-                    })) {
+                            && snapshotsInProgress.entries().stream()
+                            .filter(se -> se.repository().equals(repo)).noneMatch(SnapshotsService::isWritingToRepository)) {
                         changed = true;
                         final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                         entriesToDelete.add(newEntry);
@@ -1288,7 +1284,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             threadPool.absoluteTimeInMillis(),
                             repositoryStateId,
                             updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository()))
-                                    .noneMatch(SnapshotsService::isDoingWork)
+                                    .noneMatch(SnapshotsService::isWritingToRepository)
                                     ? SnapshotDeletionsInProgress.State.META_DATA : SnapshotDeletionsInProgress.State.WAITING
                     );
                 } else {
@@ -1325,13 +1321,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         };
     }
 
-    private static boolean isDoingWork(SnapshotsInProgress.Entry entry) {
+    /**
+     * Checks if the given {@link SnapshotsInProgress.Entry} is currently writing to the repository.
+     *
+     * @param entry snapshot entry
+     * @return true if entry is currently writing to the repository
+     */
+    private static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
         if (entry.state().completed()) {
+            // Entry is writing to the repo because it's finalizing on master
             return true;
         }
         for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
             final ShardState shardState = value.value.state();
             if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
+                // Entry is writing to the repo because it's writing to a shard on a data node
                 return true;
             }
         }
@@ -1552,20 +1556,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         Metadata metadata = clusterState.metadata();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
-        final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots == null ? List.of() : snapshots.entries();
-        final Set<ShardId> inProgressShards = new HashSet<>();
-        for (SnapshotsInProgress.Entry runningSnapshot : runningSnapshots) {
-            if (runningSnapshot.repository().equals(repoName) == false) {
-                continue;
-            }
-            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                final ShardState shardState = shard.value.state();
-                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
-                    inProgressShards.add(shard.key);
-                }
-            }
-        }
+        final Set<ShardId> inProgressShards = busyShardsForRepo(repoName, clusterState);
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
@@ -1592,7 +1583,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
-                        if (readyToExecute == false) {
+                        if (readyToExecute == false || inProgressShards.contains(shardId)) {
                             builder.put(shardId, ShardSnapshotStatus.UNASSIGNED_WAITING);
                         } else if (primary == null || !primary.assignedToNode()) {
                             builder.put(shardId,
@@ -1601,8 +1592,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         } else if (primary.relocating() || primary.initializing()) {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
                                 primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration));
-                        } else if (inProgressShards.contains(shardId)) {
-                            builder.put(shardId, ShardSnapshotStatus.UNASSIGNED_WAITING);
                         } else if (!primary.started()) {
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
@@ -1620,6 +1609,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         return builder.build();
+    }
+
+    /**
+     * Compute all shard ids that currently have an actively executing snapshot for the given repository.
+     *
+     * @param repoName     repository name
+     * @param clusterState current cluster state
+     * @return shard ids that currently have an actively executing shard snapshot on a data node
+     */
+    private static Set<ShardId> busyShardsForRepo(String repoName, ClusterState clusterState) {
+        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
+        final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots == null ? List.of() : snapshots.entries();
+        final Set<ShardId> inProgressShards = new HashSet<>();
+        for (SnapshotsInProgress.Entry runningSnapshot : runningSnapshots) {
+            if (runningSnapshot.repository().equals(repoName) == false) {
+                continue;
+            }
+            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : runningSnapshot.shards()) {
+                final ShardState shardState = shard.value.state();
+                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
+                    inProgressShards.add(shard.key);
+                }
+            }
+        }
+        return inProgressShards;
     }
 
     /**

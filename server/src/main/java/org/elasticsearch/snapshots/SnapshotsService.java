@@ -372,7 +372,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
 
-            if (snapshot.userMetadata().containsKey(DataStream.DATA_STREAMS_METADATA_FIELD)) {
+            if (snapshot.userMetadata() != null && snapshot.userMetadata().containsKey(DataStream.DATA_STREAMS_METADATA_FIELD)) {
                 @SuppressWarnings("unchecked")
                 List<String> dataStreamNames = (List<String>) snapshot.userMetadata().get(DataStream.DATA_STREAMS_METADATA_FIELD);
                 Map<String, DataStream> dataStreams = new HashMap<>();

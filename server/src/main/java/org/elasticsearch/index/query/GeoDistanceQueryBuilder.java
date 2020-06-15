@@ -35,12 +35,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -77,6 +78,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(
+            Arrays.asList(
+                GeoShapeFieldMapper.CONTENT_TYPE,
+                GeoPointFieldMapper.CONTENT_TYPE));
+
+    protected List<String> validContentTypes() {
+        return validContentTypes;
+    }
     /**
      * Construct new GeoDistanceQueryBuilder.
      * @param fieldName name of indexed geo field to operate distance computation on.
@@ -236,8 +246,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             }
         }
 
-        if (!(fieldType instanceof GeoPointFieldType)) {
-            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+//        if (!(fieldType instanceof GeoPointFieldType)) {
+//            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+//        }
+
+        if (!validContentTypes().contains(fieldType.typeName())) {
+            throw new QueryShardException(shardContext,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
+                    + NAME + "] query supports the following types ["
+                    + String.join(",", validContentTypes()) +  "]");
         }
 
         QueryValidationException exception = checkLatLon();

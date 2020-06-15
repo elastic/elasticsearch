@@ -132,7 +132,7 @@ setup:
                       }
                     },
                     "regression_agg": {
-                      "inference_model": {
+                      "inference": {
                         "model_id": "a-complex-regression-model",
                         "buckets_path": {
                           "avg_cost": "good['TV']>avg_cost_agg",
@@ -169,7 +169,7 @@ setup:
                     }
                   },
                   "regression_agg" : {
-                    "inference_model": {
+                    "inference": {
                       "model_id": "a-complex-regression-model",
                       "buckets_path": {
                         "cost" : "avg_cost_agg"

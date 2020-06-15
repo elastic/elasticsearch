@@ -15,6 +15,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A config update that applies no changes.
+ * Supports any type of {@link InferenceConfig}
+ */
 public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     public static final ParseField NAME = new ParseField("empty");

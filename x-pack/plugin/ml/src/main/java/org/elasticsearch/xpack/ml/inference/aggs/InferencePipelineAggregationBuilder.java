@@ -44,7 +44,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
 
-    public static String NAME = "inference_model";
+    public static String NAME = "inference";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
@@ -65,7 +65,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return BucketHelpers.GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
             }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            throw new IllegalArgumentException(
+                "Unsupported token [" + p.currentToken() + "] parsing inference aggregation " + GAP_POLICY.getPreferredName());
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
     }
 
@@ -137,10 +138,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         modelLoadingService.get().getModelForSearch(modelId, listener);
         try {
-            // Eeek blocking on a latch we can't be doing that
+            // TODO Avoid the blocking wait
             latch.await();
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Inference aggregation interrupted loading model", e);
         }
 
         if (error.get() != null) {
@@ -160,8 +161,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
         }
 
-        return new InferencePipelineAggregator(name, bucketPathMap, metaData, BucketHelpers.GapPolicy.SKIP,
-            update, model.get());
+        return new InferencePipelineAggregator(name, bucketPathMap, metaData, gapPolicy, update, model.get());
     }
 
     @Override

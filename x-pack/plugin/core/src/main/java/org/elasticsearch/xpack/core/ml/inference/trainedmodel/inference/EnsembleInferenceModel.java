@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -85,12 +86,12 @@ public class EnsembleInferenceModel implements InferenceModel {
     private EnsembleInferenceModel(List<InferenceModel> models,
                                    OutputAggregator outputAggregator,
                                    TargetType targetType,
-                                   List<String> classificationLabels,
+                                   @Nullable List<String> classificationLabels,
                                    List<Double> classificationWeights) {
         this.models = ExceptionsHelper.requireNonNull(models, TRAINED_MODELS);
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
-        this.classificationLabels = classificationLabels == null ? null : classificationLabels;
+        this.classificationLabels = classificationLabels;
         this.classificationWeights = classificationWeights == null ?
             null :
             classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();

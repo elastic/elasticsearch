@@ -537,6 +537,50 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
     }
 
+    public void testQueuedDeletesWithFailures() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
+        final String secondSnapshot = "snapshot-two";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute());
+
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final ActionFuture<AcknowledgedResponse> firstDeleteFuture =
+                client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        final PlainActionFuture<Void> thirdSnapshotVisible = awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress.entries().isEmpty() == false;
+        });
+        final ActionFuture<CreateSnapshotResponse> thirdSnapshotFuture =
+                client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(true).execute();
+        thirdSnapshotVisible.get(30L, TimeUnit.SECONDS);
+
+        final PlainActionFuture<Void> bothDeletesVisible = awaitClusterState(state -> {
+            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            return deletionsInProgress.getEntries().size() == 2;
+        });
+        final ActionFuture<AcknowledgedResponse> secondDeleteFuture =
+                client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        bothDeletesVisible.get(30L, TimeUnit.SECONDS);
+
+        unblockNode(repoName, masterNode);
+        expectThrows(UncategorizedExecutionException.class, firstDeleteFuture::actionGet);
+
+        // Second delete works out cleanly since the repo is unblocked now
+        assertThat(secondDeleteFuture.get().isAcknowledged(), is(true));
+        // Snapshot should have been aborted
+        assertThat(thirdSnapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+
+        assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
+    }
+
     private PlainActionFuture<Void> awaitDeleteInClusterState() {
         return awaitClusterState(state -> {
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);

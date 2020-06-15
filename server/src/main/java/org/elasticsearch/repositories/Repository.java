@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -40,8 +41,10 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -153,15 +156,15 @@ public interface Repository extends LifecycleComponent {
                           ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**
-     * Deletes snapshot
+     * Deletes snapshots
      *
-     * @param snapshotId            snapshot id
+     * @param snapshotIds           snapshot ids
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion, ActionListener<Void> listener);
-
+    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                         ActionListener<Void> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -267,6 +270,21 @@ public interface Repository extends LifecycleComponent {
      * @param state new cluster state
      */
     void updateState(ClusterState state);
+
+    /**
+     * Execute a cluster state update with a consistent view of the current {@link RepositoryData}. The {@link ClusterState} passed to the
+     * task generated through {@code createUpdateTask} is guaranteed to point at the same state for this repository as the did the state
+     * at the time the {@code RepositoryData} was loaded.
+     * This allows for operations on the repository that need a consistent view of both the cluster state and the repository contents at
+     * one point in time like for example, checking if a snapshot is in the repository before adding the delete operation for it to the
+     * cluster state.
+     *
+     * @param createUpdateTask function to supply cluster state update task
+     * @param source           the source of the cluster state update task
+     * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
+     */
+    void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                      Consumer<Exception> onFailure);
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

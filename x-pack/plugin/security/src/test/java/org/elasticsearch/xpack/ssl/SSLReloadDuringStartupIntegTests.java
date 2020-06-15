@@ -10,8 +10,10 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,7 +23,16 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 
+// transport clients do not support reloading of files so failures can occur if we allow the use
+// of transport clients in tests when we are changing files and a transport client is built from
+// the node we change the files on
+@ClusterScope(transportClientRatio = 0)
 public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
+
+    @BeforeClass
+    public static void skipInFips() {
+        assumeFalse("Can't use JKS keystores in FIPS JVM", inFipsJvm());
+    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -52,7 +63,6 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55524")
     public void testReloadDuringStartup() throws Exception {
         final String node = randomFrom(internalCluster().getNodeNames());
         final Environment env = internalCluster().getInstance(Environment.class, node);

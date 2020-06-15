@@ -9,35 +9,28 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.spatial.index.fielddata.AbstractLatLonShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,21 +60,11 @@ import java.util.Map;
  */
 public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     public static final String CONTENT_TYPE = "geo_shape";
-
-
     private Explicit<Boolean> docValues;
 
-    @Override
-    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || docValues.explicit()) {
-            builder.field(TypeParsers.DOC_VALUES, docValues.value());
-        }
-    }
-
     @SuppressWarnings("rawtypes")
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder,
-            GeoShapeWithDocValuesFieldMapper> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
+            GeoShapeWithDocValuesFieldType> {
         public Builder(String name) {
             super (name, new GeoShapeWithDocValuesFieldType(), new GeoShapeWithDocValuesFieldType());
         }
@@ -90,7 +73,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), docValues(), context.indexSettings(),
+                ignoreZValue(), orientation(), docValues(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
 
@@ -108,43 +91,46 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             return new Explicit<>(fieldType.hasDocValues(), false);
         }
 
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
+        @Override
+        protected void setGeometryParser(GeoShapeWithDocValuesFieldType ft) {
+            // @todo check coerce
+            GeometryParser geometryParser = new GeometryParser(ft.orientation().getAsBoolean(), coerce().value(),
+                ignoreZValue().value());
+            ft.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
+        }
 
-            GeoShapeWithDocValuesFieldType fieldType = (GeoShapeWithDocValuesFieldType)fieldType();
-            boolean orientation = fieldType.orientation() == ShapeBuilder.Orientation.RIGHT;
+        @Override
+        protected void setGeometryIndexer(GeoShapeWithDocValuesFieldType fieldType) {
+            fieldType.setGeometryIndexer(new GeoShapeIndexer(fieldType.orientation().getAsBoolean(), fieldType.name()));
+        }
 
-            GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
-
-            fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()) {
-                @Override
-                public List<IndexableField> indexShape(ParseContext context, Geometry shape) {
-                    List<IndexableField> fields = super.indexShape(context, shape);
-                    if (fieldType().hasDocValues()) {
-                        CentroidCalculator calculator = new CentroidCalculator(shape);
-                        final byte[] scratch = new byte[7 * Integer.BYTES];
-                        // doc values are generated from the indexed fields.
-                        ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
-                        for (int i = 0; i < fields.size(); i++) {
-                            BytesRef bytesRef = fields.get(i).binaryValue();
-                            assert bytesRef.length == 7 * Integer.BYTES;
-                            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-                            ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
-                        }
-                        BinaryGeoShapeDocValuesField docValuesField =
-                            (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
-                        if (docValuesField == null) {
-                            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, calculator);
-                            context.doc().addWithKey(name, docValuesField);
-                        } else {
-                            docValuesField.add(triangles, calculator);
-                        }
-                    }
-                    return fields;
-                }
-            });
-            fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
+        @Override
+        protected void setGeometryQueryBuilder(GeoShapeWithDocValuesFieldType fieldType) {
             fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+        }
+    }
+
+    @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    protected void addDocValuesFields(String name, Geometry shape, List fields, ParseContext context) {
+        CentroidCalculator calculator = new CentroidCalculator(shape);
+        final byte[] scratch = new byte[7 * Integer.BYTES];
+        // doc values are generated from the indexed fields.
+        ShapeField.DecodedTriangle[] triangles = new ShapeField.DecodedTriangle[fields.size()];
+        for (int i = 0; i < fields.size(); i++) {
+            BytesRef bytesRef = ((List<IndexableField>)fields).get(i).binaryValue();
+            assert bytesRef.length == 7 * Integer.BYTES;
+            System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+            ShapeField.decodeTriangle(scratch, triangles[i] = new ShapeField.DecodedTriangle());
+        }
+        BinaryGeoShapeDocValuesField docValuesField =
+            (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+        if (docValuesField == null) {
+            docValuesField = new BinaryGeoShapeDocValuesField(name, triangles, calculator);
+            context.doc().addWithKey(name, docValuesField);
+
+        } else {
+            docValuesField.add(triangles, calculator);
         }
     }
 
@@ -159,21 +145,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeDVIndexFieldData.Builder();
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return GeoShapeValuesSourceType.INSTANCE;
+            return new AbstractLatLonShapeIndexFieldData.Builder(GeoShapeValuesSourceType.instance());
         }
 
         @Override
@@ -182,11 +154,11 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         }
     }
 
-    public static final class TypeParser extends AbstractGeometryFieldMapper.TypeParser {
+    public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override
         @SuppressWarnings("rawtypes")
-        protected AbstractGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
+        protected AbstractShapeGeometryFieldMapper.Builder newBuilder(String name, Map<String, Object> params) {
             if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
                 return new LegacyGeoShapeFieldMapper.Builder(name,
                     (LegacyGeoShapeFieldMapper.DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
@@ -196,8 +168,9 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         @Override
         @SuppressWarnings("rawtypes")
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            AbstractGeometryFieldMapper.Builder builder = (AbstractGeometryFieldMapper.Builder) super.parse(name, node, parserContext);
+        public AbstractShapeGeometryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
+            AbstractShapeGeometryFieldMapper.Builder builder = super.parse(name, node, parserContext);
             Map<String, Object> params = new HashMap<>();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -218,9 +191,10 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
     public GeoShapeWithDocValuesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                            Explicit<Boolean> ignoreZValue, Explicit<Boolean> docValues, Settings indexSettings,
+                                            Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
+                                            Explicit<Boolean> docValues, Settings indexSettings,
                                             MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
         this.docValues = docValues;
     }

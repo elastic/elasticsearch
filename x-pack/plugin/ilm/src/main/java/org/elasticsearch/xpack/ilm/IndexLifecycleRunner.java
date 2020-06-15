@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -118,7 +119,7 @@ class IndexLifecycleRunner {
      * Run the current step, only if it is an asynchronous wait step. These
      * wait criteria are checked periodically from the ILM scheduler
      */
-    void runPeriodicStep(String policy, IndexMetadata indexMetadata) {
+    void runPeriodicStep(String policy, Metadata metadata, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         final Step currentStep;
@@ -170,7 +171,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            ((AsyncWaitStep) currentStep).evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {

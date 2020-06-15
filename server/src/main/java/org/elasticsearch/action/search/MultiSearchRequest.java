@@ -60,7 +60,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     public MultiSearchRequest() {}
 
@@ -191,7 +191,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
-                deprecationLogger.deprecated("support for empty first line before any action metadata in msearch API is deprecated and " +
+                deprecationLogger.deprecatedAndMaybeLog("multi_search_empty_first_line",
+                    "support for empty first line before any action metadata in msearch API is deprecated and " +
                     "will be removed in the next major version");
                 continue;
             }

@@ -69,10 +69,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
-        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         assertThat(featureSet.available(), is(true));
 
-        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
         assertThat(featureSet.available(), is(false));
     }
 
@@ -92,7 +92,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
-        when(licenseState.isSecurityAvailable()).thenReturn(authcAuthzAvailable);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
@@ -260,7 +260,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
-        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);

@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -70,6 +71,10 @@ public class AutoDateHistogramAggregationBuilder
         ALLOWED_INTERVALS.put( Rounding.DateTimeUnit.HOUR_OF_DAY, "hour");
         ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute");
         ALLOWED_INTERVALS.put(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second");
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(builder);
     }
 
     /**
@@ -141,8 +146,7 @@ public class AutoDateHistogramAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.DATE;
     }
 
     @Override

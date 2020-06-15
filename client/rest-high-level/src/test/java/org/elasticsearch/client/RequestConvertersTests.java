@@ -1350,8 +1350,7 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
                     randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
                     msearchDefault.expandWildcardsHidden(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled(),
-                    msearchDefault.includeDataStreams()));
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()));
             multiSearchRequest.add(searchRequest);
         }
 

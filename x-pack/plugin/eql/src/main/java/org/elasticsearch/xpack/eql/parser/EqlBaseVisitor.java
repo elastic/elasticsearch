@@ -89,6 +89,12 @@ interface EqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEventQuery(EqlBaseParser.EventQueryContext ctx);
   /**
+   * Visit a parse tree produced by {@link EqlBaseParser#eventFilter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEventFilter(EqlBaseParser.EventFilterContext ctx);
+  /**
    * Visit a parse tree produced by {@link EqlBaseParser#expression}.
    * @param ctx the parse tree
    * @return the visitor result

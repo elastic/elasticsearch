@@ -188,7 +188,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 // TEST[setup:twitter]
 
 [float]
-==== URL Parameters
+==== URL parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,

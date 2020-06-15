@@ -99,8 +99,6 @@ public class ClusterStateCreationUtils {
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).primaryTerm(0, primaryTerm)
             .build();
 
-        RoutingTable.Builder routing = new RoutingTable.Builder();
-        routing.addAsNew(indexMetadata);
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
 
         String primaryNode = null;
@@ -179,9 +177,6 @@ public class ClusterStateCreationUtils {
             .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
 
-        RoutingTable.Builder routing = new RoutingTable.Builder();
-        routing.addAsNew(indexMetadata);
-
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfPrimaries; i++) {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
@@ -224,9 +219,6 @@ public class ClusterStateCreationUtils {
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries).put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
-
-            RoutingTable.Builder routing = new RoutingTable.Builder();
-            routing.addAsNew(indexMetadata);
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfPrimaries; i++) {
@@ -272,8 +264,6 @@ public class ClusterStateCreationUtils {
         state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfShards; i++) {
-            RoutingTable.Builder routing = new RoutingTable.Builder();
-            routing.addAsNew(indexMetadata);
             final ShardId shardId = new ShardId(index, "_na_", i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true,

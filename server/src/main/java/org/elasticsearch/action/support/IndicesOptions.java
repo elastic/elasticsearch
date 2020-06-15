@@ -102,19 +102,17 @@ public class IndicesOptions implements ToXContentFragment {
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED,
-        INCLUDE_DATA_STREAMS;
+        IGNORE_THROTTLED;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }
 
     public static final IndicesOptions STRICT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
-            EnumSet.of(WildcardStates.OPEN));
-    public static final IndicesOptions LENIENT_INCLUDE_DATA_STREAMS_EXPAND_OPEN =
-        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.INCLUDE_DATA_STREAMS),
             EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN_HIDDEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
@@ -135,19 +133,12 @@ public class IndicesOptions implements ToXContentFragment {
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES),
             EnumSet.of(WildcardStates.OPEN, WildcardStates.HIDDEN));
-    public static final IndicesOptions STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED =
-        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED,
-            Option.INCLUDE_DATA_STREAMS), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES, Option.IGNORE_THROTTLED),
+            EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
             EnumSet.noneOf(WildcardStates.class));
-
-    public static final IndicesOptions STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED =
-        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.INCLUDE_DATA_STREAMS, Option.FORBID_CLOSED_INDICES),
-            EnumSet.of(WildcardStates.OPEN));
-    public static final IndicesOptions STRICT_SINGLE_INDEX_INCLUDE_DATA_STREAMS_NO_EXPAND_FORBID_CLOSED =
-        new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES,
-            Option.INCLUDE_DATA_STREAMS), EnumSet.noneOf(WildcardStates.class));
 
     private final EnumSet<Option> options;
     private final EnumSet<WildcardStates> expandWildcards;
@@ -237,23 +228,12 @@ public class IndicesOptions implements ToXContentFragment {
         return EnumSet.copyOf(expandWildcards);
     }
 
-    /**
-     * @return Whether to include data streams when resolving index expressions to concrete indices.
-     */
-    public boolean includeDataStreams() {
-        return options.contains(Option.INCLUDE_DATA_STREAMS);
-    }
-
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> options = this.options;
         // never write this out to a pre 6.6 version
         if (out.getVersion().before(Version.V_6_6_0) && options.contains(Option.IGNORE_THROTTLED)) {
             options = EnumSet.copyOf(options);
             options.remove(Option.IGNORE_THROTTLED);
-        }
-        if (out.getVersion().before(Version.V_7_8_0) && options.contains(Option.INCLUDE_DATA_STREAMS)) {
-            options = EnumSet.copyOf(options);
-            options.remove(Option.INCLUDE_DATA_STREAMS);
         }
         out.writeEnumSet(options);
         if (out.getVersion().before(Version.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
@@ -282,15 +262,14 @@ public class IndicesOptions implements ToXContentFragment {
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, expandToHiddenIndices, true,
-            false, false, false, false);
+            false, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, IndicesOptions defaultOptions) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices,
             defaultOptions.expandWildcardsHidden(), defaultOptions.allowAliasesToMultipleIndices(),
-            defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(), defaultOptions.ignoreThrottled(),
-            defaultOptions.includeDataStreams());
+            defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(), defaultOptions.ignoreThrottled());
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -298,13 +277,13 @@ public class IndicesOptions implements ToXContentFragment {
                                              boolean forbidClosedIndices, boolean ignoreAliases,
                                              boolean ignoreThrottled) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, false,
-            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled, false);
+            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices,
                                              boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases,
-                                             boolean ignoreThrottled, boolean includeDataStreams) {
+                                             boolean ignoreThrottled) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
         final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
 
@@ -335,10 +314,6 @@ public class IndicesOptions implements ToXContentFragment {
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);
         }
-        if (includeDataStreams) {
-            opts.add(Option.INCLUDE_DATA_STREAMS);
-        }
-
         return new IndicesOptions(opts, wildcards);
     }
 
@@ -389,8 +364,7 @@ public class IndicesOptions implements ToXContentFragment {
                 defaultSettings.allowAliasesToMultipleIndices(),
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases(),
-                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()),
-                defaultSettings.includeDataStreams());
+                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()));
     }
 
     @Override
@@ -415,6 +389,14 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
+     * @return indices options that requires every specified index to exist, expands wildcards only to open indices, includes hidden
+     *         indices, and allows that no indices are resolved from wildcard expressions (not returning an error).
+     */
+    public static IndicesOptions strictExpandOpenHidden() {
+        return STRICT_EXPAND_OPEN_HIDDEN;
+    }
+
+    /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
      *         allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
      *         use of closed indices by throwing an error.
@@ -426,20 +408,10 @@ public class IndicesOptions implements ToXContentFragment {
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
      *         allows that no indices are resolved from wildcard expressions (not returning an error),
-     *         supports data streams and forbids the use of closed indices by throwing an error.
+     *         forbids the use of closed indices by throwing an error and ignores indices that are throttled.
      */
-    public static IndicesOptions strictIncludeDataStreamsExpandOpenAndForbidClosed() {
-        return STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED;
-    }
-
-    /**
-     * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
-     *         allows that no indices are resolved from wildcard expressions (not returning an error),
-     *         supports data streams and forbids the use of closed indices by throwing an error and
-     *         ignores indices that are throttled.
-     */
-    public static IndicesOptions strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled() {
-        return STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED;
+    public static IndicesOptions strictExpandOpenAndForbidClosedIgnoreThrottled() {
+        return STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED;
     }
 
     /**
@@ -467,28 +439,11 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
-     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards,
-     * supports data streams and throws error if any of the aliases resolves to multiple indices.
-     */
-    public static IndicesOptions strictSingleIndexIncludeDataStreamNoExpandForbidClosed() {
-        return STRICT_SINGLE_INDEX_INCLUDE_DATA_STREAMS_NO_EXPAND_FORBID_CLOSED;
-    }
-
-    /**
      * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
         return LENIENT_EXPAND_OPEN;
-    }
-
-    /**
-     * @return indices options that ignores unavailable indices, expands wildcards only to open indices,
-     *         supports data streams and allows that no indices are resolved from wildcard expressions
-     *         (not returning an error).
-     */
-    public static IndicesOptions lenientIncludeDataStreamsExpandOpen() {
-        return LENIENT_INCLUDE_DATA_STREAMS_EXPAND_OPEN;
     }
 
     /**
@@ -547,7 +502,6 @@ public class IndicesOptions implements ToXContentFragment {
                 ", forbid_closed_indices=" + forbidClosedIndices() +
                 ", ignore_aliases=" + ignoreAliases() +
                 ", ignore_throttled=" + ignoreThrottled() +
-                ", include_data_streams=" + includeDataStreams() +
                 ']';
     }
 }

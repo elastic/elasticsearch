@@ -74,7 +74,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -932,24 +931,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(T aggregationBuilder, Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<V> verify, MappedFieldType fieldType) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                verify.accept(agg);
-
-            }
-        }
     }
 
     @Override

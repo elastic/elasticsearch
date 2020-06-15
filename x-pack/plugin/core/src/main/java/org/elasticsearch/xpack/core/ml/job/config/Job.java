@@ -72,6 +72,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
+    public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS =
+        new ParseField("daily_model_snapshot_retention_after_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField MODEL_SNAPSHOT_MIN_VERSION = new ParseField("model_snapshot_min_version");
@@ -96,7 +98,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      */
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(10, ByteSizeUnit.MB);
 
-    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
+    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
+    public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
@@ -123,6 +126,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
+        parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         parser.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
         parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
         parser.declareStringOrNull(Builder::setModelSnapshotMinVersion, MODEL_SNAPSHOT_MIN_VERSION);
@@ -155,6 +159,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
@@ -167,8 +172,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 Date createTime, Date finishedTime,
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
-                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
-                String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName, boolean deleting, boolean allowLazyOpen) {
+                Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
+                Map<String, Object> customSettings, String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName,
+                boolean deleting, boolean allowLazyOpen) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -184,6 +190,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
@@ -222,6 +229,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
+        } else {
+            dailyModelSnapshotRetentionAfterDays = null;
+        }
         resultsRetentionDays = in.readOptionalLong();
         Map<String, Object> readCustomSettings = in.readMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
@@ -256,6 +268,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
 
         return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
+    }
+
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocumentId(String docId) {
+        String jobId = docId.replaceAll("^" + ANOMALY_DETECTOR_JOB_TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
     }
 
 
@@ -387,6 +408,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return modelSnapshotRetentionDays;
     }
 
+    public Long getDailyModelSnapshotRetentionAfterDays() {
+        return dailyModelSnapshotRetentionAfterDays;
+    }
+
     public Long getResultsRetentionDays() {
         return resultsRetentionDays;
     }
@@ -495,6 +520,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
+        }
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
@@ -559,6 +587,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (modelSnapshotRetentionDays != null) {
             builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+        }
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
@@ -604,6 +635,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+                && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
@@ -617,8 +649,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public int hashCode() {
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
+                backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+                customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -660,6 +692,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays = DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
@@ -690,6 +723,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
+            this.dailyModelSnapshotRetentionAfterDays = job.getDailyModelSnapshotRetentionAfterDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
             this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
@@ -728,6 +762,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             renormalizationWindowDays = in.readOptionalLong();
             backgroundPersistInterval = in.readOptionalTimeValue();
             modelSnapshotRetentionDays = in.readOptionalLong();
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+                dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
+            }
             resultsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
             modelSnapshotId = in.readOptionalString();
@@ -831,6 +868,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public Long getModelSnapshotRetentionDays() {
+            return modelSnapshotRetentionDays;
+        }
+
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+            return this;
+        }
+
         public Builder setResultsRetentionDays(Long resultsRetentionDays) {
             this.resultsRetentionDays = resultsRetentionDays;
             return this;
@@ -927,6 +973,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(renormalizationWindowDays);
             out.writeOptionalTimeValue(backgroundPersistInterval);
             out.writeOptionalLong(modelSnapshotRetentionDays);
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+                out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
+            }
             out.writeOptionalLong(resultsRetentionDays);
             out.writeMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
@@ -985,6 +1034,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (modelSnapshotRetentionDays != null) {
                 builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
             }
+            if (dailyModelSnapshotRetentionAfterDays != null) {
+                builder.field(DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+            }
             if (resultsRetentionDays != null) {
                 builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
             }
@@ -1031,6 +1083,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                     && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                     && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+                    && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                     && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                     && Objects.equals(this.customSettings, that.customSettings)
                     && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
@@ -1044,8 +1097,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public int hashCode() {
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
                     createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
+                    backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
         }
 
         /**
@@ -1066,7 +1119,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
-            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
             checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
 
             if (!MlStrings.isValidId(id)) {
@@ -1075,6 +1127,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (!MlStrings.hasValidLengthForId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
+
+            validateModelSnapshotRetentionSettings();
 
             validateGroups();
 
@@ -1095,6 +1149,37 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public void validateAnalysisLimitsAndSetDefaults(@Nullable ByteSizeValue maxModelMemoryLimit) {
             analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
+        }
+
+        /**
+         * This is meant to be called when a new job is created.
+         * It sets {@link #dailyModelSnapshotRetentionAfterDays} to the default value if it is not set and the default makes sense.
+         */
+        public void validateModelSnapshotRetentionSettingsAndSetDefaults() {
+            validateModelSnapshotRetentionSettings();
+            if (dailyModelSnapshotRetentionAfterDays == null &&
+                modelSnapshotRetentionDays != null &&
+                modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
+                dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
+            }
+        }
+
+        /**
+         * Validates that {@link #modelSnapshotRetentionDays} and {@link #dailyModelSnapshotRetentionAfterDays} make sense,
+         * both individually and in combination.
+         */
+        public void validateModelSnapshotRetentionSettings() {
+
+            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+            checkValueNotLessThan(0, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
+                dailyModelSnapshotRetentionAfterDays);
+
+            if (modelSnapshotRetentionDays != null &&
+                dailyModelSnapshotRetentionAfterDays != null &&
+                dailyModelSnapshotRetentionAfterDays > modelSnapshotRetentionDays) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT,
+                    dailyModelSnapshotRetentionAfterDays, modelSnapshotRetentionDays));
+            }
         }
 
         private void validateGroups() {
@@ -1171,8 +1256,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return new Job(
                     id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
+                    backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen);
         }
 
         private void checkValidBackgroundPersistInterval() {

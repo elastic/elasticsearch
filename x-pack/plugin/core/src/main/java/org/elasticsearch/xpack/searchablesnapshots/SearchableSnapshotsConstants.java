@@ -34,4 +34,6 @@ public class SearchableSnapshotsConstants {
         return SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED
             && SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
     }
+
+    public static final String SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME = "searchable_snapshots";
 }

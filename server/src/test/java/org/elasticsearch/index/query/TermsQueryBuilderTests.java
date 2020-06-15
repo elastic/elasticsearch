@@ -293,8 +293,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
                 () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
+                + "[mapped_geo_point]", e.getMessage());
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

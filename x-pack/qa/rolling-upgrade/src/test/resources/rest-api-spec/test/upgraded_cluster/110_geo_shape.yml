@@ -1,6 +1,10 @@
 ---
 "Test upgraded > 7.7 cluster with pre-7.8 and 7.8+ geo_shape fields":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+         - "index [new_locations] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: new_locations
         body:

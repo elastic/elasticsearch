@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,8 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.Map;
 
 public class InboundHandler {
 
@@ -46,34 +43,21 @@ public class InboundHandler {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
+    private final Transport.ResponseHandlers responseHandlers;
+    private final Transport.RequestHandlers requestHandlers;
 
-    private final Transport.ResponseHandlers responseHandlers = new Transport.ResponseHandlers();
-    private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, NamedWriteableRegistry namedWriteableRegistry,
-                   TransportHandshaker handshaker, TransportKeepAlive keepAlive) {
+                   TransportHandshaker handshaker, TransportKeepAlive keepAlive, Transport.RequestHandlers requestHandlers,
+                   Transport.ResponseHandlers responseHandlers) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handshaker = handshaker;
         this.keepAlive = keepAlive;
-    }
-
-    synchronized <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        if (requestHandlers.containsKey(reg.getAction())) {
-            throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
-        }
-        requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
-    }
-
-    @SuppressWarnings("unchecked")
-    public final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
-        return (RequestHandlerRegistry<T>) requestHandlers.get(action);
-    }
-
-    final Transport.ResponseHandlers getResponseHandlers() {
-        return responseHandlers;
+        this.requestHandlers = requestHandlers;
+        this.responseHandlers = responseHandlers;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -159,7 +143,14 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                sendErrorResponse(action, transportChannel, e);
+                if (Version.CURRENT.isCompatible(header.getVersion())) {
+                    sendErrorResponse(action, transportChannel, e);
+                } else {
+                    logger.warn(new ParameterizedMessage(
+                        "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                        channel, header.getVersion()), e);
+                    channel.close();
+                }
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
@@ -171,7 +162,7 @@ public class InboundHandler {
                 } else {
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
-                    final RequestHandlerRegistry<T> reg = getRequestHandler(action);
+                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
                     final T request = reg.newRequest(stream);
                     request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));

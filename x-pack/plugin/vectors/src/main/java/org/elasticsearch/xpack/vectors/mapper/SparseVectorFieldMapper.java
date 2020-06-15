@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
@@ -26,7 +25,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -59,7 +59,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SparseVectorFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -82,7 +82,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             deprecationLogger.deprecatedAndMaybeLog("sparse_vector", DEPRECATION_MESSAGE);
             SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
             return builder;
@@ -119,7 +119,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder(false);
+            return new VectorIndexFieldData.Builder(false, CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -139,6 +139,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     protected SparseVectorFieldMapper clone() {
         return (SparseVectorFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override
@@ -194,7 +199,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

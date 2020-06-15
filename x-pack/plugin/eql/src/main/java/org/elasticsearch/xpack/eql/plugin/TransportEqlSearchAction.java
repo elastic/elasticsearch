@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
-import org.elasticsearch.xpack.eql.session.Configuration;
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
 
 import java.time.ZoneId;
@@ -64,13 +64,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
 
-        ParserParams params = new ParserParams()
+        ParserParams params = new ParserParams(zoneId)
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
+            .fieldTiebreaker(request.tiebreakerField())
             .implicitJoinKey(request.implicitJoinKeyField());
 
-        Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-                includeFrozen, clientId, new TaskId(nodeId, task.getId()), task::isCancelled);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
+                includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task::isCancelled);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 

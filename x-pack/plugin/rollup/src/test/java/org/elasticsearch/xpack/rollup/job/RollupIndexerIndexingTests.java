@@ -47,6 +47,8 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
@@ -71,9 +73,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -284,7 +283,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         asMap("the_histo", now)
                 )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(3));
             IndexRequest request = resp.get(0);
@@ -351,7 +350,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 asMap("the_histo", now)
             )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(2));
             IndexRequest request = resp.get(0);
@@ -524,14 +523,15 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+
         try {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
-            final SyncRollupIndexer action = new SyncRollupIndexer(executor, job, searcher,
+            final SyncRollupIndexer action = new SyncRollupIndexer(threadPool, ThreadPool.Names.GENERIC, job, searcher,
                     fieldTypeLookup.values().toArray(new MappedFieldType[0]), fieldTypeLookup.get(dateHistoField));
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
             reader.close();
             dir.close();
         }
@@ -627,9 +627,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         private final CountDownLatch latch = new CountDownLatch(1);
         private Exception exc;
 
-        SyncRollupIndexer(Executor executor, RollupJob job, IndexSearcher searcher,
+        SyncRollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, IndexSearcher searcher,
                           MappedFieldType[] fieldTypes, MappedFieldType timestampField) {
-            super(executor, job, new AtomicReference<>(IndexerState.STARTED), null, new AtomicBoolean(newIDScheme));
+            super(threadPool, executorName, job, new AtomicReference<>(IndexerState.STARTED), null, new AtomicBoolean(newIDScheme));
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;

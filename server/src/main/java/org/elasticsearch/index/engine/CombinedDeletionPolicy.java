@@ -179,7 +179,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {
         if (commits.isEmpty()) {
-            throw new IllegalArgumentException("Commit list must not empty");
+            throw new IllegalArgumentException("Commit list must not be empty");
         }
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpoint);
         return commits.get(keptPosition);

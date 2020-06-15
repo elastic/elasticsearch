@@ -96,12 +96,20 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/468")
-    public void testDeleteExpiredData() throws Exception {
+    public void testDeleteExpiredDataNoThrottle() throws Exception {
+        testExpiredDeletion(null, 10010);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57102")
+    public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
+        testExpiredDeletion(-1.0f, 100);
+    }
+
+    private void testExpiredDeletion(Float customThrottle, int numUnusedState) throws Exception {
         // Index some unused state documents (more than 10K to test scrolling works)
         String mlStateIndexName = AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001";
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 10010; i++) {
+        for (int i = 0; i < numUnusedState; i++) {
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
             IndexRequest indexRequest =
                 new IndexRequest(mlStateIndexName)
@@ -111,11 +119,17 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
         ActionFuture<BulkResponse> indexUnusedStateDocsResponse = bulkRequestBuilder.execute();
 
-        registerJob(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L));
-        registerJob(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L));
-        registerJob(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        registerJob(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
-        registerJob(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
+        // These jobs don't thin out model state; ModelSnapshotRetentionIT tests that
+        registerJob(newJobBuilder("no-retention")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
+        registerJob(newJobBuilder("results-retention")
+            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(1000L).setDailyModelSnapshotRetentionAfterDays(1000L));
+        registerJob(newJobBuilder("snapshots-retention")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
+        registerJob(newJobBuilder("snapshots-retention-with-retain")
+            .setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
+        registerJob(newJobBuilder("results-and-snapshots-retention")
+            .setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).setDailyModelSnapshotRetentionAfterDays(2L));
 
         List<String> shortExpiryForecastIds = new ArrayList<>();
 
@@ -161,10 +175,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
             // We must set a very small value for expires_in to keep this testable as the deletion cutoff point is the moment
             // the DeleteExpiredDataAction is called.
-            String forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.timeValueSeconds(1));
+            String forecastShortExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.timeValueSeconds(1));
             shortExpiryForecastIds.add(forecastShortExpiryId);
-            String forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
-            String forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(3), TimeValue.ZERO);
+            String forecastDefaultExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), null);
+            String forecastNoExpiryId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO);
             waitForecastToFinish(job.getId(), forecastShortExpiryId);
             waitForecastToFinish(job.getId(), forecastDefaultExpiryId);
             waitForecastToFinish(job.getId(), forecastNoExpiryId);
@@ -173,9 +187,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         // Refresh to ensure the snapshot timestamp updates are visible
         refresh("*");
 
-        // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
-        // FIXME it would be better to wait for something concrete instead of wait for time to elapse
-        assertBusy(() -> {}, 1, TimeUnit.SECONDS);
+        // We need to wait for the clock to tick to a new second to ensure the second time
+        // around model snapshots will have a different ID (it depends on epoch seconds)
+        long before = System.currentTimeMillis() / 1000;
+        assertBusy(() -> assertNotEquals(before, System.currentTimeMillis() / 1000), 1, TimeUnit.SECONDS);
 
         for (Job.Builder job : getJobs()) {
             // Run up to now
@@ -190,9 +205,9 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         retainAllSnapshots("snapshots-retention-with-retain");
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-                .get().getHits().getTotalHits().value;
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+            .get().getHits().getTotalHits().value;
         long totalNotificationsCountBeforeDelete =
             client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
@@ -209,7 +224,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
 
         // Now call the action under test
-        assertThat(deleteExpiredData().isDeleted(), is(true));
+        assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));
 
         // no-retention job should have kept all data
         assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));
@@ -239,9 +254,9 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
         long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
-                .get().getHits().getTotalHits().value;
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+            .get().getHits().getTotalHits().value;
         long totalNotificationsCountAfterDelete =
             client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get().getHits().getTotalHits().value;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
@@ -261,10 +276,10 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         // Verify .ml-state doesn't contain unused state documents
         SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .setFetchSource(false)
-                .setTrackTotalHits(true)
-                .setSize(10000)
-                .get();
+            .setFetchSource(false)
+            .setTrackTotalHits(true)
+            .setSize(10000)
+            .get();
 
         // Assert at least one state doc for each job
         assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));

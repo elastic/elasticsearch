@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
@@ -505,23 +504,14 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
     }
 
-    private final class MockTransport implements Transport {
-        private ResponseHandlers responseHandlers = new ResponseHandlers();
+    private static final class MockTransport implements Transport {
+        private final ResponseHandlers responseHandlers = new ResponseHandlers();
+        private final RequestHandlers requestHandlers = new RequestHandlers();
         private volatile boolean randomConnectionExceptions = false;
         private final ThreadPool threadPool;
 
         MockTransport(ThreadPool threadPool) {
             this.threadPool = threadPool;
-        }
-
-        @Override
-        public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public RequestHandlerRegistry getRequestHandler(String action) {
-            return null;
         }
 
         @Override
@@ -613,6 +603,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public ResponseHandlers getResponseHandlers() {
             return responseHandlers;
+        }
+
+        @Override
+        public RequestHandlers getRequestHandlers() {
+            return requestHandlers;
         }
     }
 }

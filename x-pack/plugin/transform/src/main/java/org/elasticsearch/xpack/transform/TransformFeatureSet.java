@@ -17,7 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -50,7 +48,6 @@ import java.util.Objects;
 
 public class TransformFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final Client client;
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
@@ -75,8 +72,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
-    public TransformFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
+    public TransformFeatureSet(ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = licenseState;
@@ -89,12 +85,12 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isTransformAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -104,11 +100,6 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        if (enabled == false) {
-            listener.onResponse(new TransformFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new TransformIndexerStats()));
-            return;
-        }
-
         PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterService.state());
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
             ? Collections.emptyList()
@@ -122,7 +113,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
             statSummations -> listener.onResponse(
-                new TransformFeatureSetUsage(available(), enabled(), transformsCountByState, statSummations)
+                new TransformFeatureSetUsage(available(), transformsCountByState, statSummations)
             ),
             listener::onFailure
         );
@@ -137,7 +128,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
                 listener.onResponse(
-                    new TransformFeatureSetUsage(available(), enabled(), transformsCountByState, new TransformIndexerStats())
+                    new TransformFeatureSetUsage(available(), transformsCountByState, new TransformIndexerStats())
                 );
                 return;
             }

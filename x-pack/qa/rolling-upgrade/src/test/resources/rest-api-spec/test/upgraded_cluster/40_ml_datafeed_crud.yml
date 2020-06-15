@@ -8,7 +8,11 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds without aggs":
+  - skip:
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:
@@ -108,6 +112,8 @@ setup:
   - skip:
       features: allowed_warnings
   - do:
+      allowed_warnings:
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:

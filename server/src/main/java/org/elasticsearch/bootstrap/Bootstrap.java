@@ -170,7 +170,7 @@ final class Bootstrap {
         Settings settings = environment.settings();
 
         try {
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, true);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -361,7 +361,7 @@ final class Bootstrap {
                             "future versions of Elasticsearch will require Java 11; " +
                                     "your Java version from [%s] does not meet this requirement",
                             System.getProperty("java.home"));
-            new DeprecationLogger(LogManager.getLogger(Bootstrap.class)).deprecated(message);
+            new DeprecationLogger(LogManager.getLogger(Bootstrap.class)).deprecatedAndMaybeLog("java_version_11_required", message);
         }
         if (environment.pidFile() != null) {
             try {

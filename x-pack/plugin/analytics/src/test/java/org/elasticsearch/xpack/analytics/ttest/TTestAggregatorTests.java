@@ -9,20 +9,20 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -32,18 +32,22 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,12 +66,42 @@ public class TTestAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10)).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10)).build());
+        } else if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
+            || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt(DateUtils.toInstant(10))).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte(DateUtils.toInstant(10))).build());
+        } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
+            return new TTestAggregationBuilder("foo")
+                .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).lt("true")).build())
+                .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
+                    .setFilter(QueryBuilders.rangeQuery(fieldName).gte("false")).build());
+        }
+        // if it's "unsupported" just use matchall filters to avoid parsing issues
         return new TTestAggregationBuilder("foo")
             .a(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                .setFilter(QueryBuilders.rangeQuery(fieldName).lt(10)).build())
+                .setFilter(QueryBuilders.matchAllQuery()).build())
             .b(new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName)
-                .setFilter(QueryBuilders.rangeQuery(fieldName).gte(10)).build());
+                .setFilter(QueryBuilders.matchAllQuery()).build());
     }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return Arrays.asList(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
+    }
+
 
     @Override
     protected ScriptService getMockScriptService() {
@@ -657,22 +691,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType1, fieldType2);
     }
 
-    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-        T aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<V> verify, MappedFieldType... fieldType) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                verify.accept(agg);
-
-            }
-        }
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new AnalyticsPlugin(Settings.EMPTY));
     }
 }

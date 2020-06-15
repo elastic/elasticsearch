@@ -315,7 +315,8 @@ public class UserAgentProcessor extends AbstractProcessor {
             }
 
             if (useECS == false) {
-                deprecationLogger.deprecated("setting [ecs] to false for non-common schema " +
+                deprecationLogger.deprecatedAndMaybeLog("ecs_false_non_common_schema",
+                    "setting [ecs] to false for non-common schema " +
                     "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
             }
 
@@ -356,7 +357,9 @@ public class UserAgentProcessor extends AbstractProcessor {
             try {
                 Property value = valueOf(propertyName.toUpperCase(Locale.ROOT));
                 if (DEPRECATED_PROPERTIES.contains(value)) {
-                    deprecationLogger.deprecated("the [{}] property is deprecated for the user-agent processor", propertyName);
+                    final String key = "user_agent_processor_property_" + propertyName.replaceAll("[^\\w_]+", "_");
+                        deprecationLogger.deprecatedAndMaybeLog(key,
+                        "the [{}] property is deprecated for the user-agent processor", propertyName);
                 }
                 return value;
             }

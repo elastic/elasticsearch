@@ -213,6 +213,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomIndicesOptions(putMappingRequest::indicesOptions,
+            putMappingRequest::indicesOptions, expectedParams);
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
 
@@ -474,7 +476,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
 
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+        if (CollectionUtils.isEmpty(indicesUnderTest) == false) {
             endpoint.add(String.join(",", indicesUnderTest));
         }
         endpoint.add("_settings");
@@ -487,7 +489,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 }
             }
             getSettingsRequest.names(names);
-            if (names != null && names.length > 0) {
+            if (CollectionUtils.isEmpty(names) == false) {
                 endpoint.add(String.join(",", names));
             }
         }
@@ -943,9 +945,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
         Request request = IndicesRequestConverters.rollover(rolloverRequest);
         if (rolloverRequest.getNewIndexName() == null) {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+            Assert.assertEquals("/" + rolloverRequest.getRolloverTarget() + "/_rollover", request.getEndpoint());
         } else {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(),
+            Assert.assertEquals("/" + rolloverRequest.getRolloverTarget() + "/_rollover/" + rolloverRequest.getNewIndexName(),
                 request.getEndpoint());
         }
         Assert.assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -1207,7 +1209,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     public void testReloadAnalyzers() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices != null && indices.length > 0) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             endpoint.add(String.join(",", indices));
         }
         ReloadAnalyzersRequest reloadRequest = new ReloadAnalyzersRequest(indices);

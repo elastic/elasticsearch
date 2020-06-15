@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -47,9 +46,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -68,8 +65,6 @@ public class ReadOnlyEngine extends Engine {
      * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
      * ID field.
      */
-    private static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
-        BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
     private final ElasticsearchReaderManager readerManager;
@@ -186,7 +181,7 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES);
+        return DirectoryReader.open(commit);
     }
 
     @Override
@@ -224,7 +219,7 @@ public class ReadOnlyEngine extends Engine {
         final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
-                config.getPrimaryTermSupplier(), seqNo -> {})
+            config.getPrimaryTermSupplier(), seqNo -> {})
         ) {
             return translog.stats();
         }
@@ -523,7 +518,7 @@ public class ReadOnlyEngine extends Engine {
 
     protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
-        final DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES);
+        final DirectoryReader reader = DirectoryReader.open(directory);
         if (wrapSoftDeletes) {
             return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {

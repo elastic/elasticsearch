@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.lucene.Lucene;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,7 +57,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IgnoredFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
@@ -73,7 +71,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                 ParserContext parserContext) throws MapperParsingException {
             return new Builder(parserContext.mapperService().fieldType(NAME));
         }
@@ -134,7 +132,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, fieldType()));
         }

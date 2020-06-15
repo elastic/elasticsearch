@@ -281,11 +281,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            deprecationLogger.deprecatedAndMaybeLog("script_nested_path",
+                "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            deprecationLogger.deprecatedAndMaybeLog("script_nested_filter",
+                "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);

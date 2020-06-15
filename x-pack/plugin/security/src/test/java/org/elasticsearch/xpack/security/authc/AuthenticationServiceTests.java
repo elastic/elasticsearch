@@ -46,6 +46,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -188,12 +189,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
@@ -955,14 +956,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
+    public void testRealmAuthenticateTerminateAuthenticationProcessWithException() {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         final AuthenticationToken token = mock(AuthenticationToken.class);
-        when(token.principal()).thenReturn(randomAlphaOfLength(5));
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        final boolean terminateWithNoException = rarely();
-        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
+        final boolean throwElasticsearchSecurityException = randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
         final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
@@ -973,27 +974,41 @@ public class AuthenticationServiceTests extends ESTestCase {
                 ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
             }
         }
-        mockAuthenticate(secondRealm, token, (terminateWithNoException) ? null : throwE, true);
+        mockAuthenticate(secondRealm, token, throwE, true);
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
-        if (terminateWithNoException) {
-            assertThat(e.getMessage(), is("terminate authc process"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-        } else {
-            if (throwElasticsearchSecurityException) {
-                assertThat(e.getMessage(), is("authentication error"));
-                if (withAuthenticateHeader) {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
-                } else {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-                }
+        if (throwElasticsearchSecurityException) {
+            assertThat(e.getMessage(), is("authentication error"));
+            if (withAuthenticateHeader) {
+                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
             } else {
-                assertThat(e.getMessage(), is("error attempting to authenticate request"));
                 assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
             }
+        } else {
+            assertThat(e.getMessage(), is("error attempting to authenticate request"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
         }
         verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRealmAuthenticateGracefulTerminateAuthenticationProcess() {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        mockAuthenticate(firstRealm, token, null, true);
+
+        ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+            assertThat(e.getMessage(), is("unable to authenticate user [" + principal + "] for action [_action]"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
         verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
     }

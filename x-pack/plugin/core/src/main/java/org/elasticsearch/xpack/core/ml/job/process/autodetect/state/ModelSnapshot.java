@@ -89,6 +89,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
      */
     private final Version minVersion;
 
+    /**
+     * This is model snapshot's creation wall clock time.
+     * Use {@code latestResultTimeStamp} if you need model time instead.
+     */
     private final Date timestamp;
     private final String description;
     private final String snapshotId;

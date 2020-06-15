@@ -40,7 +40,6 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
@@ -93,8 +92,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         setupDownloadServiceRepo(project);
 
         if (BuildParams.isInternal()) {
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-            this.bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            this.bwcVersions = BuildParams.getBwcVersions();
         }
 
         project.afterEvaluate(this::setupDistributions);

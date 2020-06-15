@@ -38,6 +38,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -47,63 +48,35 @@ import java.util.List;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextFieldTypeTests extends FieldTypeTestCase {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TextFieldMapper.TextFieldType();
-    }
+public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
 
     @Before
-    public void setupProperties() {
-        addModifier(new Modifier("fielddata", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddata(tft.fielddata() == false);
-            }
+    public void addModifiers() {
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddata(t.fielddata() == false);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.min", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMinFrequency(3);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMaxFrequency(t.fielddataMaxFrequency() + 1);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.max", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMaxFrequency(0.2);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinFrequency(t.fielddataMinFrequency() + 1);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.min_segment_size", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMinSegmentSize(1000);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinSegmentSize(t.fielddataMinSegmentSize() + 1);
+            return copy;
         });
-        addModifier(new Modifier("index_phrases", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType) ft;
-                tft.setIndexPhrases(true);
-            }
-        });
-        addModifier(new Modifier("index_prefixes", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                TextFieldMapper.PrefixFieldType pft = tft.getPrefixFieldType();
-                if (pft == null) {
-                    tft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft.name(), ft.name() + "._index_prefix", 3, 3));
-                }
-                else {
-                    tft.setPrefixFieldType(null);
-                }
-            }
-        });
+    }
+
+    @Override
+    protected TextFieldType createDefaultFieldType() {
+        return new TextFieldType();
     }
 
     public void testTermQuery() {
@@ -185,7 +158,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIndexPrefixes() {
-        TextFieldMapper.TextFieldType ft = new TextFieldMapper.TextFieldType();
+        TextFieldType ft = new TextFieldType();
         ft.setName("field");
         ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType("field", "field._index_prefix", 2, 10));
 

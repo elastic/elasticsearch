@@ -38,7 +38,6 @@ public class NativeControllerHolder {
             synchronized (lock) {
                 if (nativeController == null) {
                     nativeController = new NativeController(localNodeName, environment, new NamedPipeHelper());
-                    nativeController.tailLogsInThread();
                 }
             }
             return nativeController;

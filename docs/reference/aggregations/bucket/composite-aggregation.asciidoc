@@ -353,6 +353,77 @@ include::datehistogram-aggregation.asciidoc[tag=offset-result-intro]
 
 include::datehistogram-aggregation.asciidoc[tag=offset-note]
 
+[[_geotile_grid]]
+===== GeoTile grid
+
+The `geotile_grid` value source works on `geo_point` fields and groups points into buckets that represent
+cells in a grid. The resulting grid can be sparse and only contains cells
+that have matching data. Each cell corresponds to a
+https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
+to the user-specified precision.
+
+[source,console,id=composite-aggregation-geotilegrid-example]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    { "tile": { "geotile_grid" : { "field": "location", "precision": 8 } } }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+*Precision*
+
+The highest-precision geotile of length 29 produces cells that cover
+less than 10cm by 10cm of land. This precision is uniquely suited for composite aggregations as each
+tile does not have to be generated and loaded in memory.
+
+See https://wiki.openstreetmap.org/wiki/Zoom_levels[Zoom level documentation]
+on how precision (zoom) correlates to size on the ground. Precision for this
+aggregation can be between 0 and 29, inclusive.
+
+*Bounding box filtering*
+
+The geotile source can optionally be constrained to a specific geo bounding box, which reduces
+the range of tiles used. These bounds are useful when only a specific part of a geographical area needs high
+precision tiling.
+
+[source,console,id=composite-aggregation-geotilegrid-boundingbox-example]
+--------------------------------------------------
+GET /_search
+{
+    "size": 0,
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "tile": {
+                            "geotile_grid" : {
+                                "field" : "location",
+                                "precision" : 22,
+                                "bounds": {
+                                    "top_left" : "52.4, 4.9",
+                                    "bottom_right" : "52.3, 5.0"
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
 ===== Mixing different values source
 
 The `sources` parameter accepts an array of values source.

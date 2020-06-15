@@ -511,9 +511,7 @@ public class ApiKeyService {
             final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
             final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
             final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
-            final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
-                : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
-            final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
+            final User apiKeyUser = new User(principal, Strings.EMPTY_ARRAY, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
             authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, creator.get("realm"));
             authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, creator.get("realm_type"));
@@ -581,11 +579,13 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled() && licenseState.isApiKeyServiceAllowed();
+        return enabled && licenseState.isSecurityEnabled() &&
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE);
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isApiKeyServiceAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false ||
+            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE) == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {
@@ -630,21 +630,23 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
+            deprecationLogger.deprecatedAndMaybeLog("api_key_field",
+                "{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
                 prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
+            deprecationLogger.deprecatedAndMaybeLog("api_key_field",
+                "{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 prefix, usedName, apiKeyId, replacedWith);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecated(
+            deprecationLogger.deprecatedAndMaybeLog("api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
                 prefix, usedName);
         }

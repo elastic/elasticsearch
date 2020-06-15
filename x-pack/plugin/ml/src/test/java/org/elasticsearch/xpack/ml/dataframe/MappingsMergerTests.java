@@ -108,7 +108,9 @@ public class MappingsMergerTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> MappingsMerger.mergeMappings(newSource(), getMappingsResponse));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("cannot merge mappings because of differences for field [field_1]"));
+        assertThat(e.getMessage(), containsString("cannot merge mappings because of differences for field [field_1]; "));
+        assertThat(e.getMessage(), containsString("mapped as [different_field_1_mappings] in index [index_2]"));
+        assertThat(e.getMessage(), containsString("mapped as [field_1_mappings] in index [index_1]"));
     }
 
     public void testMergeMappings_GivenIndicesWithDifferentMappingsButNoConflicts() throws IOException {

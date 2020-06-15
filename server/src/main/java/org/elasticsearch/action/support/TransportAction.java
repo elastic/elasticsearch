@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
@@ -72,13 +73,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * this method.
          */
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
-        Task task = taskManager.register("transport", actionName, request);
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    taskManager.unregister(task);
-                    unregisterChildNode.close();
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onResponse(response);
                 }
@@ -102,13 +108,18 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
-        Task task = taskManager.register("transport", actionName, request);
+        final Task task;
+        try {
+            task = taskManager.register("transport", actionName, request);
+        } catch (TaskCancelledException e) {
+            unregisterChildNode.close();
+            throw e;
+        }
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
-                    taskManager.unregister(task);
-                    unregisterChildNode.close();
+                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
                 } finally {
                     listener.onResponse(task, response);
                 }

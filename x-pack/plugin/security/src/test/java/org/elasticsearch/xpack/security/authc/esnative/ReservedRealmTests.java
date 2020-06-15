@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -169,6 +170,11 @@ public class ReservedRealmTests extends ESTestCase {
         verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
         verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
+
+        if (new KibanaUser(enabled).equals(expectedUser)) {
+            assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
+                            "Please use the [kibana_system] user instead.");
+        }
     }
 
     public void testLookup() throws Exception {
@@ -264,8 +270,8 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true),
-                new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
+            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new KibanaSystemUser(true),
+                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -315,6 +321,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
         assertThat(result.getMessage(), containsString("failed to authenticate"));
         assertThat(result.getMessage(), containsString(principal));
+        // exception must be null for graceful termination
+        assertThat(result.getException(), is(nullValue()));
     }
 
     @SuppressWarnings("unchecked")
@@ -397,8 +405,8 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
-            RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
@@ -420,16 +428,16 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
-            RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled),
-            new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new KibanaSystemUser(enabled),
+            new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
     }
 
     /*

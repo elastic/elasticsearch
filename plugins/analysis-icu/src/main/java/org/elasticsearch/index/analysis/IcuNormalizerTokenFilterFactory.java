@@ -62,7 +62,8 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         String unicodeSetFilter = settings.get("unicodeSetFilter");
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             if (unicodeSetFilter != null) {
-                deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
+                deprecationLogger.deprecatedAndMaybeLog("icu_normalizer_unicode_set_filter",
+                    "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
             } else {
                 unicodeSetFilter = settings.get("unicode_set_filter");
             }

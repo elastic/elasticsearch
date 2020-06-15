@@ -81,6 +81,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_1_4 = new Version(6010499, org.apache.lucene.util.Version.LUCENE_7_1_0);
     // The below version is missing from the 7.3 JAR
     private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
+    // Version constant for Lucene 7.7.3 release with index corruption bug fix
+    private static final org.apache.lucene.util.Version LUCENE_7_7_3 = org.apache.lucene.util.Version.fromBits(7, 7, 3);
     public static final Version V_6_2_0 = new Version(6020099, LUCENE_7_2_1);
     public static final Version V_6_2_1 = new Version(6020199, LUCENE_7_2_1);
     public static final Version V_6_2_2 = new Version(6020299, LUCENE_7_2_1);
@@ -113,7 +115,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_8_6 = new Version(6080699, org.apache.lucene.util.Version.LUCENE_7_7_2);
     public static final Version V_6_8_7 = new Version(6080799, org.apache.lucene.util.Version.LUCENE_7_7_2);
     public static final Version V_6_8_8 = new Version(6080899, org.apache.lucene.util.Version.LUCENE_7_7_2);
-    public static final Version V_6_8_9 = new Version(6080999, org.apache.lucene.util.Version.LUCENE_7_7_2);
+    public static final Version V_6_8_9 = new Version(6080999, LUCENE_7_7_3);
+    public static final Version V_6_8_10 = new Version(6081099, LUCENE_7_7_3);
+    public static final Version V_6_8_11 = new Version(6081199, LUCENE_7_7_3);
     public static final Version V_7_0_0 = new Version(7000099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_0_1 = new Version(7000199, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_1_0 = new Version(7010099, org.apache.lucene.util.Version.LUCENE_8_0_0);
@@ -132,10 +136,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_6_0 = new Version(7060099, org.apache.lucene.util.Version.LUCENE_8_4_0);
     public static final Version V_7_6_1 = new Version(7060199, org.apache.lucene.util.Version.LUCENE_8_4_0);
     public static final Version V_7_6_2 = new Version(7060299, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_7_6_3 = new Version(7060399, org.apache.lucene.util.Version.LUCENE_8_4_0);
     public static final Version V_7_7_0 = new Version(7070099, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_7_1 = new Version(7070199, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_7_2 = new Version(7070299, org.apache.lucene.util.Version.LUCENE_8_5_1);
     public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_1);
-    public static final Version CURRENT = V_7_8_0;
+    public static final Version V_7_9_0 = new Version(7090099, org.apache.lucene.util.Version.LUCENE_8_6_0);
+    public static final Version CURRENT = V_7_9_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
 

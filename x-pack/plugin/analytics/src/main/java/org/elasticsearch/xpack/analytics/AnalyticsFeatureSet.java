@@ -35,7 +35,7 @@ public class AnalyticsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAnalyticsAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS);
     }
 
     @Override

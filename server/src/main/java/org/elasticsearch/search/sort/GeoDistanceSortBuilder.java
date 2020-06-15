@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData.LatLonPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -491,7 +491,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_filter",
+                        "[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
@@ -521,7 +522,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecatedAndMaybeLog("geo_distance_nested_path",
+                        "[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
@@ -582,7 +584,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
         Nested nested = nested(context);
 
-        if (geoIndexFieldData.getClass() == LatLonPointDVIndexFieldData.class // only works with 5.x geo_point
+        if (geoIndexFieldData.getClass() == LatLonPointIndexFieldData.class // only works with 5.x geo_point
                 && nested == null
                 && localSortMode == MultiValueMode.MIN // LatLonDocValuesField internally picks the closest point
                 && unit == DistanceUnit.METERS

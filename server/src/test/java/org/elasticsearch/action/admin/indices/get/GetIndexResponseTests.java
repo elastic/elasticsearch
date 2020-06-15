@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -80,6 +81,7 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
@@ -102,9 +104,13 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
             if (includeDefaults) {
                 defaultSettings.put(index, indexScopedSettings.diff(settings.get(index), Settings.EMPTY));
             }
+
+            if (randomBoolean()) {
+                dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
+            }
         }
         return new GetIndexResponse(
-            indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build()
+            indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build()
         );
     }
 
@@ -159,7 +165,7 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
         return
             new GetIndexResponse(
                 indices, getTestMappings(indexName), getTestAliases(indexName), getTestSettings(indexName),
-                ImmutableOpenMap.of()
+                ImmutableOpenMap.of(), ImmutableOpenMap.of()
             );
     }
 
@@ -173,7 +179,7 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
         return
             new GetIndexResponse(
                 indices, getTestMappings(indexName), getTestAliases(indexName), getTestSettings(indexName),
-                defaultSettings.build()
+                defaultSettings.build(), ImmutableOpenMap.of()
             );
     }
 

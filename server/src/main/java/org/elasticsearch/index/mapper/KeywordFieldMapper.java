@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
@@ -41,10 +40,9 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -75,7 +73,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, KeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         protected String nullValue = Defaults.NULL_VALUE;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
@@ -152,7 +150,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -220,15 +218,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            KeywordFieldType other = (KeywordFieldType) otherFT;
-            if (Objects.equals(normalizer, other.normalizer) == false) {
-                conflicts.add("mapper [" + name() + "] has different [normalizer]");
-            }
-        }
-
-        @Override
         public int hashCode() {
             return 31 * super.hashCode() + Objects.hash(normalizer, splitQueriesOnWhitespace);
         }
@@ -238,7 +227,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        private NamedAnalyzer normalizer() {
+        NamedAnalyzer normalizer() {
             return normalizer;
         }
 
@@ -271,12 +260,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -337,7 +321,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -379,15 +363,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored())  {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
-            fields.add(field);
+            context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+                createFieldNamesField(context);
             }
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
     @Override
@@ -396,9 +380,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        KeywordFieldMapper k = (KeywordFieldMapper) other;
+        if (Objects.equals(fieldType().normalizer, k.fieldType().normalizer) == false) {
+            conflicts.add("mapper [" + name() + "] has different [normalizer]");
+        }
+        this.ignoreAbove = k.ignoreAbove;
     }
 
     @Override

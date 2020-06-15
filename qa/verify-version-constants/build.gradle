@@ -26,7 +26,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
-for (Version bwcVersion : bwcVersions.indexCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {

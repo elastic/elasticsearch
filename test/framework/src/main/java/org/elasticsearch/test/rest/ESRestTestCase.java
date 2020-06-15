@@ -98,6 +98,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -588,12 +589,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if ("".equals(template)) {
                             throw new IllegalStateException("empty template in templates list:\n" + templates);
                         }
-                        logger.debug("Clearing template [{}]", template);
-                        adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                        logger.info("Clearing template [{}]", template);
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                        } catch (ResponseException e) {
+                            // This is fine, it could be a V2 template
+                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
+                            } catch (ResponseException e2) {
+                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                            }
+                        }
                     }
                 }
                 try {
-                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
                     adminClient().performRequest(new Request("DELETE", "_component_template/*"));
                 } catch (ResponseException e) {
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
@@ -1069,6 +1079,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
+        } else if (settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()) ||
+            settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey())) {
+            expectTranslogRetentionWarning(request);
         }
         request.setJsonEntity(entity);
         client().performRequest(request);
@@ -1103,6 +1116,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected static void expectTranslogRetentionWarning(Request request) {
+        final List<String> expectedWarnings = Collections.singletonList(
+            "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        }
+    }
+
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
         Request request = new Request("GET", "/" + index + "/_settings");
         request.addParameter("flat_settings", "true");
@@ -1110,6 +1137,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 
     protected static boolean indexExists(String index) throws IOException {

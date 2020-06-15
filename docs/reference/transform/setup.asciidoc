@@ -16,9 +16,8 @@ To use the {transforms}, you must have the
 ==== {transform-cap} nodes
 
 To use {transforms}, there must be at least one node in your cluster with
-`xpack.transform.enabled` and `node.transform` set to `true`. By default, all
-nodes are {transform} nodes unless you explicitly change these settings or set 
-`node.data` to `false`.
+`node.transform` set to `true`. By default, all nodes are {transform} nodes
+unless you explicitly change these settings or set `node.data` to `false`.
 
 If you want to control which nodes run {transforms}, set `node.transform` to
 `false` on some nodes.
@@ -35,14 +34,14 @@ which users can manage or view {transforms}.
 
 To _view_ the configuration and status of {transforms}, you must have:
 
-* `transform_user` built-in role or `monitor_transform` 
+* `transform_user` built-in role or `monitor_transform`
 cluster privileges
 
 To _manage_ {transforms}, you must have:
 
-* `transform_admin` built-in role or `manage_transform` 
+* `transform_admin` built-in role or `manage_transform`
 cluster privileges
 * `read` and `view_index_metadata` index privileges on source indices
 * `read`, `create_index`, and `index` index privileges on destination indices
-  
+
 For more information, see <<security-privileges>> and <<built-in-roles>>.

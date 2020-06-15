@@ -46,7 +46,7 @@ public class CCRFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isCcrAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.CCR);
     }
 
     @Override

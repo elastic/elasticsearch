@@ -212,6 +212,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+    public static final Setting<Boolean> USE_ILM_INDEX_MANAGEMENT =
+        Setting.boolSetting("xpack.watcher.use_ilm_index_management", XPackSettings.INDEX_LIFECYCLE_ENABLED, NodeScope);
     private static final Setting<Integer> SETTING_BULK_ACTIONS =
         Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS =
@@ -384,7 +386,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -425,7 +427,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(clusterService, watcherService);
 
-        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
+        listener = new WatcherIndexingListener(watchParser, getClock(), triggerService, watcherLifeCycleService.getState());
         clusterService.addListener(listener);
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
@@ -470,6 +472,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
         settings.add(WatcherField.ENCRYPTION_KEY_SETTING);
+        settings.add(USE_ILM_INDEX_MANAGEMENT);
 
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
@@ -620,14 +623,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), null));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

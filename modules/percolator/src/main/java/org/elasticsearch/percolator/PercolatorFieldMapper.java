@@ -25,7 +25,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
@@ -112,7 +111,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String RANGE_FIELD_NAME = "range_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
-    static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
 
         private final Supplier<QueryShardContext> queryShardContext;
 
@@ -364,30 +363,6 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        PercolatorFieldMapper updated = (PercolatorFieldMapper) super.updateFieldType(fullNameToFieldType);
-        KeywordFieldMapper queryTermsUpdated = (KeywordFieldMapper) queryTermsField.updateFieldType(fullNameToFieldType);
-        KeywordFieldMapper extractionResultUpdated = (KeywordFieldMapper) extractionResultField.updateFieldType(fullNameToFieldType);
-        BinaryFieldMapper queryBuilderUpdated = (BinaryFieldMapper) queryBuilderField.updateFieldType(fullNameToFieldType);
-        RangeFieldMapper rangeFieldMapperUpdated = (RangeFieldMapper) rangeFieldMapper.updateFieldType(fullNameToFieldType);
-        NumberFieldMapper msmFieldMapperUpdated = (NumberFieldMapper) minimumShouldMatchFieldMapper.updateFieldType(fullNameToFieldType);
-
-        if (updated == this && queryTermsUpdated == queryTermsField && extractionResultUpdated == extractionResultField
-                && queryBuilderUpdated == queryBuilderField && rangeFieldMapperUpdated == rangeFieldMapper) {
-            return this;
-        }
-        if (updated == this) {
-            updated = (PercolatorFieldMapper) updated.clone();
-        }
-        updated.queryTermsField = queryTermsUpdated;
-        updated.extractionResultField = extractionResultUpdated;
-        updated.queryBuilderField = queryBuilderUpdated;
-        updated.rangeFieldMapper = rangeFieldMapperUpdated;
-        updated.minimumShouldMatchFieldMapper = msmFieldMapperUpdated;
-        return updated;
-    }
-
-    @Override
     public void parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
@@ -473,11 +448,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         } else {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, extractionResultField.fieldType()));
         }
-        List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
+
+        createFieldNamesField(context);
         if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
             doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
         }
@@ -516,7 +488,12 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }
 

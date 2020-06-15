@@ -58,7 +58,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<S3ClientSettings, Map<RepositoryMetadata, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -107,26 +107,23 @@ class S3Service implements Closeable {
      * @return S3ClientSettings
      */
     S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
-        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetadata.settings());
+        final Settings settings = repositoryMetadata.settings();
+        {
+            final S3ClientSettings existing = derivedClientSettings.get(settings);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        final String clientName = S3Repository.CLIENT_NAME.get(settings);
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
-            {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetadata);
-                if (existing != null) {
-                    return existing;
-                }
-            }
             synchronized (this) {
-                final Map<RepositoryMetadata, S3ClientSettings> derivedSettings =
-                    derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(repositoryMetadata);
+                final S3ClientSettings existing = derivedClientSettings.get(settings);
                 if (existing != null) {
                     return existing;
                 }
-                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetadata);
-                derivedClientSettings = MapBuilder.newMapBuilder(derivedClientSettings).put(
-                    staticSettings, MapBuilder.newMapBuilder(derivedSettings).put(repositoryMetadata, newSettings).immutableMap()
-                ).immutableMap();
+                final S3ClientSettings newSettings = staticSettings.refine(settings);
+                derivedClientSettings = MapBuilder.newMapBuilder(derivedClientSettings).put(settings, newSettings).immutableMap();
                 return newSettings;
             }
         }
@@ -213,6 +210,7 @@ class S3Service implements Closeable {
         }
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
+        derivedClientSettings = emptyMap();
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();

@@ -36,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -95,7 +96,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().privileges("READ").indices("*")
                         .grantedFields("*")
@@ -157,7 +158,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         builder = flsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = BytesReference.bytes(builder);
         role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls", bytes, logger, licenseState);

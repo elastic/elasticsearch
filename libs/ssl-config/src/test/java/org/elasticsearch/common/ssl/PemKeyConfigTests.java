@@ -70,6 +70,7 @@ public class PemKeyConfigTests extends ESTestCase {
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2-pkcs8.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());

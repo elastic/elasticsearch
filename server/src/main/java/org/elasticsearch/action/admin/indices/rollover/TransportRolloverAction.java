@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.Task;
@@ -90,8 +89,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
             request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
+
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
+            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, true, request.indices()));
     }
 
     @Override
@@ -103,14 +103,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     @Override
     protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
                                    final ActionListener<RolloverResponse> listener) throws Exception {
+
         MetadataRolloverService.RolloverResult preResult =
             rolloverService.rolloverClusterState(state,
-                rolloverRequest.getAlias(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                Collections.emptyList(), true);
+                rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
+                Collections.emptyList(), true, true);
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias())
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
             .docs(true);
@@ -134,19 +135,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             + rolloverIndexName + "]", new ClusterStateUpdateTask() {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
-                                // If they haven't explicitly specified whether to use V2 or V1 templates, inherit their preference
-                                // from the existing index (the source index) settings.
-                                if (rolloverRequest.getCreateIndexRequest().preferV2Templates() == null) {
-                                    Settings originalIndexSettings = currentState.metadata().index(sourceIndexName).getSettings();
-                                    rolloverRequest.getCreateIndexRequest()
-                                        .preferV2Templates(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(originalIndexSettings));
-                                }
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
-                                    rolloverRequest.getAlias(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                                    metConditions, false);
+                                    rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
+                                    rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
                                     throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getAlias());
+                                        rolloverRequest.getRolloverTarget());
                                 }
                                 return rolloverResult.clusterState;
                             }

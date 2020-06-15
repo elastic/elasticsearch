@@ -88,6 +88,11 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List list) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 }

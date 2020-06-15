@@ -11,11 +11,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -23,14 +21,12 @@ import java.util.Map;
 
 public class SLMFeatureSet implements XPackFeatureSet {
 
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Inject
-    public SLMFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, ClusterService clusterService) {
+    public SLMFeatureSet(@Nullable XPackLicenseState licenseState, ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.enabled = XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
@@ -41,12 +37,12 @@ public class SLMFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isIndexLifecycleAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ILM);
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return true;
     }
 
     @Override
@@ -57,10 +53,9 @@ public class SLMFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<Usage> listener) {
         final ClusterState state = clusterService.state();
-        boolean available = licenseState.isIndexLifecycleAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, enabled,
-            slmMeta == null ? null : slmMeta.getStats());
+        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(usage);
     }
 

@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -212,6 +212,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
@@ -976,8 +977,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String name) {
-            return new DeleteSnapshotRequestBuilder(this, DeleteSnapshotAction.INSTANCE, repository, name);
+        public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String... names) {
+            return new DeleteSnapshotRequestBuilder(this, DeleteSnapshotAction.INSTANCE, repository, names);
         }
 
 
@@ -1723,7 +1724,7 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public RolloverRequestBuilder prepareRolloverIndex(String alias) {
-            return new RolloverRequestBuilder(this, RolloverAction.INSTANCE).setAlias(alias);
+            return new RolloverRequestBuilder(this, RolloverAction.INSTANCE).setRolloverTarget(alias);
         }
 
         @Override
@@ -1767,13 +1768,24 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener) {
-            execute(GetDataStreamsAction.INSTANCE, request, listener);
+        public void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener) {
+            execute(GetDataStreamAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request) {
-            return execute(GetDataStreamsAction.INSTANCE, request);
+        public ActionFuture<GetDataStreamAction.Response> getDataStreams(GetDataStreamAction.Request request) {
+            return execute(GetDataStreamAction.INSTANCE, request);
+        }
+
+        @Override
+        public void resolveIndex(ResolveIndexAction.Request request,
+                                 ActionListener<ResolveIndexAction.Response> listener) {
+            execute(ResolveIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request) {
+            return execute(ResolveIndexAction.INSTANCE, request);
         }
     }
 

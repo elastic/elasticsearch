@@ -157,6 +157,7 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -271,6 +272,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+    private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
     public IndexShard(
@@ -369,6 +371,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.refreshPendingLocationListener = new RefreshPendingLocationListener();
     }
 
     public ThreadPool getThreadPool() {
@@ -606,7 +609,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
 
-        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
+        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false && state() == IndexShardState.STARTED) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
             final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
             shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
@@ -1420,14 +1423,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("skip local recovery as failed to find the safe commit", e);
             return UNASSIGNED_SEQ_NO;
         }
-        if (safeCommit.isPresent() == false) {
-            logger.trace("skip local recovery as no safe commit found");
-            return UNASSIGNED_SEQ_NO;
-        }
-        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
         try {
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            if (safeCommit.isPresent() == false) {
+                logger.trace("skip local recovery as no safe commit found");
+                return UNASSIGNED_SEQ_NO;
+            }
+            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
                 logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                     safeCommit.get(), globalCheckpoint);
@@ -2751,7 +2754,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 similarityService.similarity(mapperService), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-                Collections.singletonList(refreshListeners),
+                Arrays.asList(refreshListeners, refreshPendingLocationListener),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
@@ -3251,7 +3254,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns true if this shards is search idle
      */
-    final boolean isSearchIdle() {
+    public final boolean isSearchIdle() {
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
     }
 
@@ -3262,15 +3265,49 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
+    /**
+     * Returns true if this shard has some scheduled refresh that is pending because of search-idle.
+     */
+    public final boolean hasRefreshPending() {
+        return pendingRefreshLocation.get() != null;
+    }
+
     private void setRefreshPending(Engine engine) {
-        Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
-        Translog.Location location;
-        do {
-            location = this.pendingRefreshLocation.get();
-            if (location != null && lastWriteLocation.compareTo(location) <= 0) {
-                break;
+        final Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
+        pendingRefreshLocation.updateAndGet(curr -> {
+            if (curr == null || curr.compareTo(lastWriteLocation) <= 0) {
+                return lastWriteLocation;
+            } else {
+                return curr;
             }
-        } while (pendingRefreshLocation.compareAndSet(location, lastWriteLocation) == false);
+        });
+    }
+
+    private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+        Translog.Location lastWriteLocation;
+
+        @Override
+        public void beforeRefresh() {
+            try {
+                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+            } catch (AlreadyClosedException exc) {
+                // shard is closed - no location is fine
+                lastWriteLocation = null;
+            }
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh && lastWriteLocation != null) {
+                pendingRefreshLocation.updateAndGet(pendingLocation -> {
+                    if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
+                        return null;
+                    } else {
+                        return pendingLocation;
+                    }
+                });
+            }
+        }
     }
 
     /**

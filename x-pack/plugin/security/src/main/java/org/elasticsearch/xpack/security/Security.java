@@ -50,6 +50,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -66,6 +67,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -299,7 +301,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
-    private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
+    private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
+    private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
@@ -965,7 +968,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         IPFilter ipFilter = this.ipFilter.get();
         Map<String, Supplier<Transport>> transports = new HashMap<>();
         transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService()));
+            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
+            getNettySharedGroupFactory(settings)));
         transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
             pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(), getNioGroupFactory(settings)));
 
@@ -986,7 +990,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings));
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings,
+            getNettySharedGroupFactory(settings)));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
             pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings),
             clusterSettings));
@@ -1030,7 +1035,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (licenseState.isSecurityEnabled() == false || licenseState.isAllowed(Feature.SECURITY_DLS_FLS) == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
@@ -1112,14 +1117,23 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-         if (groupFactory.get() != null) {
-             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-             return groupFactory.get();
+         if (nioGroupFactory.get() != null) {
+             assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+             return nioGroupFactory.get();
          } else {
-            groupFactory.set(new NioGroupFactory(settings, logger));
-            return groupFactory.get();
+            nioGroupFactory.set(new NioGroupFactory(settings, logger));
+            return nioGroupFactory.get();
          }
     }
+    private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
+        if (sharedGroupFactory.get() != null) {
+            assert sharedGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+            return sharedGroupFactory.get();
+        } else {
+            sharedGroupFactory.set(new SharedGroupFactory(settings));
+            return sharedGroupFactory.get();
+        }
+     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {

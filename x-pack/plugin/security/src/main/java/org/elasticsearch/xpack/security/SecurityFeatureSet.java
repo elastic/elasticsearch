@@ -71,7 +71,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isSecurityAvailable();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SECURITY);
     }
 
     @Override

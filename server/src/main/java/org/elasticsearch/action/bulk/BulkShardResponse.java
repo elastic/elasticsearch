@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -30,6 +31,8 @@ import java.io.IOException;
 
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
+    private static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+
     private final ShardId shardId;
     private final BulkItemResponse[] responses;
 
@@ -37,8 +40,14 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super(in);
         shardId = new ShardId(in);
         responses = new BulkItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = new BulkItemResponse(in);
+        if (in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
+            for (int i = 0; i < responses.length; i++) {
+                responses[i] = new BulkItemResponse(shardId, in);
+            }
+        } else {
+            for (int i = 0; i < responses.length; i++) {
+                responses[i] = new BulkItemResponse(in);
+            }
         }
     }
 
@@ -75,8 +84,14 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super.writeTo(out);
         shardId.writeTo(out);
         out.writeVInt(responses.length);
-        for (BulkItemResponse response : responses) {
-            response.writeTo(out);
+        if (out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
+            for (BulkItemResponse response : responses) {
+                response.writeThin(out);
+            }
+        } else {
+            for (BulkItemResponse response : responses) {
+                response.writeTo(out);
+            }
         }
     }
 }

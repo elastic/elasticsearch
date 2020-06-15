@@ -71,7 +71,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
                     throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
                 }
             }
-            deprecationLogger.deprecated("parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+            deprecationLogger.deprecatedAndMaybeLog("resize_deprecated_parameter",
+                "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
         }
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);

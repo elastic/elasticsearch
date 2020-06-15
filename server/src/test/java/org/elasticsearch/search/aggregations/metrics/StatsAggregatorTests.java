@@ -475,10 +475,9 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return Arrays.asList(
-            CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN);
+        return Arrays.asList(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
     }
 
     @Override

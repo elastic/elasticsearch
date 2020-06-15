@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -76,7 +75,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private String globalType;
-    private Boolean preferV2Templates;
 
     private long sizeInBytes = 0;
 
@@ -91,9 +89,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.preferV2Templates = in.readOptionalBoolean();
-        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -210,16 +205,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
-    }
-
-    public BulkRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
-        this.preferV2Templates = preferV2Templates;
-        return this;
-    }
-
-    @Nullable
-    public Boolean preferV2Templates() {
-        return this.preferV2Templates;
     }
 
     /**
@@ -424,9 +409,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalBoolean(preferV2Templates);
-        }
     }
 
     @Override

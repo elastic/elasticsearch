@@ -88,6 +88,27 @@
             match_all: {}
 
 ---
+"max_docs shoule be greater than slices":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] should be >= \[slices\]/
+      delete_by_query:
+        index: test
+        max_docs: 1
+        slices: 2
+        body:
+          query:
+            match_all: {}
+
+---
 "invalid scroll_size fails":
   - do:
       index:

@@ -122,8 +122,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     public void testIsRunningOnMlPlatform() {
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "aarch64", true));
         assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
+        assertTrue(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "amd64", true));
+        assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Linux", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", false));
         assertFalse(MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", false));
@@ -132,6 +134,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "i386", true));
         expectThrows(ElasticsearchException.class,
+                () -> MachineLearningFeatureSet.isRunningOnMlPlatform("Windows 10", "arm64", true));
+        expectThrows(ElasticsearchException.class,
                 () -> MachineLearningFeatureSet.isRunningOnMlPlatform("SunOS", "amd64", true));
     }
 
@@ -139,7 +143,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
                 client, licenseState, jobManagerHolder);
         boolean available = randomBoolean();
-        when(licenseState.isMachineLearningAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -176,7 +180,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -333,8 +337,48 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
     }
 
+    public void testUsageWithOrphanedTask() throws Exception {
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        Settings.Builder settings = Settings.builder().put(commonSettings);
+        settings.put("xpack.ml.enabled", true);
+
+        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
+        // NB: we have JobStats but no Job for "opened2"
+        GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
+        Job closed1 = buildJob("closed1", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar"), buildMinDetector("foobar")));
+        GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
+        givenJobs(Arrays.asList(opened1, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
+
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
+            clusterService, client, licenseState, jobManagerHolder);
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
+
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+        }
+
+        // The orphaned job should be excluded from the usage info
+        assertThat(source.getValue("jobs._all.count"), equalTo(2));
+        assertThat(source.getValue("jobs._all.detectors.min"), equalTo(1.0));
+        assertThat(source.getValue("jobs._all.detectors.max"), equalTo(3.0));
+        assertThat(source.getValue("jobs._all.detectors.total"), equalTo(4.0));
+        assertThat(source.getValue("jobs._all.detectors.avg"), equalTo(2.0));
+        assertThat(source.getValue("jobs._all.model_size.min"), equalTo(100.0));
+        assertThat(source.getValue("jobs._all.model_size.max"), equalTo(300.0));
+        assertThat(source.getValue("jobs._all.model_size.total"), equalTo(400.0));
+        assertThat(source.getValue("jobs._all.model_size.avg"), equalTo(200.0));
+        assertThat(source.getValue("jobs._all.created_by.a_cool_module"), equalTo(1));
+        assertThat(source.getValue("jobs._all.created_by.unknown"), equalTo(1));
+    }
+
     public void testUsageDisabledML() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
@@ -356,7 +400,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testNodeCount() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);
         givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
@@ -399,7 +443,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);

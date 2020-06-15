@@ -71,11 +71,10 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         String id = "test_outlier_detection_with_missing_fields";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -109,7 +108,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
             }
         }
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 }

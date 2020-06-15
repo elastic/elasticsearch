@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -35,6 +36,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
@@ -282,6 +284,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     private final Settings settings;
+    private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
 
     public XPackClientPlugin(final Settings settings) {
         this.settings = settings;
@@ -692,7 +695,17 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             throw new RuntimeException(e);
         }
         return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
-                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService));
+                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService,
+                getNettySharedGroupFactory(settings)));
     }
 
+    private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
+        if (sharedGroupFactory.get() != null) {
+            assert sharedGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+            return sharedGroupFactory.get();
+        } else {
+            sharedGroupFactory.set(new SharedGroupFactory(settings));
+            return sharedGroupFactory.get();
+        }
+    }
 }

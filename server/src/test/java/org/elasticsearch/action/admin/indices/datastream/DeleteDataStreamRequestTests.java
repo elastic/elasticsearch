@@ -74,7 +74,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(org.elasticsearch.common.collect.List.of("foo", "bar", "baz"));
-        ClusterState cs = getClusterState(org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
+        ClusterState cs = getClusterStateWithDataStreams(
+            org.elasticsearch.common.collect.List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
@@ -118,14 +119,14 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
      * @param indexNames  The names of indices to create that do not back any data streams
      */
-    private static ClusterState getClusterState(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
+    public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
-                backingIndices.add(createIndexMetadata(DataStream.getBackingIndexName(dsTuple.v1(), backingIndexNumber), true));
+                backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber), true));
             }
             allIndices.addAll(backingIndices);
 

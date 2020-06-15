@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,27 +39,24 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }
 
-    @Override
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
         PhaseProgress phaseProgress = null;
-        Integer progressPercent = null;
         TrainedModelDefinition.Builder inferenceModel = null;
         MemoryUsage memoryUsage = null;
         OutlierDetectionStats outlierDetectionStats = null;
         ClassificationStats classificationStats = null;
         RegressionStats regressionStats = null;
+        ModelSizeInfo modelSizeInfo = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
         if (randomBoolean()) {
             phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
-        }
-        if (randomBoolean()) {
-            progressPercent = randomIntBetween(0, 100);
         }
         if (randomBoolean()) {
             inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
@@ -73,8 +73,11 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             regressionStats = RegressionStatsTests.createRandom();
         }
-        return new AnalyticsResult(rowResults, phaseProgress, progressPercent, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats);
+        if (randomBoolean()) {
+            modelSizeInfo = ModelSizeInfoTests.createRandom();
+        }
+        return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
+            classificationStats, regressionStats, modelSizeInfo);
     }
 
     @Override

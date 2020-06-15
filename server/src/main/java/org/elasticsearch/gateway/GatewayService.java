@@ -232,6 +232,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
                     @Override
                     protected void doRun() {
+                        logger.debug("performing state recovery...");
                         recoveryRunnable.run();
                     }
                 });
@@ -248,6 +249,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         @Override
         public ClusterState execute(final ClusterState currentState) {
+            if (currentState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                logger.debug("cluster is already recovered");
+                return currentState;
+            }
+
             final ClusterState newState = Function.<ClusterState>identity()
                     .andThen(ClusterStateUpdaters::updateRoutingTable)
                     .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)

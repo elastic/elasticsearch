@@ -7,7 +7,7 @@ To set up a data stream, follow these steps:
 . <<configure-a-data-stream-ilm-policy>>.
 . <<create-a-data-stream-template>>.
 . <<create-a-data-stream>>.
-. <<get-info-about-a-data-stream> to verify it exists.
+. <<get-info-about-a-data-stream>> to verify it exists.
 
 After you set up a data stream, you can <<use-a-data-stream, use the data
 stream>> for indexing, searches, and other supported operations.

@@ -54,7 +54,6 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     public static final ParseField LON_FIELD = new ParseField("lon");
     public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
-//    private AbstractGeometryFieldType abstractGeometryFieldType;
 
     private final GeoPoint topLeft;
     private final GeoPoint bottomRight;

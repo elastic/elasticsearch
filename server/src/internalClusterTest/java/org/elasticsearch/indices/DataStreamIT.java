@@ -411,7 +411,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        createIndexTemplate("id", "@timestamp1", "metrics-foobar*");
         String dataStreamName = "metrics-foobar-baz";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -146,8 +147,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 PercentilesAggregationBuilder builder =
                         new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
 
-                MappedFieldType fieldType = new HistogramFieldMapper.Builder("number").fieldType();
-                fieldType.setName("number");
+                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", true, Collections.emptyMap());
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

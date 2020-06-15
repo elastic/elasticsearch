@@ -42,8 +42,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testNoData() throws Exception {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
         try (Directory directory = newDirectory();
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -62,9 +61,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
         try (Directory directory = newDirectory();
              RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -84,11 +81,9 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testTwoFields() throws Exception {
         String fieldA = "a";
-        MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ftA.setName(fieldA);
+        MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(fieldA, NumberFieldMapper.NumberType.DOUBLE);
         String fieldB = "b";
-        MappedFieldType ftB = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ftB.setName(fieldB);
+        MappedFieldType ftB = new NumberFieldMapper.NumberFieldType(fieldB, NumberFieldMapper.NumberType.DOUBLE);
 
         try (Directory directory = newDirectory();
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -123,11 +118,9 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testTwoFieldsReduce() throws Exception {
         String fieldA = "a";
-        MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ftA.setName(fieldA);
+        MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(fieldA, NumberFieldMapper.NumberType.DOUBLE);
         String fieldB = "b";
-        MappedFieldType ftB = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ftB.setName(fieldB);
+        MappedFieldType ftB = new NumberFieldMapper.NumberFieldType(fieldB, NumberFieldMapper.NumberType.DOUBLE);
 
         try (Directory directory = newDirectory();
              RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

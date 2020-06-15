@@ -20,15 +20,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -43,24 +44,21 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new IgnoredFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+        public Builder() {
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
         @Override
@@ -73,7 +71,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                 ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.mapperService().fieldType(NAME));
+            return new Builder();
         }
 
         @Override
@@ -85,7 +83,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static final class IgnoredFieldType extends StringFieldType {
 
-        public IgnoredFieldType() {
+        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
+
+        private IgnoredFieldType() {
+            super(NAME, true, false, Collections.emptyMap());
         }
 
         protected IgnoredFieldType(IgnoredFieldType ref) {
@@ -114,7 +115,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     private IgnoredFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
+        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE, indexSettings);
     }
 
     @Override
@@ -134,7 +135,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, fieldType()));
+            context.doc().add(new Field(NAME, field, fieldType));
         }
     }
 

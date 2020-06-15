@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
@@ -521,8 +522,9 @@ public class QueryStringQueryParser extends XQueryParser {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            FieldType ft = context.getMapperService().getLuceneFieldType(field);
             Query query = null;
-            if (currentFieldType.tokenized() == false) {
+            if (ft.tokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
                 query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);

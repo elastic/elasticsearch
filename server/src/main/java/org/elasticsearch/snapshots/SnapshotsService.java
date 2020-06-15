@@ -250,10 +250,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
                 // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
                 // cluster state anyway in #applyClusterState.
-                if (minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
-                    if (snapshots != null && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
-                        throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
-                    }
+                if (minNodeVersion.before(FULL_CONCURRENCY_VERSION) && snapshots != null
+                        && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
+                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,

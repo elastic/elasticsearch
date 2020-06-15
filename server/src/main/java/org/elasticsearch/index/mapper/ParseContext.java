@@ -321,10 +321,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        private final DataStream dataStream;
+        private DataStream dataStream;
 
         public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser, DataStream dataStream) {
+                                    SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -338,7 +338,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.dynamicMappers = new ArrayList<>();
             this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
-            this.dataStream = dataStream;
         }
 
         @Override
@@ -523,6 +522,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         @Override
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
+        }
+
+        public void setDataStream(DataStream dataStream) {
+            this.dataStream = dataStream;
         }
     }
 

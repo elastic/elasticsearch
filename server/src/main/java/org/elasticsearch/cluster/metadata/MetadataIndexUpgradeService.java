@@ -60,9 +60,7 @@ public class MetadataIndexUpgradeService {
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
 
-    public MetadataIndexUpgradeService(Settings settings,
-                                       NamedXContentRegistry xContentRegistry,
-                                       MapperRegistry mapperRegistry,
+    public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;

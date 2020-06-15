@@ -577,7 +577,8 @@ public class ApiKeyService {
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
         final char[] apiKeyHashChars = apiKeyHash.toCharArray();
         Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-        threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
+        final String executorName = Thread.currentThread().getName().contains(THREAD_POOL_NAME) ? ThreadPool.Names.SAME : THREAD_POOL_NAME;
+        threadPool.executor(executorName).execute(ActionRunnable.supply(listener, () -> {
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {

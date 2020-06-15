@@ -212,7 +212,7 @@ stream's template>> and perform a <<manually-roll-over-a-data-stream,rollover>>.
 ====
 The following reindex request copies documents from the `archive` index alias to
 the existing `logs` data stream. Because the destination is a data stream, the
-the request's `op_type` is `create`.
+request's `op_type` is `create`.
 
 ////
 [source,console]

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -34,6 +35,7 @@ import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.InputStream;
 import java.util.Arrays;
@@ -50,17 +52,19 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
+    private final IngestScript precompiledIngestScript;
 
     /**
      * Processor that evaluates a script with an ingest document in its context
-     *
-     * @param tag The processor's tag.
+     *  @param tag The processor's tag.
      * @param script The {@link Script} to execute.
+     * @param precompiledIngestScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
+    ScriptProcessor(String tag, Script script, @Nullable IngestScript precompiledIngestScript, ScriptService scriptService)  {
         super(tag);
         this.script = script;
+        this.precompiledIngestScript = precompiledIngestScript;
         this.scriptService = scriptService;
     }
 
@@ -71,8 +75,14 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public IngestDocument execute(IngestDocument document) {
-        IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-        factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        final IngestScript ingestScript;
+        if (precompiledIngestScript == null) {
+            IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+            ingestScript = factory.newInstance(script.getParams());
+        } else {
+            ingestScript = precompiledIngestScript;
+        }
+        ingestScript.execute(document.getSourceAndMetadata());
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
@@ -84,6 +94,10 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     Script getScript() {
         return script;
+    }
+
+    IngestScript getPrecompiledIngestScript() {
+        return precompiledIngestScript;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -105,13 +119,16 @@ public final class ScriptProcessor extends AbstractProcessor {
                 Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
                 // verify script is able to be compiled before successfully creating processor.
+                IngestScript ingestScript = null;
                 try {
-                    scriptService.compile(script, IngestScript.CONTEXT);
+                    final IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
+                    if (ScriptType.INLINE.equals(script.getType())) {
+                        ingestScript = factory.newInstance(script.getParams());
+                    }
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-
-                return new ScriptProcessor(processorTag, script, scriptService);
+                return new ScriptProcessor(processorTag, script, ingestScript, scriptService);
             }
         }
     }

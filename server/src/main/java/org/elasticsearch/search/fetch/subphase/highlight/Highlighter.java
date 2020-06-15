@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.apache.lucene.document.FieldType;
 
 /**
  * Highlights a search result.
@@ -27,5 +27,5 @@ public interface Highlighter {
 
     HighlightField highlight(HighlighterContext highlighterContext);
 
-    boolean canHighlight(MappedFieldType fieldType);
+    boolean canHighlight(FieldType fieldType);
 }

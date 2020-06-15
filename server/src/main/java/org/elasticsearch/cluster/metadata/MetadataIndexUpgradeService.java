@@ -45,8 +45,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.indices.IndicesService.lookupDataStream;
-
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
  * <p>

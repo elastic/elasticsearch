@@ -66,7 +66,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public static Ensemble createRandom(TargetType targetType, List<String> featureNames) {
         int numberOfModels = randomIntBetween(1, 10);
-        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
+        List<String> treeFeatureNames = featureNames.isEmpty() ?
+            Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()) :
+            featureNames;
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(treeFeatureNames, 6))
             .limit(numberOfModels)
             .collect(Collectors.toList());
         double[] weights = randomBoolean() ?

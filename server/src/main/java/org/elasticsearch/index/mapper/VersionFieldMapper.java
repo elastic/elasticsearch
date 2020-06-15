@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /** Mapper for the _version field. */
@@ -43,13 +45,12 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
 
         public static final String NAME = VersionFieldMapper.NAME;
-        public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final MappedFieldType MAPPED_FIELD_TYPE = new VersionFieldType();
 
         static {
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -70,7 +71,10 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     static final class VersionFieldType extends MappedFieldType {
 
-        VersionFieldType() {
+        public static final VersionFieldType INSTANCE = new VersionFieldType();
+
+        private VersionFieldType() {
+            super(NAME, false, true, Collections.emptyMap());
         }
 
         protected VersionFieldType(VersionFieldType ref) {
@@ -99,7 +103,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     private VersionFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
+        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE, indexSettings);
     }
 
     @Override

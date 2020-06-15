@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -184,7 +183,7 @@ public class TermVectorsService  {
             return false;
         }
         // and must be indexed
-        if (fieldType.indexOptions() == IndexOptions.NONE) {
+        if (fieldType.isSearchable() == false) {
             return false;
         }
         return true;
@@ -200,7 +199,7 @@ public class TermVectorsService  {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (fieldType.storeTermVectors() &&
+            if (indexShard.mapperService().getLuceneFieldType(field).storeTermVectors() &&
                     (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }
@@ -333,10 +332,12 @@ public class TermVectorsService  {
     public static String[] getValues(IndexableField[] fields) {
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
-            if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
-                result.add(field.binaryValue().utf8ToString());
-            } else if (field.fieldType() instanceof StringFieldType) {
-                result.add(field.stringValue());
+            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+                if (field.binaryValue() != null) {
+                    result.add(field.binaryValue().utf8ToString());
+                } else {
+                    result.add(field.stringValue());
+                }
             }
         }
         return result.toArray(new String[0]);

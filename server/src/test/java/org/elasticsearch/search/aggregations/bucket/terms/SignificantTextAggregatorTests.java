@@ -37,13 +37,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -81,10 +80,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         return List.of(CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.GEOPOINT,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.IP);
+            CoreValuesSourceType.GEOPOINT);
     }
 
     @Override
@@ -99,8 +95,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Uses the significant text aggregation to find the keywords in text fields
      */
     public void testSignificance() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -148,8 +143,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -209,7 +203,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 text.append("even separator" + i + " duplicate duplicate duplicate duplicate duplicate duplicate ");
             }
 
-            doc.add(new Field("text", text.toString(), textFieldType));
+            doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
             String json ="{ \"text\" : \"" + text.toString() + "\","+
                 " \"json_only_field\" : \"" + text.toString() + "\"" +
                 " }";
@@ -222,8 +216,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Test documents with arrays of text
      */
     public void testSignificanceOnTextArrays() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setName("text");
+        TextFieldType textFieldType = new TextFieldType("text");
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -232,7 +225,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
-                doc.add(new Field("text", "foo", textFieldType));
+                doc.add(new Field("text", "foo", TextFieldMapper.Defaults.FIELD_TYPE));
                 String json ="{ \"text\" : [\"foo\",\"foo\"], \"title\" : [\"foo\", \"foo\"]}";
                 doc.add(new StoredField("_source", new BytesRef(json)));
                 w.addDocument(doc);

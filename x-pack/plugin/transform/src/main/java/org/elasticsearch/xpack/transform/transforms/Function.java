@@ -51,7 +51,7 @@ public interface Function {
 
     Map<String, Object> getAfterKey(SearchResponse searchResponse);
 
-    void validateQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener);
+    void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener);
 
     void validateConfig();
 

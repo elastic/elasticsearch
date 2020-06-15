@@ -11,9 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.snapshots.SnapshotInfo;
+
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -38,10 +41,27 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     @Override
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
         final String indexName = indexMetadata.getIndex().getName();
+        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
+        assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
+
+        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        if (indexAbstraction.getParentDataStream() != null) {
+            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
+            if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
+                String errorMessage = String.format(Locale.ROOT,
+                    "index [%s] is the write index for data stream [%s]. stopping execution of lifecycle [%s] as a data stream's " +
+                        "write index cannot be snapshotted. manually rolling over the index will resume the execution of the policy " +
+                        "as the index will not be the data stream's write index anymore. use SLM to snapshot a data stream's write index.",
+                    indexName, dataStream.getName(), policy);
+                logger.debug(errorMessage);
+                listener.onFailure(new IllegalStateException(errorMessage));
+                return;
+            }
+        }
 
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
-
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +

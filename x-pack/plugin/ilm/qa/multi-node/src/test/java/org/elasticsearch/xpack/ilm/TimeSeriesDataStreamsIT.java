@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -15,13 +14,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
-import org.elasticsearch.xpack.core.ilm.ReplaceDataStreamBackingIndexStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
@@ -57,10 +56,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        assertBusy(() -> assertTrue(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2))));
+        assertBusy(() -> assertTrue(indexExists(getDefaultBackingIndexName(dataStream, 2))));
         assertBusy(() -> assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(
-            DataStream.getDefaultBackingIndexName(dataStream, 2)).get("index.hidden"))));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(dataStream, 1)),
+            getDefaultBackingIndexName(dataStream, 2)).get("index.hidden"))));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), getDefaultBackingIndexName(dataStream, 1)),
             equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
@@ -85,7 +84,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getDefaultBackingIndexName(dataStream, 1);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertThat(
             "original index must wait in the " + CONDITIONAL_SKIP_SHRINK_STEP + " until it is not the write index anymore",
@@ -121,8 +120,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
+        String backingIndexName = getDefaultBackingIndexName(dataStream, 1);
+        String rolloverIndex = getDefaultBackingIndexName(dataStream, 2);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertTrue("the rollover action created the rollover index", indexExists(rolloverIndex)));
         assertBusy(() -> assertFalse("the original index was deleted by the shrink action", indexExists(backingIndexName)),
@@ -153,18 +152,17 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getDefaultBackingIndexName(dataStream, 1);
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
 
-        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
-        assertBusy(() -> assertThat(
-            "original index must wait in the " + ReplaceDataStreamBackingIndexStep.NAME + " until it is not the write index anymore",
+        assertBusy(() -> assertThat("the index cannot be snapshotted as it is the data stream's write index",
             (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
+        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
         assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);

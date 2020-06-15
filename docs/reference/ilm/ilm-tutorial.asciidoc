@@ -143,8 +143,8 @@ in all documents indexed into the `timeseries` data stream.
 You can also invoke this API directly to add templates.
 
 [discrete]
-[[ilm-gs-bootstrap]]
-=== Bootstrap the data stream
+[[ilm-gs-create-the-data-stream]]
+=== Create the data stream
 
 To get things started, you simply index a document into the name or wildcard pattern defined
 in the `index_patterns` of the <<indices-templates,composable index template>> that will

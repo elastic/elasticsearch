@@ -249,13 +249,16 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         }
 
         public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
-            return new AutoFollowPattern(
-                in.readString(),
-                in.readStringList(),
-                in.readOptionalString(),
-                Settings.readSettingsFromStream(in),
-                in
-            );
+            final String remoteCluster = in.readString();
+            final List<String> leaderIndexPatterns = in.readStringList();
+            final String followIndexPattern = in.readString();
+            final Settings settings;
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                settings = Settings.readSettingsFromStream(in);
+            } else {
+                settings = Settings.EMPTY;
+            }
+            return new AutoFollowPattern(remoteCluster, leaderIndexPatterns, followIndexPattern, settings, in);
         }
 
         private AutoFollowPattern(String remoteCluster, List<String> leaderIndexPatterns,
@@ -305,7 +308,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            Settings.writeSettingsToStream(settings, out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(active);

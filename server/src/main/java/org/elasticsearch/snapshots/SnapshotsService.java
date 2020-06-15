@@ -142,15 +142,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final Map<Snapshot, List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>>> snapshotCompletionListeners =
         new ConcurrentHashMap<>();
 
-    private final Collection<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
+    private final Map<String, List<ActionListener<RepositoryData>>> snapshotDeletionListeners = new HashMap<>();
+
+    /**
+     * Set of repositories currently running either a snapshot finalization or a snapshot delete. If a repository is in this set, then
+     * deletes that become ready to execute should be added to {@link #deletionsToRun}
+     */
+    private final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
 
     private final Object finalizationMutex = new Object();
 
+    /**
+     * Map of repository name to a deque of {@link SnapshotsInProgress.Entry} together with the cluster {@link Metadata} at the time the
+     * snapshot finished.
+     */
     private final Map<String, Deque<Tuple<SnapshotsInProgress.Entry, Metadata>>> snapshotsToFinalize = new HashMap<>();
 
-    private final Set<String> runningDeletions = Collections.synchronizedSet(new HashSet<>());
+    /**
+     * Map of repository name to deque of delete uuids that can be executed.
+     * TODO: use this to align delete and finalization queuing more
+     */
+    public final Map<String, Deque<String>> deletionsToRun = new HashMap<>();
 
-    private final Map<String, List<ActionListener<RepositoryData>>> snapshotDeletionListeners = new HashMap<>();
+    /**
+     * Set of delete operations currently being executed against the repository. The values in this set are the delete UUIDs returned by
+     * {@link SnapshotDeletionsInProgress.Entry#uuid()}.
+     */
+    private final Set<String> runningDeletions = Collections.synchronizedSet(new HashSet<>());
 
     // Set of snapshots that are currently being ended by this node
     private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
@@ -834,6 +852,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    /**
+     * Run the next queued up repository operation for the given repository name.
+     * @param newGeneration current repository generation for given repository
+     * @param repository    repository name
+     */
     private void runNextQueuedOperation(long newGeneration, String repository) {
         synchronized (finalizationMutex) {
             final Deque<Tuple<SnapshotsInProgress.Entry, Metadata>> outstandingForRepo = snapshotsToFinalize.get(repository);

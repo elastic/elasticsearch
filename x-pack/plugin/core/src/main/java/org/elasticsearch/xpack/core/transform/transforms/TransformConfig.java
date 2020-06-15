@@ -351,6 +351,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) { // todo 7.9.0
+            out.writeOptionalWriteable(mapConfig);
+        }
     }
 
     @Override
@@ -416,6 +419,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             && Objects.equals(this.syncConfig, that.syncConfig)
             && Objects.equals(this.headers, that.headers)
             && Objects.equals(this.pivotConfig, that.pivotConfig)
+            && Objects.equals(this.mapConfig, that.mapConfig)
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.settings, that.settings)
             && Objects.equals(this.createTime, that.createTime)
@@ -432,6 +436,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             syncConfig,
             headers,
             pivotConfig,
+            mapConfig,
             description,
             settings,
             createTime,

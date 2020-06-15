@@ -304,6 +304,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+        if (randomBoolean()) {
+            syncedFlush(index);
+        }
     }
 
     public void testRecovery() throws Exception {

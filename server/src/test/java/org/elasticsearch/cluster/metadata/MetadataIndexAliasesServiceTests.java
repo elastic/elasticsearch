@@ -84,7 +84,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // Remove the alias from it while adding another one
         before = after;
         after = service.applyAliasActions(before, Arrays.asList(
-                new AliasAction.Remove(index, "test"),
+                new AliasAction.Remove(index, "test", null),
                 new AliasAction.Add(index, "test_2", null, null, null, null, null)));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         alias = after.metadata().getIndicesLookup().get("test_2");
@@ -95,10 +95,15 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         // Now just remove on its own
         before = after;
-        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2")));
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
         assertNull(after.metadata().getIndicesLookup().get("test"));
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
         assertAliasesVersionIncreased(index, before, after);
+
+        final ClusterState finalCS = after;
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));
+        assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
     }
 
     public void testMultipleIndices() {
@@ -183,7 +188,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         // now perform a remove and add for each alias which is idempotent, the resulting aliases are unchanged
         final var removeAndAddActions = new ArrayList<AliasAction>(2 * length);
         for (final var aliasName : aliasNames) {
-            removeAndAddActions.add(new AliasAction.Remove(index, aliasName));
+            removeAndAddActions.add(new AliasAction.Remove(index, aliasName, null));
             removeAndAddActions.add(new AliasAction.Add(index, aliasName, null, null, null, null, null));
         }
         final ClusterState afterRemoveAndAddAlias = service.applyAliasActions(afterAddingAlias, removeAndAddActions);

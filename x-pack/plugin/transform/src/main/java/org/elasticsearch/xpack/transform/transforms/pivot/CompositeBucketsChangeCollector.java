@@ -94,12 +94,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final String sourceFieldName;
         private final String targetFieldName;
         private final boolean isSynchronizationField;
-        private final Rounding rounding;
+        private final Rounding.Prepared rounding;
 
         public DateHistogramFieldCollector(
             final String sourceFieldName,
             final String targetFieldName,
-            final Rounding rounding,
+            final Rounding.Prepared rounding,
             final boolean isSynchronizationField
         ) {
             this.sourceFieldName = sourceFieldName;

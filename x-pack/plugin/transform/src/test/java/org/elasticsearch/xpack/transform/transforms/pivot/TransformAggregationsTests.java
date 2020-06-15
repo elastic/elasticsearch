@@ -91,14 +91,14 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("long", TransformAggregations.resolveTargetMapping("filter", "double"));
 
         // terms
-        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", null));
-        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", "keyword"));
-        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", "text"));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("terms", null));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("terms", "keyword"));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("terms", "text"));
 
         // rare_terms
-        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", null));
-        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", "text"));
-        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", "keyword"));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", null));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "text"));
+        assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "keyword"));
 
         // corner case: source type null
         assertEquals(null, TransformAggregations.resolveTargetMapping("min", null));

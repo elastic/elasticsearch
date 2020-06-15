@@ -300,7 +300,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    Rounding.Prepared getRounding() {
+    public Rounding.Prepared getRounding() {
         return rounding;
     }
 

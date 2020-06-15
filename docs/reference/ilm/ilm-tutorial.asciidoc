@@ -120,9 +120,9 @@ The underlying request looks like this:
 -----------------------
 PUT _index_template/timeseries_template
 {
-  "index_patterns": ["timeseries"],                 <1>
+  "index_patterns": ["timeseries"],                   <1>
   "data_stream": {
-    "timestamp_field": "@timestamp"                  <2>
+    "timestamp_field": "@timestamp"                   <2>
   },
   "template": {
     "settings": {

@@ -995,7 +995,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         if (repository.isReadOnly()) {
             listener.onFailure(
-                    new RepositoryException(repository.getMetadata().name(), "Cannot delete snapshot from readonly repository"));
+                    new RepositoryException(repository.getMetadata().name(), "cannot delete snapshot from readonly repository"));
             return;
         }
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(Priority.NORMAL) {
@@ -1709,9 +1709,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     shards.putAll(entry.shards());
                                     updated = true;
                                 }
-                                // TODO: If the snapshot was successful we can assign the next snapshot for this shard to
-                                //       the same node and keep going. If it failed we technically should check why to see if it's even
-                                //       worth it to continue here. For now we just keep going though.
                                 final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
                                 logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
                                         finishedStatus.nodeId(), finishedStatus.generation());

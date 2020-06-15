@@ -43,26 +43,42 @@ import java.util.Objects;
  */
 public class EAssignment extends AExpression {
 
-    protected final AExpression lhs;
-    protected final AExpression rhs;
-    protected final boolean post;
-    protected final Operation operation;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final boolean postIfRead;
+    private final Operation operation;
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean post, Operation operation) {
-        super(location);
+    public EAssignment(int identifier, Location location,
+            AExpression leftNode, AExpression rightNode, boolean postIfRead, Operation operation) {
 
-        this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = Objects.requireNonNull(rhs);
-        this.post = post;
+        super(identifier, location);
+
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+        this.postIfRead = postIfRead;
         this.operation = operation;
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public boolean postIfRead() {
+        return postIfRead;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
-        AExpression rhs = this.rhs;
-        Operation operation = this.operation;
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
@@ -73,13 +89,13 @@ public class EAssignment extends AExpression {
         Input leftInput = new Input();
         leftInput.read = input.read;
         leftInput.write = true;
-        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
 
         if (operation != null) {
-            rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
+            rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -143,17 +159,15 @@ public class EAssignment extends AExpression {
                 rightInput.expected = promote;
             }
 
-            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                     rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-            there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
-            back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
-
-
-        } else if (rhs != null) {
+            there = AnalyzerCaster.getLegalCast(getLocation(), leftOutput.actual, promote, false, false);
+            back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftOutput.actual, true, false);
+        } else {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
             if (leftOutput.isDefOptimized) {
-                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -173,13 +187,11 @@ public class EAssignment extends AExpression {
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 rightInput.expected = leftOutput.actual;
-                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
             }
 
-            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                     rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
-        } else {
-            throw new IllegalStateException("Illegal tree structure.");
         }
 
         output.actual = input.read ? leftOutput.actual : void.class;
@@ -189,10 +201,10 @@ public class EAssignment extends AExpression {
         assignmentNode.setLeftNode(leftOutput.expressionNode);
         assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        assignmentNode.setLocation(location);
+        assignmentNode.setLocation(getLocation());
         assignmentNode.setExpressionType(output.actual);
         assignmentNode.setCompoundType(promote);
-        assignmentNode.setPost(post);
+        assignmentNode.setPost(postIfRead);
         assignmentNode.setOperation(operation);
         assignmentNode.setRead(input.read);
         assignmentNode.setCat(cat);

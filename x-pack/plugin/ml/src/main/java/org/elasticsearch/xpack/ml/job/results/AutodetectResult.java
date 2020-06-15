@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -39,7 +40,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
             TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
                     (Quantiles) a[3], a[4] == null ? null : ((ModelSnapshot.Builder) a[4]).build(),
                     a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(), (ModelPlot) a[6], (Annotation) a[7],
-                    (Forecast) a[8], (ForecastRequestStats) a[9], (CategoryDefinition) a[10], (FlushAcknowledgement) a[11]));
+                    (Forecast) a[8], (ForecastRequestStats) a[9], (CategoryDefinition) a[10],
+                    a[11] == null ? null : ((CategorizerStats.Builder) a[11]).build(), (FlushAcknowledgement) a[12]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.STRICT_PARSER, Bucket.RESULT_TYPE_FIELD);
@@ -56,6 +58,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastRequestStats.STRICT_PARSER,
                 ForecastRequestStats.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.STRICT_PARSER, CategoryDefinition.TYPE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategorizerStats.STRICT_PARSER,
+                CategorizerStats.RESULT_TYPE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FlushAcknowledgement.PARSER, FlushAcknowledgement.TYPE);
     }
 
@@ -70,12 +74,13 @@ public class AutodetectResult implements ToXContentObject, Writeable {
     private final Forecast forecast;
     private final ForecastRequestStats forecastRequestStats;
     private final CategoryDefinition categoryDefinition;
+    private final CategorizerStats categorizerStats;
     private final FlushAcknowledgement flushAcknowledgement;
 
     public AutodetectResult(Bucket bucket, List<AnomalyRecord> records, List<Influencer> influencers, Quantiles quantiles,
-            ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelPlot modelPlot, Annotation annotation,
-            Forecast forecast, ForecastRequestStats forecastRequestStats, CategoryDefinition categoryDefinition,
-            FlushAcknowledgement flushAcknowledgement) {
+                            ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelPlot modelPlot, Annotation annotation,
+                            Forecast forecast, ForecastRequestStats forecastRequestStats, CategoryDefinition categoryDefinition,
+                            CategorizerStats categorizerStats, FlushAcknowledgement flushAcknowledgement) {
         this.bucket = bucket;
         this.records = records;
         this.influencers = influencers;
@@ -87,6 +92,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         this.forecast = forecast;
         this.forecastRequestStats = forecastRequestStats;
         this.categoryDefinition = categoryDefinition;
+        this.categorizerStats = categorizerStats;
         this.flushAcknowledgement = flushAcknowledgement;
     }
 
@@ -136,12 +142,12 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         } else {
             this.categoryDefinition = null;
         }
+        this.categorizerStats = in.readOptionalWriteable(CategorizerStats::new);
         if (in.readBoolean()) {
             this.flushAcknowledgement = new FlushAcknowledgement(in);
         } else {
             this.flushAcknowledgement = null;
         }
-
         if (in.readBoolean()) {
             this.forecast = new Forecast(in);
         } else {
@@ -165,6 +171,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         writeNullable(modelPlot, out);
         writeNullable(annotation, out);
         writeNullable(categoryDefinition, out);
+        out.writeOptionalWriteable(categorizerStats);
         writeNullable(flushAcknowledgement, out);
         writeNullable(forecast, out);
         writeNullable(forecastRequestStats, out);
@@ -200,6 +207,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         addNullableField(Forecast.RESULTS_FIELD, forecast, builder);
         addNullableField(ForecastRequestStats.RESULTS_FIELD, forecastRequestStats, builder);
         addNullableField(CategoryDefinition.TYPE, categoryDefinition, builder);
+        addNullableField(CategorizerStats.RESULT_TYPE_FIELD, categorizerStats, builder);
         addNullableField(FlushAcknowledgement.TYPE, flushAcknowledgement, builder);
         builder.endObject();
         return builder;
@@ -261,14 +269,18 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         return categoryDefinition;
     }
 
+    public CategorizerStats getCategorizerStats() {
+        return categorizerStats;
+    }
+
     public FlushAcknowledgement getFlushAcknowledgement() {
         return flushAcknowledgement;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelPlot, annotation, forecast,
-                forecastRequestStats, modelSizeStats, modelSnapshot, quantiles);
+        return Objects.hash(bucket, records, influencers, categoryDefinition, categorizerStats, flushAcknowledgement, modelPlot, annotation,
+            forecast, forecastRequestStats, modelSizeStats, modelSnapshot, quantiles);
     }
 
     @Override
@@ -284,6 +296,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                 Objects.equals(records, other.records) &&
                 Objects.equals(influencers, other.influencers) &&
                 Objects.equals(categoryDefinition, other.categoryDefinition) &&
+                Objects.equals(categorizerStats, other.categorizerStats) &&
                 Objects.equals(flushAcknowledgement, other.flushAcknowledgement) &&
                 Objects.equals(modelPlot, other.modelPlot) &&
                 Objects.equals(annotation, other.annotation) &&
@@ -293,5 +306,4 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                 Objects.equals(modelSnapshot, other.modelSnapshot) &&
                 Objects.equals(quantiles, other.quantiles);
     }
-
 }

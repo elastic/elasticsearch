@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,32 +43,26 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
     private final boolean annotationsEnabled;
 
     public ModelPlotConfig() {
-        this(true, null, true);
+        this(true, null, null);
     }
 
     public ModelPlotConfig(boolean enabled, String terms, Boolean annotationsEnabled) {
         this.enabled = enabled;
         this.terms = terms;
-        this.annotationsEnabled = Boolean.TRUE.equals(annotationsEnabled);
+        this.annotationsEnabled = annotationsEnabled != null ? annotationsEnabled : enabled;
     }
 
     public ModelPlotConfig(StreamInput in) throws IOException {
         enabled = in.readBoolean();
         terms = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            annotationsEnabled = in.readBoolean();
-        } else {
-            annotationsEnabled = enabled;
-        }
+        annotationsEnabled = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(enabled);
         out.writeOptionalString(terms);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(annotationsEnabled);
-        }
+        out.writeBoolean(annotationsEnabled);
     }
 
     @Override

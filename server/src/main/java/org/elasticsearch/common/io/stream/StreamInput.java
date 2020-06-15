@@ -41,7 +41,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
@@ -832,9 +831,6 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
-//    public AbstractGeometryFieldMapper.AbstractGeometryFieldType readAbstractGeomteryType() throws Exception{
-//        return AbstractGeometryFieldMapper.AbstractGeometryFieldType();
-//    }
     /**
      * Read a {@linkplain DateTimeZone}.
      */

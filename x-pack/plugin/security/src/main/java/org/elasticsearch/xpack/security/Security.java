@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -992,9 +993,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
-            return Collections.singletonList(
-                    new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
-                        false));
+            final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+            return List.of(
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
+                    "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(settings, ApiKeyService.THREAD_POOL_NAME, allocatedProcessors / 2, 1000,
+                    "xpack.security.authc.api_key.thread_pool", false)
+            );
         }
         return Collections.emptyList();
     }

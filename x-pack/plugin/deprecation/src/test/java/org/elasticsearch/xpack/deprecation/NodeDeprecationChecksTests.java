@@ -191,7 +191,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-cache-size",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size",
             "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
                 "to [" + size + "] where * is a script context");
         assertThat(issues, contains(expected));
@@ -207,7 +207,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-expire",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire",
             "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
                 "[" + expire + "] where * is a script context");
         assertThat(issues, contains(expected));
@@ -223,7 +223,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-general-script-compile-rate",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate",
             "the setting [script.max_compilations_rate] is currently set to [" + rate +
                 "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context");
         assertThat(issues, contains(expected));

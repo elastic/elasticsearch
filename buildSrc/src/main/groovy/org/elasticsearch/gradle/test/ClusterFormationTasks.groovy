@@ -222,7 +222,7 @@ class ClusterFormationTasks {
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-        
+
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
         if (project.hasProperty('bwcVersions')) {
@@ -420,7 +420,7 @@ class ClusterFormationTasks {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
-        if (node.nodeVersion.onOrAfter('7.8.0')) {
+        if (node.nodeVersion.onOrAfter('7.9.0')) {
             esConfig['script.disable_max_compilations_rate'] = 'true'
         } else {
             esConfig['script.max_compilations_rate'] = '2048/1m'

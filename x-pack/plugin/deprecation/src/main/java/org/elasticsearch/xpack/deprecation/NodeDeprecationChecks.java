@@ -153,7 +153,7 @@ class NodeDeprecationChecks {
             ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-cache-size"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size"
         );
     }
 
@@ -164,7 +164,7 @@ class NodeDeprecationChecks {
             ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-expire"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire"
         );
     }
 
@@ -175,7 +175,7 @@ class NodeDeprecationChecks {
             ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
             "a script context",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate-general-script-compile-rate"
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate"
         );
     }
 

@@ -1097,7 +1097,7 @@ public class MetadataIndexTemplateService {
                 .build();
 
             final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
+            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, null, Collections.emptyList(), false);
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {

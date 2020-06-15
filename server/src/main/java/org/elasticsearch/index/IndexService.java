@@ -29,6 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -149,32 +150,33 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
-            IndexSettings indexSettings,
-            IndexCreationContext indexCreationContext,
-            NodeEnvironment nodeEnv,
-            NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService,
-            ShardStoreDeleter shardStoreDeleter,
-            IndexAnalyzers indexAnalyzers, EngineFactory engineFactory,
-            CircuitBreakerService circuitBreakerService,
-            BigArrays bigArrays,
-            ThreadPool threadPool,
-            ScriptService scriptService,
-            ClusterService clusterService,
-            Client client,
-            QueryCache queryCache,
-            IndexStorePlugin.DirectoryFactory directoryFactory,
-            IndexEventListener eventListener,
-            Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
-            MapperRegistry mapperRegistry,
-            IndicesFieldDataCache indicesFieldDataCache,
-            List<SearchOperationListener> searchOperationListeners,
-            List<IndexingOperationListener> indexingOperationListeners,
-            NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier idFieldDataEnabled,
-            BooleanSupplier allowExpensiveQueries,
-            IndexNameExpressionResolver expressionResolver,
-            ValuesSourceRegistry valuesSourceRegistry) {
+        IndexSettings indexSettings,
+        DataStream dataStream,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers, EngineFactory engineFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -188,7 +190,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled);
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, dataStream);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.

@@ -549,7 +549,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final IndexService indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
+            final IndexService indexService = indicesService.createIndex(indexMetadata, null, Collections.emptyList(), false);
             if (value != null && value) {
                 assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
             } else {
@@ -574,8 +574,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 .build();
 
         final IndicesService indicesService = getIndicesService();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetadata, Collections.emptyList(), false));
+        final IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> indicesService.createIndex(indexMetadata, null, Collections.emptyList(), false));
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));

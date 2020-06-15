@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -46,11 +47,16 @@ final class DocumentParser {
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
+    private final DataStream dataStream;
 
-    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {
+    DocumentParser(IndexSettings indexSettings,
+                   DocumentMapperParser docMapperParser,
+                   DataStream dataStream,
+                   DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
+        this.dataStream = dataStream;
     }
 
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
@@ -61,7 +67,8 @@ final class DocumentParser {
 
         try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser,
+                dataStream);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);

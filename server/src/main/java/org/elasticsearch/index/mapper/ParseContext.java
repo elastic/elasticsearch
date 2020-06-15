@@ -22,8 +22,10 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 
@@ -319,8 +321,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
+        private final DataStream dataStream;
+
         public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
-                                    SourceToParse source, XContentParser parser) {
+                                    SourceToParse source, XContentParser parser, DataStream dataStream) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
@@ -334,6 +338,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.dynamicMappers = new ArrayList<>();
             this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
+            this.dataStream = dataStream;
         }
 
         @Override
@@ -441,6 +446,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         void postParse() {
+            validateDataStreamTimestampField();
             if (documents.size() > 1) {
                 docsReversed = true;
                 // We preserve the order of the children while ensuring that parents appear after them.
@@ -465,6 +471,42 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             }
             newDocs.addAll(parents);
             return newDocs;
+        }
+
+        /**
+         * If the document is going to be index into a backing index of a data stream then
+         * check whether a timestamp field has been specified and that exactly one timestamp
+         * value has been specified.
+         */
+        private void validateDataStreamTimestampField() {
+            if (dataStream == null) {
+                // the index being index into is not part of a datas stream.
+                return;
+            }
+
+            int numStoredFields = 0;
+            int numPointFields = 0;
+            int numDocValuesFields = 0;
+            IndexableField[] fields = rootDoc().getFields(dataStream.getTimeStampField());
+            if (fields.length == 0) {
+                throw new IllegalArgumentException("required timestamp field is missing");
+            }
+
+            for (IndexableField field : fields) {
+                if (field.fieldType().pointDimensionCount() != 0) {
+                    numPointFields++;
+                }
+                if (field.fieldType().stored()) {
+                    numStoredFields++;
+                }
+                if (field.fieldType().docValuesType() != DocValuesType.NONE) {
+                    numDocValuesFields++;
+                }
+            }
+
+            if (numStoredFields > 1 || numPointFields > 1 || numDocValuesFields > 1) {
+                throw new IllegalArgumentException("timestamp field has multiple values, only a single value is allowed");
+            }
         }
 
         @Override

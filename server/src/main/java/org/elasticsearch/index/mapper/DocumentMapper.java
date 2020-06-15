@@ -138,7 +138,8 @@ public class DocumentMapper implements ToXContentFragment {
         this.typeText = new Text(this.type);
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
+        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(),
+            mapperService.getDataStream(), this);
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();

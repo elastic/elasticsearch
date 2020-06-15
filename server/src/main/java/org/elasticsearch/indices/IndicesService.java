@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -150,6 +152,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -521,14 +524,15 @@ public class IndicesService extends AbstractLifecycleComponent
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
+     * @param dataStream             the data stream the index is part of
      * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
      *                               per-index listeners
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
     public synchronized IndexService createIndex(
-            final IndexMetadata indexMetadata, final List<IndexEventListener> builtInListeners,
-            final boolean writeDanglingIndices) throws IOException {
+        final IndexMetadata indexMetadata, DataStream dataStream, final List<IndexEventListener> builtInListeners,
+        final boolean writeDanglingIndices) throws IOException {
         ensureChangesAllowed();
         if (indexMetadata.getIndexUUID().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetadata.getIndexUUID() + "]");
@@ -558,6 +562,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 createIndexService(
                         CREATE_INDEX,
                         indexMetadata,
+                        dataStream,
                         indicesQueryCache,
                         indicesFieldDataCache,
                         finalListeners,
@@ -611,7 +616,7 @@ public class IndicesService extends AbstractLifecycleComponent
             createIndexService(
                 CREATE_INDEX,
                 indexMetadata,
-                indicesQueryCache,
+                null, indicesQueryCache,
                 indicesFieldDataCache,
                 finalListeners,
                 indexingMemoryController);
@@ -625,6 +630,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     private synchronized IndexService createIndexService(IndexService.IndexCreationContext indexCreationContext,
                                                          IndexMetadata indexMetadata,
+                                                         DataStream dataStream,
                                                          IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
@@ -638,7 +644,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             indexCreationContext);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+        final IndexModule indexModule = new IndexModule(idxSettings, dataStream, analysisRegistry, getEngineFactory(idxSettings),
                 directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -708,11 +714,22 @@ public class IndicesService extends AbstractLifecycleComponent
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
+        DataStream dataStream = lookupDataStream(clusterService.state().metadata().getIndicesLookup(), indexMetadata.getIndex());
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+        final IndexModule indexModule = new IndexModule(idxSettings, dataStream, analysisRegistry, getEngineFactory(idxSettings),
                 directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+    }
+
+    public static DataStream lookupDataStream(SortedMap<String, IndexAbstraction> indicesLookup, Index index) {
+        IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
+        if (indexAbstraction != null &&
+            indexAbstraction.getParentDataStream() != null) {
+            return indexAbstraction.getParentDataStream().getDataStream();
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -731,7 +748,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service =
-                createIndexService(METADATA_VERIFICATION, metadata, indicesQueryCache, indicesFieldDataCache, emptyList());
+                createIndexService(METADATA_VERIFICATION, metadata, null, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -127,10 +128,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     final MapperRegistry mapperRegistry;
 
     private final BooleanSupplier idFieldDataEnabled;
+    private final DataStream dataStream;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
-                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
+                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled,
+                         DataStream dataStream) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
@@ -142,6 +145,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
+        this.dataStream = dataStream;
     }
 
     public boolean hasNested() {
@@ -655,6 +659,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.isMetadataField(indexVersionCreated, field);
+    }
+
+    public DataStream getDataStream() {
+        return dataStream;
     }
 
     /** An analyzer wrapper that can lookup fields within the index mappings */

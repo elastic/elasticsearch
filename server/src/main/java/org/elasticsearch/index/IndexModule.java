@@ -30,6 +30,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -121,6 +122,7 @@ public final class IndexModule {
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
 
     private final IndexSettings indexSettings;
+    private final DataStream dataStream;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
     private SetOnce<Function<IndexService,
@@ -140,18 +142,21 @@ public final class IndexModule {
      * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
      * @param indexSettings       the index settings
+     * @param dataStream          the data stream the index is part of
      * @param analysisRegistry    the analysis registry
      * @param engineFactory       the engine factory
      * @param directoryFactories the available store types
      */
     public IndexModule(
-            final IndexSettings indexSettings,
-            final AnalysisRegistry analysisRegistry,
-            final EngineFactory engineFactory,
-            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
-            final BooleanSupplier allowExpensiveQueries,
-            final IndexNameExpressionResolver expressionResolver) {
+        final IndexSettings indexSettings,
+        final DataStream dataStream,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver) {
         this.indexSettings = indexSettings;
+        this.dataStream = dataStream;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
@@ -427,8 +432,8 @@ public final class IndexModule {
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
             }
-            final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
-                new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
+            final IndexService indexService = new IndexService(indexSettings, dataStream, indexCreationContext, environment,
+                xContentRegistry, new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
@@ -476,10 +481,12 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-            ScriptService scriptService) throws IOException {
+                                               ScriptService scriptService) throws IOException {
+
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false);
+            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false,
+            dataStream);
     }
 
     /**

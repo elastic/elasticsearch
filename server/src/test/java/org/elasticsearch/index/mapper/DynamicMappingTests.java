@@ -208,7 +208,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         SourceToParse source = new SourceToParse("test", "some_id",
             BytesReference.bytes(builder), builder.contentType());
         try (XContentParser xContentParser = createParser(JsonXContent.jsonXContent, source.source())) {
-            ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
+            ParseContext.InternalParseContext ctx =
+                new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser, null);
             assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
             ctx.parser().nextToken();
             DocumentParser.parseObjectOrNested(ctx, mapper.root());

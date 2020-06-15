@@ -380,7 +380,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext context = new ParseContext.InternalParseContext(settings,
-            mapperService.documentMapperParser(), mapperService.documentMapper(), null, null);
+            mapperService.documentMapperParser(), mapperService.documentMapper(), null, null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);

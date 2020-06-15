@@ -29,7 +29,9 @@
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
   - match: {_index: .ds-logs-foobar-000001}
 
   - do:

@@ -42,6 +42,10 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.indices.IndicesService.lookupDataStream;
 
 /**
  * This service is responsible for upgrading legacy index metadata to the current version
@@ -59,13 +63,18 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final Supplier<SortedMap<String, IndexAbstraction>> indicesLookupSupplier;
 
-    public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings) {
+    public MetadataIndexUpgradeService(Settings settings,
+                                       NamedXContentRegistry xContentRegistry,
+                                       MapperRegistry mapperRegistry,
+                                       IndexScopedSettings indexScopedSettings,
+                                       Supplier<SortedMap<String, IndexAbstraction>> indicesLookupSupplier) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.indicesLookupSupplier = indicesLookupSupplier;
     }
 
     /**
@@ -180,8 +189,9 @@ public class MetadataIndexUpgradeService {
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+                DataStream dataStream = lookupDataStream(indicesLookupSupplier.get(), indexMetadata.getIndex());
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false);
+                        mapperRegistry, () -> null, () -> false, dataStream);
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

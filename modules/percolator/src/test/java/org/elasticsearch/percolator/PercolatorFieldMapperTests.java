@@ -188,7 +188,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-                mapperService.documentMapperParser(), documentMapper, null, null);
+                mapperService.documentMapperParser(), documentMapper, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
@@ -210,7 +210,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq.add(termQuery2, Occur.MUST);
 
         parseContext = new ParseContext.InternalParseContext(settings, mapperService.documentMapperParser(),
-            documentMapper, null, null);
+            documentMapper, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
         document = parseContext.doc();
 
@@ -244,7 +244,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-            mapperService.documentMapperParser(), documentMapper, null, null);
+            mapperService.documentMapperParser(), documentMapper, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
@@ -270,7 +270,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq.add(rangeQuery2, Occur.MUST);
 
         parseContext = new ParseContext.InternalParseContext(settings,
-            mapperService.documentMapperParser(), documentMapper, null, null);
+            mapperService.documentMapperParser(), documentMapper, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
         document = parseContext.doc();
 
@@ -298,7 +298,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-                mapperService.documentMapperParser(), documentMapper, null, null);
+                mapperService.documentMapperParser(), documentMapper, null, null, null);
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document document = parseContext.doc();
 
@@ -317,7 +317,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-                mapperService.documentMapperParser(), documentMapper, null, null);
+                mapperService.documentMapperParser(), documentMapper, null, null, null);
         fieldMapper.processQuery(phraseQuery, parseContext);
         ParseContext.Document document = parseContext.doc();
 

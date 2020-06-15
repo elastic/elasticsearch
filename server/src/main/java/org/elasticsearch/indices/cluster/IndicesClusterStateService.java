@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -91,6 +92,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.indices.IndicesService.lookupDataStream;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
@@ -493,9 +495,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata indexMetadata = state.metadata().index(index);
             logger.debug("[{}] creating index", index);
 
+            final DataStream dataStream = lookupDataStream(state.metadata().getIndicesLookup(), index);
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
+                indexService = indicesService.createIndex(indexMetadata, dataStream, buildInIndexListener, true);
                 if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetadata.getIndex().getName(),
@@ -857,13 +860,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Creates a new {@link IndexService} for the given metadata.
          *
          * @param indexMetadata          the index metadata to create the index for
+         * @param dataStream             the data stream the index is part of
          * @param builtInIndexListener   a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with
          *                               the per-index listeners
          * @param writeDanglingIndices   whether dangling indices information should be written
          * @throws ResourceAlreadyExistsException if the index already exists.
          */
         U createIndex(IndexMetadata indexMetadata,
-                      List<IndexEventListener> builtInIndexListener,
+                      DataStream dataStream, List<IndexEventListener> builtInIndexListener,
                       boolean writeDanglingIndices) throws IOException;
 
         /**

@@ -63,7 +63,9 @@ setup:
   - do:
       index:
         index:  simple-data-stream1
-        body:   { foo: bar }
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
 
   - do:
       indices.refresh:
@@ -236,27 +238,27 @@ setup:
   - do:
       index:
         index:  logs-foobar
-        body:   { foo: bar }
+        body:   { timestamp: '2020-12-12' }
   - match: { _index: .ds-logs-foobar-000001 }
 
   - do:
       catch: bad_request
       index:
         index:  .ds-logs-foobar-000001
-        body:   { foo: bar }
+        body:   { timestamp: '2020-12-12' }
 
   - do:
       bulk:
         body:
           - create:
               _index: .ds-logs-foobar-000001
-          - foo: bar
+          - timestamp: '2020-12-12'
           - index:
               _index: .ds-logs-foobar-000001
-          - foo: bar
+          - timestamp: '2020-12-12'
           - create:
               _index: logs-foobar
-          - foo: bar
+          - timestamp: '2020-12-12'
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
   - match: { items.0.create.error.type: illegal_argument_exception }

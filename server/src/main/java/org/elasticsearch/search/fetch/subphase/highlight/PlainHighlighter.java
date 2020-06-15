@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.highlight.Fragmenter;
@@ -202,7 +203,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(MappedFieldType fieldType) {
+    public boolean canHighlight(FieldType fieldType) {
         return true;
     }
 

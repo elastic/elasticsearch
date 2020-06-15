@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -89,26 +89,17 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex,
         Consumer<R> verify
     ) throws IOException {
-        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType();
-        k1ft.setName("k1");
-        k1ft.setHasDocValues(true);
-        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType();
-        k2ft.setName("k2");
-        k2ft.setHasDocValues(true);
-        NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        nft.setName("n");
+        KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType("k1");
+        KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
+        NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
         testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, dft), verify, k1ft, k2ft, nft, dft);
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(AGGREGABLE_DATE);
-        if (useNanosecondResolution) {
-            builder.withResolution(DateFieldMapper.Resolution.NANOSECONDS);
-        }
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setIndexOptions(isSearchable ? IndexOptions.DOCS : IndexOptions.NONE);
-        fieldType.setName(AGGREGABLE_DATE);
-        return fieldType;
+        return new DateFieldMapper.DateFieldType(AGGREGABLE_DATE, isSearchable, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            useNanosecondResolution ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
+            Collections.emptyMap());
     }
 }

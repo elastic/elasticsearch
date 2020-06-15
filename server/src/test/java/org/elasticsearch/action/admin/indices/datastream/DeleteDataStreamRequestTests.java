@@ -36,6 +36,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -130,7 +131,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), new DataStream.TimestampField("@timestamp", "{}"),
+            DataStream ds = new DataStream(dsTuple.v1(), new DataStream.TimestampField("@timestamp", Map.of()),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }

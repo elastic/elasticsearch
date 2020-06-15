@@ -30,25 +30,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -104,8 +96,7 @@ public class MetadataCreateDataStreamService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request,
-                        createTempMapperServiceProvider(indicesService));
+                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
@@ -118,7 +109,7 @@ public class MetadataCreateDataStreamService {
     }
 
     public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, request, createTempMapperServiceProvider(indicesService));
+        return createDataStream(metadataCreateIndexService, current, request);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
@@ -136,8 +127,7 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request,
-                                         CheckedBiConsumer<IndexMetadata, CheckedConsumer<MapperService, Exception>, Exception> tmsp)
+                                         CreateDataStreamClusterStateUpdateRequest request)
         throws Exception {
 
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
@@ -166,27 +156,13 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        XContentBuilder fieldMapperSourceBuilder = XContentFactory.jsonBuilder();
         String fieldName = template.getDataStreamTemplate().getTimestampField();
-        tmsp.accept(firstBackingIndex, tempMapperService -> {
-            Mapper timestampFieldMapper = tempMapperService.documentMapper().mappers().getMapper(fieldName);
-            assert timestampFieldMapper != null : "no timestamp_field mapper found for backing index [" + firstBackingIndexName + "]";
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            timestampFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-
-            // Extract the actual mapping config from the json content of field mapping:
-            // When serializing a field mapper the field name also gets included (which is the only top level field)
-            Map<String, Object> fieldMapperContents =
-                XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-            assert fieldMapperContents.size() == 1 : "expected a single key, but got " + fieldMapperContents;
-            fieldMapperSourceBuilder.map(fieldMapperContents);
-        });
+        Map<String, Object> mapping = firstBackingIndex.mapping().getSourceAsMap();
+        Map<String, Object> timeStampFieldMapping = ObjectPath.eval(convertFieldPathToMappingPath(fieldName), mapping);
 
         DataStream.TimestampField timestampField = new DataStream.TimestampField(
             fieldName,
-            Strings.toString(fieldMapperSourceBuilder)
+            timeStampFieldMapping
         );
         DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
@@ -219,17 +195,20 @@ public class MetadataCreateDataStreamService {
         }
     }
 
-    private static CheckedBiConsumer<IndexMetadata, CheckedConsumer<MapperService, Exception>, Exception> createTempMapperServiceProvider(
-        IndicesService indicesService) {
-        return  (imd, c) -> {
-            indicesService.withTempIndexService(imd, indexShards -> {
-                MapperService mapperService = indexShards.mapperService();
-                Map<String, Object> mapping = imd.mapping().getSourceAsMap();
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.MAPPING_UPDATE);
-                c.accept(mapperService);
-                return null;
-            });
-        };
+    public static String convertFieldPathToMappingPath(String fieldPath) {
+        // The mapping won't allow such fields, so this is a sanity check:
+        assert Arrays.stream(fieldPath.split("\\.")).filter(String::isEmpty).count() == 0L ||
+            fieldPath.startsWith(".") ||
+            fieldPath.endsWith(".") : "illegal field path [" + fieldPath + "]";
+
+        String mappingPath;
+        if (fieldPath.indexOf('.') == -1) {
+            mappingPath = "properties." + fieldPath;
+        } else {
+            mappingPath = "properties." + fieldPath.replace(".", ".properties.");
+        }
+
+        return mappingPath;
     }
 
 }

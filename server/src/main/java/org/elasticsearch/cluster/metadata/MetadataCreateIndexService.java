@@ -51,7 +51,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -61,7 +60,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -109,6 +107,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.convertFieldPathToMappingPath;
 
 /**
  * Service responsible for submitting create index requests
@@ -493,9 +492,10 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
-                Map<String, Object> x = ObjectPath.eval("_doc.properties", mappings);
-                String mapping = dataStream.getTimeStampField().getFieldMapping();
-                x.putAll(XContentHelper.convertToMap(new BytesArray(mapping), false, XContentType.JSON).v2());
+                String mappingPath = convertFieldPathToMappingPath(dataStream.getTimeStampField().getFieldName());
+                String parentObjectFieldPath = mappingPath.substring(0, mappingPath.lastIndexOf('.'));
+                Map<String, Object> parentObjectMapper = ObjectPath.eval("_doc." + parentObjectFieldPath, mappings);
+                parentObjectMapper.put(dataStream.getTimeStampField().getFieldName(), dataStream.getTimeStampField().getFieldMapping());
             }
         }
 

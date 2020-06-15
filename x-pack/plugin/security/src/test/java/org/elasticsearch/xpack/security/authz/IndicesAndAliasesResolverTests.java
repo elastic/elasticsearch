@@ -165,9 +165,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(dataStreamIndex1, true)
                 .put(dataStreamIndex2, true)
                 .put(dataStreamIndex3, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp", "{}"),
+                .put(new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp", Map.of()),
                     List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
-                .put(new DataStream(otherDataStreamName, new DataStream.TimestampField("@timestamp", "{}"),
+                .put(new DataStream(otherDataStreamName, new DataStream.TimestampField("@timestamp", Map.of()),
                     List.of(dataStreamIndex3.getIndex())))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 

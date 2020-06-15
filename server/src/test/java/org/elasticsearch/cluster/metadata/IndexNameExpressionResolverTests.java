@@ -47,6 +47,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -1771,7 +1772,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, new TimestampField("ts", "{}"), List.of(index1.getIndex(), index2.getIndex()), 2));
+            .put(new DataStream(dataStreamName, new TimestampField("ts", Map.of()), List.of(index1.getIndex(), index2.getIndex()), 2));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1853,8 +1854,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index2, false)
             .put(index3, false)
             .put(index4, false)
-            .put(new DataStream(dataStream1, new TimestampField("@timestamp", "{}"), List.of(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, new TimestampField("@timestamp", "{}"), List.of(index3.getIndex(), index4.getIndex())));
+            .put(new DataStream(dataStream1, new TimestampField("@timestamp", Map.of()), List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, new TimestampField("@timestamp", Map.of()), List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -1900,7 +1901,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index1, false)
                 .put(index2, false)
                 .put(justAnIndex, false)
-                .put(new DataStream(dataStream1, new TimestampField("@timestamp", "{}"),
+                .put(new DataStream(dataStream1, new TimestampField("@timestamp", Map.of()),
                     List.of(index1.getIndex(), index2.getIndex())))).build();
 
         IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();

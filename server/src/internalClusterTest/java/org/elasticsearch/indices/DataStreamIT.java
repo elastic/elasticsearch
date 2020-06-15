@@ -111,15 +111,13 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("metrics-bar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("@timestamp2"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(),
-            equalTo("{\"@timestamp2\":{\"type\":\"date\"}}"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(),
             equalTo(DataStream.getDefaultBackingIndexName("metrics-bar", 1)));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getName(), equalTo("metrics-foo"));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldName(), equalTo("@timestamp1"));
-        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldMapping(),
-            equalTo("{\"@timestamp1\":{\"type\":\"date\"}}"));
+        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().get(0).getName(),
             equalTo(DataStream.getDefaultBackingIndexName("metrics-foo", 1)));
@@ -506,14 +504,13 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("event.@timestamp"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(),
-            equalTo("{\"@timestamp\":{\"type\":\"date\"}}"));
-        assertBackingIndex(".ds-logs-foobar-000001", "properties.@timestamp");
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
+        assertBackingIndex(".ds-logs-foobar-000001", "properties.event.properties.@timestamp");
 
         RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
         assertThat(rolloverResponse.getNewIndex(), equalTo(".ds-logs-foobar-000002"));
         assertTrue(rolloverResponse.isRolledOver());
-        assertBackingIndex(".ds-logs-foobar-000002", "properties.@timestamp");
+        assertBackingIndex(".ds-logs-foobar-000002", "properties.event.properties.@timestamp");
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();

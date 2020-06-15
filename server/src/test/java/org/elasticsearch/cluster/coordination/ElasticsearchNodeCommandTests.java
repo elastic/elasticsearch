@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -110,7 +111,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp", "{}"),
+                mdBuilder.put(new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp", Map.of()),
                     List.of(backingIndex.getIndex())));
             }
         }

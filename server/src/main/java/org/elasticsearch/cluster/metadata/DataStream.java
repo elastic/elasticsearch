@@ -22,18 +22,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -215,21 +210,21 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         static ParseField FIELD_NAME_FIELD = new ParseField("field_name");
         static ParseField FIELD_MAPPING_FIELD = new ParseField("field_mapping");
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
             "timestamp_field",
-            args -> new TimestampField((String) args[0], (String) args[1])
+            args -> new TimestampField((String) args[0], (Map<String, Object>) args[1])
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_NAME_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())), FIELD_MAPPING_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), FIELD_MAPPING_FIELD);
         }
 
         private final String fieldName;
-        private final String fieldMapping;
+        private final Map<String, Object> fieldMapping;
 
-        public TimestampField(String fieldName, String fieldMapping) {
+        public TimestampField(String fieldName, Map<String, Object> fieldMapping) {
             this.fieldName = fieldName;
             this.fieldMapping = fieldMapping;
         }
@@ -241,23 +236,21 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 this.fieldMapping = null;
             } else {
                 this.fieldName = in.readString();
-                this.fieldMapping = in.readString();
+                this.fieldMapping = in.readMap();
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(fieldName);
-            out.writeString(fieldMapping);
+            out.writeMap(fieldMapping);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(FIELD_NAME_FIELD.getPreferredName(), fieldName);
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(new BytesArray(fieldMapping), true, XContentType.JSON).v2();
-            builder.field(FIELD_MAPPING_FIELD.getPreferredName(), uncompressedMapping);
+            builder.field(FIELD_MAPPING_FIELD.getPreferredName(), fieldMapping);
             builder.endObject();
             return builder;
         }
@@ -266,7 +259,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             return fieldName;
         }
 
-        public String getFieldMapping() {
+        public Map<String, Object> getFieldMapping() {
             return fieldMapping;
         }
 

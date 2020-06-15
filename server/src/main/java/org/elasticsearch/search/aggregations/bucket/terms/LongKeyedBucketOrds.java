@@ -40,7 +40,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     private LongKeyedBucketOrds() {}
 
     /**
-     * Add the {@code owningBucketOrd, term} pair. Return the ord for
+     * Add the {@code owningBucketOrd, value} pair. Return the ord for
      * their bucket if they have yet to be added, or {@code -1-ord}
      * if they were already present.
      */
@@ -48,13 +48,27 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * Count the buckets in {@code owningBucketOrd}.
+     * <p>
+     * Some aggregations expect this to be fast but most wouldn't
+     * mind particularly if it weren't.
      */
     public abstract long bucketsInOrd(long owningBucketOrd);
+
+    /**
+     * Find the {@code owningBucketOrd, value} pair. Return the ord for
+     * their bucket if they have been added or {@code -1} if they haven't.
+     */
+   public abstract long find(long owningBucketOrd, long value);
 
     /**
      * The number of collected buckets.
      */
     public abstract long size();
+
+    /**
+     * The maximum possible used {@code owningBucketOrd}.
+     */
+    public abstract long maxOwningBucketOrd();
 
     /**
      * Build an iterator for buckets inside {@code owningBucketOrd} in order
@@ -96,14 +110,13 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         };
     }
 
-
     /**
      * Implementation that only works if it is collecting from a single bucket.
      */
-    private static class FromSingle extends LongKeyedBucketOrds {
+    public static class FromSingle extends LongKeyedBucketOrds {
         private final LongHash ords;
 
-        FromSingle(BigArrays bigArrays) {
+        public FromSingle(BigArrays bigArrays) {
             ords = new LongHash(1, bigArrays);
         }
 
@@ -111,6 +124,12 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         public long add(long owningBucketOrd, long value) {
             assert owningBucketOrd == 0;
             return ords.add(value);
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            assert owningBucketOrd == 0;
+            return ords.find(value);
         }
 
         @Override
@@ -122,6 +141,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return ords.size();
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return 0;
         }
 
         @Override
@@ -162,7 +186,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Implementation that works properly when collecting from many buckets.
      */
-    private static class FromMany extends LongKeyedBucketOrds {
+    public static class FromMany extends LongKeyedBucketOrds {
         // TODO we can almost certainly do better here by building something fit for purpose rather than trying to lego together stuff
         private static class Buckets implements Releasable {
             private final LongHash valueToThisBucketOrd;
@@ -182,7 +206,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         private ObjectArray<Buckets> owningOrdToBuckets;
         private long lastGlobalOrd = -1;
 
-        FromMany(BigArrays bigArrays) {
+        public FromMany(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
             owningOrdToBuckets = bigArrays.newObjectArray(1);
         }
@@ -218,6 +242,22 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         }
 
         @Override
+        public long find(long owningBucketOrd, long value) {
+            if (owningBucketOrd >= owningOrdToBuckets.size()) {
+                return -1;
+            }
+            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
+            if (buckets == null) {
+                return -1;
+            }
+            long thisBucketOrd = buckets.valueToThisBucketOrd.find(value);
+            if (thisBucketOrd < 0) {
+                return -1;
+            }
+            return buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
+        }
+
+        @Override
         public long bucketsInOrd(long owningBucketOrd) {
             if (owningBucketOrd >= owningOrdToBuckets.size()) {
                 return 0;
@@ -232,6 +272,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return lastGlobalOrd + 1;
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return owningOrdToBuckets.size() - 1;
         }
 
         @Override

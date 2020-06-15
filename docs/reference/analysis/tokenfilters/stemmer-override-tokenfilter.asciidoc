@@ -8,7 +8,7 @@ Overrides stemming algorithms, by applying a custom mapping, then
 protecting these terms from being modified by stemmers. Must be placed
 before any stemming filters.
 
-Rules are separated by `=>`
+Rules are mappings in the form of `token1[, ..., tokenN] => override`.
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -69,7 +69,7 @@ PUT /my_index
                 "custom_stems" : {
                     "type" : "stemmer_override",
                     "rules" : [
-                        "running => run",
+                        "running, runs => run",
                         "stemmer => stemmer"
                     ]
                 }

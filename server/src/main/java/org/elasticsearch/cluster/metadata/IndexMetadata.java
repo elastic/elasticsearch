@@ -227,6 +227,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.intSetting("index.priority", 1, 0, Property.Dynamic, Property.IndexScope);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
+    public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
         new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);
@@ -1617,5 +1618,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             factor = 1;
         }
         return factor;
+    }
+
+    /**
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
+     * E.g.
+     * - For ".ds-logs-000002" it will return 2
+     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
+     * number
+     */
+    public static int parseIndexNameCounter(String indexName) {
+        int numberIndex = indexName.lastIndexOf("-");
+        if (numberIndex == -1) {
+            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
+        }
+        try {
+            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+                indexName.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
@@ -57,12 +58,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
-        docCounts = bigArrays.newIntArray(1, true);
         if (context.aggregations() != null) {
             multiBucketConsumer = context.aggregations().multiBucketConsumer();
         } else {
             multiBucketConsumer = (count) -> {};
         }
+        docCounts = bigArrays.newIntArray(1, true);
     }
 
     /**
@@ -91,7 +92,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        docCounts.increment(bucketOrd, 1);
+        if (docCounts.increment(bucketOrd, 1) == 1) {
+            // We calculate the final number of buckets only during the reduce phase. But we still need to
+            // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
+            // the execution if we are running out. To achieve that we are passing 0 as a bucket count.
+            multiBucketConsumer.accept(0);
+        }
         subCollector.collect(doc, bucketOrd);
     }
 
@@ -144,14 +150,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
-     * the maximum number of buckets allowed in a response
-     */
-    protected final void consumeBucketsAndMaybeBreak(int count) {
-        multiBucketConsumer.accept(count);
-    }
-
-    /**
      * Hook to allow taking an action before building buckets.
      */
     protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {}
@@ -192,7 +190,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 public int size() {
                     return aggregations.length;
                 }
-            }); 
+            });
         }
         return result;
     }
@@ -246,23 +244,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
-     * @param buckets the buckets to finish building
-     * @param bucketToOrd how to convert a bucket into an ordinal
-     * @param setAggs how to set the sub-aggregation results on a bucket
-     */
-    protected final <B> void buildSubAggsForBuckets(List<B> buckets,
-            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
-        InternalAggregations[] results = buildSubAggsForBuckets(buckets.stream().mapToLong(bucketToOrd).toArray());
-        for (int i = 0; i < buckets.size(); i++) {
-            setAggs.accept(buckets.get(i), results[i]);
-        }
-    }
-
-    /**
      * Build aggregation results for an aggregator that has a fixed number of buckets per owning ordinal.
      * @param <B> the type of the bucket
      * @param owningBucketOrds owning bucket ordinals for which to build the results
@@ -273,7 +254,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     protected final <B> InternalAggregation[] buildAggregationsForFixedBucketCount(long[] owningBucketOrds, int bucketsPerOwningBucketOrd,
             BucketBuilderForFixedCount<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
         int totalBuckets = owningBucketOrds.length * bucketsPerOwningBucketOrd;
-        consumeBucketsAndMaybeBreak(totalBuckets);
         long[] bucketOrdsToCollect = new long[totalBuckets];
         int bucketOrdIdx = 0;
         for (long owningBucketOrd : owningBucketOrds) {
@@ -305,7 +285,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param owningBucketOrds owning bucket ordinals for which to build the results
      * @param resultBuilder how to build a result from the sub aggregation results
      */
-    protected final InternalAggregation[] buildAggregationsForSingleBucket(long[] owningBucketOrds, 
+    protected final InternalAggregation[] buildAggregationsForSingleBucket(long[] owningBucketOrds,
                 SingleBucketResultBuilder resultBuilder) throws IOException {
         /*
          * It'd be entirely reasonable to call
@@ -334,7 +314,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongHash bucketOrds,
             BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
         long[] bucketOrdsToCollect = new long[(int) bucketOrds.size()];
         for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
             bucketOrdsToCollect[bucketOrd] = bucketOrd;
@@ -357,7 +336,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param bucketOrds hash of values to the bucket ordinal
      */
     protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongKeyedBucketOrds bucketOrds,
-            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+            BucketBuilderForVariable<B> bucketBuilder, ResultBuilderForVariable<B> resultBuilder) throws IOException {
         long totalOrdsToCollect = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
@@ -366,7 +345,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
             throw new AggregationExecutionException("Can't collect more than [" + Integer.MAX_VALUE
                     + "] buckets but attempted [" + totalOrdsToCollect + "]");
         }
-        consumeBucketsAndMaybeBreak((int) totalOrdsToCollect);
         long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
         int b = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -389,13 +367,17 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 }
                 buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }
-            results[ordIdx] = resultBuilder.apply(buckets);
+            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], buckets);
         }
         return results;
     }
     @FunctionalInterface
     protected interface BucketBuilderForVariable<B> {
         B build(long bucketValue, int docCount, InternalAggregations subAggregationResults);
+    }
+    @FunctionalInterface
+    protected interface ResultBuilderForVariable<B> {
+        InternalAggregation build(long owninigBucketOrd, List<B> buckets);
     }
 
     /**
@@ -436,4 +418,15 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
                 ".doc_count\") or \"key\".");
     }
+
+    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent.getClass() == GlobalAggregator.class) {
+                return true;
+            }
+            parent = parent.parent();
+        }
+        return false;
+    }
+
 }

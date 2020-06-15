@@ -35,7 +35,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
     @Override
     protected AbstractStringProcessor<Long> newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new BytesProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
+        return new BytesProcessor(randomAlphaOfLength(10), null, field, ignoreMissing, targetField);
     }
 
     @Override

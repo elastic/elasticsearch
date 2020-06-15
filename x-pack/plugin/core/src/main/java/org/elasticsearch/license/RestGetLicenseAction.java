@@ -58,9 +58,9 @@ public class RestGetLicenseAction extends BaseRestHandler {
         // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
         // TODO Remove this from 9.0
         if (request.hasParam("accept_enterprise")) {
-            deprecationLogger.deprecatedAndMaybeLog("get_license_accept_enterprise",
+            deprecationLogger.deprecate("get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated." +
-                    " The parameter will be removed in the next major version");
+                        " The parameter will be removed in the next major version");
             if (request.paramAsBoolean("accept_enterprise", true) == false) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }

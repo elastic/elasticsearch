@@ -20,26 +20,34 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.nio.file.Path;
+
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
+        project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
         project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:2.7");
 
-        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources = project.getTasks()
-            .named("buildResources", ExportElasticsearchBuildResourcesTask.class);
-
+        TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
+            .register("thirdPartyAuditResources", ExportElasticsearchBuildResourcesTask.class);
+        Path resourcesDir = project.getBuildDir().toPath().resolve("third-party-audit-config");
+        resourcesTask.configure(t -> {
+            t.setOutputDir(resourcesDir.toFile());
+            t.copy("forbidden/third-party-audit.txt");
+        });
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         audit.configure(t -> {
-            t.dependsOn(buildResources);
-            t.setSignatureFile(buildResources.get().copy("forbidden/third-party-audit.txt"));
+            t.dependsOn(resourcesTask);
             t.setJavaHome(BuildParams.getRuntimeJavaHome().toString());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
+            t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
         });
         return audit;
     }

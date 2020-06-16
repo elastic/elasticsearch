@@ -542,14 +542,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         for (int nestedValue : nestedValues) {
             Document document = new Document();
             document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            document.add(new Field(TypeFieldMapper.NAME, "__nested_object", TypeFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new Field(TypeFieldMapper.NAME, "__nested_object", TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new Field(TypeFieldMapper.NAME, "docs", TypeFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
         document.add(sequenceIDFields.primaryTerm);
         documents.add(document);

@@ -130,15 +130,13 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                                TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
                     document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
@@ -199,14 +197,12 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                                TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         documents.add(document);
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
 
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));

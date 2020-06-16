@@ -68,13 +68,17 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public static final String NAME = TypeFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
-
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
+        }
+
+        public static final FieldType NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);
+        static {
+            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         }
     }
 

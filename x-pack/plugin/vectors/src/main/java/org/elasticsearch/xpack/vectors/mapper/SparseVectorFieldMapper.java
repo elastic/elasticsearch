@@ -193,6 +193,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
         context.doc().addWithKey(fieldType().name(), field);
     }
 
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
 
     @Override
     protected void parseCreateField(ParseContext context) {

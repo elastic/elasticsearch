@@ -1562,36 +1562,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("{} failed to remove snapshot deletion metadata", deleteEntry), e);
-                final List<ActionListener<RepositoryData>> deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
-                if (deleteListeners != null) {
-                    try {
-                        ActionListener.onFailure(deleteListeners, e);
-                    } catch (Exception ex) {
-                        logger.warn("Failed to notify listeners", e);
-                    }
-                }
                 runningDeletions.remove(deleteEntry.uuid());
                 synchronized (currentlyFinalizing) {
                     if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                        // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
-                        // will try ending this snapshot again
-                        logger.debug(() -> new ParameterizedMessage(
-                                "[{}] failed to update cluster state after snapshot delete", deleteEntry), e);
+                        // Failure due to not being master any more, don't try to do run more cluster state updates the next master
+                        // will try handling the missing operations
+                        final Exception wrapped = new RepositoryException(deleteEntry.repository(),
+                                "Failed to update cluster state during snapshot delete", e);
                         final Deque<SnapshotFinalization> outstandingSnapshotsForRepo =
                                 snapshotsToFinalize.remove(deleteEntry.repository());
                         if (outstandingSnapshotsForRepo != null) {
                             SnapshotFinalization finalization;
                             while ((finalization = outstandingSnapshotsForRepo.poll()) != null) {
-                                failSnapshotCompletionListeners(finalization.entry.snapshot(), e);
+                                failSnapshotCompletionListeners(finalization.entry.snapshot(), wrapped);
                             }
                         }
                         for (Iterator<List<ActionListener<RepositoryData>>> iterator = snapshotDeletionListeners.values().iterator();
                              iterator.hasNext(); ) {
                             List<ActionListener<RepositoryData>> listeners = iterator.next();
                             iterator.remove();
-                            if (deleteListeners != null) {
+                            if (listeners != null) {
                                 try {
-                                    ActionListener.onFailure(listeners, e);
+                                    ActionListener.onFailure(listeners, wrapped);
                                 } catch (Exception ex) {
                                     logger.warn("Failed to notify listeners", e);
                                 }

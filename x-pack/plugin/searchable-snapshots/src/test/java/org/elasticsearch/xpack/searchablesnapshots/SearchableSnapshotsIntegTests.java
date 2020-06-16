@@ -443,11 +443,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final Path repo = randomRepoPath();
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(fsRepoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", repo))
+            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
         );
 
         final int dataNodesCount = internalCluster().numDataNodes();

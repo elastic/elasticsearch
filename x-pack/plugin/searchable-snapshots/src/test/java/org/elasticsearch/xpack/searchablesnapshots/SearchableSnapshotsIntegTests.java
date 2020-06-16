@@ -154,8 +154,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 new ByteSizeValue(randomLongBetween(10, 100_000))
             );
         }
+        final int expectedReplicas;
         if (randomBoolean()) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, internalCluster().numDataNodes() - 1));
+            expectedReplicas = numberOfReplicas();
+            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, expectedReplicas);
+        } else {
+            expectedReplicas = 0;
         }
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
@@ -183,6 +187,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
+        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
@@ -449,7 +454,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final Settings.Builder originalIndexSettings = Settings.builder();
         originalIndexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            originalIndexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, dataNodesCount - 1));
+            originalIndexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
         }
         if (randomBoolean()) {
             final int replicaLimit = between(0, dataNodesCount);
@@ -515,7 +520,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
 
         {
-            final int replicaCount = between(0, dataNodesCount - 1);
+            final int replicaCount = numberOfReplicas();
 
             logger.info("--> restoring index [{}] with specific replica count", restoredIndexName);
             Settings.Builder indexSettingsBuilder = Settings.builder()

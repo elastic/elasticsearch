@@ -870,8 +870,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Runs a cluster state update that checks whether we have any waiting snapshot deletions that can be executed and if so sets them
-     * to state {@link SnapshotDeletionsInProgress.State#META_DATA} and executes them.
+     * Runs a cluster state update that checks whether we have outstanding snapshot deletions that can be executed and executes them.
      *
      * TODO: optimize this to execute in a single CS update together with finalizing the latest snapshot
      */
@@ -883,6 +882,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(currentState);
+                assert res.v1() == currentState : "Deletes should have been set to ready by finished snapshot deletes and finalizations";
                 deletionsToRun = res.v2();
                 return res.v1();
             }
@@ -1438,23 +1438,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
                                                long repositoryStateId, Version minNodeVersion) {
         if (runningDeletions.add(deleteEntry.uuid())) {
-            synchronized (currentlyFinalizing) {
-                boolean added = currentlyFinalizing.add(deleteEntry.repository());
-                assert added;
-                Repository repository = repositoriesService.repository(deleteEntry.repository());
-                final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
-                assert deleteEntry.state() == SnapshotDeletionsInProgress.State.META_DATA :
-                        "incorrect state for entry [" + deleteEntry + "]";
-                repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(
-                        snapshotIds,
-                        repositoryStateId,
-                        minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                        ActionListener.wrap(updatedRepoData -> {
-                                    logger.info("snapshots {} deleted", snapshotIds);
-                                    removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                                }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
-                        )), ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, null)));
-            }
+            boolean added = currentlyFinalizing.add(deleteEntry.repository());
+            assert added : "Tried to start snapshot delete while already running operation on repository [" + deleteEntry + "]";
+            Repository repository = repositoriesService.repository(deleteEntry.repository());
+            final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
+            assert deleteEntry.state() == SnapshotDeletionsInProgress.State.META_DATA :
+                    "incorrect state for entry [" + deleteEntry + "]";
+            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repository.deleteSnapshots(
+                    snapshotIds,
+                    repositoryStateId,
+                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                    ActionListener.wrap(updatedRepoData -> {
+                                logger.info("snapshots {} deleted", snapshotIds);
+                                removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
+                            }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData)
+                    )), ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, null)));
         }
     }
 

@@ -21,11 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,10 +40,10 @@ public interface AutoDateHistogramAggregatorSupplier extends AggregatorSupplier 
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundingInfos,
         @Nullable
         Function<Rounding, Rounding.Prepared> roundingPreparer,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
+        boolean collectsFromSingleBucket,
         Map<String, Object> metadata
     ) throws IOException;
 }

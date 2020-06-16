@@ -33,11 +33,6 @@ public class IndexShardSnapshotException extends ElasticsearchException {
         this(shardId, msg, null);
     }
 
-    public IndexShardSnapshotException(ShardId shardId, Throwable cause) {
-        super(cause);
-        setShard(shardId);
-    }
-
     public IndexShardSnapshotException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

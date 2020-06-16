@@ -21,15 +21,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -54,8 +53,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         long minDocCount,
         double minBound,
         double maxBound,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
         boolean collectsFromSingleBucket,
@@ -71,13 +69,14 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             minDocCount,
             minBound,
             maxBound,
-            formatter,
+            valuesSourceConfig.format(),
             context,
             parent,
             collectsFromSingleBucket,
             metadata
         );
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: Stop using null here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
     }
 
     @Override

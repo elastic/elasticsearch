@@ -63,7 +63,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                             config.getFieldName(), config.getScript(), config.getMissing(), config.getTimeZone(), null,
                         CoreValuesSourceType.NUMERIC, TopMetricsAggregationBuilder.NAME);
                     return new TopMetricsAggregator.MetricSource(config.getFieldName(), resolved.format(),
-                        (ValuesSource.Numeric) resolved.toValuesSource());
+                        (ValuesSource.Numeric) resolved.getValuesSource());
                 }).collect(toList());
         return new TopMetricsAggregator(name, searchContext, parent, metadata, size, sortBuilders.get(0), metricSources);
     }

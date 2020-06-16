@@ -195,7 +195,8 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query, isCaseSensitive);
+        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
+        request.isCaseSensitive(isCaseSensitive);
         request.tiebreakerField("event.sequence");
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }

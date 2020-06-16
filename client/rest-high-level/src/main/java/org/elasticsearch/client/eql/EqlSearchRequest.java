@@ -41,7 +41,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
     private String implicitJoinKeyField = "agent.id";
-    private Boolean isCaseSensitive = true;
+    private boolean isCaseSensitive = true;
 
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
@@ -69,12 +69,6 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     public EqlSearchRequest(String indices, String query) {
         indices(indices);
         query(query);
-    }
-
-    public EqlSearchRequest(String indices, String query, Boolean isCaseSensitive) {
-        indices(indices);
-        query(query);
-        isCaseSensitive(isCaseSensitive);
     }
 
     @Override
@@ -163,10 +157,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this.implicitJoinKeyField;
     }
 
-    public Boolean isCaseSensitive() { return this.isCaseSensitive; }
+    public boolean isCaseSensitive() { return this.isCaseSensitive; }
 
-    public EqlSearchRequest isCaseSensitive(Boolean isCaseSensitive) {
-        Objects.requireNonNull(isCaseSensitive, "case sensitivity field must not be null");
+    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
         this.isCaseSensitive = isCaseSensitive;
         return this;
     }

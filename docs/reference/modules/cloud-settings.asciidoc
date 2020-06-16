@@ -10,6 +10,7 @@ The following {es} settings are supported on {ess}:
 * <<cloud-machine-learning-settings,Machine learning settings>>
 * <<cloud-monitoring-collection-settings,Monitoring collection settings>>
 * <<cloud-node-settings,Node settings>>
+* <<cloud-realm-settings,Realm settings>>
 * <<cloud-reindex-settings,Reindex settings>>
 * <<cloud-snapshot-restore-settings,Snapshot and restore settings>>
 * <<cloud-watcher-settings,Watcher settings>>
@@ -96,6 +97,28 @@ include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-hist
 ==== Node settings
 include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-description-tag]
 include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-node-ingest-tag]
+
+<<cloud-settings,Back to top>>
+
+[[cloud-realm-settings]]
+==== Realm settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-settings-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-order-tag]
+
+===== SAML realm settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-dn-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-groups-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-mail-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-name-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-principal-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-entity-id-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-metadata-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-metadata-http-refresh-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-use-single-logout-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-acs-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-entity-id-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-logout-tag]
 
 <<cloud-settings,Back to top>>
 

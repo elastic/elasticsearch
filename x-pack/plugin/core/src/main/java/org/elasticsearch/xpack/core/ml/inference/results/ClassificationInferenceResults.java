@@ -10,6 +10,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -27,6 +29,8 @@ import java.util.stream.Collectors;
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
 
     public static final String NAME = "classification";
+
+    private static final String LABEL = "label";
 
     private final String topNumClassesField;
     private final String resultsField;
@@ -138,7 +142,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                 topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
         if (getFeatureImportance().size() > 0) {
-            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance()
+            document.setFieldValue(parentResultField + "." + FEATURE_IMPORTANCE, getFeatureImportance()
                 .stream()
                 .map(FeatureImportance::toMap)
                 .collect(Collectors.toList()));
@@ -149,6 +153,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public Map<String, Object> writeResultToMap() {
         Map<String, Object> results = new HashMap<>();
         results.put(resultsField, value());
+        if (classificationLabel != null) {
+            results.put(LABEL, classificationLabel);
+        }
         if (topClasses.size() > 0) {
             results.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
@@ -164,7 +171,22 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return NAME;
     }
 
-    public static class TopClassEntry implements Writeable {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(resultsField, value());
+        if (classificationLabel != null) {
+            builder.field(LABEL, classificationLabel);
+        }
+        if (topClasses.size() > 0) {
+            builder.field(topNumClassesField, topClasses);
+        }
+        if (getFeatureImportance().size() > 0) {
+            builder.field(FEATURE_IMPORTANCE, getFeatureImportance());
+        }
+        return builder;
+    }
+
+    public static class TopClassEntry implements Writeable, ToXContentObject {
 
         public final ParseField CLASS_NAME = new ParseField("class_name");
         public final ParseField CLASS_PROBABILITY = new ParseField("class_probability");
@@ -208,6 +230,16 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             map.put(CLASS_PROBABILITY.getPreferredName(), probability);
             map.put(CLASS_SCORE.getPreferredName(), score);
             return map;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(CLASS_NAME.getPreferredName(), classification);
+            builder.field(CLASS_PROBABILITY.getPreferredName(), probability);
+            builder.field(CLASS_SCORE.getPreferredName(), score);
+            builder.endObject();
+            return builder;
         }
 
         @Override

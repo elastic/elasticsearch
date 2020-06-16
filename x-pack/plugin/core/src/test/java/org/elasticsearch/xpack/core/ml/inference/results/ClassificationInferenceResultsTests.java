@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -134,5 +135,28 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     @Override
     protected Writeable.Reader<ClassificationInferenceResults> instanceReader() {
         return ClassificationInferenceResults::new;
+    }
+
+    public void testToXContent() {
+        ClassificationConfig config = new ClassificationConfig(1);
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, null, config);
+        String stringRep = Strings.toString(result);
+        String expected = "{\"predicted_value\":1.0}";
+        assertEquals(expected, stringRep);
+
+        result = new ClassificationInferenceResults(1.0, "label1", null, config);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":1.0,\"label\":\"label1\"}";
+        assertEquals(expected, stringRep);
+
+        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
+        ClassificationInferenceResults.TopClassEntry tp =
+            new ClassificationInferenceResults.TopClassEntry("class", 1.0, 1.0);
+        result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
+            Collections.singletonList(fi), config);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":1.0,\"label\":\"label1\"," +
+            "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}]}";
+        assertEquals(expected, stringRep);
     }
 }

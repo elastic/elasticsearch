@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
@@ -67,4 +68,8 @@ public class RawInferenceResults implements InferenceResults {
         return NAME;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        throw new UnsupportedOperationException("[raw] does not support toXContent");
+    }
 }

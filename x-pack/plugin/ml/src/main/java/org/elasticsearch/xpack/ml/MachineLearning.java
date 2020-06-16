@@ -982,12 +982,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         return Collections.singletonList(new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
             in -> new InferencePipelineAggregationBuilder(in, modelLoadingService),
-            aggParser()
-            ));
-    }
-
-    public ContextParser<String, ? extends PipelineAggregationBuilder> aggParser() {
-        return (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser);
+            (ContextParser<String, ? extends PipelineAggregationBuilder>)
+                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser
+            )));
     }
 
     @Override

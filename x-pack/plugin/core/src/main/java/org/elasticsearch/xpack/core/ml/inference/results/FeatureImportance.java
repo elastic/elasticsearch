@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -15,13 +17,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class FeatureImportance implements Writeable {
+public class FeatureImportance implements Writeable, ToXContentObject {
 
     private final Map<String, Double> classImportance;
     private final double importance;
     private final String featureName;
-    private static final String IMPORTANCE = "importance";
-    private static final String FEATURE_NAME = "feature_name";
+    static final String IMPORTANCE = "importance";
+    static final String FEATURE_NAME = "feature_name";
+    static final String CLASS_IMPORTANCE = "class_importance";
 
     public static FeatureImportance forRegression(String featureName, double importance) {
         return new FeatureImportance(featureName, importance, null);
@@ -31,7 +34,7 @@ public class FeatureImportance implements Writeable {
         return new FeatureImportance(featureName, classImportance.values().stream().mapToDouble(Math::abs).sum(), classImportance);
     }
 
-    private FeatureImportance(String featureName, double importance, Map<String, Double> classImportance) {
+    FeatureImportance(String featureName, double importance, Map<String, Double> classImportance) {
         this.featureName = Objects.requireNonNull(featureName);
         this.importance = importance;
         this.classImportance = classImportance == null ? null : Collections.unmodifiableMap(classImportance);
@@ -80,6 +83,22 @@ public class FeatureImportance implements Writeable {
     }
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(FEATURE_NAME, featureName);
+        builder.field(IMPORTANCE, importance);
+        if (classImportance != null && classImportance.isEmpty() == false) {
+            builder.startObject(CLASS_IMPORTANCE);
+            for (Map.Entry<String, Double> entry : classImportance.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
     public boolean equals(Object object) {
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
@@ -93,5 +112,4 @@ public class FeatureImportance implements Writeable {
     public int hashCode() {
         return Objects.hash(featureName, importance, classImportance);
     }
-
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final String NAME = "searchable_snapshot";
 
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
+    public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     public static final String RESTORED_INDEX_PREFIX = "restored-";
 
@@ -66,8 +68,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
+        StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey,
             client);
@@ -84,15 +89,25 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // case
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
             RESTORED_INDEX_PREFIX, nextStepKey != null ? nextStepKey.getName() : "null");
-        CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, RESTORED_INDEX_PREFIX,
-            LifecycleSettings.LIFECYCLE_NAME);
+        CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, dataStreamCheckBranchingKey,
+            RESTORED_INDEX_PREFIX, LifecycleSettings.LIFECYCLE_NAME);
+        BranchingStep isDataStreamBranchingStep = new BranchingStep(dataStreamCheckBranchingKey, swapAliasesKey, replaceDataStreamIndexKey,
+            (index, clusterState) -> {
+                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
+                return indexAbstraction.getParentDataStream() != null;
+            });
+        ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(replaceDataStreamIndexKey,
+            deleteIndexKey, RESTORED_INDEX_PREFIX);
+        DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, null, client);
         // sending this step to null as the restored index (which will after this step essentially be the source index) was sent to the next
         // key after we restored the lifecycle execution state
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
         return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotBranchingStep,
-            mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
+            mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep, isDataStreamBranchingStep,
+            replaceDataStreamBackingIndex, deleteSourceIndexStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
     @Override

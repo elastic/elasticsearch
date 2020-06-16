@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -43,12 +44,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "sparse_vector";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new SparseVectorFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
@@ -57,15 +57,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
         public SparseVectorFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new SparseVectorFieldMapper(
-                    name, fieldType, defaultFieldType,
+                    name, fieldType, new SparseVectorFieldType(buildFullName(context), meta),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -85,7 +84,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType() {}
+        public SparseVectorFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, meta);
+        }
 
         protected SparseVectorFieldType(SparseVectorFieldType ref) {
             super(ref);
@@ -119,9 +120,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    private SparseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                     Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
     }
 

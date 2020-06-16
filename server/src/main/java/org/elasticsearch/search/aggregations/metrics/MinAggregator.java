@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -61,12 +60,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     MinAggregator(String name,
                     ValuesSourceConfig config,
-                    ValuesSource valuesSource,
                     SearchContext context,
                     Aggregator parent,
                     Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
@@ -179,7 +178,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
         if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
+            if (fieldType == null || fieldType.isSearchable() == false) {
                 return null;
             }
             Function<byte[], Number> converter = null;

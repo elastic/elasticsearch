@@ -68,23 +68,19 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
-                                          SearchContext searchContext, Aggregator parent,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
 
+        ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        if (collectsFromSingleBucket) {
-            return new ParentToChildrenAggregator(name, factories, searchContext, parent, childFilter,
-                parentFilter, valuesSource, maxOrd, metadata);
-        } else {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
+        return new ParentToChildrenAggregator(name, factories, searchContext, parent, childFilter,
+            parentFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
     }
 
     @Override

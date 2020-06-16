@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
         if (randomBoolean()) {
@@ -170,10 +170,6 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
 
     @Override
     protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
-            instance.setPartitionFieldName(null);
-            instance.setPartitionFieldValue(null);
-        }
         if (version.before(Version.V_7_8_0)) {
             instance.setPreferredToCategories(new long[0]);
             instance.setNumMatches(0L);

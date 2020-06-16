@@ -441,6 +441,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // The client runners need to be adjust to remove data streams after each test too,
         // otherwise rest yaml tests using data streams succeed in Elasticsearch, but may fail when clients run
         // the yaml test suite. In the mean time we should delete data streams manually after each test.
-        return true;
+        return false; //TODO PG temporary fix to allow compat testing
     }
 }

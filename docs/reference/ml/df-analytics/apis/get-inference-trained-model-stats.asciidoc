@@ -74,7 +74,68 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
-  
+
+[role="child_attributes"]
+[[ml-get-inference-stats-results]]
+==== {api-response-body-title}
+
+`count`::
+(integer)
+The total number of trained model statistics that matched the requested ID patterns.
+Could be higher than the number of items in the `trained_model_stats` array.
+
+`trained_model_stats`::
+(array)
+An array of trained model statistics, which are sorted by the `model_id` value in
+ascending order.
++
+.Properties of trained model stats
+[%collapsible%open]
+====
+`model_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`pipeline_count`:::
+(integer)
+How many ingest pipelines currently refer to the model.
+
+`inference_stats`:::
+(object)
+A collection of inference stats fields.
++
+.Properties of inference stats
+[%collapsible%open]
+=====
+
+`missing_all_fields_count`:::
+(integer)
+How many inference calls were missing all their features
+
+`inference_count`:::
+(integer)
+How many times inference were called
+
+`cache_miss_count`:::
+(integer)
+How many times the model was loaded for inference and NOT from
+cache.
+
+`failure_count`:::
+(integer)
+The count of failures when the using the model for inference
+
+`timestamp`:::
+(<<time-units,time units>>)
+When these stats were last gathered.
+=====
+
+`ingest`:::
+(object)
+A collection of ingest stats for the model. See the `ingest` section in
+<<cluster-nodes-stats,Nodes Stats>> for definition.
+
+====
 
 [[ml-get-inference-stats-example]]
 ==== {api-examples-title}
@@ -97,11 +158,25 @@ The API returns the following results:
   "trained_model_stats": [
     {
       "model_id": "flight-delay-prediction-1574775339910",
-      "pipeline_count": 0
+      "pipeline_count": 0,
+      "inference_stats": {
+        "missing_all_fields_count": 0,
+        "inference_count": 4,
+        "cache_miss_count": 3,
+        "failure_count": 0,
+        "timestamp": 1592399986979,
+      }
     },
     {
       "model_id": "regression-job-one-1574775307356",
       "pipeline_count": 1,
+      "inference_stats": {
+        "missing_all_fields_count": 0,
+        "inference_count": 178,
+        "cache_miss_count": 3,
+        "failure_count": 0,
+        "timestamp": 1592399986979,
+      },
       "ingest": {
         "total": {
           "count": 178,

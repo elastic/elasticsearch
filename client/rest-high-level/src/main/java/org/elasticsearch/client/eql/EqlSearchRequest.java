@@ -157,7 +157,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this.implicitJoinKeyField;
     }
 
-    public boolean isCaseSensitive() { return this.isCaseSensitive; }
+    public boolean isCaseSensitive() {
+        return this.isCaseSensitive;
+    }
 
     public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
         this.isCaseSensitive = isCaseSensitive;

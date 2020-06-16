@@ -436,7 +436,7 @@ DELETE /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX
 You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
 one request using `delete`, `index`, or `update` actions.
 
-If the type is `index`, the action must include valid
+If the action type is `index`, the action must include valid
 <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
 arguments.
 

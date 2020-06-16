@@ -169,6 +169,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
                         .indexSettings(
                             Settings.builder()
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                                 .put(request.indexSettings())
                                 .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                                 .build()

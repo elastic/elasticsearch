@@ -107,6 +107,14 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.find.TransportFindDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
@@ -289,6 +297,9 @@ import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.elasticsearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
+import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
+import org.elasticsearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
@@ -625,6 +636,12 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.Renew.INSTANCE, RetentionLeaseActions.Renew.TransportAction.class);
         actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
 
+        // Dangling indices
+        actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
+        actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
+        actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
+        actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -758,6 +775,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());
+
+        // Dangling indices API
+        registerHandler.accept(new RestListDanglingIndicesAction());
+        registerHandler.accept(new RestImportDanglingIndexAction());
+        registerHandler.accept(new RestDeleteDanglingIndexAction());
 
         // Data Stream API
         if (DATASTREAMS_FEATURE_ENABLED) {

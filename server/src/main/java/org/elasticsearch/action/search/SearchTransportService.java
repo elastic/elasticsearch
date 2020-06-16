@@ -59,6 +59,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
@@ -208,7 +209,7 @@ public class SearchTransportService {
         private SearchContextId contextId;
 
         ScrollFreeContextRequest(SearchContextId contextId) {
-            this.contextId = contextId;
+            this.contextId = Objects.requireNonNull(contextId);
         }
 
         ScrollFreeContextRequest(StreamInput in) throws IOException {

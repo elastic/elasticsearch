@@ -58,13 +58,13 @@
 
 ---
 "Test geotile_grid aggregation circuit breaker":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/56257"
   - do:
       indices.create:
         index: locations
         body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               location:

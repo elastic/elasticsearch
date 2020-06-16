@@ -56,7 +56,9 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     /**
      * Returns the search context ID that is used to reference the search context on the executing node
+     * or <code>null</code> if no context was created.
      */
+    @Nullable
     public SearchContextId getContextId() {
         return contextId;
     }

@@ -274,7 +274,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         asMap("the_histo", now)
                 )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(3));
             IndexRequest request = resp.get(0);
@@ -338,7 +338,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 asMap("the_histo", now)
             )
         );
-        final Rounding rounding = dateHistoConfig.createRounding();
+        final Rounding.Prepared rounding = dateHistoConfig.createRounding();
         executeTestCase(dataset, job, now, (resp) -> {
             assertThat(resp.size(), equalTo(2));
             IndexRequest request = resp.get(0);

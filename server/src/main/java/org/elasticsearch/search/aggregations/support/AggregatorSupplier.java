@@ -23,13 +23,10 @@ package org.elasticsearch.search.aggregations.support;
  * The aggregators for each aggregation should all share a signature, and that signature should be used to create an AggregatorSupplier for
  * that aggregation.  Alternatively, if an existing supplier has a matching signature, please re-use that.
  *
- * In many cases, this can be a simple wrapper over the aggregator constructor.  If that is sufficient, please consider the "typecast
- * lambda" syntax:
- *
- * {@code
- * (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, pipelineAggregators, metadata) ->
- *                 new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metadata));
- * }
+ * In many cases, this can be a simple wrapper over the aggregator constructor.  If that is sufficient, please just use a reference to the
+ * constructor.  Implementing a supplier (typically as a lambda) should only be necessary when factors besides the {@link ValuesSourceType}
+ * are necessary for selecting the correct aggregator implementation.  This happens in terms for example where we make decisions based on
+ * the availability of global ordinals.
  *
  * The suppliers are responsible for any casting of {@link ValuesSource} that needs to happen.  They must accept a base {@link ValuesSource}
  * instance.  The suppliers may perform additional logic to configure the aggregator as needed, such as in

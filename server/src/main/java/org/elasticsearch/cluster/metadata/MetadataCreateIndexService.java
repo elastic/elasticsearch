@@ -280,10 +280,7 @@ public class MetadataCreateIndexService {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
                                  final ActionListener<ClusterStateUpdateResponse> listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.builder();
-        Settings build = updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
-        indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent
-        request.settings(build);
+        normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
@@ -309,12 +306,21 @@ public class MetadataCreateIndexService {
             });
     }
 
+    private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
+        Settings build = updatedSettingsBuilder.put(createIndexClusterStateRequest.settings())
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+        indexScopedSettings.validate(build, true);
+        createIndexClusterStateRequest.settings(build);
+    }
     /**
      * Handles the cluster state transition to a version that reflects the {@link CreateIndexClusterStateUpdateRequest}.
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent,
                                                 BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer) throws Exception {
+
+        normalizeRequestSetting(request);
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
 
         validate(request, currentState);

@@ -17,7 +17,7 @@
   - is_true: acknowledged
 
   - do:
-      catch: cluster_block_exception
+      catch: /cluster_block_exception/
       index:
         index:  test_index
         body:   { foo: bar }

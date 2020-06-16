@@ -46,10 +46,11 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray compensations;
     DocValueFormat format;
 
-    AvgAggregator(String name, ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,  SearchContext context,
+    AvgAggregator(String name, ValuesSourceConfig valuesSourceConfig, SearchContext context,
                   Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO Stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();

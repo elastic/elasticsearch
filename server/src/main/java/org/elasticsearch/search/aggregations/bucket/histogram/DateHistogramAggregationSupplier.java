@@ -21,12 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,8 +41,7 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      boolean keyed,
                      long minDocCount,
                      @Nullable ExtendedBounds extendedBounds,
-                     @Nullable ValuesSource valuesSource,
-                     DocValueFormat formatter,
+                     ValuesSourceConfig valuesSourceConfig,
                      SearchContext aggregationContext,
                      Aggregator parent,
                      boolean collectsFromSingleBucket,

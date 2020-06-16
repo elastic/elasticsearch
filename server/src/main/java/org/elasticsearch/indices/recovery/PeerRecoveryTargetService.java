@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -340,68 +341,74 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel,
                                     Task task) throws IOException {
-            try (RecoveryRef recoveryRef =
-                     onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
-                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.FILES_INFO, request,
+                final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, Actions.TRANSLOG_OPS, request,
                     nullVal -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
                 if (listener == null) {
                     return;
                 }
 
-                final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-                final Consumer<Exception> retryOnMappingException = exception -> {
-                    // in very rare cases a translog replay from primary is processed before a mapping update on this node
-                    // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
-                    logger.debug("delaying recovery due to missing mapping changes", exception);
-                    // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
-                    // canceled)
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            try {
-                                messageReceived(request, channel, task);
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }
-
-                        @Override
-                        public void onClusterServiceClose() {
-                            listener.onFailure(new ElasticsearchException(
-                                "cluster service was closed while waiting for mapping updates"));
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            // note that we do not use a timeout (see comment above)
-                            listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates " +
-                                "(timeout [" + timeout + "])"));
-                        }
-                    });
-                };
-                final IndexMetadata indexMetadata = clusterService.state().metadata().index(request.shardId().getIndex());
-                final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
-                recoveryTarget.indexTranslogOperations(
-                        request.operations(),
-                        request.totalTranslogOps(),
-                        request.maxSeenAutoIdTimestampOnPrimary(),
-                        request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
-                        request.retentionLeases(),
-                        request.mappingVersionOnPrimary(),
-                        ActionListener.wrap(
-                                checkpoint -> listener.onResponse(null),
-                                e -> {
-                                    // do not retry if the mapping on replica is at least as recent as the mapping
-                                    // that the primary used to index the operations in the request.
-                                    if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
-                                        retryOnMappingException.accept(e);
-                                    } else {
-                                        listener.onFailure(e);
-                                    }
-                                })
-                );
+                performTranslogOps(request, listener, recoveryRef);
             }
+        }
+
+        private void performTranslogOps(final RecoveryTranslogOperationsRequest request, final ActionListener<Void> listener,
+                                        final RecoveryRef recoveryRef) {
+            final RecoveryTarget recoveryTarget = recoveryRef.target();
+
+            final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+            final Consumer<Exception> retryOnMappingException = exception -> {
+                // in very rare cases a translog replay from primary is processed before a mapping update on this node
+                // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
+                logger.debug("delaying recovery due to missing mapping changes", exception);
+                // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
+                // canceled)
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+                            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                                performTranslogOps(request, listener, recoveryRef);
+                            }
+                        }));
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new ElasticsearchException(
+                            "cluster service was closed while waiting for mapping updates"));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // note that we do not use a timeout (see comment above)
+                        listener.onFailure(new ElasticsearchTimeoutException("timed out waiting for mapping updates " +
+                            "(timeout [" + timeout + "])"));
+                    }
+                });
+            };
+            final IndexMetadata indexMetadata = clusterService.state().metadata().index(request.shardId().getIndex());
+            final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
+            recoveryTarget.indexTranslogOperations(
+                request.operations(),
+                request.totalTranslogOps(),
+                request.maxSeenAutoIdTimestampOnPrimary(),
+                request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
+                request.retentionLeases(),
+                request.mappingVersionOnPrimary(),
+                ActionListener.wrap(
+                    checkpoint -> listener.onResponse(null),
+                    e -> {
+                        // do not retry if the mapping on replica is at least as recent as the mapping
+                        // that the primary used to index the operations in the request.
+                        if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
+                            retryOnMappingException.accept(e);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+            );
         }
     }
 
@@ -628,8 +635,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
                     recoverySettings.retryDelayNetwork(), cause.getMessage());
-                // TODO: Change after backport
-                if (request.sourceNode().getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (request.sourceNode().getVersion().onOrAfter(Version.V_7_9_0)) {
                     reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 } else {
                     retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),

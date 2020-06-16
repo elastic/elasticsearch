@@ -231,19 +231,17 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
     }
 
-    public void getTrainedModelForInference(final String modelId,
-                                            final ActionListener<Tuple<TrainedModelConfig, InferenceDefinition>> listener) {
+    public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
                 TrainedModelConfig config = loadModelFromResource(modelId, false).ensureParsedDefinition(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
-                listener.onResponse(Tuple.tuple(
-                    config,
+                listener.onResponse(
                     InferenceDefinition.builder()
                         .setPreProcessors(config.getModelDefinition().getPreProcessors())
                         .setTrainedModel((LangIdentNeuralNetwork)config.getModelDefinition().getTrainedModel())
-                        .build()));
+                        .build());
                 return;
             } catch (ElasticsearchException|IOException ex) {
                 listener.onFailure(ex);
@@ -251,46 +249,52 @@ public class TrainedModelProvider {
             }
         }
 
-        getTrainedModel(modelId, false, ActionListener.wrap(
-            config -> {
-                SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-                    .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                        .boolQuery()
-                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                        .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
-                            TrainedModelDefinitionDoc.NAME))))
-                    .setSize(MAX_NUM_DEFINITION_DOCS)
-                    // First find the latest index
-                    .addSort("_index", SortOrder.DESC)
-                    // Then, sort by doc_num
-                    .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                        .order(SortOrder.ASC)
-                        .unmappedType("long"))
-                    .request();
-                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-                    searchResponse -> {
-                        List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
-                            modelId,
-                            this::parseModelDefinitionDocLenientlyFromSource);
-                        String compressedString = docs.stream()
-                            .map(TrainedModelDefinitionDoc::getCompressedString)
-                            .collect(Collectors.joining());
-                        if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                            listener.onFailure(ExceptionsHelper.serverError(
-                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                            return;
-                        }
-                        InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                            compressedString,
-                            InferenceDefinition::fromXContent,
-                            xContentRegistry);
-                        listener.onResponse(Tuple.tuple(config, inferenceDefinition));
-                    },
-                    listener::onFailure
-                ));
-
+        SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
+                .boolQuery()
+                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
+                    TrainedModelDefinitionDoc.NAME))))
+            .setSize(MAX_NUM_DEFINITION_DOCS)
+            // First find the latest index
+            .addSort("_index", SortOrder.DESC)
+            // Then, sort by doc_num
+            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
+                .order(SortOrder.ASC)
+                .unmappedType("long"))
+            .request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                    return;
+                }
+                List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
+                    modelId,
+                    this::parseModelDefinitionDocLenientlyFromSource);
+                String compressedString = docs.stream()
+                    .map(TrainedModelDefinitionDoc::getCompressedString)
+                    .collect(Collectors.joining());
+                if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                    listener.onFailure(ExceptionsHelper.serverError(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                    return;
+                }
+                InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
+                    compressedString,
+                    InferenceDefinition::fromXContent,
+                    xContentRegistry);
+                listener.onResponse(inferenceDefinition);
             },
-            listener::onFailure
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                    return;
+                }
+                listener.onFailure(e);
+            }
         ));
     }
 

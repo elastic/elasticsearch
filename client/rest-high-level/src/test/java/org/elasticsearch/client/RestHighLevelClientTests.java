@@ -804,7 +804,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.create_data_stream",
             "indices.get_data_stream",
             "indices.delete_data_stream",
-            "indices.simulate_template"
+            "indices.simulate_template",
+            "indices.resolve_index"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -815,6 +816,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.stats",
             "cluster.post_voting_config_exclusions",
             "cluster.delete_voting_config_exclusions",
+            "dangling_indices.delete",
+            "dangling_indices.import",
+            "dangling_indices.list",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

@@ -42,19 +42,17 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                      Map<String, Object> metadata) throws IOException {
-        ValuesSource vs = config.toValuesSource();
-        if (vs == null) {
+        if (config.hasValues() == false) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(vs, searchContext, parent, collectsFromSingleBucket, metadata);
+        return doCreateInternal(searchContext, parent, collectsFromSingleBucket, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
                                                  Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
-                                                   SearchContext searchContext,
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext,
                                                    Aggregator parent,
                                                    boolean collectsFromSingleBucket,
                                                    Map<String, Object> metadata) throws IOException;

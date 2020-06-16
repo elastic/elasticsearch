@@ -214,6 +214,11 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

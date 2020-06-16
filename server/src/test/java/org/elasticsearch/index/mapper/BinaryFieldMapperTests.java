@@ -74,6 +74,8 @@ public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMappe
 
         assertThat(mapper, instanceOf(BinaryFieldMapper.class));
         assertThat(mapper.fieldType.stored(), equalTo(false));
+
+        assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testStoredValue() throws IOException {

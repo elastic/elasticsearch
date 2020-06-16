@@ -49,7 +49,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
-import static org.elasticsearch.cluster.block.ClusterBlockLevel.METADATA_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;

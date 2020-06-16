@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -438,14 +439,14 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     private MergingBucketsDeferringCollector deferringCollector;
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
-                                     int initialBuffer, @Nullable ValuesSource valuesSource,
-                                     DocValueFormat formatter, SearchContext context, Aggregator parent,
+                                     int initialBuffer, @Nullable ValuesSourceConfig valuesSourceConfig,
+                                     SearchContext context, Aggregator parent,
                                      Map<String, Object> metadata) throws IOException{
         super(name, factories, context, parent, metadata);
 
         this.numBuckets = numBuckets;
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
-        this.formatter = formatter;
+        this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+        this.formatter = valuesSourceConfig.format();
         this.shardSize = shardSize;
         this.bufferLimit = initialBuffer;
 
@@ -538,8 +539,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         int numClusters = collector.finalNumBuckets();
-
-        consumeBucketsAndMaybeBreak(numClusters);
 
         long[] bucketOrdsToCollect = new long[numClusters];
         for (int i = 0; i < numClusters; i++) {

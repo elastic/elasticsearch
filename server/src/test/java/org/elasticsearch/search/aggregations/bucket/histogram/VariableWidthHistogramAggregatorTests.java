@@ -56,6 +56,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     private static final String NUMERIC_FIELD = "numeric";
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
+    private VariableWidthHistogramAggregationBuilder aggregationBuilder;
 
     public void testNoDocs() throws Exception{
         final List<Number> dataset = Arrays.asList();
@@ -469,20 +470,18 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                final NumberFieldMapper.Builder builder;
+                final MappedFieldType fieldType;
                 if(dataset.size() == 0 || dataset.get(0) instanceof Double){
-                    builder = new NumberFieldMapper.Builder("_name", NumberFieldMapper.NumberType.DOUBLE);
+                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.DOUBLE);
                 } else if(dataset.get(0) instanceof Long){
-                    builder = new NumberFieldMapper.Builder("_name", NumberFieldMapper.NumberType.LONG);
+                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.LONG);
                 } else if (dataset.get(0) instanceof Integer){
-                    builder = new NumberFieldMapper.Builder("_name", NumberFieldMapper.NumberType.INTEGER);
+                    fieldType = new NumberFieldMapper.NumberFieldType(aggregationBuilder.field(), NumberFieldMapper.NumberType.INTEGER);
                 } else {
                     throw new IOException("Test data has an invalid type");
                 }
 
-                final MappedFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(aggregationBuilder.field());
+
 
                 final InternalVariableWidthHistogram histogram;
                 if (reduced) {

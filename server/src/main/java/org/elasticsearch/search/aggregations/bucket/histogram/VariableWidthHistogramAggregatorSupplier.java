@@ -5,7 +5,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -19,8 +19,7 @@ public interface VariableWidthHistogramAggregatorSupplier extends AggregatorSupp
         int numBuckets,
         int shardSize,
         int initialBuffer,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        @Nullable ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
         Map<String, Object> metadata

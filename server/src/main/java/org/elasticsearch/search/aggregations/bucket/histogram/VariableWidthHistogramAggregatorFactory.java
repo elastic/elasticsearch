@@ -64,31 +64,25 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, null,
-            config.format(), searchContext, parent, metadata);
-    }
-
-
-    @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+                                          Map<String, Object> metadata) throws IOException{
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             VariableWidthHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, initialBuffer,
-            valuesSource, config.format(), searchContext, parent, metadata);
+            config, searchContext, parent, metadata);
+    }
+
+    @Override
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
+        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
+            searchContext, parent, metadata);
     }
 }

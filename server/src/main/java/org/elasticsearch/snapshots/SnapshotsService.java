@@ -928,15 +928,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newDeletes.add(entry);
             }
         }
-        if (changed) {
-            return Tuple.tuple(ClusterState.builder(currentState).putCustom(
-                    SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newDeletes)).build(), readyDeletions);
-        }
-        return Tuple.tuple(currentState, readyDeletions);
+        return Tuple.tuple(changed ? ClusterState.builder(currentState).putCustom(
+                SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newDeletes)).build() : currentState, readyDeletions);
     }
 
     private static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {
         SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+        ClusterState result = state;
         if (snapshots != null) {
             boolean changed = false;
             ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
@@ -948,11 +946,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             if (changed) {
-                return ClusterState.builder(state).putCustom(
+                result = ClusterState.builder(state).putCustom(
                         SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
             }
         }
-        return state;
+        return readyDeletions(result).v1();
     }
 
     /**

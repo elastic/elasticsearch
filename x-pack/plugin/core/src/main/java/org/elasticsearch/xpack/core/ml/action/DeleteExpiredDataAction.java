@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -51,9 +51,17 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             PARSER.declareString(Request::setJobId, Job.ID);
         }
 
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
+            return request;
+        }
+
         private Float requestsPerSecond;
         private TimeValue timeout;
-        private String jobId = Metadata.ALL;
+        private String jobId;
 
         public Request() {}
 
@@ -72,7 +80,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 this.timeout = null;
             }
             if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-                jobId = in.readString();
+                jobId = in.readOptionalString();
             }
         }
 
@@ -136,7 +144,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 out.writeOptionalTimeValue(timeout);
             }
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                out.writeString(jobId);
+                out.writeOptionalString(jobId);
             }
         }
     }

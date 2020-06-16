@@ -8,18 +8,23 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkAction.getSkipShrinkStepPredicate;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
@@ -116,8 +121,56 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         .setStepTime(0L)
                         .build().asMap())
                 .numberOfShards(numShards).numberOfReplicas(0))).build();
-        ClusterState newState = step.performAction(state.metadata().index(indexName).getIndex(), state);
+        step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
+    }
+
+    public void testNoOpShrinkDoesntFailOnDataStreamWriteIndex() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(1).numberOfReplicas(1)
+            .build();
+
+        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
+            Metadata.builder()
+                .put(sourceIndexMetadata, true)
+                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .build()
+        ).build();
+
+        boolean skipShrink = getSkipShrinkStepPredicate(1).test(sourceIndexMetadata.getIndex(), clusterState);
+        assertThat("shrink is skipped even though it is applied to a data stream's write index because it would be a no-op",
+            skipShrink, is(true));
+    }
+
+    public void testShrinkFailsOnDataStreamWriteIndex() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(5).numberOfReplicas(1)
+            .build();
+
+        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
+            Metadata.builder()
+                .put(sourceIndexMetadata, true)
+                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .build()
+        ).build();
+
+        expectThrows(IllegalStateException.class, () -> getSkipShrinkStepPredicate(1).test(sourceIndexMetadata.getIndex(), clusterState));
+    }
+
+    public void testShrinkSkipIfIndexIsDeleted() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        Index missingIndex = new Index("missing", UUID.randomUUID().toString());
+        assertThat(getSkipShrinkStepPredicate(1).test(missingIndex, clusterState), is(true));
     }
 
     public void testToSteps() {
@@ -126,8 +179,8 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(10));
-        StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, BranchingStep.NAME);
+        assertThat(steps.size(), equalTo(13));
+        StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
         StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
         StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
@@ -135,8 +188,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
         StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
-        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
-        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
+        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
+        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
+        StepKey expectedTwelveKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey expectedThirteenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
 
         assertTrue(steps.get(0) instanceof BranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
@@ -176,15 +232,30 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
         assertThat(((CopyExecutionStateStep) steps.get(7)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
-        assertTrue(steps.get(8) instanceof ShrinkSetAliasStep);
+        assertTrue(steps.get(8) instanceof BranchingStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));
-        assertThat(steps.get(8).getNextStepKey(), equalTo(expectedTenthKey));
-        assertThat(((ShrinkSetAliasStep) steps.get(8)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        expectThrows(IllegalStateException.class, () -> steps.get(8).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnFalse(), equalTo(expectedTenthKey));
+        assertThat(((BranchingStep) steps.get(8)).getNextStepKeyOnTrue(), equalTo(expectedTwelveKey));
 
-        assertTrue(steps.get(9) instanceof ShrunkenIndexCheckStep);
+        assertTrue(steps.get(9) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
-        assertThat(steps.get(9).getNextStepKey(), equalTo(nextStepKey));
-        assertThat(((ShrunkenIndexCheckStep) steps.get(9)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(steps.get(9).getNextStepKey(), equalTo(expectedEleventhKey));
+        assertThat(((ShrinkSetAliasStep) steps.get(9)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(10) instanceof ShrunkenIndexCheckStep);
+        assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
+        assertThat(steps.get(10).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(((ShrunkenIndexCheckStep) steps.get(10)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(11) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(11).getKey(), equalTo(expectedTwelveKey));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(expectedThirteenKey));
+        assertThat(((ReplaceDataStreamBackingIndexStep) steps.get(11)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+
+        assertTrue(steps.get(12) instanceof DeleteStep);
+        assertThat(steps.get(12).getKey(), equalTo(expectedThirteenKey));
+        assertThat(steps.get(12).getNextStepKey(), equalTo(expectedEleventhKey));
     }
 
     @Override

@@ -13,6 +13,8 @@
 ##########################
 # FAILING SEQUENCE TESTS #
 ##########################
+
+# java.lang.NullPointerException: Cannot invoke "java.lang.Long.longValue()" because "value" is null
 [[queries]]
 case_sensitive = true
 case_insensitive = true
@@ -155,48 +157,6 @@ expected_event_ids  = [48, 53,
                        53, 54,
                        54, 56,
                        97, 98]
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-note = "Sequence: many-many match with join."
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid
-  [process where true] by unique_ppid
-'''
-expected_event_ids  = [1, 2, 2, 3]
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id < 5]
-'''
-expected_event_ids  = [1, 2, 2, 3, 3, 4]
-
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence by user_name
-  [file where file_name="lsass.exe"] by file_path, process_path
-  [process where true] by process_path, parent_process_path
-'''
-expected_event_ids  = [61, 62]
 
 [[queries]]
 case_sensitive = true

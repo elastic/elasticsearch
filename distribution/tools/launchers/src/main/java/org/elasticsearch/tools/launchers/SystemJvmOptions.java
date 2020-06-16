@@ -24,6 +24,7 @@ import org.elasticsearch.tools.java_version_checker.JavaVersion;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 final class SystemJvmOptions {
 
@@ -68,7 +69,7 @@ final class SystemJvmOptions {
 
                 javaLocaleProviders()
             )
-        );
+        ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
     private static String maybeShowCodeDetailsInExceptionMessages() {

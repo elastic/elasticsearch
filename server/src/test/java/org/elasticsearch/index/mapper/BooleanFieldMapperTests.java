@@ -44,12 +44,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -291,11 +293,18 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
 
+        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
         assertTrue(mapper.parseSourceValue(true, null));
         assertFalse(mapper.parseSourceValue("false", null));
         assertFalse(mapper.parseSourceValue("", null));
+
+        BooleanFieldMapper nullValueMapper = new BooleanFieldMapper.Builder("field")
+            .nullValue(true)
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of(true), nullValueMapper.lookupValues(sourceLookup, null));
     }
 
     @Override

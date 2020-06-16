@@ -379,6 +379,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Double nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
 
         XContentParser parser = context.parser();
@@ -502,7 +507,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        double doubleValue = objectToDouble(value);
+        double doubleValue;
+        if (value.equals("")) {
+            if (nullValue == null) {
+                return null;
+            }
+            doubleValue = nullValue;
+        } else {
+            doubleValue = objectToDouble(value);
+        }
+
         double scalingFactor = fieldType().getScalingFactor();
         return Math.round(doubleValue * scalingFactor) / scalingFactor;
     }

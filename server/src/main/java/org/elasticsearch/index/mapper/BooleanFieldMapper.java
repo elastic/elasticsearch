@@ -286,6 +286,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || nullValue != null) {

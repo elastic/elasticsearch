@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -44,6 +45,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -489,6 +491,14 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         String dateInMillis = "662428800000";
         assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(dateInMillis, null));
         assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(662428800000L, null));
+
+        String nullValueDate = "2020-05-15T21:33:02.000Z";
+        DateFieldMapper nullValueMapper = new DateFieldMapper.Builder("field")
+            .nullValue(nullValueDate)
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of(nullValueDate), nullValueMapper.lookupValues(sourceLookup, null));
     }
 
     public void testParseSourceValueWithFormat() {
@@ -497,10 +507,15 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
 
         DateFieldMapper mapper = new DateFieldMapper.Builder("field")
             .format("strict_date_time")
+            .nullValue("1970-12-29T00:00:00.000Z")
             .build(context);
         String date = "1990-12-29T00:00:00.000Z";
         assertEquals("1990/12/29", mapper.parseSourceValue(date, "yyyy/MM/dd"));
         assertEquals("662428800000", mapper.parseSourceValue(date, "epoch_millis"));
+
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("1970/12/29"), mapper.lookupValues(sourceLookup, "yyyy/MM/dd"));
     }
 
     public void testParseSourceValueNanos() {
@@ -514,5 +529,16 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals("2020-05-15T21:33:02.123456789Z", mapper.parseSourceValue(date, null));
         assertEquals("2020-05-15T21:33:02.123Z", mapper.parseSourceValue(1589578382123L, null));
+
+        String nullValueDate = "2020-05-15T21:33:02.123456789Z";
+        DateFieldMapper nullValueMapper = new DateFieldMapper.Builder("field")
+            .format("strict_date_time||epoch_millis")
+            .nullValue(nullValueDate)
+            .withResolution(DateFieldMapper.Resolution.NANOSECONDS)
+            .build(context);
+
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of(nullValueDate), nullValueMapper.lookupValues(sourceLookup, null));
     }
 }

@@ -38,12 +38,15 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -489,9 +492,8 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
 
-        assertEquals("value", mapper.parseSourceValue("value", null));
+        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
         assertEquals("42", mapper.parseSourceValue(42L, null));
         assertEquals("true", mapper.parseSourceValue(true, null));
 
@@ -501,5 +503,12 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         assertNull(ignoreAboveMapper.parseSourceValue("value", null));
         assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
         assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+
+        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
     }
 }

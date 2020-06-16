@@ -251,7 +251,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
             final String remoteCluster = in.readString();
             final List<String> leaderIndexPatterns = in.readStringList();
-            final String followIndexPattern = in.readString();
+            final String followIndexPattern = in.readOptionalString();
             final Settings settings;
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 settings = Settings.readSettingsFromStream(in);

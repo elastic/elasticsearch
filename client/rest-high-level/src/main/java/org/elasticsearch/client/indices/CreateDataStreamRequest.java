@@ -19,12 +19,20 @@
 
 package org.elasticsearch.client.indices;
 
-public class CreateDataStreamRequest extends AbstractDataStreamRequest {
+import org.elasticsearch.client.Validatable;
+
+public class CreateDataStreamRequest implements Validatable {
+
+    private final String name;
 
     public CreateDataStreamRequest(String name) {
-        super(name);
         if (name == null) {
             throw new IllegalArgumentException("The data stream name cannot be null.");
         }
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 }

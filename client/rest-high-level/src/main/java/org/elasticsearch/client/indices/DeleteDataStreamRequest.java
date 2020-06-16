@@ -19,12 +19,20 @@
 
 package org.elasticsearch.client.indices;
 
-public class DeleteDataStreamRequest extends AbstractDataStreamRequest {
+import org.elasticsearch.client.Validatable;
+
+public class DeleteDataStreamRequest implements Validatable {
+
+    private final String name;
 
     public DeleteDataStreamRequest(String name) {
-        super(name);
         if (name == null) {
             throw new IllegalArgumentException("The data stream name cannot be null.");
         }
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 }

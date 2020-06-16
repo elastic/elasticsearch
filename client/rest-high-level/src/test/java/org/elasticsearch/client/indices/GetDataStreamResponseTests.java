@@ -19,42 +19,23 @@
 
 package org.elasticsearch.client.indices;
 
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetDataStreamResponseTests extends ESTestCase {
-
-    public void testFromXContent() throws Exception {
-        xContentTester(
-            this::createParser,
-            GetDataStreamResponseTests::createTestInstance,
-            GetDataStreamResponseTests::toXContent,
-            GetDataStreamResponseTests::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(a -> true)
-            .test();
-    }
-
-    private static GetDataStreamResponse createTestInstance() {
-        ArrayList<DataStream> dataStreams = new ArrayList<>();
-        int count = randomInt(10);
-        for (int i = 0; i < count; i++) {
-            dataStreams.add(randomInstance());
-        }
-        return new GetDataStreamResponse(dataStreams);
-    }
+public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetDataStreamAction.Response, GetDataStreamResponse> {
 
     private static List<Index> randomIndexInstances() {
         int numIndices = randomIntBetween(0, 128);
@@ -78,13 +59,34 @@ public class GetDataStreamResponseTests extends ESTestCase {
         return GetDataStreamResponse.fromXContent(parser);
     }
 
-    private static void toXContent(GetDataStreamResponse response, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.startArray("arr");
-        for (DataStream dataStream : response.getDataStreams()) {
-            dataStream.toXContent(builder, null);
+    @Override
+    protected GetDataStreamAction.Response createServerTestInstance(XContentType xContentType) {
+        ArrayList<DataStream> dataStreams = new ArrayList<>();
+        int count = randomInt(10);
+        for (int i = 0; i < count; i++) {
+            dataStreams.add(randomInstance());
         }
-        builder.endArray();
-        builder.endObject();
+        return new GetDataStreamAction.Response(dataStreams);
+    }
+
+    @Override
+    protected GetDataStreamResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetDataStreamResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(GetDataStreamAction.Response serverTestInstance, GetDataStreamResponse clientInstance) {
+        assertEquals(serverTestInstance.getDataStreams().size(), clientInstance.getDataStreams().size());
+        Iterator<DataStream> serverIt = serverTestInstance.getDataStreams().iterator();
+
+        Iterator<org.elasticsearch.client.indices.DataStream> clientIt = clientInstance.getDataStreams().iterator();
+        while (serverIt.hasNext()) {
+            org.elasticsearch.client.indices.DataStream client = clientIt.next();
+            DataStream server = serverIt.next();
+            assertEquals(server.getName(), client.getName());
+            assertEquals(server.getIndices(), client.getIndices());
+            assertEquals(server.getTimeStampField(), client.getTimeStampField());
+            assertEquals(server.getGeneration(), client.getGeneration());
+        }
     }
 }

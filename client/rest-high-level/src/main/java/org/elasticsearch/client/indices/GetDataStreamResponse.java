@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,19 +30,7 @@ import java.util.Objects;
 
 public class GetDataStreamResponse {
 
-
-    @Override
-    public String toString() {
-        List<DataStream> thisList = new ArrayList<>(this.dataStreams);
-        thisList.sort(Comparator.comparing(DataStream::getName));
-        return "GetDataStreamResponse [dataStreams=" + thisList + "]";
-    }
-
     private final List<DataStream> dataStreams;
-
-    GetDataStreamResponse() {
-        dataStreams = new ArrayList<>();
-    }
 
     GetDataStreamResponse(List<DataStream> dataStreams) {
         this.dataStreams = dataStreams;
@@ -52,7 +39,6 @@ public class GetDataStreamResponse {
     public List<DataStream> getDataStreams() {
         return dataStreams;
     }
-
 
     public static GetDataStreamResponse fromXContent(XContentParser parser) throws IOException {
         final List<DataStream> templates = new ArrayList<>();
@@ -71,15 +57,23 @@ public class GetDataStreamResponse {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         GetDataStreamResponse other = (GetDataStreamResponse) obj;
         return Objects.equals(new HashSet<>(this.dataStreams), new HashSet<>(other.dataStreams));
     }
 
-
+    @Override
+    public String toString() {
+        List<DataStream> thisList = new ArrayList<>(this.dataStreams);
+        thisList.sort(Comparator.comparing(DataStream::getName));
+        return "GetDataStreamResponse [dataStreams=" + thisList + "]";
+    }
 }

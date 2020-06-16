@@ -163,13 +163,15 @@ public final class IndicesClient {
      * Creates a data stream using the Create Data Stream API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
      * Data Streams API on elastic.co</a>
+     *
      * @param createDataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse createDataStream(CreateDataStreamRequest createDataStreamRequest,
-                                                RequestOptions options) throws IOException {
+                                                 RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
@@ -178,14 +180,16 @@ public final class IndicesClient {
      * Asynchronously creates a data stream using the Create Data Stream API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
      * Data Streams API on elastic.co</a>
+     *
      * @param createDataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable createDataStreamAsync(CreateDataStreamRequest createDataStreamRequest,
-                                   RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                             RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
@@ -194,8 +198,10 @@ public final class IndicesClient {
      * Deletes a data stream using the Delete Data Stream API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
      * Data Streams API on elastic.co</a>
+     *
      * @param deleteDataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
@@ -209,13 +215,15 @@ public final class IndicesClient {
      * Asynchronously deletes a data stream using the Delete Data Stream API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
      * Data Streams API on elastic.co</a>
+     *
      * @param deleteDataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable deleteDataStreamAsync(DeleteDataStreamRequest deleteDataStreamRequest, RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                             ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(deleteDataStreamRequest, IndicesRequestConverters::deleteDataStream,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
@@ -224,8 +232,9 @@ public final class IndicesClient {
      * Gets one or more data streams using the Get Data Stream API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
      * elastic.co</a>
+     *
      * @param dataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
@@ -236,11 +245,12 @@ public final class IndicesClient {
 
     /**
      * Asynchronously gets one or more data streams using the Get Data Stream API.
-     *      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
-     *      * elastic.co</a>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
      * @param dataStreamRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener          the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable getDataStreamAsync(GetDataStreamRequest dataStreamRequest, RequestOptions options,

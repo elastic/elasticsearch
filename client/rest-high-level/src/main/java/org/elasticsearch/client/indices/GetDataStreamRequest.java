@@ -19,9 +19,17 @@
 
 package org.elasticsearch.client.indices;
 
-public class GetDataStreamRequest extends AbstractDataStreamRequest {
+import org.elasticsearch.client.Validatable;
+
+public class GetDataStreamRequest implements Validatable {
+
+    private final String name;
 
     public GetDataStreamRequest(String name) {
-        super(name);
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 }

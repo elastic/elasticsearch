@@ -55,9 +55,9 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final boolean useECS;
 
-    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
-                              boolean ignoreMissing, boolean useECS) {
-        super(tag);
+    public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
+                              Set<Property> properties, boolean ignoreMissing, boolean useECS) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
@@ -286,7 +286,7 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         @Override
         public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         Map<String, Object> config) throws Exception {
+                                         String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
@@ -320,7 +320,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                     "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing, useECS);
+            return new UserAgentProcessor(processorTag, description, field, targetField, parser, properties, ignoreMissing, useECS);
         }
     }
 

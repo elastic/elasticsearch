@@ -10,24 +10,27 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockCardinality;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFiltersBucket;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTermsBucket;
-import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected Accuracy doParseInstance(XContentParser parser) throws IOException {
@@ -61,6 +64,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                     mockTermsBucket("dog", new Aggregations(List.of())),
                     mockTermsBucket("cat", new Aggregations(List.of()))),
                 100L),
+            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1000L),
             mockFilters(
                 "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
@@ -76,13 +80,12 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         new Aggregations(List.of(mockFilters(
                             "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
-            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_2_CARDINALITY_OF_ACTUAL_CLASS, 1000L),
             mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
 
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.aggs("act", "pred"), isTuple(empty(), empty()));
+        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
 
         Result result = accuracy.getResult().get();
         assertThat(result.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
@@ -103,6 +106,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                     mockTermsBucket("dog", new Aggregations(List.of())),
                     mockTermsBucket("cat", new Aggregations(List.of()))),
                 100L),
+            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1001L),
             mockFilters(
                 "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
                 List.of(
@@ -118,11 +122,10 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
                         new Aggregations(List.of(mockFilters(
                             "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
                             List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
-            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_2_CARDINALITY_OF_ACTUAL_CLASS, 1001L),
             mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
 
         Accuracy accuracy = new Accuracy();
-        accuracy.aggs("foo", "bar");
+        accuracy.aggs(EVALUATION_PARAMETERS, "foo", "bar");
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> accuracy.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

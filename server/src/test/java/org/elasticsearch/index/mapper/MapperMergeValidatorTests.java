@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,56 +33,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 
 public class MapperMergeValidatorTests extends ESTestCase {
-
-    public void testMismatchedFieldTypes() {
-        FieldMapper existingField = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(singletonList(existingField), emptyList());
-
-        FieldTypeLookupTests.OtherFakeFieldType newFieldType = new FieldTypeLookupTests.OtherFakeFieldType();
-        newFieldType.setName("foo");
-        FieldMapper invalidField = new MockFieldMapper("foo", newFieldType);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            MapperMergeValidator.validateNewMappers(
-                emptyList(),
-                singletonList(invalidField),
-                emptyList(),
-                lookup));
-        assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
-    }
-
-    public void testConflictingFieldTypes() {
-        FieldMapper existingField = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll(singletonList(existingField), emptyList());
-
-        MappedFieldType newFieldType = new MockFieldMapper.FakeFieldType();
-        newFieldType.setName("foo");
-        newFieldType.setBoost(2.0f);
-        FieldMapper validField = new MockFieldMapper("foo", newFieldType);
-
-        // Boost is updateable, so no exception should be thrown.
-        MapperMergeValidator.validateNewMappers(
-            emptyList(),
-            singletonList(validField),
-            emptyList(),
-            lookup);
-
-        MappedFieldType invalidFieldType = new MockFieldMapper.FakeFieldType();
-        invalidFieldType.setName("foo");
-        invalidFieldType.setStored(true);
-        FieldMapper invalidField = new MockFieldMapper("foo", invalidFieldType);
-
-        // Store is not updateable, so we expect an exception.
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            MapperMergeValidator.validateNewMappers(
-                emptyList(),
-                singletonList(invalidField),
-                emptyList(),
-                lookup));
-        assertTrue(e.getMessage().contains("has different [store] values"));
-    }
 
     public void testDuplicateFieldAliasAndObject() {
         ObjectMapper objectMapper = createObjectMapper("some.path");
@@ -216,7 +166,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
     }
 
     private static final Settings SETTINGS = Settings.builder()
-        .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
         .build();
 
     private static ObjectMapper createObjectMapper(String name) {

@@ -47,8 +47,17 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+
 public class HttpClientRequestTests extends ESTestCase {
-    
+
     private static RawRequestMockWebServer webServer = new RawRequestMockWebServer();
     private static final Logger logger = LogManager.getLogger(HttpClientRequestTests.class);
     
@@ -106,16 +115,16 @@ public class HttpClientRequestTests extends ESTestCase {
         
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
-        assertEquals(isBinary, reqContent.get("binary_format"));
-        assertEquals(Boolean.FALSE, reqContent.get("columnar"));
-        assertEquals(fetchSize, reqContent.get("fetch_size"));
-        assertEquals(query, reqContent.get("query"));
-        assertEquals("90000ms", reqContent.get("request_timeout"));
-        assertEquals("45000ms", reqContent.get("page_timeout"));
-        assertEquals("Z", reqContent.get("time_zone"));
-        
+
+        assertTrue(((String) reqContent.get(MODE_NAME)).equalsIgnoreCase(Mode.CLI.toString()));
+        assertEquals(isBinary, reqContent.get(BINARY_FORMAT_NAME));
+        assertEquals(Boolean.FALSE, reqContent.get(COLUMNAR_NAME));
+        assertEquals(fetchSize, reqContent.get(FETCH_SIZE_NAME));
+        assertEquals(query, reqContent.get(QUERY_NAME));
+        assertEquals("90000ms", reqContent.get(REQUEST_TIMEOUT_NAME));
+        assertEquals("45000ms", reqContent.get(PAGE_TIMEOUT_NAME));
+        assertEquals("Z", reqContent.get(TIME_ZONE_NAME));
+
         prepareMockResponse();
         try {
             // we don't care what the cursor is, because the ES node that will actually handle the request (as in running an ES search)
@@ -131,13 +140,13 @@ public class HttpClientRequestTests extends ESTestCase {
         
         bytesRef = recordedRequest.getBodyAsBytes();
         reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
-        assertEquals(isBinary, reqContent.get("binary_format"));
-        assertEquals("90000ms", reqContent.get("request_timeout"));
-        assertEquals("45000ms", reqContent.get("page_timeout"));
+
+        assertTrue(((String) reqContent.get(MODE_NAME)).equalsIgnoreCase(Mode.CLI.toString()));
+        assertEquals(isBinary, reqContent.get(BINARY_FORMAT_NAME));
+        assertEquals("90000ms", reqContent.get(REQUEST_TIMEOUT_NAME));
+        assertEquals("45000ms", reqContent.get(PAGE_TIMEOUT_NAME));
     }
-    
+
     private void assertBinaryRequestForDrivers(boolean isBinary, XContentType xContentType) throws URISyntaxException {
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
@@ -158,7 +167,7 @@ public class HttpClientRequestTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 randomAlphaOfLength(128),
-                new RequestInfo(mode),
+                new RequestInfo(mode, ClientVersion.CURRENT),
                 randomBoolean(),
                 randomBoolean(),
                 isBinary);
@@ -176,13 +185,13 @@ public class HttpClientRequestTests extends ESTestCase {
         
         BytesReference bytesRef = recordedRequest.getBodyAsBytes();
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
-        
-        assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(mode.toString()));
-        assertEquals(isBinary, reqContent.get("binary_format"));
-        assertEquals(query, reqContent.get("query"));
-        assertEquals("Z", reqContent.get("time_zone"));
+
+        assertTrue(((String) reqContent.get(MODE_NAME)).equalsIgnoreCase(mode.toString()));
+        assertEquals(isBinary, reqContent.get(BINARY_FORMAT_NAME));
+        assertEquals(query, reqContent.get(QUERY_NAME));
+        assertEquals("Z", reqContent.get(TIME_ZONE_NAME));
     }
-    
+
     private void prepareMockResponse() {
         webServer.enqueue(new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[]}"));
     }

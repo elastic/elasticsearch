@@ -38,7 +38,7 @@ public final class IndexResolution {
 
     /**
      * Get the {@linkplain EsIndex}
-     * @throws MappingException if the index is invalid for use with sql
+     * @throws MappingException if the index is invalid for use with ql
      */
     public EsIndex get() {
         if (invalid != null) {
@@ -48,7 +48,7 @@ public final class IndexResolution {
     }
 
     /**
-     * Is the index valid for use with sql? Returns {@code false} if the
+     * Is the index valid for use with ql? Returns {@code false} if the
      * index wasn't found.
      */
     public boolean isValid() {

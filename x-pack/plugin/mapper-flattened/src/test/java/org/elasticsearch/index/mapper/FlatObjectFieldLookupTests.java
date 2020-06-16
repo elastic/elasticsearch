@@ -8,7 +8,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -156,10 +157,12 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        KeyedFlatObjectFieldType fieldType1 = new KeyedFlatObjectFieldType("key1");
+        KeyedFlatObjectFieldType fieldType1
+            = new KeyedFlatObjectFieldType("field", true, true, "key1", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key1")).thenReturn(fieldType1);
 
-        KeyedFlatObjectFieldType fieldType2 = new KeyedFlatObjectFieldType( "key2");
+        KeyedFlatObjectFieldType fieldType2
+            = new KeyedFlatObjectFieldType( "field", true, true, "key2", false, Collections.emptyMap());
         when(mapperService.fieldType("json.key2")).thenReturn(fieldType2);
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
@@ -175,12 +178,12 @@ public class FlatObjectFieldLookupTests extends ESTestCase {
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {
-        AtomicFieldData atomicFieldData = mock(AtomicFieldData.class);
-        doReturn(scriptDocValues).when(atomicFieldData).getScriptValues();
+        LeafFieldData leafFieldData = mock(LeafFieldData.class);
+        doReturn(scriptDocValues).when(leafFieldData).getScriptValues();
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(atomicFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(anyObject());
 
         return fieldData;
     }

@@ -19,27 +19,22 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -49,7 +44,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -62,7 +56,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -111,6 +104,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
@@ -180,30 +174,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the {@link CompletionStats} for this engine
      */
-    public CompletionStats completionStats(String... fieldNamePatterns) throws IOException {
-        try (Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
-            long sizeInBytes = 0;
-            ObjectLongHashMap<String> completionFields = null;
-            if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
-                completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
-            }
-            for (LeafReaderContext atomicReaderContext : currentSearcher.getIndexReader().leaves()) {
-                LeafReader atomicReader = atomicReaderContext.reader();
-                for (FieldInfo info : atomicReader.getFieldInfos()) {
-                    Terms terms = atomicReader.terms(info.name);
-                    if (terms instanceof CompletionTerms) {
-                        // TODO: currently we load up the suggester for reporting its size
-                        long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
-                        if (Regex.simpleMatch(fieldNamePatterns, info.name)) {
-                            completionFields.addTo(info.name, fstSize);
-                        }
-                        sizeInBytes += fstSize;
-                    }
-                }
-            }
-            return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
-        }
-    }
+    public abstract CompletionStats completionStats(String... fieldNamePatterns);
 
     /**
      * Returns the {@link DocsStats} for this engine
@@ -1066,17 +1037,11 @@ public abstract class Engine implements Closeable {
     public abstract void rollTranslogGeneration() throws EngineException;
 
     /**
-     * Force merges to 1 segment
-     */
-    public void forceMerge(boolean flush) throws IOException {
-        forceMerge(flush, 1, false, false, false);
-    }
-
-    /**
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                                        boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
+                                    boolean upgrade, boolean upgradeOnlyAncientSegments,
+                                    @Nullable String forceMergeUUID) throws EngineException, IOException;
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the

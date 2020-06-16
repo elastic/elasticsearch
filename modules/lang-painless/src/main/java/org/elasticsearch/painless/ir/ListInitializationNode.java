@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -54,7 +53,7 @@ public class ListInitializationNode extends ArgumentsNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
@@ -64,7 +63,7 @@ public class ListInitializationNode extends ArgumentsNode {
 
         for (ExpressionNode argument : getArgumentNodes()) {
             methodWriter.dup();
-            argument.write(classWriter, methodWriter, globals, scopeTable);
+            argument.write(classWriter, methodWriter, scopeTable);
             methodWriter.invokeMethodCall(method);
             methodWriter.pop();
         }

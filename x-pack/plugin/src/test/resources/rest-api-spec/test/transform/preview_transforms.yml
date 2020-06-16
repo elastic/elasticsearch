@@ -98,11 +98,11 @@ setup:
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
-  - match: { mappings.properties.airline.type: "keyword" }
-  - match: { mappings.properties.by-hour.type: "date" }
-  - match: { mappings.properties.avg_response.type: "double" }
-  - match: { mappings.properties.time\.max.type: "date" }
-  - match: { mappings.properties.time\.min.type: "date" }
+  - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
+  - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
 
   - do:
       ingest.put_pipeline:
@@ -146,9 +146,9 @@ setup:
   - match: { preview.2.by-hour: 1487379600000 }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.my_field: 42 }
-  - match: { mappings.properties.airline.type: "keyword" }
-  - match: { mappings.properties.by-hour.type: "date" }
-  - match: { mappings.properties.avg_response.type: "double" }
+  - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
+  - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
 
 ---
 "Test preview transform with invalid config":
@@ -265,12 +265,12 @@ setup:
               "group_by": {
                 "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
-                "vals": {"terms": {"field":"airline"}}
+                "vals": {"significant_terms": {"field":"airline"}}
               }
             }
           }
   - do:
-      catch: /Unsupported aggregation type \[terms\]/
+      catch: /Unsupported aggregation type \[significant_terms\]/
       transform.preview_transform:
         body: >
           {
@@ -280,7 +280,7 @@ setup:
               "group_by": {
                 "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
               "aggs": {
-                "vals": {"terms": {"field":"airline"}}
+                "vals": {"significant_terms": {"field":"airline"}}
               }
             }
           }

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -30,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,37 +70,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         this.gapPolicy = gapPolicy;
         this.window = window;
         this.shift = shift;
-    }
-
-    public MovFnPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        script = new Script(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
-        bucketsPath = in.readString();
-        window = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            shift = in.readInt();
-        } else {
-            shift = 0;
-        }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeString(bucketsPath);
-        out.writeInt(window);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeInt(shift);
-        }
-    }
-
-    @Override
-    public String getWriteableName() {
-        return MovFnPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -156,7 +121,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                     .stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()));
+                aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 index++;
             }

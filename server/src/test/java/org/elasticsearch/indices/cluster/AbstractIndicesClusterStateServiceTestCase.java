@@ -21,7 +21,7 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -105,7 +105,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
                 Index index = shardRouting.index();
-                IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
+                IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
@@ -134,7 +134,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         assertTrue("Index " + index + " expected but missing in indicesService", indexService != null);
 
                         // index metadata has been updated
-                        assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
+                        assertThat(indexService.getIndexSettings().getIndexMetadata(), equalTo(indexMetadata));
                         // shard has been created
                         if (enableRandomFailures == false || failedShard == null) {
                             assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
@@ -144,7 +144,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                            Set<String> inSyncIds = state.metaData().index(shard.shardId().getIndex())
+                            Set<String> inSyncIds = state.metadata().index(shard.shardId().getIndex())
                                 .inSyncAllocationIds(shard.shardId().id());
                             assertThat(shard.routingEntry() + " isn't updated with in-sync aIDs", shard.inSyncAllocationIds,
                                 equalTo(inSyncIds));
@@ -162,7 +162,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 fail("Index service " + indexService.index() + " should be removed from indicesService due to disabled state persistence");
             }
 
-            assertTrue(state.metaData().getIndexSafe(indexService.index()) != null);
+            assertTrue(state.metadata().getIndexSafe(indexService.index()) != null);
 
             boolean shardsFound = false;
             for (Shard shard : indexService) {
@@ -194,21 +194,21 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public synchronized MockIndexService createIndex(
-                IndexMetaData indexMetaData,
+                IndexMetadata indexMetadata,
                 List<IndexEventListener> buildInIndexListener,
                 boolean writeDanglingIndices) throws IOException {
-            MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
-            indices = Maps.copyMapWithAddedEntry(indices, indexMetaData.getIndexUUID(), indexService);
+            MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetadata, Settings.EMPTY));
+            indices = Maps.copyMapWithAddedEntry(indices, indexMetadata.getIndexUUID(), indexService);
             return indexService;
         }
 
         @Override
-        public IndexMetaData verifyIndexIsDeleted(Index index, ClusterState state) {
+        public IndexMetadata verifyIndexIsDeleted(Index index, ClusterState state) {
             return null;
         }
 
         @Override
-        public void deleteUnassignedIndex(String reason, IndexMetaData metaData, ClusterState clusterState) {
+        public void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState) {
 
         }
 
@@ -278,16 +278,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+        public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
             failRandomly();
             return false;
         }
 
         @Override
-        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
-            indexSettings.updateIndexMetaData(newIndexMetaData);
+        public void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
+            indexSettings.updateIndexMetadata(newIndexMetadata);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetadata.primaryTerm(shard.shardId().id()));
             }
         }
 
@@ -298,7 +298,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         public synchronized MockIndexShard createShard(ShardRouting routing) throws IOException {
             failRandomly();
-            MockIndexShard shard = new MockIndexShard(routing, indexSettings.getIndexMetaData().primaryTerm(routing.shardId().id()));
+            MockIndexShard shard = new MockIndexShard(routing, indexSettings.getIndexMetadata().primaryTerm(routing.shardId().id()));
             shards = Maps.copyMapWithAddedEntry(shards, routing.id(), shard);
             return shard;
         }

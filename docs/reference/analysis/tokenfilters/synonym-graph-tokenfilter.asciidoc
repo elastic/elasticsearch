@@ -8,8 +8,8 @@ The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter
-creates a "graph token stream" during processing.  For more information
-on this topic and its various complexities, please read the
+creates a <<token-graphs,graph token stream>> during processing.  For more
+information on this topic and its various complexities, please read the
 http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lucene's TokenStreams are actually graphs] blog post.
 
 ["NOTE",id="synonym-graph-index-note"]
@@ -88,7 +88,7 @@ PUT /test_index
 --------------------------------------------------
 
 With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
-being added was "foo, baz => bar" nothing would get added to the synonym list. This is because the target word for the
+being added was `foo, baz => bar` nothing would get added to the synonym list. This is because the target word for the
 mapping is itself eliminated because it was a stop word. Similarly, if the mapping was "bar, foo, baz" and `expand` was
 set to `false` no mapping would get added as when `expand=false` the target mapping is the first word. However, if
 `expand=true` then the mappings added would be equivalent to `foo, baz => foo, baz` i.e, all mappings other than the

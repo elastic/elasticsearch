@@ -40,21 +40,32 @@ For details about a historical {rollup-job}, the
 `<job_id>`::
   (Optional, string) Identifier for the {rollup-job}. If it is `_all` or omitted,
    the API returns all {rollup-jobs}.
-   
+
+[role="child_attributes"]
 [[rollup-get-job-response-body]]
 ==== {api-response-body-title}
 
 `jobs`::
-  (array) An array of {rollup-job} resources. 
-    `config`:::
-      (object) Contains the configuration for the {rollup-job}. This information
-      is identical to the configuration that was supplied when creating the job
-      via the <<rollup-put-job,create job API>>.
-    `status`:::
-      (object) Contains the current status of the indexer for the {rollup-job}.
-      The possible values and their meanings are:
+(array) An array of {rollup-job} resources. 
 +
---
+.Properties of {rollup-job} resources
+[%collapsible%open]
+====
+`config`:::
+(object) Contains the configuration for the {rollup-job}. This information is
+identical to the configuration that was supplied when creating the job via the
+<<rollup-put-job,create job API>>.
+
+`stats`:::
+(object) Contains transient statistics about the {rollup-job}, such as how many
+documents have been processed and how many rollup summary docs have been
+indexed. These stats are not persisted. If a node is restarted, these stats are
+reset.
+
+`status`:::
+(object) Contains the current status of the indexer for the {rollup-job}. The
+possible values and their meanings are:
++
 - `stopped` means the indexer is paused and will not process data, even if its
 cron interval triggers.
 - `started` means the indexer is running, but not actively indexing data. When
@@ -66,12 +77,7 @@ be ignored because the job is already active with the prior trigger.
 is used if the task needs to be shut down for some reason (job has been deleted,
 an unrecoverable error has been encountered, etc).  Shortly after the `abort`
 state is set, the job will remove itself from the cluster.
---
-    `stats`:::
-      (object) Contains transient statistics about the {rollup-job}, such as how
-      many documents have been processed and how many rollup summary docs have
-      been indexed. These stats are not persisted. If a node is restarted, these
-      stats will be reset.
+====
 
 [[rollup-get-job-example]]
 ==== {api-examples-title}
@@ -142,14 +148,16 @@ The API yields the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         }
     ]
 }
 ----
 
-The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL. 
+The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL.
 If we add another job, we can see how multi-job responses are handled:
 
 [source,console]
@@ -245,7 +253,9 @@ Which will yield the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         },
         {
@@ -299,7 +309,9 @@ Which will yield the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         }
     ]

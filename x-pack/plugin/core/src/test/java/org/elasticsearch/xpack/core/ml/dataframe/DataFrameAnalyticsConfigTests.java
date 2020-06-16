@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -95,7 +96,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     @Override
     protected List<Version> bwcVersions() {
-        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
+        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
     }
 
     @Override
@@ -122,6 +123,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             builder.setCreateTime(null);
             builder.setVersion(null);
         }
+        if (version.before(Version.V_8_0_0)) {
+            builder.setMaxNumThreads(null);
+        }
         return builder.build();
     }
 
@@ -143,24 +147,30 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcRegression.getBoostedTreeParams(),
                 bwcRegression.getPredictionFieldName(),
                 bwcRegression.getTrainingPercent(),
-                42L);
+                42L,
+                bwcRegression.getLossFunction(),
+                bwcRegression.getLossFunctionParameter());
             testAnalysis = new Regression(testRegression.getDependentVariable(),
                 testRegression.getBoostedTreeParams(),
                 testRegression.getPredictionFieldName(),
                 testRegression.getTrainingPercent(),
-                42L);
+                42L,
+                testRegression.getLossFunction(),
+                testRegression.getLossFunctionParameter());
         } else {
             Classification testClassification = (Classification)testInstance.getAnalysis();
             Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
             bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
                 bwcClassification.getBoostedTreeParams(),
                 bwcClassification.getPredictionFieldName(),
+                bwcClassification.getClassAssignmentObjective(),
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
                 42L);
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
+                testClassification.getClassAssignmentObjective(),
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
                 42L);
@@ -225,6 +235,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
         return builder;
     }

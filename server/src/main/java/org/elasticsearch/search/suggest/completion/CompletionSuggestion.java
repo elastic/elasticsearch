@@ -45,6 +45,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -264,7 +265,11 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 Entry::new);
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {
@@ -353,7 +358,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
-                    true, HashMap::new);
+                unknownMetaFieldConsumer, HashMap::new);
 
             static {
                 SearchHit.declareInnerHitsParseFields(PARSER);

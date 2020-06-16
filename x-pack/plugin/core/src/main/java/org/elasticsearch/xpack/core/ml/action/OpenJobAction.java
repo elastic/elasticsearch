@@ -9,10 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -34,13 +33,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends ActionType<AcknowledgedResponse> {
+public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, NodeAcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -247,7 +246,7 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
 
         static boolean match(Task task, String expectedJobId) {
             if (task instanceof JobTaskMatcher) {
-                if (MetaData.ALL.equals(expectedJobId)) {
+                if (Metadata.ALL.equals(expectedJobId)) {
                     return true;
                 }
                 String expectedDescription = "job-" + expectedJobId;
@@ -257,7 +256,7 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
 
         RequestBuilder(ElasticsearchClient client, OpenJobAction action) {
             super(client, action, new Request());

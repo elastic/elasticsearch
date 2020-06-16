@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.settings;
 
-import java.util.List;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import java.util.List;
 
 /**
  * A subcommand for the keystore cli to remove a setting.
@@ -36,7 +36,7 @@ class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
     private final OptionSpec<String> arguments;
 
     RemoveSettingKeyStoreCommand() {
-        super("Remove a setting from the keystore", true);
+        super("Remove settings from the keystore", true);
         arguments = parser.nonOptions("setting names");
     }
 

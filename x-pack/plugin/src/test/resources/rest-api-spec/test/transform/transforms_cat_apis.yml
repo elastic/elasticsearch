@@ -1,0 +1,138 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      indices.create:
+        index: airline-data-other
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-stats"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
+teardown:
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-stats"
+
+---
+"Test cat transform stats hiding headers":
+  - do:
+      cat.transforms:
+        transform_id: "airline-transform-stats"
+  - match:
+      $body: |
+        /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state    \n
+            (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
+
+---
+"Test cat transform stats with column selection":
+  - do:
+      cat.transforms:
+        transform_id: "airline-transform-stats"
+        v: true
+        h: id,version,source_index,dest_index,search_total,index_total,docp,cdtea,indexed_documents_exp_avg
+  - match:
+      $body: |
+        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ docp \s+ cdtea  \s+ indexed_documents_exp_avg \n
+            (airline\-transform-stats \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+  $/
+
+
+---
+"Test cat transform stats with batch transform":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-batch"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data", "airline-data-other"],
+              "query": {"bool":{"filter":{"term":{"airline":"foo"}}}}
+            },
+            "dest": { "index": "airline-data-by-airline-batch" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "description"
+          }
+  - do:
+      cat.transforms:
+        transform_id: "airline-transform-batch"
+        v: true
+  - match:
+      $body: |
+        /^   id                        \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                    \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-batch \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-batch \s+          \s+ description \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-batch"
+
+---
+"Test cat transform stats with continuous transform":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-continuous"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data", "airline-data-other"],
+              "query": {"bool":{"filter":{"term":{"airline":"foo"}}}}
+            },
+            "dest": { "index": "airline-data-by-airline-continuous" },
+            "frequency": "10s",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "description",
+            "sync": {
+              "time": {
+                "field": "time"
+              }
+            }
+          }
+  - do:
+      cat.transforms:
+        transform_id: "airline-transform-continuous"
+        v: true
+  - match:
+      $body: |
+        /^   id                             \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                         \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-continuous \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-continuous \s+          \s+ description \s+ continuous     \s+ 10s       \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-continuous"

@@ -50,7 +50,7 @@ public interface Aggregation extends ToXContentFragment {
     /**
      * Get the optional byte array metadata that was set on the aggregation
      */
-    Map<String, Object> getMetaData();
+    Map<String, Object> getMetadata();
 
     /**
      * Common xcontent fields that are shared among addAggregation

@@ -8,12 +8,32 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Deprecated `?local` parameter removed from `GET _cat/nodes` API
-
+.The cat node API's `local` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
 The `?local` parameter to the `GET _cat/nodes` API was deprecated in 7.x and is
 rejected in 8.0. This parameter caused the API to use the local cluster state
 to determine the nodes returned by the API rather than the cluster state from
 the master, but this API requests information from each selected node
 regardless of the `?local` parameter which means this API does not run in a
 fully node-local fashion.
+
+*Impact* +
+Discontinue use of the `?local` query parameter. {ref}/cat-nodes.html[cat node
+API] requests that include this parameter will return an error.
+====
+
+.The get field mapping API's `local` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `local` parameter for get field mapping API was deprecated in 7.8 and is
+removed in 8.0. This parameter is a no-op and field mappings are always retrieved
+locally.
+
+*Impact* +
+Discontinue use of the `local` query parameter.
+{ref}/indices-get-field-mapping.html[get field mapping API] requests that
+include this parameter will return an error.
+====

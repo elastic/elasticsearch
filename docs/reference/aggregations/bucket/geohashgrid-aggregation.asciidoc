@@ -286,7 +286,7 @@ precision::     Optional. The string length of the geohashes used to define
                 to precision levels higher than the supported 12 levels,
                 (e.g. for distances <5.6cm) the value is rejected.
 
-bounds:         Optional. The bounding box to filter the points in the bucket.
+bounds::        Optional. The bounding box to filter the points in the bucket.
 
 size::          Optional. The maximum number of geohash buckets to return
                 (defaults to 10,000). When results are trimmed, buckets are

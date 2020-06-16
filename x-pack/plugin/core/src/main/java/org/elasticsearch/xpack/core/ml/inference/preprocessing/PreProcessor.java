@@ -24,4 +24,9 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable, Accou
      * @param fields The fields and their values to process
      */
     void process(Map<String, Object> fields);
+
+    /**
+     * @return Reverse lookup map to match resulting features to their original feature name
+     */
+    Map<String, String> reverseLookup();
 }

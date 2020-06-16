@@ -12,7 +12,7 @@ settings to the keystore causes {es} to fail to start. To see whether a setting
 is supported in the keystore, look for a "Secure" qualifier the setting
 reference.
 
-All the modifications to the keystore take affect only after restarting {es}.
+All the modifications to the keystore take effect only after restarting {es}.
 
 These settings, just like the regular ones in the `elasticsearch.yml` config file,
 need to be specified on each node in the cluster. Currently, all secure settings
@@ -35,7 +35,7 @@ using the `bin/elasticsearch-keystore add` command, call:
 ----
 POST _nodes/reload_secure_settings
 {
-  "reload_secure_settings": "s3cr3t" <1>
+  "secure_settings_password": "s3cr3t" <1>
 }
 ----
 // NOTCONSOLE

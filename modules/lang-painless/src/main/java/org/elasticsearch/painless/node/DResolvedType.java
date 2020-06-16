@@ -70,12 +70,13 @@ public class DResolvedType extends DType {
         return new DResolvedType(location, type, false);
     }
 
-    public Class<?> getType() {
-        return type;
+    /** @return the canonical Painless type name */
+    @Override
+    public String getCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(type);
     }
 
-    @Override
-    public String toString() {
-        return "(DResolvedType [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "])";
+    public Class<?> getType() {
+        return type;
     }
 }

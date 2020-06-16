@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -53,7 +52,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -73,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -147,7 +146,12 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected CloseJobAction.Response closeJob(String jobId) {
+        return closeJob(jobId, false);
+    }
+
+    protected CloseJobAction.Response closeJob(String jobId, boolean force) {
         CloseJobAction.Request request = new CloseJobAction.Request(jobId);
+        request.setForce(force);
         return client().execute(CloseJobAction.INSTANCE, request).actionGet();
     }
 
@@ -260,6 +264,10 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected String forecast(String jobId, TimeValue duration, TimeValue expiresIn) {
+        return forecast(jobId, duration, expiresIn, null);
+    }
+
+    protected String forecast(String jobId, TimeValue duration, TimeValue expiresIn, Long maxMemory) {
         ForecastJobAction.Request request = new ForecastJobAction.Request(jobId);
         if (duration != null) {
             request.setDuration(duration.getStringRep());
@@ -267,14 +275,23 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         if (expiresIn != null) {
             request.setExpiresIn(expiresIn.getStringRep());
         }
+        if (maxMemory != null) {
+            request.setMaxModelMemory(maxMemory);
+        }
         return client().execute(ForecastJobAction.INSTANCE, request).actionGet().getForecastId();
     }
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
+        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+    }
+
+    protected void waitForecastStatus(String jobId,
+                                      String forecastId,
+                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
-            assertThat(forecastRequestStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
+            assertThat(forecastRequestStats.getStatus(), in(status));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -351,10 +368,6 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             }
         }
         return forecasts;
-    }
-
-    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
-        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
     protected PutCalendarAction.Response putCalendar(String calendarId, List<String> jobIds, String description) {

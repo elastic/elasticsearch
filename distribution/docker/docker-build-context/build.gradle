@@ -5,7 +5,9 @@ task buildDockerBuildContext(type: Tar) {
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"
-  with dockerBuildContext(false, false)
+  // Non-local builds don't need to specify an architecture.
+  // Make this explicit via the string value.
+  with dockerBuildContext("<remote>", false, false)
 }
 
 assemble.dependsOn buildDockerBuildContext

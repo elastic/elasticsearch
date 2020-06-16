@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.eql;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
-    
+
     private final Map<String, Object> stats;
 
     public EqlFeatureSetUsage(StreamInput in) throws IOException {
@@ -48,4 +49,10 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
         super.writeTo(out);
         out.writeMap(stats);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_7_0;
+    }
+
 }

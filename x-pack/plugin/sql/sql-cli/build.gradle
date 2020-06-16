@@ -31,7 +31,7 @@ dependencies {
   compile project(":libs:elasticsearch-cli")
   compile project(':libs:elasticsearch-x-content')
   runtime "org.elasticsearch:jna:${versions.jna}"
-  testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
 dependencyLicenses {
@@ -55,7 +55,7 @@ shadowJar {
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //sql does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
   signaturesFiles += files('src/forbidden/cli-signatures.txt')

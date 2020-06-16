@@ -67,7 +67,7 @@ analyzer produces the following tokens:
 [ quick, fox ]
 ------
 
-To execute the serach, {es} compares these query string tokens to the tokens
+To execute the search, {es} compares these query string tokens to the tokens
 indexed in the `text` field.
 
 [options="header"]

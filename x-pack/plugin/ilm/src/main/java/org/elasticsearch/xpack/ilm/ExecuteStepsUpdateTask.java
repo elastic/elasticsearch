@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
@@ -75,13 +75,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(final ClusterState currentState) throws IOException {
         Step currentStep = startStep;
-        IndexMetaData indexMetaData = currentState.metaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        if (indexMetadata == null) {
             logger.debug("lifecycle for index [{}] executed but index no longer exists", index.getName());
             // This index doesn't exist any more, there's nothing to execute currently
             return currentState;
         }
-        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetaData);
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy, indexMetadata);
         if (currentStep.equals(registeredCurrentStep)) {
             ClusterState state = currentState;
             // We can do cluster state steps all together until we
@@ -161,7 +161,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
                     return state;
                 }
-                currentStep = policyStepsRegistry.getStep(indexMetaData, currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(indexMetadata, currentStep.getNextStepKey());
             }
             return state;
         } else {
@@ -175,14 +175,14 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         if (oldState.equals(newState) == false) {
-            IndexMetaData indexMetaData = newState.metaData().index(index);
-            if (indexMetaData != null) {
+            IndexMetadata indexMetadata = newState.metadata().index(index);
+            if (indexMetadata != null) {
 
-                LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+                LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
                 if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
-                    lifecycleRunner.registerFailedOperation(indexMetaData, failure);
+                    lifecycleRunner.registerFailedOperation(indexMetadata, failure);
                 } else {
-                    lifecycleRunner.registerSuccessfulOperation(indexMetaData);
+                    lifecycleRunner.registerSuccessfulOperation(indexMetadata);
                 }
 
                 if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
@@ -191,7 +191,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // After the cluster state has been processed and we have moved
                     // to a new step, we need to conditionally execute the step iff
                     // it is an `AsyncAction` so that it is executed exactly once.
-                    lifecycleRunner.maybeRunAsyncAction(newState, indexMetaData, policy, nextStepKey);
+                    lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
                 }
             }
         }

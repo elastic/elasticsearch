@@ -242,7 +242,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
 
     /**
      * Validate the name for an policy against some static rules. Intended to match
-     * {@link org.elasticsearch.cluster.metadata.MetaDataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
+     * {@link org.elasticsearch.cluster.metadata.MetadataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
      * @param policy the policy name to validate
      * @throws IllegalArgumentException if the name is invalid
      */

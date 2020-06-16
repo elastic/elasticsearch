@@ -19,6 +19,8 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -53,7 +56,7 @@ import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTI
 
 public class UnifiedHighlighter implements Highlighter {
     @Override
-    public boolean canHighlight(MappedFieldType fieldType) {
+    public boolean canHighlight(FieldType fieldType) {
         return true;
     }
 
@@ -65,11 +68,16 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Integer keywordIgnoreAbove = null;
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
+                .mappers().getMapper(highlighterContext.fieldName);
+            keywordIgnoreAbove = mapper.ignoreAbove();
+        }
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments = field.fieldOptions().numberOfFragments();
         try {
-
             final Analyzer analyzer = getAnalyzer(context.getMapperService().documentMapper(), hitContext);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext,
                 highlighterContext.highlight.forceSource(field));
@@ -80,8 +88,13 @@ public class UnifiedHighlighter implements Highlighter {
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
-            final OffsetSource offsetSource = getOffsetSource(fieldType);
-            if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
+            FieldInfo fi = hitContext.reader().getFieldInfos().fieldInfo(field.field());
+            final OffsetSource offsetSource = getOffsetSource(highlighterContext.luceneFieldType);
+            int fieldValueLength = fieldValue.length();
+            if (keywordIgnoreAbove != null  && fieldValueLength > keywordIgnoreAbove) {
+                return null; // skip highlighting keyword terms that were ignored during indexing
+            }
+            if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
                         "] doc of [" + context.index().getName() + "] index " + "has exceeded [" +
@@ -91,7 +104,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             if (numberOfFragments == 0
                     // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
-                    || fieldType.tokenized() == false) {
+                    || highlighterContext.luceneFieldType.tokenized() == false) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
@@ -206,7 +219,7 @@ public class UnifiedHighlighter implements Highlighter {
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
-    protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
+    protected OffsetSource getOffsetSource(FieldType fieldType) {
         if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
             return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
         }

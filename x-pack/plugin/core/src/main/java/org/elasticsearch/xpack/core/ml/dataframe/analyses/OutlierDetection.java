@@ -58,6 +58,8 @@ public class OutlierDetection implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
 
+    private static final List<String> PROGRESS_PHASES = Collections.singletonList("computing_outliers");
+
     /**
      * The number of neighbors. Leave unspecified for dynamic detection.
      */
@@ -192,7 +194,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
+    public Map<String, Object> getParams(FieldInfo fieldInfo) {
         Map<String, Object> params = new HashMap<>();
         if (nNeighbors != null) {
             params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
@@ -247,6 +249,11 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public String getStateDocId(String jobId) {
         throw new UnsupportedOperationException("Outlier detection does not support state");
+    }
+
+    @Override
+    public List<String> getProgressPhases() {
+        return PROGRESS_PHASES;
     }
 
     public enum Method {

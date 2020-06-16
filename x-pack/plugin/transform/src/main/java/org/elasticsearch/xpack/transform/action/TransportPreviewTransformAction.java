@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -33,12 +34,12 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -48,11 +49,14 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,8 +66,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.transform.transforms.TransformIndexer.COMPOSITE_AGGREGATION_NAME;
 
-public class TransportPreviewTransformAction extends
-    HandledTransportAction<PreviewTransformAction.Request, PreviewTransformAction.Response> {
+public class TransportPreviewTransformAction extends HandledTransportAction<
+    PreviewTransformAction.Request,
+    PreviewTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPreviewTransformAction.class);
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
@@ -116,7 +121,7 @@ public class TransportPreviewTransformAction extends
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -126,7 +131,7 @@ public class TransportPreviewTransformAction extends
 
     @Override
     protected void doExecute(Task task, PreviewTransformAction.Request request, ActionListener<PreviewTransformAction.Response> listener) {
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
@@ -165,7 +170,14 @@ public class TransportPreviewTransformAction extends
                     return;
                 }
 
-                getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
+                getPreview(
+                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                    pivot,
+                    config.getSource(),
+                    config.getDestination().getPipeline(),
+                    config.getDestination().getIndex(),
+                    listener
+                );
 
             }, listener::onFailure)
         );
@@ -173,27 +185,34 @@ public class TransportPreviewTransformAction extends
 
     @SuppressWarnings("unchecked")
     private void getPreview(
+        String transformId,
         Pivot pivot,
         SourceConfig source,
         String pipeline,
         String dest,
         ActionListener<PreviewTransformAction.Response> listener
     ) {
-        final PreviewTransformAction.Response previewResponse = new PreviewTransformAction.Response();
+        final SetOnce<Map<String, String>> mappings = new SetOnce<>();
+
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
-            List<Map<String, Object>> response = new ArrayList<>(simulatePipelineResponse.getResults().size());
+            List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
             for (var simulateDocumentResult : simulatePipelineResponse.getResults()) {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                     XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-                    response.add((Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap));
+                    docs.add((Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap));
                 }
             }
-            previewResponse.setDocs(response);
-            listener.onResponse(previewResponse);
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                mappings.get(),
+                transformId,
+                Clock.systemUTC()
+            );
+
+            listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
         }, listener::onFailure);
         pivot.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
-            previewResponse.setMappingsFromStringMap(deducedMappings);
+            mappings.set(deducedMappings);
             ClientHelper.executeWithHeadersAsync(
                 threadPool.getThreadContext().getHeaders(),
                 ClientHelper.TRANSFORM_ORIGIN,
@@ -214,11 +233,17 @@ public class TransportPreviewTransformAction extends
                         // remove all internal fields
 
                         if (pipeline == null) {
-                            List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+                            List<Map<String, Object>> docs = pivot.extractResults(agg, deducedMappings, stats)
                                 .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
                                 .collect(Collectors.toList());
-                            previewResponse.setDocs(results);
-                            listener.onResponse(previewResponse);
+
+                            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                                mappings.get(),
+                                transformId,
+                                Clock.systemUTC()
+                            );
+
+                            listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
                         } else {
                             List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats).map(doc -> {
                                 Map<String, Object> src = new HashMap<>();

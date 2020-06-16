@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,9 +28,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
@@ -37,7 +37,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 
     public void testParseValidFromStrings() throws Exception {
@@ -47,7 +47,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
@@ -55,7 +55,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+                () -> GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
         assertThat(ExceptionsHelper.stackTrace(e),
                 containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
@@ -65,7 +65,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoTileGridAggregationBuilder.parse("geotile_grid", stParser);
+            GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid");
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
@@ -85,6 +85,6 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 }

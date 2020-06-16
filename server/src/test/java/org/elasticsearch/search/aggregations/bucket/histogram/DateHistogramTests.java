@@ -29,6 +29,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -130,73 +131,97 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     private static Document documentForDate(String field, long millis) {
         Document doc = new Document();
-        doc.add(new LongPoint(field, millis));
-        doc.add(new SortedNumericDocValuesField(field, millis));
+        final long value;
+        switch (field) {
+            case DATE_FIELD_NAME:
+                value = millis;
+                break;
+
+            case DATE_NANOS_FIELD_NAME:
+                value = DateUtils.toNanoSeconds(millis);
+                break;
+            default:
+                throw new AssertionError();
+        }
+        doc.add(new LongPoint(field, value));
+        doc.add(new SortedNumericDocValuesField(field, value));
         return doc;
     }
 
     public void testRewriteTimeZone() throws IOException {
         DateFormatter format = DateFormatter.forPattern("strict_date_optional_time");
+        for (String fieldName : new String[]{DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME}) {
+            try (Directory dir = newDirectory();
+                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
-        try (Directory dir = newDirectory();
-                IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                long millis1 = DateFormatters.from(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
+                w.addDocument(documentForDate(fieldName, millis1));
+                long millis2 = DateFormatters.from(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
+                w.addDocument(documentForDate(fieldName, millis2));
 
-            long millis1 = DateFormatters.from(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
-            w.addDocument(documentForDate(DATE_FIELD_NAME, millis1));
-            long millis2 = DateFormatters.from(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
-            w.addDocument(documentForDate(DATE_FIELD_NAME, millis2));
+                try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 
-            try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
+                    long millis3 = DateFormatters.from(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
+                    w.addDocument(documentForDate(fieldName, millis3));
 
-                long millis3 = DateFormatters.from(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
-                w.addDocument(documentForDate(DATE_FIELD_NAME, millis3));
+                    try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
 
-                try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
+                        QueryShardContext shardContextThatDoesntCross = createShardContext(new IndexSearcher(readerThatDoesntCross));
+                        QueryShardContext shardContextThatCrosses = createShardContext(new IndexSearcher(readerThatCrosses));
 
-                    QueryShardContext shardContextThatDoesntCross = createShardContext(new IndexSearcher(readerThatDoesntCross));
-                    QueryShardContext shardContextThatCrosses = createShardContext(new IndexSearcher(readerThatCrosses));
+                        DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
+                        builder.field(fieldName);
+                        builder.calendarInterval(DateHistogramInterval.DAY);
 
-                    DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
-                    builder.field(DATE_FIELD_NAME);
-                    builder.calendarInterval(DateHistogramInterval.DAY);
+                        // no timeZone => no rewrite
+                        assertNull(builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertNull(builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    // no timeZone => no rewrite
-                    assertNull(builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertNull(builder.rewriteTimeZone(shardContextThatCrosses));
+                        // fixed timeZone => no rewrite
+                        ZoneId tz = ZoneOffset.ofHours(1);
+                        builder.timeZone(tz);
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    // fixed timeZone => no rewrite
-                    ZoneId tz = ZoneOffset.ofHours(1);
-                    builder.timeZone(tz);
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                        // timeZone without DST => always rewrite
+                        tz = ZoneId.of("Australia/Brisbane");
+                        builder.timeZone(tz);
+                        assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(ZoneOffset.ofHours(10), builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    // daylight-saving-times => rewrite if doesn't cross
-                    tz = ZoneId.of("Europe/Paris");
-                    builder.timeZone(tz);
-                    assertEquals(ZoneOffset.ofHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                        // another timeZone without DST => always rewrite
+                        tz = ZoneId.of("Asia/Katmandu");
+                        builder.timeZone(tz);
+                        assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(ZoneOffset.ofHoursMinutes(5, 45), builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    // Rounded values are no longer all within the same transitions => no rewrite
-                    builder.calendarInterval(DateHistogramInterval.MONTH);
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                        // daylight-saving-times => rewrite if doesn't cross
+                        tz = ZoneId.of("Europe/Paris");
+                        builder.timeZone(tz);
+                        assertEquals(ZoneOffset.ofHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    builder = new DateHistogramAggregationBuilder("my_date_histo");
-                    builder.field(DATE_FIELD_NAME);
-                    builder.timeZone(tz);
+                        // Rounded values are no longer all within the same transitions => no rewrite
+                        builder.calendarInterval(DateHistogramInterval.MONTH);
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
 
-                    builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 + "ms")); // ~ 1 day
-                    assertEquals(ZoneOffset.ofHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                        builder = new DateHistogramAggregationBuilder("my_date_histo");
+                        builder.field(fieldName);
+                        builder.timeZone(tz);
 
-                    // Because the interval is large, rounded values are not
-                    // within the same transitions as the values => no rewrite
-                    builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 * 30 + "ms")); // ~ 1 month
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
-                    assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                        builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 + "ms")); // ~ 1 day
+                        assertEquals(ZoneOffset.ofHours(1), builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+
+                        // Because the interval is large, rounded values are not
+                        // within the same transitions as the values => no rewrite
+                        builder.fixedInterval(new DateHistogramInterval(1000L * 60 * 60 * 24 * 30 + "ms")); // ~ 1 month
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatDoesntCross));
+                        assertSame(tz, builder.rewriteTimeZone(shardContextThatCrosses));
+                    }
                 }
             }
         }
     }
-
 }

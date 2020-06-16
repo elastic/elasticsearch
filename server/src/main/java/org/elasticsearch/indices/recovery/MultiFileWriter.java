@@ -30,7 +30,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
@@ -67,11 +67,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content, boolean lastChunk)
+    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");
-        final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+        final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetadata.name(), name -> new FileChunkWriter());
+        writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
     }
 
     /** Get a temporary name for the provided file name. */
@@ -97,7 +97,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
      * Note: You can use {@link #getOpenIndexOutput(String)} with the same filename to retrieve the same IndexOutput
      * at a later stage
      */
-    public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
+    public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetadata metadata, Store store) throws IOException {
         ensureOpen.run();
         String tempFileName = getTempNameForFile(fileName);
         if (tempFileNames.containsKey(tempFileName)) {
@@ -105,17 +105,17 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
         // add first, before it's created
         tempFileNames.put(tempFileName, fileName);
-        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);
+        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metadata, IOContext.DEFAULT);
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
     }
 
-    private void innerWriteFileChunk(StoreFileMetaData fileMetaData, long position,
+    private void innerWriteFileChunk(StoreFileMetadata fileMetadata, long position,
                                      BytesReference content, boolean lastChunk) throws IOException {
-        final String name = fileMetaData.name();
+        final String name = fileMetadata.name();
         IndexOutput indexOutput;
         if (position == 0) {
-            indexOutput = openAndPutIndexOutput(name, fileMetaData, store);
+            indexOutput = openAndPutIndexOutput(name, fileMetadata, store);
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
@@ -126,7 +126,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             indexOutput.writeBytes(scratch.bytes, scratch.offset, scratch.length);
         }
         indexState.addRecoveredBytesToFile(name, content.length());
-        if (indexOutput.getFilePointer() >= fileMetaData.length() || lastChunk) {
+        if (indexOutput.getFilePointer() >= fileMetadata.length() || lastChunk) {
             try {
                 Store.verify(indexOutput);
             } finally {
@@ -180,11 +180,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     }
 
     static final class FileChunk {
-        final StoreFileMetaData md;
+        final StoreFileMetadata md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
-        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content;
             this.position = position;

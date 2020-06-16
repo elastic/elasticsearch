@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -198,7 +198,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 throw new ElasticsearchParseException(
                     "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
             }
-            ShardId shardId = new ShardId(new Index(indexId, IndexMetaData.INDEX_UUID_NA_VALUE), shard);
+            ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
             return innerParser.parse(p, shardId);
         };
     }

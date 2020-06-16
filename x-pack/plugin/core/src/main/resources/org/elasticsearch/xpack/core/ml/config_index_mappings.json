@@ -40,8 +40,11 @@
               "lambda" : {
                 "type" : "double"
               },
-              "maximum_number_trees" : {
+              "max_trees" : {
                 "type" : "integer"
+              },
+              "class_assignment_objective" : {
+                "type" : "keyword"
               },
               "num_top_classes" : {
                 "type" : "integer"
@@ -87,7 +90,13 @@
               "lambda" : {
                 "type" : "double"
               },
-              "maximum_number_trees" : {
+              "loss_function" : {
+                "type" : "keyword"
+              },
+              "loss_function_parameter" : {
+                "type" : "double"
+              },
+              "max_trees" : {
                 "type" : "integer"
               },
               "num_top_feature_importance_values" : {
@@ -184,6 +193,16 @@
           "multivariate_by_fields" : {
             "type" : "boolean"
           },
+          "per_partition_categorization" : {
+            "properties" : {
+              "enabled" : {
+                "type" : "boolean"
+              },
+              "stop_on_warn" : {
+                "type" : "boolean"
+              }
+            }
+          },
           "summary_count_field_name" : {
             "type" : "keyword"
           }
@@ -225,6 +244,9 @@
       "custom_settings" : {
         "type" : "object",
         "enabled" : false
+      },
+      "daily_model_snapshot_retention_after_days" : {
+        "type" : "long"
       },
       "data_description" : {
         "properties" : {
@@ -290,6 +312,10 @@
       "indices" : {
         "type" : "keyword"
       },
+      "indices_options": {
+        "type" : "object",
+        "enabled" : false
+      },
       "job_id" : {
         "type" : "keyword"
       },
@@ -299,6 +325,9 @@
       "job_version" : {
         "type" : "keyword"
       },
+      "max_num_threads" : {
+        "type" : "integer"
+      },
       "model_plot_config" : {
         "properties" : {
           "enabled" : {
@@ -306,6 +335,9 @@
           },
           "terms" : {
             "type" : "keyword"
+          },
+          "annotations_enabled" : {
+            "type" : "boolean"
           }
         }
       },

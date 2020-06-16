@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationReq
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.security.authc.Realms;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +54,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Realms.isRealmTypeAvailable(licenseState.allowedRealmType(), PkiRealmSettings.TYPE)) {
+        } else if (licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", PkiRealmSettings.TYPE);

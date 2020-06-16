@@ -126,3 +126,57 @@ POST /exams/_search?size=0
 // TEST[setup:exams]
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
+
+
+[[search-aggregations-metrics-avg-aggregation-histogram-fields]]
+==== Histogram fields
+When average is computed on <<histogram,histogram fields>>, the result of the aggregation is the weighted average
+of all elements in the `values` array taking into consideration the number in the same position in the `counts` array.
+
+For example, for the following index that stores pre-aggregated histograms with latency metrics for different networks:
+
+[source,console]
+--------------------------------------------------
+PUT metrics_index/_doc/1
+{
+  "network.name" : "net-1",
+  "latency_histo" : {
+      "values" : [0.1, 0.2, 0.3, 0.4, 0.5], <1>
+      "counts" : [3, 7, 23, 12, 6] <2>
+   }
+}
+
+PUT metrics_index/_doc/2
+{
+  "network.name" : "net-2",
+  "latency_histo" : {
+      "values" :  [0.1, 0.2, 0.3, 0.4, 0.5], <1>
+      "counts" : [8, 17, 8, 7, 6] <2>
+   }
+}
+
+POST /metrics_index/_search?size=0
+{
+    "aggs" : {
+        "avg_latency" :
+            { "avg" : { "field" : "latency_histo" }
+        }
+    }
+}
+--------------------------------------------------
+
+For each histogram field the `avg` aggregation adds each number in the `values` array <1> multiplied by its associated count
+in the `counts` array <2>. Eventually, it will compute the average over those values for all histograms and return the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+    ...
+    "aggregations" : {
+        "avg_latency" : {
+           "value" : 0.29690721649
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:test not setup]

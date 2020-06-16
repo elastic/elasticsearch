@@ -24,11 +24,9 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class GlobalAggregatorFactory extends AggregatorFactory {
@@ -37,16 +35,15 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (parent != null) {
             throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " + "sub-aggregation [" + name
                     + "]. Global aggregations can only be defined as top level aggregations");
@@ -54,6 +51,6 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         if (collectsFromSingleBucket == false) {
             throw new IllegalStateException();
         }
-        return new GlobalAggregator(name, factories, searchContext, pipelineAggregators, metaData);
+        return new GlobalAggregator(name, factories, searchContext, metadata);
     }
 }

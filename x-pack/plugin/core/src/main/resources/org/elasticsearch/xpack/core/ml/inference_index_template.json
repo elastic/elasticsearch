@@ -2,7 +2,7 @@
   "order" : 0,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-inference-000001"
+    ".ml-inference-000002"
   ],
   "settings" : {
     "index" : {
@@ -64,6 +64,12 @@
         },
         "total_definition_length": {
           "type": "long"
+        },
+        "default_field_map": {
+          "enabled": false
+        },
+        "inference_config": {
+          "enabled": false
         }
       }
     }

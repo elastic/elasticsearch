@@ -6,11 +6,16 @@
 <titleabbrev>Requirements</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
-EQL is schemaless and works out-of-the-box with most common log formats. If you
-use a standard log format and already know what fields in your index contain
-event type and timestamp information, you can skip this page.
+EQL is schema-less and works well with most common log formats.
+
+[TIP]
+====
+While no schema is required to use EQL in {es}, we recommend the
+{ecs-ref}[Elastic Common Schema (ECS)]. The EQL search API is designed to work
+with core ECS fields by default.
+====
 
 [discrete]
 [[eql-required-fields]]
@@ -21,7 +26,7 @@ In {es}, EQL assumes each document in an index corresponds to an event.
 To search an index using EQL, each document in the index must contain the
 following field archetypes:
 
-Event type::
+Event category::
 A field containing the event classification, such as `process`, `file`, or
 `network`. This is typically mapped as a <<keyword,`keyword`>> field.
 
@@ -29,9 +34,9 @@ Timestamp::
 A field containing the date and/or time the event occurred. This is typically
 mapped as a <<date,`date`>> field.
 
-[TIP]
+[NOTE]
 ====
-While no schema is required to use EQL in {es}, we recommend the
-{ecs-ref}[Elastic Common Schema (ECS)]. {es}'s EQL search is designed to work
-with core ECS fields by default.
+You cannot use a <<nested,`nested`>> field datatype or the sub-fields of a
+`nested` field dataype as the timestamp or event category field. See
+<<eql-nested-fields>>.
 ====

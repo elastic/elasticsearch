@@ -23,50 +23,52 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, scope);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
+
+        for (SDeclaration declaration : declarationNodes) {
+            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
         }
 
-        statementCount = declarations.size();
-    }
+        output.statementCount = declarationNodes.size();
 
-    @Override
-    DeclarationBlockNode write(ClassNode classNode) {
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
-        for (SDeclaration declaration : declarations) {
-            declarationBlockNode.addDeclarationNode(declaration.write(classNode));
+        for (Output declarationOutput : declarationOutputs) {
+            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         }
 
-        declarationBlockNode.setLocation(location);
+        declarationBlockNode.setLocation(getLocation());
 
-        return declarationBlockNode;
-    }
+        output.statementNode = declarationBlockNode;
 
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
+        return output;
     }
 }

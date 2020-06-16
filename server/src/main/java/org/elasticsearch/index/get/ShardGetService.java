@@ -209,7 +209,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         Map<String, DocumentField> documentFields = null;
-        Map<String, DocumentField> metaDataFields = null;
+        Map<String, DocumentField> metadataFields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         // force fetching source if we read from translog and need to recreate stored fields
@@ -255,12 +255,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                 DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
                             StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
                             if (status == StoredFieldVisitor.Status.YES) {
-                                if (indexableField.binaryValue() != null) {
+                                if (indexableField.numericValue() != null) {
+                                    fieldVisitor.objectField(fieldInfo, indexableField.numericValue());
+                                } else if (indexableField.binaryValue() != null) {
                                     fieldVisitor.binaryField(fieldInfo, indexableField.binaryValue());
                                 } else if (indexableField.stringValue() != null) {
                                     fieldVisitor.objectField(fieldInfo, indexableField.stringValue());
-                                } else if (indexableField.numericValue() != null) {
-                                    fieldVisitor.objectField(fieldInfo, indexableField.numericValue());
                                 }
                             } else if (status == StoredFieldVisitor.Status.STOP) {
                                 break;
@@ -276,10 +276,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (!fieldVisitor.fields().isEmpty()) {
                 fieldVisitor.postProcess(mapperService);
                 documentFields = new HashMap<>();
-                metaDataFields = new HashMap<>();
+                metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    if (MapperService.isMetadataField(entry.getKey())) {
-                        metaDataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
+                    if (mapperService.isMetadataField(entry.getKey())) {
+                        metadataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                     } else {
                         documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                     }
@@ -308,7 +308,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         return new GetResult(shardId.getIndexName(), id, get.docIdAndVersion().seqNo, get.docIdAndVersion().primaryTerm,
-            get.version(), get.exists(), source, documentFields, metaDataFields);
+            get.version(), get.exists(), source, documentFields, metadataFields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

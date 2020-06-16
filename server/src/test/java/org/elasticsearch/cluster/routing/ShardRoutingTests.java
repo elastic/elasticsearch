@@ -209,7 +209,7 @@ public class ShardRoutingTests extends ESTestCase {
             if (unchanged == false) {
                 logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
                 assertFalse("expected non-equality\nthis  " + routing + ",\nother " + otherRouting,
-                    routing.equalsIgnoringMetaData(otherRouting));
+                    routing.equalsIgnoringMetadata(otherRouting));
             }
         }
     }

@@ -1,0 +1,47 @@
+---
+"Basic CRUD":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index/component template v2 API unavailable before 7.8"
+
+  - do:
+      cluster.put_component_template:
+        name: test
+        body:
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+            aliases:
+              aliasname: {}
+          version: 2
+          _meta:
+            foo: bar
+            baz:
+              eggplant: true
+
+  - do:
+      cluster.get_component_template:
+        name: test
+
+  - match: {component_templates.0.name: test}
+  - match: {component_templates.0.component_template.version: 2}
+  - match: {component_templates.0.component_template._meta: {foo: bar, baz: {eggplant: true}}}
+  - match: {component_templates.0.component_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {component_templates.0.component_template.template.mappings: {properties: {field: {type: keyword}}}}
+  - match: {component_templates.0.component_template.template.aliases: {aliasname: {}}}
+
+  - do:
+      cluster.delete_component_template:
+        name: test
+
+  - do:
+      catch: missing
+      cluster.get_component_template:
+        name: test
+
+  - is_false: test

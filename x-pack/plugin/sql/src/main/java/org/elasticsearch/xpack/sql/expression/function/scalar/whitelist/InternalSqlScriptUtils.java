@@ -9,16 +9,16 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
@@ -38,12 +38,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFu
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -66,30 +63,9 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     InternalSqlScriptUtils() {}
 
-
-    //
-    // Logical
-    //
-
-    public static Boolean isNull(Object expression) {
-        return CheckNullOperation.IS_NULL.apply(expression);
-    }
-
-    public static Boolean isNotNull(Object expression) {
-        return CheckNullOperation.IS_NOT_NULL.apply(expression);
-    }
-
-    public static Boolean in(Object value, List<Object> values) {
-        return InProcessor.apply(value, values);
-    }
-
     //
     // Conditional
     //
-    public static Object caseFunction(List<Object> expressions) {
-        return CaseProcessor.apply(expressions);
-    }
-
     public static Object coalesce(List<Object> expressions) {
         return ConditionalOperation.COALESCE.apply(expressions);
     }
@@ -104,14 +80,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Object nullif(Object left, Object right) {
         return NullIfProcessor.apply(left, right);
-    }
-
-    //
-    // Regex
-    //
-    public static Boolean regex(String value, String pattern) {
-        // TODO: this needs to be improved to avoid creating the pattern on every call
-        return RegexOperation.match(value, pattern);
     }
 
     //
@@ -131,10 +99,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Object mul(Object left, Object right) {
         return SqlBinaryArithmeticOperation.MUL.apply(left, right);
-    }
-
-    public static Number neg(Number value) {
-        return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
     public static Object sub(Object left, Object right) {
@@ -309,14 +273,29 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
     }
 
-    public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
+    public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
+        if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
+           return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));
+        }
+        return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
-        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
     }
 
+    public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
+        return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
+    public static Object dateTimeParse(String dateField, String pattern, String tzId) {
+        return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+
+    public static Object timeParse(String dateField, String pattern, String tzId) {
+        return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+    
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }
@@ -444,6 +423,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static String substring(String s, Number start, Number length) {
         return (String) SubstringFunctionProcessor.doProcess(s, start, length);
+    }
+
+    public static String trim(String s) {
+        return (String) StringOperation.TRIM.apply(s);
     }
 
     public static String ucase(String s) {

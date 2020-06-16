@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -15,18 +16,23 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
@@ -48,6 +54,8 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +67,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -68,7 +78,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
+    private final List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
 
     @Override
     protected void cleanUpResources() {
@@ -83,7 +93,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                 assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
                 assertThat(searchStoredProgress(config.getId()).getHits().getTotalHits().value, equalTo(0L));
             } catch (Exception e) {
-                // ignore
+                // just log and ignore
+                logger.error(new ParameterizedMessage("[{}] Could not clean up analytics job config", config.getId()), e);
             }
         }
     }
@@ -102,13 +113,10 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
     }
 
-    protected void registerAnalytics(DataFrameAnalyticsConfig config) {
+    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         if (analytics.add(config) == false) {
             throw new IllegalArgumentException("analytics config [" + config.getId() + "] is already registered");
         }
-    }
-
-    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -118,7 +126,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
-    protected AcknowledgedResponse startAnalytics(String id) {
+    protected NodeAcknowledgedResponse startAnalytics(String id) {
         StartDataFrameAnalyticsAction.Request request = new StartDataFrameAnalyticsAction.Request(id);
         return client().execute(StartDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -152,7 +160,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response response = client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request)
             .actionGet();
         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
-        assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
+        assertThat("Got: " + stats.toString(), stats, hasSize(1));
         return stats.get(0);
     }
 
@@ -192,19 +200,28 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
-    protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
+    protected void assertProgressIsZero(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is not all zero: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 0), is(true));
+    }
+
+    protected void assertProgressComplete(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is complete: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 100), is(true));
+    }
+
+    private List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();
-        assertThat(progress.size(), equalTo(4));
+        // We should have at least 4 phases: reindexing, loading_data, writing_results, plus at least one for the analysis
+        assertThat(progress.size(), greaterThanOrEqualTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
-        assertThat(progress.get(2).getPhase(), equalTo("analyzing"));
-        assertThat(progress.get(3).getPhase(), equalTo("writing_results"));
-        assertThat(progress.get(0).getProgressPercent(), equalTo(reindexing));
-        assertThat(progress.get(1).getProgressPercent(), equalTo(loadingData));
-        assertThat(progress.get(2).getProgressPercent(), equalTo(analyzing));
-        assertThat(progress.get(3).getProgressPercent(), equalTo(writingResults));
+        assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        return progress;
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {
@@ -221,6 +238,18 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
     }
 
+    protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
+        ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return persistentTasks != null
+            ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
+            : Collections.emptyList();
+    }
+
+    protected List<TaskInfo> analyticsAssignedTaskList() {
+        return client().admin().cluster().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
+    }
+
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
@@ -233,6 +262,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         assertBusy(() -> assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX)));
+
         @SuppressWarnings("unchecked")
         Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
         assertBusy(() -> {
@@ -252,6 +282,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
             .addSort("timestamp", SortOrder.ASC)
             .setQuery(QueryBuilders.termQuery("job_id", dataFrameAnalyticsId))
+            .setSize(100)
             .request();
         SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
 
@@ -282,7 +313,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
             .get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), is(arrayWithSize(1)));
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
@@ -312,7 +343,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
      * - allows dots (".") in the path elements provided as arguments
      * - supports implicit casting to the appropriate type
      */
+    @SuppressWarnings("unchecked")
     protected static <T> T getFieldValue(Map<String, Object> doc, String... path) {
-        return (T)extractValue(String.join(".", path), doc);
+        return (T) extractValue(String.join(".", path), doc);
     }
 }

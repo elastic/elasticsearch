@@ -71,14 +71,16 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> metaFields = new HashMap<>();
+        Map<String, DocumentField> documentFields = new HashMap<>();
         if (frequently()) {
-            fields = new HashMap<>();
             if (randomBoolean()) {
-                fields = GetResultTests.randomDocumentFields(xContentType).v2();
+                metaFields = GetResultTests.randomDocumentFields(xContentType, true).v2();
+                documentFields = GetResultTests.randomDocumentFields(xContentType, false).v2();
             }
         }
-        SearchHit hit = new SearchHit(internalId, uid, nestedIdentity, fields);
+
+        SearchHit hit = new SearchHit(internalId, uid, nestedIdentity, documentFields, metaFields);
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
@@ -172,14 +174,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
      * objects allow arbitrary keys (the field names that are queries). Also we want to exclude
      * to add anything under "_source" since it is not parsed, and avoid complexity by excluding
      * everything under "inner_hits". They are also keyed by arbitrary names and contain SearchHits,
-     * which are already tested elsewhere.
+     * which are already tested elsewhere. We also exclude the root level, as all unknown fields
+     * on a root level are interpreted as meta-fields and will be kept.
      */
     public void testFromXContentLenientParsing() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
-                || path.contains("inner_hits"));
+                || path.contains("inner_hits") || path.isEmpty());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;
@@ -210,7 +213,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testToXContent() throws IOException {
-        SearchHit searchHit = new SearchHit(1, "id1", Collections.emptyMap());
+        SearchHit searchHit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -223,25 +226,25 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             clusterAlias, OriginalIndices.NONE);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
-        SearchHit innerHit1 = new SearchHit(0, "_id", null);
+        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
         innerHit1.shard(target);
-        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
         innerInnerHit2.shard(target);
         innerHits.put("1", new SearchHits(new SearchHit[]{innerInnerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHit1.setInnerHits(innerHits);
-        SearchHit innerHit2 = new SearchHit(0, "_id", null);
+        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
         innerHit2.shard(target);
-        SearchHit innerHit3 = new SearchHit(0, "_id", null);
+        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
         innerHit3.shard(target);
 
         innerHits = new HashMap<>();
-        SearchHit hit1 = new SearchHit(0, "_id", null);
+        SearchHit hit1 = new SearchHit(0, "_id", null, null);
         innerHits.put("1", new SearchHits(new SearchHit[]{innerHit1, innerHit2}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHits.put("2", new SearchHits(new SearchHit[]{innerHit3}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         hit1.shard(target);
         hit1.setInnerHits(innerHits);
 
-        SearchHit hit2 = new SearchHit(0, "_id", null);
+        SearchHit hit2 = new SearchHit(0, "_id", null, null);
         hit2.shard(target);
 
         SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
@@ -268,7 +271,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     }
 
     public void testNullSource() {
-        SearchHit searchHit = new SearchHit(0, "_id", null);
+        SearchHit searchHit = new SearchHit(0, "_id", null, null);
 
         assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());

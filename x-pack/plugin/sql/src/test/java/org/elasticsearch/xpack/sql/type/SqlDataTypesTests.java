@@ -20,6 +20,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.compatibleInterval;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_MINUTE;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
@@ -44,18 +46,24 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 public class SqlDataTypesTests extends ESTestCase {
 
-    public void testMetaDataType() {
+    public void testMetadataType() {
+        assertEquals(Integer.valueOf(91), metaSqlDataType(DATE));
+        assertEquals(Integer.valueOf(92), metaSqlDataType(TIME));
         assertEquals(Integer.valueOf(9), metaSqlDataType(DATETIME));
         DataType t = randomDataTypeNoDateTime();
         assertEquals(sqlType(t).getVendorTypeNumber(), metaSqlDataType(t));
     }
 
     public void testMetaDateTypeSub() {
+        assertEquals(Integer.valueOf(1), metaSqlDateTimeSub(DATE));
+        assertEquals(Integer.valueOf(2), metaSqlDateTimeSub(TIME));
         assertEquals(Integer.valueOf(3), metaSqlDateTimeSub(DATETIME));
         assertEquals(Integer.valueOf(0), metaSqlDateTimeSub(randomDataTypeNoDateTime()));
     }
 
     public void testMetaMinimumScale() {
+        assertNull(metaSqlMinimumScale(DATE));
+        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
         assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
@@ -63,6 +71,8 @@ public class SqlDataTypesTests extends ESTestCase {
     }
 
     public void testMetaMaximumScale() {
+        assertNull(metaSqlMinimumScale(DATE));
+        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
         assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
@@ -78,7 +88,7 @@ public class SqlDataTypesTests extends ESTestCase {
 
 
     // type checks
-    public void testIsInterval() throws Exception {
+    public void testIsInterval() {
         for (DataType dataType : asList(INTERVAL_YEAR,
                 INTERVAL_MONTH,
                 INTERVAL_DAY,
@@ -96,14 +106,14 @@ public class SqlDataTypesTests extends ESTestCase {
         }
     }
 
-    public void testIntervalCompatibilityYearMonth() throws Exception {
+    public void testIntervalCompatibilityYearMonth() {
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_YEAR, INTERVAL_MONTH));
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_YEAR, INTERVAL_YEAR_TO_MONTH));
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_MONTH, INTERVAL_YEAR));
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_MONTH, INTERVAL_YEAR_TO_MONTH));
     }
 
-    public void testIntervalCompatibilityDayTime() throws Exception {
+    public void testIntervalCompatibilityDayTime() {
         assertEquals(INTERVAL_DAY_TO_HOUR, compatibleInterval(INTERVAL_DAY, INTERVAL_HOUR));
         assertEquals(INTERVAL_DAY_TO_HOUR, compatibleInterval(INTERVAL_DAY_TO_HOUR, INTERVAL_HOUR));
         assertEquals(INTERVAL_DAY_TO_MINUTE, compatibleInterval(INTERVAL_DAY, INTERVAL_MINUTE));
@@ -121,14 +131,14 @@ public class SqlDataTypesTests extends ESTestCase {
         assertEquals(INTERVAL_MINUTE_TO_SECOND, compatibleInterval(INTERVAL_SECOND, INTERVAL_MINUTE));
     }
 
-    public void testIncompatibleInterval() throws Exception {
+    public void testIncompatibleInterval() {
         assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_SECOND));
         assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_DAY_TO_HOUR));
         assertNull(compatibleInterval(INTERVAL_HOUR, INTERVAL_MONTH));
         assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
     }
 
-    public void testEsToDataType() throws Exception {
+    public void testEsToDataType() {
         List<String> types = new ArrayList<>(Arrays.asList("null", "boolean", "bool",
                 "byte", "tinyint",
                 "short", "smallint",
@@ -146,7 +156,7 @@ public class SqlDataTypesTests extends ESTestCase {
                 "interval_day_to_hour", "interval_day_to_minute", "interval_day_to_second",
                 "interval_hour_to_minute", "interval_hour_to_second",
                 "interval_minute_to_second"));
-        
+
         types.addAll(SqlDataTypes.types().stream()
                 .filter(DataTypes::isPrimitive)
                 .map(DataType::typeName)
@@ -157,6 +167,6 @@ public class SqlDataTypesTests extends ESTestCase {
     }
 
     private DataType randomDataTypeNoDateTime() {
-        return randomValueOtherThan(DATETIME, () -> randomFrom(SqlDataTypes.types()));
+        return randomValueOtherThanMany(SqlDataTypes::isDateOrTimeBased, () -> randomFrom(SqlDataTypes.types()));
     }
 }

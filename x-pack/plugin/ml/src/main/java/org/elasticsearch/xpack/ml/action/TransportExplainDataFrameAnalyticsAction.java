@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -68,7 +69,7 @@ public class TransportExplainDataFrameAnalyticsAction
     protected void doExecute(Task task,
                              PutDataFrameAnalyticsAction.Request request,
                              ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -83,7 +84,8 @@ public class TransportExplainDataFrameAnalyticsAction
 
     private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
-        ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
+        ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory =
+                new ExtractedFieldsDetectorFactory(new ParentTaskAssigningClient(client, task.getParentTaskId()));
         extractedFieldsDetectorFactory.createFromSource(
             request.getConfig(),
             ActionListener.wrap(
@@ -115,7 +117,7 @@ public class TransportExplainDataFrameAnalyticsAction
                                      ActionListener<MemoryEstimation> listener) {
         final String estimateMemoryTaskId = "memory_usage_estimation_" + task.getId();
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(
-            client, estimateMemoryTaskId, request.getConfig(), extractedFields);
+            new ParentTaskAssigningClient(client, task.getParentTaskId()), estimateMemoryTaskId, request.getConfig(), extractedFields);
         processManager.runJobAsync(
             estimateMemoryTaskId,
             request.getConfig(),

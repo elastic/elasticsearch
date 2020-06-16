@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 
@@ -38,29 +37,12 @@ public class StatementExpressionNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    private boolean methodEscape;
-
-    public void setMethodEscape(boolean methodEscape) {
-        this.methodEscape = methodEscape;
-    }
-
-    public boolean getMethodEscape() {
-        return methodEscape;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
-        expressionNode.write(classWriter, methodWriter, globals, scopeTable);
-
-        if (methodEscape) {
-            methodWriter.returnValue();
-        } else {
-            methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
-        }
+        expressionNode.write(classWriter, methodWriter, scopeTable);
+        methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
     }
 }

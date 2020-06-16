@@ -145,8 +145,8 @@ releases 2.0 and later do not support rivers.
 * https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html[Micronaut Elasticsearch Integration]:
   Integration of Micronaut with Elasticsearch
 
-* https://docs.streampipes.org/docs/user-guide-introduction[StreamPipes]:
-  StreamPipes is a framework that enables users to work with data streams allowing to store data in Elasticsearch.
+* https://streampipes.apache.org[Apache StreamPipes]:
+  StreamPipes is a framework that enables users to work with IoT data streams allowing to store data in Elasticsearch.
 
 * https://metamodel.apache.org/[Apache MetaModel]:
   Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
@@ -188,7 +188,9 @@ releases 2.0 and later do not support rivers.
 * http://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
   alerts, email reports, etc.
-
+* https://www.zabbix.com/integrations/elasticsearch[Zabbix monitoring template]:
+  Monitor the performance and status of your {es} nodes and cluster with Zabbix
+  and receive events information.
 
 [[other-integrations]]
 [float]
@@ -202,4 +204,3 @@ releases 2.0 and later do not support rivers.
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web
-

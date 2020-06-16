@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.tree;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditiona
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 
 import java.util.List;
 
@@ -56,8 +56,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 public class SqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests<T, B> {
 
     private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = asList(Percentile.class, Percentiles.class, PercentileRanks.class,
-            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class);
-
+            Iif.class, IfConditional.class, IfNull.class, In.class, InPipe.class,
+            org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In.class);
 
     public SqlNodeSubclassTests(Class<T> subclass) {
         super(subclass);

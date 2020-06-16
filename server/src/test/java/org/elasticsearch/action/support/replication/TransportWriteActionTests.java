@@ -30,7 +30,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation.Replica
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -274,7 +274,7 @@ public class TransportWriteActionTests extends ESTestCase {
         ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         ClusterServiceUtils.setState(clusterService, state);
-        final long primaryTerm = state.metaData().index(index).primaryTerm(0);
+        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
         ReplicationOperation.Replicas<TestRequest> proxy = action.newReplicasProxy();
 
         // check that at unknown node fails
@@ -359,7 +359,7 @@ public class TransportWriteActionTests extends ESTestCase {
         protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "internal:test",
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                        x -> null, null, Collections.emptySet()), null, null, null, null,
+                        x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false);
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -404,12 +404,12 @@ public class TransportWriteActionTests extends ESTestCase {
         }
     }
 
-    final IndexService mockIndexService(final IndexMetaData indexMetaData, ClusterService clusterService) {
+    final IndexService mockIndexService(final IndexMetadata indexMetadata, ClusterService clusterService) {
         final IndexService indexService = mock(IndexService.class);
         when(indexService.getShard(anyInt())).then(invocation -> {
             int shard = (Integer) invocation.getArguments()[0];
-            final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
-            if (shard > indexMetaData.getNumberOfShards()) {
+            final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
+            if (shard > indexMetadata.getNumberOfShards()) {
                 throw new ShardNotFoundException(shardId);
             }
             return mockIndexShard(shardId, clusterService);
@@ -422,14 +422,14 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index)invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
+            final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
         });
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            if (state.metaData().hasIndex(index.getName())) {
-                return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
+            if (state.metadata().hasIndex(index.getName())) {
+                return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
             } else {
                 return null;
             }
@@ -474,7 +474,7 @@ public class TransportWriteActionTests extends ESTestCase {
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(i ->
-            clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
+            clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
         return indexShard;
     }
 

@@ -26,8 +26,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -68,7 +68,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     private final LocalAllocateDangledIndices allocateDangledIndices;
     private final boolean isAutoImportDanglingIndicesEnabled;
 
-    private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, IndexMetadata> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -94,19 +94,19 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Process dangling indices based on the provided meta data, handling cleanup, finding
      * new dangling indices, and allocating outstanding ones.
      */
-    public void processDanglingIndices(final MetaData metaData) {
+    public void processDanglingIndices(final Metadata metadata) {
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
-        cleanupAllocatedDangledIndices(metaData);
-        findNewAndAddDanglingIndices(metaData);
+        cleanupAllocatedDangledIndices(metadata);
+        findNewAndAddDanglingIndices(metadata);
         allocateDanglingIndices();
     }
 
     /**
      * The current set of dangling indices.
      */
-    Map<Index, IndexMetaData> getDanglingIndices() {
+    Map<Index, IndexMetadata> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
         return Map.copyOf(danglingIndices);
     }
@@ -114,11 +114,11 @@ public class DanglingIndicesState implements ClusterStateListener {
     /**
      * Cleans dangling indices if they are already allocated on the provided meta data.
      */
-    void cleanupAllocatedDangledIndices(MetaData metaData) {
+    void cleanupAllocatedDangledIndices(Metadata metadata) {
         for (Index index : danglingIndices.keySet()) {
-            final IndexMetaData indexMetaData = metaData.index(index);
-            if (indexMetaData != null && indexMetaData.getIndex().getName().equals(index.getName())) {
-                if (indexMetaData.getIndex().getUUID().equals(index.getUUID()) == false) {
+            final IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata != null && indexMetadata.getIndex().getName().equals(index.getName())) {
+                if (indexMetadata.getIndex().getUUID().equals(index.getUUID()) == false) {
                     logger.warn("[{}] can not be imported as a dangling index, as there is already another index " +
                         "with the same name but a different uuid. local index will be ignored (but not deleted)", index);
                 } else {
@@ -133,8 +133,8 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Finds (@{link #findNewAndAddDanglingIndices}) and adds the new dangling indices
      * to the currently tracked dangling indices.
      */
-    void findNewAndAddDanglingIndices(final MetaData metaData) {
-        danglingIndices.putAll(findNewDanglingIndices(metaData));
+    void findNewAndAddDanglingIndices(final Metadata metadata) {
+        danglingIndices.putAll(findNewDanglingIndices(metadata));
     }
 
     /**
@@ -142,28 +142,28 @@ public class DanglingIndicesState implements ClusterStateListener {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    Map<Index, IndexMetaData> findNewDanglingIndices(final MetaData metaData) {
-        final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
-        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+    Map<Index, IndexMetadata> findNewDanglingIndices(final Metadata metadata) {
+        final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size() + danglingIndices.size());
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
         }
         excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));
         try {
-            final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
-            Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
-            final IndexGraveyard graveyard = metaData.indexGraveyard();
-            for (IndexMetaData indexMetaData : indexMetaDataList) {
-                if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
+            final List<IndexMetadata> indexMetadataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
+            Map<Index, IndexMetadata> newIndices = new HashMap<>(indexMetadataList.size());
+            final IndexGraveyard graveyard = metadata.indexGraveyard();
+            for (IndexMetadata indexMetadata : indexMetadataList) {
+                if (metadata.hasIndex(indexMetadata.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
-                        indexMetaData.getIndex());
-                } else if (graveyard.containsIndex(indexMetaData.getIndex())) {
+                        indexMetadata.getIndex());
+                } else if (graveyard.containsIndex(indexMetadata.getIndex())) {
                     logger.warn("[{}] can not be imported as a dangling index, as an index with the same name and UUID exist in the " +
                                 "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
-                                "that was previously deleted.", indexMetaData.getIndex());
+                                "that was previously deleted.", indexMetadata.getIndex());
                 } else {
                     logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
-                                "auto import to cluster state", indexMetaData.getIndex());
-                    newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
+                                "auto import to cluster state", indexMetadata.getIndex());
+                    newIndices.put(indexMetadata.getIndex(), stripAliases(indexMetadata));
                 }
             }
             return newIndices;
@@ -177,13 +177,13 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */
-    private IndexMetaData stripAliases(IndexMetaData indexMetaData) {
-        if (indexMetaData.getAliases().isEmpty()) {
-            return indexMetaData;
+    private IndexMetadata stripAliases(IndexMetadata indexMetadata) {
+        if (indexMetadata.getAliases().isEmpty()) {
+            return indexMetadata;
         } else {
             logger.info("[{}] stripping aliases: {} from index before importing",
-                indexMetaData.getIndex(), indexMetaData.getAliases().keys());
-            return IndexMetaData.builder(indexMetaData).removeAllAliases().build();
+                indexMetadata.getIndex(), indexMetadata.getAliases().keys());
+            return IndexMetadata.builder(indexMetadata).removeAllAliases().build();
         }
     }
 
@@ -217,7 +217,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().disableStatePersistence() == false) {
-            processDanglingIndices(event.state().metaData());
+            processDanglingIndices(event.state().metadata());
         }
     }
 }

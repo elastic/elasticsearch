@@ -25,8 +25,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -104,13 +104,13 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDataBuilder.put(IndexMetaData.builder(Watch.INDEX).state(IndexMetaData.State.CLOSE).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
 
         assertThat(service.validate(csBuilder.build()), is(false));
     }
@@ -130,13 +130,13 @@ public class WatcherServiceTests extends ESTestCase {
 
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDataBuilder.put(IndexMetaData.builder(Watch.INDEX).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
 
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
@@ -156,7 +156,7 @@ public class WatcherServiceTests extends ESTestCase {
         // response setup, successful refresh response
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getSuccessfulShards())
-                .thenReturn(clusterState.getMetaData().getIndices().get(Watch.INDEX).getNumberOfShards());
+                .thenReturn(clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards());
         doAnswer(invocation -> {
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
@@ -179,7 +179,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id, Collections.emptyMap(), Collections.emptyMap());
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;
@@ -265,7 +265,7 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        csBuilder.metaData(MetaData.builder());
+        csBuilder.metadata(Metadata.builder());
 
         service.reload(csBuilder.build(), "whatever");
         verify(executionService).clearExecutionsAndQueue(any());

@@ -35,7 +35,7 @@ public class GraphInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isGraphAllowed();
+        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.GRAPH);
     }
 
     @Override

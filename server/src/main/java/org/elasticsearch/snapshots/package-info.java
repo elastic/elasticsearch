@@ -28,26 +28,21 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
  * abort relevant shard snapshot tasks accordingly.</li>
  * <li>Nodes that are executing shard snapshot tasks report either success or failure of their snapshot task by submitting a
- * {@link org.elasticsearch.snapshots.SnapshotShardsService.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
+ * {@link org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
  * snapshot's entry in the cluster state accordingly.</li>
  * </ul>
  *
  * <h2>Snapshot Creation</h2>
  * <p>Snapshots are created by the following sequence of events:</p>
  * <ol>
- * <li>An invocation of {@link org.elasticsearch.snapshots.SnapshotsService#createSnapshot} enqueues a cluster state update to create
- * a {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry} in the cluster state's {@code SnapshotsInProgress}. This initial snapshot
- * entry has its state set to {@code INIT} and an empty map set for the state of the individual shard's snapshots.</li>
- *
- * <li>After the snapshot's entry with state {@code INIT} is in the cluster state, {@link org.elasticsearch.snapshots.SnapshotsService}
- * determines the primary shards' assignments for all indices that are being snapshotted and updates the existing
- * {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of {@link org.elasticsearch.index.shard.ShardId} to
- * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks the assignment of which node is to snapshot which
- * shard. All shard snapshots are executed on the shard's primary node. Thus all shards for which the primary node was found to have a
- * healthy copy of the shard are marked as being in state {@code INIT} in this map. If the primary for a shard is unassigned, it is marked
- * as {@code MISSING} in this map. In case the primary is initializing at this point, it is marked as in state {@code WAITING}. In case a
- * shard's primary is relocated at any point after its {@code SnapshotsInProgress.Entry} has moved to state {@code STARTED} and thus been
- * assigned to a specific cluster node, that shard's snapshot will fail and move to state {@code FAILED}.</li>
+ * <li>First the {@link org.elasticsearch.snapshots.SnapshotsService} determines the primary shards' assignments for all indices that are
+ * being snapshotted and creates a {@code SnapshotsInProgress.Entry} with state {@code STARTED} and adds the map of
+ * {@link org.elasticsearch.index.shard.ShardId} to {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus} that tracks
+ * the assignment of which node is to snapshot which shard. All shard snapshots are executed on the shard's primary node. Thus all shards
+ * for which the primary node was found to have a healthy copy of the shard are marked as being in state {@code INIT} in this map. If the
+ * primary for a shard is unassigned, it is marked as {@code MISSING} in this map. In case the primary is initializing at this point, it is
+ * marked as in state {@code WAITING}. In case a shard's primary is relocated at any point after its {@code SnapshotsInProgress.Entry} was
+ * created and thus been assigned to a specific cluster node, that shard's snapshot will fail and move to state {@code FAILED}.</li>
  *
  * <li>The new {@code SnapshotsInProgress.Entry} is then observed by
  * {@link org.elasticsearch.snapshots.SnapshotShardsService#clusterChanged} on all nodes and since the entry is in state {@code STARTED}
@@ -97,7 +92,7 @@
  * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress}.</li>
  *
  * <li>Once the cluster state contains the deletion entry in {@code SnapshotDeletionsInProgress} the {@code SnapshotsService} will invoke
- * {@link org.elasticsearch.repositories.Repository#deleteSnapshot} for the given snapshot, which will remove files associated with the
+ * {@link org.elasticsearch.repositories.Repository#deleteSnapshots} for the given snapshot, which will remove files associated with the
  * snapshot from the repository as well as update its meta-data to reflect the deletion of the snapshot.</li>
  *
  * <li>After the deletion of the snapshot's data from the repository finishes, the {@code SnapshotsService} will submit a cluster state

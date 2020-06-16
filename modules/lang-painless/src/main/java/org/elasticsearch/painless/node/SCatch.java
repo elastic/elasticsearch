@@ -21,8 +21,10 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -31,62 +33,70 @@ import java.util.Objects;
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    private final Class<?> baseException;
+    private final SDeclaration declarationNode;
+    private final SBlock blockNode;
 
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
+    public SCatch(int identifier, Location location, Class<?> baseException, SDeclaration declarationNode, SBlock blockNode) {
+        super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
+        this.declarationNode = Objects.requireNonNull(declarationNode);
+        this.blockNode = blockNode;
+    }
+
+    public Class<?> getBaseException() {
+        return baseException;
+    }
+
+    public SDeclaration getDeclarationNode() {
+        return declarationNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        declaration.analyze(scriptRoot, scope);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = scope.getVariable(location, declaration.name).getType();
+        Output declarationOutput = declarationNode.analyze(classNode, scriptRoot, scope, new Input());
 
-        if (baseType.isAssignableFrom(type) == false) {
+        Class<?> type = scope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
+
+        if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
                     "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
         }
 
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-            block.analyze(scriptRoot, scope);
+        Output blockOutput = null;
 
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
+        if (blockNode != null) {
+            Input blockInput = new Input();
+            blockInput.lastSource = input.lastSource;
+            blockInput.inLoop = input.inLoop;
+            blockInput.lastLoop = input.lastLoop;
+            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
+
+            output.methodEscape = blockOutput.methodEscape;
+            output.loopEscape = blockOutput.loopEscape;
+            output.allEscape = blockOutput.allEscape;
+            output.anyContinue = blockOutput.anyContinue;
+            output.anyBreak = blockOutput.anyBreak;
+            output.statementCount = blockOutput.statementCount;
         }
-    }
 
-    @Override
-    CatchNode write(ClassNode classNode) {
         CatchNode catchNode = new CatchNode();
+        catchNode.setDeclarationNode((DeclarationNode)declarationOutput.statementNode);
+        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
+        catchNode.setLocation(getLocation());
 
-        catchNode.setDeclarationNode(declaration.write(classNode));
-        catchNode.setBlockNode(block == null ? null : block.write(classNode));
+        output.statementNode = catchNode;
 
-        catchNode.setLocation(location);
-
-        return catchNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(baseException, declaration, block);
+        return output;
     }
 }

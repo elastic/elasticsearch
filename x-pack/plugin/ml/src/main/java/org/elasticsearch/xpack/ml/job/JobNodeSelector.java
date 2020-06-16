@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -48,8 +48,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  */
 public class JobNodeSelector {
 
-    public static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
-        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_LAZY_ASSIGNMENT =
+        new PersistentTasksCustomMetadata.Assignment(null, "persistent task is awaiting node assignment.");
 
     private static final Logger logger = LogManager.getLogger(JobNodeSelector.class);
 
@@ -80,7 +80,7 @@ public class JobNodeSelector {
         };
     }
 
-    public PersistentTasksCustomMetaData.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
+    public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
                                                                int maxMachineMemoryPercent, boolean isMemoryTrackerRecentlyRefreshed) {
         // TODO: remove in 8.0.0
         boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_2_0);
@@ -98,7 +98,7 @@ public class JobNodeSelector {
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
-        PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it
@@ -208,17 +208,17 @@ public class JobNodeSelector {
         return createAssignment(allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount, reasons);
     }
 
-    private PersistentTasksCustomMetaData.Assignment createAssignment(DiscoveryNode minLoadedNode, List<String> reasons) {
+    private PersistentTasksCustomMetadata.Assignment createAssignment(DiscoveryNode minLoadedNode, List<String> reasons) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            return considerLazyAssignment(new PersistentTasksCustomMetaData.Assignment(null, explanation));
+            return considerLazyAssignment(new PersistentTasksCustomMetadata.Assignment(null, explanation));
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
-        return new PersistentTasksCustomMetaData.Assignment(minLoadedNode.getId(), "");
+        return new PersistentTasksCustomMetadata.Assignment(minLoadedNode.getId(), "");
     }
 
-    PersistentTasksCustomMetaData.Assignment considerLazyAssignment(PersistentTasksCustomMetaData.Assignment currentAssignment) {
+    PersistentTasksCustomMetadata.Assignment considerLazyAssignment(PersistentTasksCustomMetadata.Assignment currentAssignment) {
 
         assert currentAssignment.getExecutorNode() == null;
 
@@ -236,15 +236,15 @@ public class JobNodeSelector {
         return currentAssignment;
     }
 
-    private CurrentLoad calculateCurrentLoadForNode(DiscoveryNode node, PersistentTasksCustomMetaData persistentTasks,
+    private CurrentLoad calculateCurrentLoadForNode(DiscoveryNode node, PersistentTasksCustomMetadata persistentTasks,
                                                     final boolean allocateByMemory) {
         CurrentLoad result = new CurrentLoad(allocateByMemory);
 
         if (persistentTasks != null) {
             // find all the anomaly detector job tasks assigned to this node
-            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedAnomalyDetectorTasks = persistentTasks.findTasks(
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> assignedAnomalyDetectorTasks = persistentTasks.findTasks(
                 MlTasks.JOB_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
-            for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedAnomalyDetectorTasks) {
+            for (PersistentTasksCustomMetadata.PersistentTask<?> assignedTask : assignedAnomalyDetectorTasks) {
                 JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
                 if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                     // Don't count CLOSED or FAILED jobs, as they don't consume native memory
@@ -265,9 +265,9 @@ public class JobNodeSelector {
                 }
             }
             // find all the data frame analytics job tasks assigned to this node
-            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedAnalyticsTasks = persistentTasks.findTasks(
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> assignedAnalyticsTasks = persistentTasks.findTasks(
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
-            for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedAnalyticsTasks) {
+            for (PersistentTasksCustomMetadata.PersistentTask<?> assignedTask : assignedAnalyticsTasks) {
                 DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
 
                 // Don't count stopped and failed df-analytics tasks as they don't consume native memory

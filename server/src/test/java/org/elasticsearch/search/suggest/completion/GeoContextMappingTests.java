@@ -44,7 +44,8 @@ import static org.elasticsearch.geometry.utils.Geohash.addNeighborsAtLevel;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class GeoContextMappingTests extends ESSingleNodeTestCase {
 
@@ -275,7 +276,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("ezs42e");
         addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(1));
             assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
@@ -294,7 +295,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0n94");
         addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(1));
             assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
@@ -322,7 +323,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0");
         addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(10));
             assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
         }

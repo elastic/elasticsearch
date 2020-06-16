@@ -1,7 +1,8 @@
 {
   "transform.get_transform_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html",
+      "description":"Retrieves usage information for transforms."
     },
     "stability":"stable",
     "url":{

@@ -291,6 +291,36 @@ public class Docker {
 
             return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
         }
+
+        /**
+         * Overrides {@link Shell#run(String)} to attempt to collect Docker container
+         * logs when a command fails to execute successfully.
+         * @param script the command to run
+         * @return the command's output
+         */
+        @Override
+        public Result run(String script) {
+            try {
+                return super.run(script);
+            } catch (ShellException e) {
+                try {
+                    final Shell.Result dockerLogs = getContainerLogs();
+                    logger.error(
+                        "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
+                        script,
+                        dockerLogs.stdout,
+                        dockerLogs.stderr
+                    );
+                } catch (ShellException shellException) {
+                    logger.error(
+                        "Command [{}] failed.\n\nTried to dump container logs but that failed too: [{}]",
+                        script,
+                        shellException.getMessage()
+                    );
+                }
+                throw e;
+            }
+        }
     }
 
     /**

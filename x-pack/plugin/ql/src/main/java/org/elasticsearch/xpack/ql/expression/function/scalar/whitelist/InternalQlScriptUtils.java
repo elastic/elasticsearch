@@ -8,13 +8,20 @@ package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.util.List;
 import java.util.Map;
 
-public abstract class InternalQlScriptUtils {
+public class InternalQlScriptUtils {
 
     //
     // Utilities
@@ -79,6 +86,10 @@ public abstract class InternalQlScriptUtils {
         return BinaryComparisonOperation.GTE.apply(left, right);
     }
 
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
+
     public static Boolean and(Boolean left, Boolean right) {
         return BinaryLogicOperation.AND.apply(left, right);
     }
@@ -89,5 +100,55 @@ public abstract class InternalQlScriptUtils {
 
     public static Boolean not(Boolean expression) {
         return NotProcessor.apply(expression);
+    }
+
+    public static Boolean isNull(Object expression) {
+        return CheckNullOperation.IS_NULL.apply(expression);
+    }
+
+    public static Boolean isNotNull(Object expression) {
+        return CheckNullOperation.IS_NOT_NULL.apply(expression);
+    }
+
+    //
+    // Regex
+    //
+    public static Boolean regex(String value, String pattern) {
+        // TODO: this needs to be improved to avoid creating the pattern on every call
+        return RegexOperation.match(value, pattern);
+    }
+
+    //
+    // Math
+    //
+    public static Number add(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.ADD.apply(left, right);
+    }
+
+    public static Number div(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.DIV.apply(left, right);
+    }
+
+    public static Number mod(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.MOD.apply(left, right);
+    }
+
+    public static Number mul(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.MUL.apply(left, right);
+    }
+
+    public static Number neg(Number value) {
+        return UnaryArithmeticOperation.NEGATE.apply(value);
+    }
+
+    public static Number sub(Number left, Number right) {
+        return (Number) DefaultBinaryArithmeticOperation.SUB.apply(left, right);
+    }
+
+    //
+    // String
+    //
+    public static Boolean startsWith(String s, String pattern, Boolean isCaseSensitive) {
+        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
     }
 }

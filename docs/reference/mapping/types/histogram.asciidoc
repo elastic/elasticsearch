@@ -35,6 +35,9 @@ binary <<doc-values,doc values>> and not indexed. Its size in bytes is at most
 Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:
 
+* <<search-aggregations-metrics-sum-aggregation-histogram-fields,sum>> aggregation
+* <<search-aggregations-metrics-valuecount-aggregation-histogram-fields,value_count>> aggregation
+* <<search-aggregations-metrics-avg-aggregation-histogram-fields,avg>> aggregation
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
@@ -69,14 +72,13 @@ The following <<indices-create-index, create index>> API request creates a new i
 * `my_histogram`, a `histogram` field used to store percentile data
 * `my_text`, a `keyword` field used to store a title for the histogram
 
-[ INSERT CREATE INDEX SNIPPET ]
 [source,console]
 --------------------------------------------------
 PUT my_index
 {
-  "mappings": {
-    "properties": {
-      "my_histogram": {
+  "mappings" : {
+    "properties" : {
+      "my_histogram" : {
         "type" : "histogram"
       },
       "my_text" : {
@@ -115,6 +117,3 @@ increasing order. For <<search-aggregations-metrics-percentile-aggregation-appro
 histograms this value represents the mean value. In case of HDR histograms this represents the value iterated to.
 <2> Count for each bucket. Values in the arrays are treated as integers and must be positive or zero.
 Negative values will be rejected. The relation between a bucket and a count is given by the position in the array.
-
-
-

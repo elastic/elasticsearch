@@ -7,13 +7,15 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation.LEAST;
 
@@ -35,6 +37,10 @@ public class Least extends ArbitraryConditionalFunction {
 
     @Override
     public Object fold() {
-        return LEAST.apply(Foldables.valuesUnique(children(), dataType));
+        Set<Object> values = new LinkedHashSet<>(children().size());
+        for (Expression e : children()) {
+            values.add(SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType));
+        }
+        return LEAST.apply(values);
     }
 }

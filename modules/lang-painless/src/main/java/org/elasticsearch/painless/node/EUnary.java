@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
-import org.elasticsearch.painless.ir.UnaryNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -35,165 +35,119 @@ import java.util.Objects;
 /**
  * Represents a unary math expression.
  */
-public final class EUnary extends AExpression {
+public class EUnary extends AExpression {
 
+    private final AExpression childNode;
     private final Operation operation;
-    private AExpression child;
 
-    private Class<?> promote;
-    private boolean originallyExplicit = false; // record whether there was originally an explicit cast
+    public EUnary(int identifier, Location location, AExpression childNode, Operation operation) {
+        super(identifier, location);
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
-
+        this.childNode = Objects.requireNonNull(childNode);
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        originallyExplicit = explicit;
-
-        if (operation == Operation.NOT) {
-            analyzeNot(scriptRoot, scope);
-        } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(scriptRoot, scope);
-        } else if (operation == Operation.ADD) {
-            analyzerAdd(scriptRoot, scope);
-        } else if (operation == Operation.SUB) {
-            analyzerSub(scriptRoot, scope);
-        } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-    }
-
-    void analyzeNot(ScriptRoot scriptRoot, Scope variables) {
-        child.expected = boolean.class;
-        child.analyze(scriptRoot, variables);
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            constant = !(boolean)child.constant;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        actual = boolean.class;
-    }
-
-    void analyzeBWNot(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(child.actual, false);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply not [~] to type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(child.actual) + "]."));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        child.expected = promote;
-        child = child.cast(scriptRoot, variables);
+        Output output = new Output();
 
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = ~(int)child.constant;
-            } else if (promote == long.class) {
-                constant = ~(long)child.constant;
+        Class<?> promote = null;
+        boolean originallyExplicit = input.explicit;
+
+        Input childInput = new Input();
+        Output childOutput;
+
+        if ((operation == Operation.SUB || operation == Operation.ADD) &&
+                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
+            childInput.expected = input.expected;
+            childInput.explicit = input.explicit;
+            childInput.internal = input.internal;
+
+            if (childNode instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)childNode;
+
+                if (operation == Operation.SUB) {
+                    childOutput = numeric.analyze(childInput, numeric.getNumeric().charAt(0) != '-');
+                } else {
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
+                }
+            } else if (childNode instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)childNode;
+
+                if (operation == Operation.SUB) {
+                    childOutput = decimal.analyze(childInput, decimal.getDecimal().charAt(0) != '-');
+                } else {
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
+                }
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw createError(new IllegalArgumentException("illegal tree structure"));
             }
-        }
 
-        if (promote == def.class && expected != null) {
-            actual = expected;
+            output.actual = childOutput.actual;
+            output.expressionNode = childOutput.expressionNode;
         } else {
-            actual = promote;
-        }
-    }
+            PainlessCast childCast;
 
-    void analyzerAdd(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
+            if (operation == Operation.NOT) {
+                childInput.expected = boolean.class;
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, childInput);
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
+                output.actual = boolean.class;
+            } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, new Input());
 
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply positive [+] to type " +
-                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
-        }
+                promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 
-        child.expected = promote;
-        child = child.cast(scriptRoot, variables);
+                if (promote == null) {
+                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                            "[" + operation.symbol + "] to the type " +
+                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
+                }
 
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = +(int)child.constant;
-            } else if (promote == long.class) {
-                constant = +(long)child.constant;
-            } else if (promote == float.class) {
-                constant = +(float)child.constant;
-            } else if (promote == double.class) {
-                constant = +(double)child.constant;
+                childInput.expected = promote;
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+                if (promote == def.class && input.expected != null) {
+                    output.actual = input.expected;
+                } else {
+                    output.actual = promote;
+                }
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
             }
+
+            UnaryMathNode unaryMathNode = new UnaryMathNode();
+            unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
+            unaryMathNode.setLocation(getLocation());
+            unaryMathNode.setExpressionType(output.actual);
+            unaryMathNode.setUnaryType(promote);
+            unaryMathNode.setOperation(operation);
+            unaryMathNode.setOriginallExplicit(originallyExplicit);
+
+            output.expressionNode = unaryMathNode;
         }
 
-        if (promote == def.class && expected != null) {
-            actual = expected;
-        } else {
-            actual = promote;
-        }
-    }
-
-    void analyzerSub(ScriptRoot scriptRoot, Scope variables) {
-        child.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(child.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply negative [-] to type " +
-                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
-        }
-
-        child.expected = promote;
-        child = child.cast(scriptRoot, variables);
-
-        if (child.constant != null) {
-            if (promote == int.class) {
-                constant = -(int)child.constant;
-            } else if (promote == long.class) {
-                constant = -(long)child.constant;
-            } else if (promote == float.class) {
-                constant = -(float)child.constant;
-            } else if (promote == double.class) {
-                constant = -(double)child.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
-        if (promote == def.class && expected != null) {
-            actual = expected;
-        } else {
-            actual = promote;
-        }
-    }
-
-    @Override
-    UnaryNode write(ClassNode classNode) {
-        UnaryMathNode unaryMathNode = new UnaryMathNode();
-
-        unaryMathNode.setChildNode(child.write(classNode));
-
-        unaryMathNode.setLocation(location);
-        unaryMathNode.setExpressionType(actual);
-        unaryMathNode.setUnaryType(promote);
-        unaryMathNode.setOperation(operation);
-        unaryMathNode.setOriginallExplicit(originallyExplicit);
-
-        return unaryMathNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(operation.symbol, child);
+        return output;
     }
 }

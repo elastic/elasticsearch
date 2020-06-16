@@ -80,9 +80,9 @@
       cluster.remote_info: {}
 
   - match: { test_remote_cluster.connected: true }
-  - match: { test_remote_cluster.address: $remote_ip }
-  - gt:    { test_remote_cluster.num_sockets_connected: 0}
-  - match: { test_remote_cluster.max_socket_connections: 10}
+  - match: { test_remote_cluster.proxy_address: $remote_ip }
+  - gt:    { test_remote_cluster.num_proxy_sockets_connected: 0}
+  - match: { test_remote_cluster.max_proxy_socket_connections: 10}
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.mode: "proxy" }
 

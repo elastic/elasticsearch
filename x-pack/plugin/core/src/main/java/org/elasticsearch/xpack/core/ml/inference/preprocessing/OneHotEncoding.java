@@ -14,19 +14,20 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PreProcessor for one hot encoding a set of categorical values for a given field.
  */
 public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OneHotEncoding.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OneHotEncoding.class);
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");
@@ -81,13 +82,18 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return hotMap.entrySet().stream().collect(Collectors.toMap(HashMap.Entry::getValue, (entry) -> field));
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
     public void process(Map<String, Object> fields) {
-        Object value = MapHelper.dig(field, fields);
+        Object value = fields.get(field);
         if (value == null) {
             return;
         }

@@ -30,6 +30,78 @@ import java.util.function.Predicate;
  */
 public class XPackLicenseState {
 
+    /**
+     * A licensed feature.
+     *
+     * Each value defines the licensed state necessary for the feature to be allowed.
+     */
+    public enum Feature {
+        SECURITY(OperationMode.BASIC, false),
+        SECURITY_IP_FILTERING(OperationMode.GOLD, false),
+        SECURITY_AUDITING(OperationMode.GOLD, false),
+        SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
+        SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
+        SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
+        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
+        SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
+        SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
+        SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
+        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
+        SECURITY_STATS_AND_HEALTH(OperationMode.MISSING, true),
+
+        WATCHER(OperationMode.STANDARD, true),
+        MONITORING(OperationMode.MISSING, true),
+        // TODO: should just check WATCHER directly?
+        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
+        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
+
+        CCR(OperationMode.PLATINUM, true),
+
+        GRAPH(OperationMode.PLATINUM, true),
+
+        MACHINE_LEARNING(OperationMode.PLATINUM, true),
+
+        TRANSFORM(OperationMode.MISSING, true),
+
+        ROLLUP(OperationMode.MISSING, true),
+
+        VOTING_ONLY(OperationMode.MISSING, true),
+
+        LOGSTASH(OperationMode.STANDARD, true),
+
+        DEPRECATION(OperationMode.MISSING, true),
+
+        ILM(OperationMode.MISSING, true),
+
+        ENRICH(OperationMode.MISSING, true),
+
+        EQL(OperationMode.MISSING, true),
+
+        SQL(OperationMode.MISSING, true),
+
+        JDBC(OperationMode.PLATINUM, true),
+
+        ODBC(OperationMode.PLATINUM, true),
+
+        VECTORS(OperationMode.MISSING, true),
+
+        SPATIAL(OperationMode.MISSING, true),
+
+        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
+
+        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
+
+        ANALYTICS(OperationMode.MISSING, true);
+
+        final OperationMode minimumOperationMode;
+        final boolean needsActive;
+
+        Feature(OperationMode minimumOperationMode, boolean needsActive) {
+            this.minimumOperationMode = minimumOperationMode;
+            this.needsActive = needsActive;
+        }
+    }
+
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
@@ -77,7 +149,14 @@ public class XPackLicenseState {
             "Stopping/Deleting existing transforms continue to function."
         });
         messages.put(XPackField.ANALYTICS, new String[] {
-            "Aggregations provided by Data Science plugin are no longer usable."
+            "Aggregations provided by Analytics plugin are no longer usable."
+        });
+        messages.put(XPackField.CCR, new String[]{
+            "Creating new follower indices will be blocked",
+            "Configuring auto-follow patterns will be blocked",
+            "Auto-follow patterns will no longer discover new leader indices",
+            "The CCR monitoring endpoint will be blocked",
+            "Existing follower indices will continue to replicate data"
         });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
@@ -97,6 +176,7 @@ public class XPackLicenseState {
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
         messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
+        messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -271,6 +351,27 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
+    private static String[] ccrAcknowledgementMessages(final OperationMode current, final OperationMode next) {
+        switch (current) {
+            // the current license level permits CCR
+            case TRIAL:
+            case PLATINUM:
+            case ENTERPRISE:
+                switch (next) {
+                    // the next license level does not permit CCR
+                    case MISSING:
+                    case BASIC:
+                    case STANDARD:
+                    case GOLD:
+                        // so CCR will be disabled
+                        return new String[]{
+                            "Cross-Cluster Replication will be disabled"
+                        };
+                }
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
     private static boolean isBasic(OperationMode mode) {
         return mode == OperationMode.BASIC;
     }
@@ -358,222 +459,26 @@ public class XPackLicenseState {
         return executeAgainstStatus(status -> status.mode);
     }
 
+    /**
+     * Checks that the cluster has a valid licence of any level.
+     * @see #isActive()
+     */
+    public boolean allowForAllLicenses() {
+        return checkAgainstStatus(status -> status.active);
+    }
+
+    // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
         return checkAgainstStatus(status -> status.active);
     }
 
-    /**
-     * @return true if authentication and authorization should be enabled. this does not indicate what realms are available
-     * @see #allowedRealmType() for the enabled realms
-     */
-    public boolean isAuthAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.BASIC, true, false, true);
-    }
-
-    /**
-     * @return true if IP filtering should be enabled
-     */
-    public boolean isIpFilteringAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.GOLD, true, false, true);
-    }
-
-    /**
-     * @return true if auditing should be enabled
-     */
-    public boolean isAuditingAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.GOLD, true, false, true);
-    }
-
-    /**
-     * Indicates whether the stats and health API calls should be allowed. If a license is expired and past the grace
-     * period then we deny these calls.
-     *
-     * @return true if the license allows for the stats and health APIs to be used.
-     */
-    public boolean isStatsAndHealthAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if Document Level Security (DLS) and Field Level Security (FLS) should be enabled.
-     * <p>
-     * DLS and FLS are only disabled when the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     * Note: This does not consider the <em>state</em> of the license so that Security does not suddenly leak information!
-     *
-     * @return {@code true} to enable DLS and FLS. Otherwise {@code false}.
-     */
-    public boolean isDocumentAndFieldLevelSecurityAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, true, false, true);
-    }
-
-    /** Classes of realms that may be available based on the license type. */
-    public enum AllowedRealmType {
-        NONE,
-        NATIVE,
-        DEFAULT,
-        ALL
-    }
-
-    /**
-     * @return the type of realms that are enabled based on the license {@link OperationMode}
-     */
-    public AllowedRealmType allowedRealmType() {
-        return executeAgainstStatus(status -> {
-            final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-            if (isSecurityCurrentlyEnabled) {
-                switch (status.mode) {
-                    case PLATINUM:
-                    case ENTERPRISE:
-                    case TRIAL:
-                        return AllowedRealmType.ALL;
-                    case GOLD:
-                        return AllowedRealmType.DEFAULT;
-                    case BASIC:
-                    case STANDARD:
-                        return AllowedRealmType.NATIVE;
-                    default:
-                        return AllowedRealmType.NONE;
-                }
-            } else {
-                return AllowedRealmType.NONE;
-            }
-        });
-    }
-
-    /**
-     * @return whether custom role providers are allowed based on the license {@link OperationMode}
-     */
-    public boolean isCustomRoleProvidersAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, true, true, true);
-    }
-
-    /**
-     * @return whether the Elasticsearch {@code TokenService} is allowed based on the license {@link OperationMode}
-     */
-    public boolean isTokenServiceAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.GOLD, true, false, true);
-    }
-
-    /**
-     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
-     */
-    public boolean isApiKeyServiceAllowed() {
-        return isAllowedBySecurity();
-    }
-
-    /**
-     * @return whether "authorization_realms" are allowed based on the license {@link OperationMode}
-     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
-     */
-    public boolean isAuthorizationRealmAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, true, true, true);
-    }
-
-    /**
-     * @return whether a custom authorization engine is allowed based on the license {@link OperationMode}
-     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
-     */
-    public boolean isAuthorizationEngineAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, true, true, true);
-    }
-
-    /**
-     * Determine if Watcher is available based on the current license.
-     * <p>
-     * Watcher is available if the license is active (hasn't expired) and of one of the following types:
-     * <ul>
-     * <li>{@link OperationMode#STANDARD}</li>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#GOLD}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *
-     * @return {@code true} as long as the license is valid. Otherwise {@code false}.
-     */
-    public boolean isWatcherAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.STANDARD, false, true, true);
-    }
-
-    /**
-     * Monitoring is always available as long as there is a valid license
-     *
-     * @return true if the license is active
-     */
-    public boolean isMonitoringAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Monitoring Cluster Alerts requires the equivalent license to use Watcher.
-     *
-     * @return {@link #isWatcherAllowed()}
-     * @see #isWatcherAllowed()
-     */
-    public boolean isMonitoringClusterAlertsAllowed() {
-        return isWatcherAllowed();
-    }
-
-    /**
-     * Determine if the current license allows the retention of indices to be modified.
-     * <p>
-     * Only users with a non-{@link OperationMode#BASIC} license can update the retention period.
-     * <p>
-     * Note: This does not consider the <em>state</em> of the license so that any change is remembered for when they fix their license.
-     *
-     * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.
-     */
-    public boolean isUpdateRetentionAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.STANDARD, false, false, true);
-    }
-
-    /**
-     * Determine if Graph Exploration should be enabled.
-     * <p>
-     * Exploration is only disabled when the license has expired or if the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *
-     * @return {@code true} as long as the license is valid. Otherwise {@code false}.
-     */
-    public boolean isGraphAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, false, true, true);
-    }
-
-    /**
-     * Determine if Machine Learning should be enabled.
-     * <p>
-     * Machine Learning is only disabled when the license has expired or if the
-     * mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *
-     * @return {@code true} as long as the license is valid. Otherwise
-     *         {@code false}.
-     */
-    public boolean isMachineLearningAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, false, true, true);
+    public boolean isAllowed(Feature feature) {
+        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
-    }
-
-    /**
-     * Transform is always available as long as there is a valid license
-     *
-     * @return true if the license is active
-     */
-    public boolean isTransformAllowed() {
-        return isActive();
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
@@ -582,176 +487,15 @@ public class XPackLicenseState {
     }
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     /**
-     * Rollup is always available as long as there is a valid license
-     *
-     * @return true if the license is active
+     * Returns whether security is enabled, taking into account the default enabled state
+     * based on the current license level.
      */
-    public boolean isRollupAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Voting only node functionality is always available as long as there is a valid license
-     *
-     * @return true if the license is active
-     */
-    public boolean isVotingOnlyAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
-     * @return {@code true} as long as there is a valid license
-     */
-    public boolean isLogstashAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.STANDARD, false, true, true);
-    }
-
-    /**
-     * Beats is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
-     * @return {@code true} as long as there is a valid license
-     */
-    public boolean isBeatsAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.STANDARD, false, true, true);
-    }
-
-    /**
-     * Deprecation APIs are always allowed as long as there is an active license
-     * @return {@code true} as long as there is a valid license
-     */
-    public boolean isDeprecationAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if Upgrade API should be enabled.
-     *
-     * @return {@code true} as long as the license is valid. Otherwise
-     *         {@code false}.
-     */
-    public boolean isUpgradeAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if Index Lifecycle API should be enabled.
-     *
-     * @return {@code true} as long as the license is valid. Otherwise
-     *         {@code false}.
-     */
-    public boolean isIndexLifecycleAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if the enrich processor and related APIs are allowed to be used.
-     *
-     * @return {@code true} as long as the license is valid. Otherwise
-     *         {@code false}.
-     */
-    public boolean isEnrichAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if EQL support should be enabled.
-     * <p>
-     *  EQL is available for all license types except {@link OperationMode#MISSING}
-     */
-    public boolean isEqlAllowed() {
-        return checkAgainstStatus(status -> status.active);
-    }
-
-    /**
-     * Determine if SQL support should be enabled.
-     */
-    public boolean isSqlAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if JDBC support should be enabled.
-     * <p>
-     *  JDBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
-     */
-    public boolean isJdbcAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, false, true, true);
-    }
-
-    /**
-     * Determine if support for flattened object fields should be enabled.
-     */
-    public boolean isFlattenedAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if Vectors support should be enabled.
-     */
-    public boolean isVectorsAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Determine if ODBC support should be enabled.
-     * <p>
-     * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
-     */
-    public boolean isOdbcAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, false, true, true);
-    }
-
-    /**
-     * Determine if Spatial features should be enabled.
-     *
-     * @return {@code true} as long as the license is valid. Otherwise
-     *         {@code false}.
-     */
-    public boolean isSpatialAllowed() {
-        return isActive();
-    }
-
-    /**
-     * Datascience is always available as long as there is a valid license
-     *
-     * @return true if the license is active
-     */
-    public boolean isDataScienceAllowed() {
-        return isActive();
-    }
-
-    /**
-     * @return true if security is available to be used with the current license type
-     */
-    public boolean isSecurityAvailable() {
-        return checkAgainstStatus(status -> {
-            OperationMode mode = status.mode;
-            return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
-                mode == OperationMode.TRIAL || mode == OperationMode.BASIC || mode == OperationMode.ENTERPRISE;
-        });
-    }
-
-    /**
-     * @return true if security has been disabled due it being the default setting for this license type.
-     *  The conditions necessary for this are:
-     *         <ul>
-     *             <li>A trial or basic license</li>
-     *             <li>xpack.security.enabled not specified as a setting</li>
-     *         </ul>
-     */
-    public boolean isSecurityDisabledByLicenseDefaults() {
-        return checkAgainstStatus(status -> {
-            switch (status.mode) {
-                case TRIAL:
-                case BASIC:
-                    return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
-            }
-            return false;
-        });
+    public boolean isSecurityEnabled() {
+        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
     }
 
     public static boolean isTransportTlsRequired(License license, Settings settings) {
@@ -785,28 +529,13 @@ public class XPackLicenseState {
         }
     }
 
-    /**
-     * Determine if cross-cluster replication should be enabled.
-     * <p>
-     * Cross-cluster replication is only disabled when the license has expired or if the mode is not:
-     * <ul>
-     * <li>{@link OperationMode#PLATINUM}</li>
-     * <li>{@link OperationMode#TRIAL}</li>
-     * </ul>
-     *
-     * @return true is the license is compatible, otherwise false
-     */
-    public boolean isCcrAllowed() {
-        return isAllowedByLicenseAndSecurity(OperationMode.PLATINUM, false, true, true);
-    }
-
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public static boolean isAllowedByOperationMode(
-        final OperationMode operationMode, final OperationMode minimumMode, final boolean allowTrial) {
-        if (allowTrial && OperationMode.TRIAL == operationMode) {
+        final OperationMode operationMode, final OperationMode minimumMode) {
+        if (OperationMode.TRIAL == operationMode) {
             return true;
         }
         return operationMode.compareTo(minimumMode) >= 0;
@@ -823,31 +552,31 @@ public class XPackLicenseState {
         return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
     }
 
-    private boolean isAllowedBySecurity() {
-        return checkAgainstStatus(status -> isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled));
-    }
-
     /**
-     * Test whether a feature is allowed by the status of current license and security configuration.
+     * Test whether a feature is allowed by the status of license.
      *
      * @param minimumMode  The minimum license to meet or exceed
-     * @param needSecurity Whether security is required for feature to be allowed
      * @param needActive   Whether current license needs to be active
-     * @param allowTrial   Whether the feature is allowed for trial license
      *
      * @return true if feature is allowed, otherwise false
      */
-    private boolean isAllowedByLicenseAndSecurity(
-        OperationMode minimumMode, boolean needSecurity, boolean needActive, boolean allowTrial) {
+    public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(status -> {
-            if (needSecurity && false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
-                return false;
-            }
             if (needActive && false == status.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
+            return isAllowedByOperationMode(status.mode, minimumMode);
         });
+    }
+
+    /**
+     * A convenient method to test whether a feature is by license status.
+     * @see #isAllowedByLicense(OperationMode, boolean)
+     *
+     * @param minimumMode  The minimum license to meet or exceed
+     */
+    public boolean isAllowedByLicense(OperationMode minimumMode) {
+        return isAllowedByLicense(minimumMode, true);
     }
 
 }

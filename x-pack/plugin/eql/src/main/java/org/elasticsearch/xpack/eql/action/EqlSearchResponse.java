@@ -27,50 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-
-/**
- * Response to perform an eql search
- *
- * Example events response:
- *         List&lt;SearchHit&gt; events = Arrays.asList(
- *             new SearchHit(1, "111", null),
- *             new SearchHit(2, "222", null)
- *         );
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(Arrays.asList(
- *             new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),
- *             new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
- *         ), null, null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- *
- *
- *  Example sequence response:
- *         List&lt;SearchHit&gt; events1 = Arrays.asList(
- *             new SearchHit(1, "111", null),
- *             new SearchHit(2, "222", null)
- *         );
- *         List&lt;SearchHit&gt; events2 = Arrays.asList(
- *             new SearchHit(1, "333", null),
- *             new SearchHit(2, "444", null)
- *         );
- *         List&lt;Sequence&gt; sequences = Arrays.asList(
- *                 new EqlSearchResponse.Sequence(new String[]{"4021"}, events1),
- *                 new EqlSearchResponse.Sequence(new String[]{"2343"}, events2)
- *             );
- *
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, sequences, null, new TotalHits(100, TotalHits.Relation.EQUAL_TO));
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- *
- *
- *  Example count response:
- *         TotalHits totals = new TotalHits(100, TotalHits.Relation.EQUAL_TO);
- *         List&lt;Count&gt; counts = Arrays.asList(
- *                 new EqlSearchResponse.Count(40, new String[]{"foo", "bar"}, .42233f),
- *                 new EqlSearchResponse.Count(15, new String[]{"foo", "bar"}, .170275f)
- *         );
- *
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, null, counts, totals);
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- */
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
 
     private final Hits hits;
@@ -260,6 +216,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public int hashCode() {
             return Objects.hash(joinKeys, events);
         }
+
+        public List<String> joinKeys() {
+            return joinKeys;
+        }
+
+        public List<SearchHit> events() {
+            return events;
+        }
     }
 
     // Count
@@ -345,6 +309,18 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         public int hashCode() {
             return Objects.hash(count, keys, percent);
         }
+
+        public int count() {
+            return count;
+        }
+
+        public List<String> keys() {
+            return keys;
+        }
+
+        public float percent() {
+            return percent;
+        }
     }
 
     // Hits
@@ -379,7 +355,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events =  in.readBoolean() ? in.readList(SearchHit::new) : null;
+            events = in.readBoolean() ? in.readList(SearchHit::new) : null;
             sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
             counts = in.readBoolean() ? in.readList(Count::new) : null;
         }
@@ -482,6 +458,22 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public int hashCode() {
             return Objects.hash(events, sequences, counts, totalHits);
+        }
+
+        public List<SearchHit> events() {
+            return this.events;
+        }
+
+        public List<Sequence> sequences() {
+            return this.sequences;
+        }
+
+        public List<Count> counts() {
+            return this.counts;
+        }
+
+        public TotalHits totalHits() {
+            return this.totalHits;
         }
     }
 }

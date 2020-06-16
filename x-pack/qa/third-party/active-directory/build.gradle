@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testCompile project(xpackModule('security'))
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('security'))
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
 testFixtures.useFixture ":x-pack:test:smb-fixture"
@@ -12,8 +12,6 @@ testFixtures.useFixture ":x-pack:test:smb-fixture"
 processTestResources {
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
 }
-
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 // we have to repeat these patterns because the security test resources are effectively in the src of this p
 forbiddenPatterns {

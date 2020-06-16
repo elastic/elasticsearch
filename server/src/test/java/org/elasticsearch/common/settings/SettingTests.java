@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
@@ -830,6 +830,59 @@ public class SettingTests extends ESTestCase {
         assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
     }
 
+    public void testAffixSettingsValidatorDependencies() {
+        Setting<Integer> affix = Setting.affixKeySetting("abc.", "def", k -> Setting.intSetting(k, 10));
+        Setting<Integer> fix0 = Setting.intSetting("abc.tuv", 20, 0);
+        Setting<Integer> fix1 = Setting.intSetting("abc.qrx", 20, 0, new Setting.Validator<Integer>() {
+            @Override
+            public void validate(Integer value) {}
+
+            String toString(Map<Setting<?>, Object> s) {
+                return s.entrySet().stream().map(e -> e.getKey().getKey() + ":" + e.getValue().toString()).sorted()
+                    .collect(Collectors.joining(","));
+            }
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (settings.get(fix0).equals(fix0.getDefault(Settings.EMPTY))) {
+                    settings.remove(fix0);
+                }
+                if (settings.size() == 1) {
+                    throw new IllegalArgumentException(toString(settings));
+                } else if (settings.size() == 2) {
+                    throw new IllegalArgumentException(toString(settings));
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> a = List.of(affix, fix0);
+                return a.iterator();
+            }
+        });
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 11).build()));
+        assertThat(e.getMessage(), is("abc.1.def:11,abc.2.def:12"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.3.def", 13).put("abc.qrx", 20).build()));
+        assertThat(e.getMessage(), is("abc.3.def:13"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.4.def", 14).put("abc.qrx", 20).put("abc.tuv", 50).build()));
+        assertThat(e.getMessage(), is("abc.4.def:14,abc.tuv:50"));
+
+        assertEquals(
+            fix1.get(Settings.builder()
+                .put("abc.3.def", 13).put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 20)
+                .build()),
+            Integer.valueOf(20)
+        );
+
+        assertEquals(fix1.get(Settings.builder().put("abc.qrx", 30).build()), Integer.valueOf(30));
+    }
+
     public void testMinMaxInt() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
         try {
@@ -1026,6 +1079,58 @@ public class SettingTests extends ESTestCase {
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
     }
 
+    public void testGroupSettingUpdaterValidator() {
+        final Setting.AffixSetting<Integer> affixSetting =
+            Setting.affixKeySetting("prefix.","suffix",
+                (key) -> Setting.intSetting(key, 5, Setting.Property.Dynamic, Setting.Property.NodeScope));
+        Setting<Integer> fixSetting = Setting.intSetting("abc", 1, Property.NodeScope);
+
+        Consumer<Settings> validator = s -> {
+            if (affixSetting.getNamespaces(s).contains("foo")) {
+                if (fixSetting.get(s) == 2) {
+                    throw new IllegalArgumentException("foo and 2 can't go together");
+                }
+            } else if (affixSetting.getNamespaces(s).contains("bar")) {
+                throw new IllegalArgumentException("no bar");
+            }
+        };
+
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
+            Arrays.asList(affixSetting, fixSetting), validator);
+
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(
+                Settings.builder()
+                    .put("prefix.foo.suffix", 5)
+                    .put("abc", 2)
+                    .build(),
+                Settings.EMPTY
+            );
+        });
+        assertEquals("foo and 2 can't go together", illegal.getMessage());
+
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(
+                Settings.builder()
+                    .put("prefix.bar.suffix", 6)
+                    .put("abc", 3)
+                    .build(),
+                Settings.EMPTY
+            );
+        });
+        assertEquals("no bar", illegal.getMessage());
+
+        Settings s = updater.getValue(
+            Settings.builder()
+                .put("prefix.foo.suffix", 5)
+                .put("prefix.bar.suffix", 5)
+                .put("abc", 3)
+                .build(),
+            Settings.EMPTY
+        );
+        assertNotNull(s);
+    }
+
     public void testExists() {
         final Setting<?> fooSetting = Setting.simpleString("foo", Property.NodeScope);
         assertFalse(fooSetting.exists(Settings.EMPTY));
@@ -1105,9 +1210,9 @@ public class SettingTests extends ESTestCase {
     @TestLogging(value="org.elasticsearch.common.settings.IndexScopedSettings:INFO",
         reason="to ensure we log INFO-level messages from IndexScopedSettings")
     public void testLogSettingUpdate() throws Exception {
-        final IndexMetaData metaData = newIndexMeta("index1",
+        final IndexMetadata metadata = newIndexMeta("index1",
             Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "20s").build());
-        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -1124,7 +1229,7 @@ public class SettingTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
         try {
             Loggers.addAppender(logger, mockLogAppender);
-            settings.updateIndexMetaData(newIndexMeta("index1",
+            settings.updateIndexMetadata(newIndexMeta("index1",
                 Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build()));
 
             mockLogAppender.assertAllExpectationsMatched();

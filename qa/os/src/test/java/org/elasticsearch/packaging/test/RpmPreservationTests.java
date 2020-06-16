@@ -32,7 +32,6 @@ import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -63,9 +62,6 @@ public class RpmPreservationTests extends PackagingTestCase {
         // config was removed
         assertThat(installation.config, fileDoesNotExist());
 
-        // sysvinit service file was removed
-        assertThat(SYSVINIT_SCRIPT, fileDoesNotExist());
-
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
     }
@@ -78,21 +74,12 @@ public class RpmPreservationTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
 
         sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        )
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            )
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
                 .map(each -> installation.config(each))
                 .forEach(path -> append(path, "# foo"));
         }
@@ -112,34 +99,24 @@ public class RpmPreservationTests extends PackagingTestCase {
             installation.logs,
             installation.pidDir,
             installation.envFile,
-            SYSVINIT_SCRIPT,
             SYSTEMD_SERVICE
         );
 
         assertThat(installation.config, fileExists());
         assertThat(installation.config("elasticsearch.keystore"), fileExists());
 
-        Stream.of(
-            "elasticsearch.yml",
-            "jvm.options",
-            "log4j2.properties"
-        ).forEach(this::assertConfFilePreserved);
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
         if (distribution().isDefault()) {
-            Stream.of(
-                "role_mapping.yml",
-                "roles.yml",
-                "users",
-                "users_roles"
-            ).forEach(this::assertConfFilePreserved);
+            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
         }
     }
 
     private void assertConfFilePreserved(String configFile) {
         final Path original = installation.config(configFile);
         final Path saved = installation.config(configFile + ".rpmsave");
-        assertConfFilePreserved(original ,saved);
+        assertConfFilePreserved(original, saved);
     }
 
     private void assertConfFilePreserved(final Path original, final Path saved) {

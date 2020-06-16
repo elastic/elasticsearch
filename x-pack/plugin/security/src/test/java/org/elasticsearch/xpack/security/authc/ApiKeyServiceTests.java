@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -59,9 +62,11 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -94,7 +99,8 @@ public class ApiKeyServiceTests extends ESTestCase {
     @Before
     public void setupMocks() {
         this.licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
@@ -163,7 +169,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         mockKeyDocument(service, id, key, new User(randomAlphaOfLength(6), randomAlphaOfLength(12)));
 
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
         final AuthenticationResult auth = tryAuthenticate(service, id, key);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(auth.getUser(), nullValue());
@@ -302,7 +308,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().roles(), arrayContaining("a role"));
+        assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
@@ -316,7 +322,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
         assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().roles(), arrayContaining("a role"));
+        assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
@@ -433,6 +439,20 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(result.getRoleDescriptors().get(0).getName(), is("a role"));
             assertThat(result.getLimitedByRoleDescriptors().get(0).getName(), is("limited role"));
         }
+    }
+
+    public void testApiKeyServiceDisabled() throws Exception {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
+        final ApiKeyService service = createApiKeyService(settings);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> service.getApiKeys(randomAlphaOfLength(6), randomAlphaOfLength(8), null, null, new PlainActionFuture<>()));
+
+        assertThat(e, instanceOf(FeatureNotEnabledException.class));
+        // Older Kibana version looked for this exact text:
+        assertThat(e, throwableWithMessage("api keys are not enabled"));
+        // Newer Kibana versions will check the metadata for this string literal:
+        assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("api_keys"));
     }
 
     public void testApiKeyCache() {
@@ -566,12 +586,20 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(cachedApiKeyHashResult);
     }
 
-    public void testWillAlwaysGetAuthenticationRealmName() {
+    public void testWillGetLookedUpByRealmNameIfExists() {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("lookup_by", "lookup_by_type", "node");
+        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("looked_up_by", "looked_up_by_type", "node");
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
-        assertEquals("auth_by", ApiKeyService.getCreatorRealmName(authentication));
+        assertEquals("looked_up_by", ApiKeyService.getCreatorRealmName(authentication));
+    }
+
+    public void testWillGetLookedUpByRealmTypeIfExists() {
+        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
+        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("looked_up_by", "looked_up_by_type", "node");
+        final Authentication authentication = new Authentication(
+            new User("user"), authenticatedBy, lookedUpBy);
+        assertEquals("looked_up_by_type", ApiKeyService.getCreatorRealmType(authentication));
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

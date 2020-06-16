@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,7 +73,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
     }
 
     static ClusterState innerActivate(final Request request, ClusterState currentState) {
-        final AutoFollowMetadata autoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
+        final AutoFollowMetadata autoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
         }
@@ -107,7 +107,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
                 previousAutoFollowPattern.getReadPollTimeout()));
 
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentState.getMetaData())
+            .metadata(Metadata.builder(currentState.getMetadata())
                 .putCustom(AutoFollowMetadata.TYPE,
                     new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders()))
                 .build())

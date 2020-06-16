@@ -22,9 +22,9 @@ package org.elasticsearch.example;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.AliasOrIndex.Index;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.Index;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -130,8 +130,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        Map<String, AliasOrIndex> aliasOrIndexMap = new HashMap<>();
-        aliasOrIndexMap.put("index", new Index(IndexMetaData.builder("index")
+        Map<String, IndexAbstraction> indicesMap = new HashMap<>();
+        indicesMap.put("index", new Index(IndexMetadata.builder("index")
             .settings(Settings.builder().put("index.version.created", Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -148,7 +148,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                aliasOrIndexMap, resultFuture);
+                indicesMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
             assertThat(result.isAuditable(), is(true));
@@ -169,7 +169,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                aliasOrIndexMap, resultFuture);
+                indicesMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             assertThat(result.isAuditable(), is(true));

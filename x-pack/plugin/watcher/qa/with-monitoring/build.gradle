@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.monitoring.collection.interval', '1s'
+  setting 'xpack.watcher.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

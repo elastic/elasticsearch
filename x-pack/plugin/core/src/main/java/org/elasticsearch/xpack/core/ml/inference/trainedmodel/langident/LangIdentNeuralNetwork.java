@@ -20,21 +20,23 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
-public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel {
+public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel, InferenceModel {
 
     public static final ParseField NAME = new ParseField("lang_ident_neural_network");
     public static final ParseField EMBEDDED_VECTOR_FEATURE_NAME = new ParseField("embedded_vector_feature_name");
@@ -104,7 +106,11 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
+        if (config.requestingImportance()) {
+            throw ExceptionsHelper.badRequestException("[{}] model does not supports feature importance",
+                NAME.getPreferredName());
+        }
         if (config instanceof ClassificationConfig == false) {
             throw ExceptionsHelper.badRequestException("[{}] model only supports classification",
                 NAME.getPreferredName());
@@ -125,20 +131,39 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);
         double[] scores = softmaxLayer.productPlusBias(true, h0);
 
-        List<Double> probabilities = softMax(Arrays.stream(scores).boxed().collect(Collectors.toList()));
+        double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
         Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,
             null,
-            classificationConfig.getNumTopClasses());
+            classificationConfig.getNumTopClasses(),
+            PredictionFieldType.STRING);
         assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();
         return new ClassificationInferenceResults(topClasses.v1(),
             LANGUAGE_NAMES.get(topClasses.v1()),
             topClasses.v2(),
+            Collections.emptyList(),
             classificationConfig);
+    }
+
+    @Override
+    public InferenceResults infer(double[] embeddedVector, InferenceConfig config) {
+        throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+    }
+
+    @Override
+    public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        if (newFeatureIndexMapping != null && newFeatureIndexMapping.isEmpty() == false) {
+            throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+        }
+    }
+
+    @Override
+    public String[] getFeatureNames() {
+        return new String[] {embeddedVectorFeatureName};
     }
 
     @Override
@@ -157,6 +182,11 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         numOps += softmaxLayer.getBias().length; // adding bias
         numOps += softmaxLayer.getWeights().length; // multiplying softmax weights
         return numOps;
+    }
+
+    @Override
+    public boolean supportsFeatureImportance() {
+        return false;
     }
 
     @Override

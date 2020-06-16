@@ -16,7 +16,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
@@ -93,7 +92,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
                                                       XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
                 });
         }

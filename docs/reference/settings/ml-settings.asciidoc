@@ -36,25 +36,27 @@ IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
 the `node.ml` role.
 
 `xpack.ml.enabled`::
-Set to `true` (default) to enable {ml} on the node. +
+Set to `true` (default) to enable {ml} on the node.
 +
-If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled on the node.
-Therefore the node cannot open jobs, start {dfeeds}, or receive transport (internal)
-communication requests related to {ml} APIs. It also affects all {kib} instances
-that connect to this {es} instance; you do not need to disable {ml} in those
-`kibana.yml` files. For more information about disabling {ml} in specific {kib}
-instances, see
-{kibana-ref}/ml-settings-kb.html[{kib} Machine Learning Settings].
+If set to `false`, the {ml} APIs are disabled on the node. Therefore the node
+cannot open jobs, start {dfeeds}, or receive transport (internal) communication
+requests related to {ml} APIs. If the node is a coordinating node, {ml} requests
+from clients (including {kib}) also fail. For more information about disabling
+{ml} in specific {kib} instances, see
+{kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
 +
-IMPORTANT: If you want to use {ml} features in your cluster, you must have
-`xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
-default behavior.
+IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
+that you set `xpack.ml.enabled` to `true` on all nodes. This is the
+default behavior. At a minimum, it must be enabled on all master-eligible nodes.
+If you want to use {ml-features} in clients or {kib}, it must also be enabled on
+all coordinating nodes.
 
 `xpack.ml.inference_model.cache_size`::
 The maximum inference cache size allowed. The inference cache exists in the JVM
 heap on each ingest node. The cache affords faster processing times for the
 `inference` processor. The value can be a static byte sized value (i.e. "2gb")
 or a percentage of total allocated heap. The default is "40%".
+See also <<model-inference-circuit-breaker>>.
 
 `xpack.ml.inference_model.time_to_live`::
 The time to live (TTL) for models in the inference model cache. The TTL is
@@ -136,3 +138,24 @@ to the {es} JVM. When such processes are started they must connect to the {es}
 JVM. If such a process does not connect within the time period specified by this
 setting then the process is assumed to have failed. Defaults to `10s`. The minimum
 value for this setting is `5s`.
+
+[[model-inference-circuit-breaker]]
+==== {ml-cap} circuit breaker settings
+
+`breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)
+Limit for model inference breaker, defaults to 50% of JVM heap.
+If the parent circuit breaker is less than 50% of JVM heap, it is bound
+to that limit instead.
+See <<circuit-breaker>>.
+
+`breaker.model_inference.overhead` (<<cluster-update-settings,Dynamic>>)
+A constant that all accounting estimations are multiplied with to determine
+a final estimation. Defaults to 1.
+See <<circuit-breaker>>.
+
+`breaker.model_inference.type`
+The underlying type of the circuit breaker. There are two valid options:
+`noop`, meaning the circuit breaker does nothing to prevent too much memory usage,
+`memory`, meaning the circuit breaker tracks the memory used by inference models and
+could potentially break and prevent OutOfMemory errors.
+The default is `memory`.

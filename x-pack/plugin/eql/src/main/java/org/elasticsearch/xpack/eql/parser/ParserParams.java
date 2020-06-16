@@ -6,26 +6,33 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
+import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_TYPE;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.IMPLICIT_JOIN_KEY;
 
 public class ParserParams {
 
-    private String fieldEventType = FIELD_EVENT_TYPE;
+    private final ZoneId zoneId;
+    private String fieldEventCategory = FIELD_EVENT_CATEGORY;
     private String fieldTimestamp = FIELD_TIMESTAMP;
-    private String implicitJoinKey = IMPLICIT_JOIN_KEY;
+    private String fieldTiebreaker = null;
+    private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
     private List<Object> queryParams = emptyList();
+
+    public ParserParams(ZoneId zoneId) {
+        this.zoneId = zoneId;
+    }
     
-    public String fieldEventType() {
-        return fieldEventType;
+    public String fieldEventCategory() {
+        return fieldEventCategory;
     }
 
-    public ParserParams fieldEventType(String fieldEventType) {
-        this.fieldEventType = fieldEventType;
+    public ParserParams fieldEventCategory(String fieldEventCategory) {
+        this.fieldEventCategory = fieldEventCategory;
         return this;
     }
 
@@ -35,6 +42,15 @@ public class ParserParams {
 
     public ParserParams fieldTimestamp(String fieldTimestamp) {
         this.fieldTimestamp = fieldTimestamp;
+        return this;
+    }
+
+    public String fieldTiebreaker() {
+        return fieldTiebreaker;
+    }
+
+    public ParserParams fieldTiebreaker(String fieldTiebreaker) {
+        this.fieldTiebreaker = fieldTiebreaker;
         return this;
     }
 
@@ -54,5 +70,9 @@ public class ParserParams {
     public ParserParams params(List<Object> params) {
         this.queryParams = params;
         return this;
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
     }
 }

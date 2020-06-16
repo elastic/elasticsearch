@@ -5,8 +5,8 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 archivesBaseName = 'x-pack-core'
 
@@ -43,17 +43,17 @@ dependencies {
     exclude group: "org.elasticsearch", module: "elasticsearch-core"
   }
 
-  testCompile 'org.elasticsearch:securemock:1.2'
-  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testCompile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  testCompile "org.slf4j:slf4j-api:${versions.slf4j}"
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-  testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
-  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-  testCompile project(":client:rest-high-level")
+  testImplementation 'org.elasticsearch:securemock:1.2'
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  testImplementation project(path: ':modules:reindex', configuration: 'runtime')
+  testImplementation project(path: ':modules:parent-join', configuration: 'runtime')
+  testImplementation project(path: ':modules:lang-mustache', configuration: 'runtime')
+  testImplementation project(path: ':modules:analysis-common', configuration: 'runtime')
+  testImplementation project(":client:rest-high-level")
 
-  testCompile(project(':x-pack:license-tools')) {
+  testImplementation(project(':x-pack:license-tools')) {
     transitive = false
   }
 
@@ -92,18 +92,12 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
-licenseHeaders {
-  approvedLicenses << 'BCrypt (BSD-like)'
-  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
-  excludes << 'org/elasticsearch/xpack/core/ssl/DerParser.java'
-}
 
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.resources {
@@ -122,6 +116,7 @@ test {
 // https://github.com/elastic/x-plugins/issues/724
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 task testJar(type: Jar) {
   appendix 'test'
@@ -149,7 +144,3 @@ thirdPartyAudit.ignoreMissingClasses(
 // so we disable integ tests
 integTest.enabled = false
 
-// There are some integ tests that don't require a cluster, we still want to run those
-task internalClusterTest(type: Test) {
-  include "**/*IT.class"
-}

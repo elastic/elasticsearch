@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -277,7 +277,7 @@ public class DiskThresholdMonitor {
             .spliterator(), false)
             .map(c -> c.key)
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
-            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
@@ -299,7 +299,7 @@ public class DiskThresholdMonitor {
     // exposed for tests to override
     long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
         return DiskThresholdDecider.sizeOfRelocatingShards(routingNode, true,
-            diskUsage.getPath(), info, reroutedClusterState.metaData(), reroutedClusterState.routingTable());
+            diskUsage.getPath(), info, reroutedClusterState.metadata(), reroutedClusterState.routingTable());
     }
 
     private void markNodesMissingUsageIneligibleForRelease(RoutingNodes routingNodes, ImmutableOpenMap<String, DiskUsage> usages,
@@ -329,8 +329,8 @@ public class DiskThresholdMonitor {
             listener.onFailure(e);
         });
         Settings readOnlySettings = readOnly ? Settings.builder()
-            .put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
-            Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
+            Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
         client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
             .execute(ActionListener.map(wrappedListener, r -> null));

@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  testCompile project(":test:framework")
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+  testImplementation project(":test:framework")
+  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testRuntimeOnly 'com.google.guava:guava:18.0'
 }

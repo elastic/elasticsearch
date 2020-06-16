@@ -86,7 +86,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     if (docIds != null) {
                         final QuerySearchResult querySearchResult = queryResults.get(index);
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
-                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds,
+                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getContextId(), docIds,
                             lastEmittedDoc);
                         SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
                         DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
@@ -104,7 +104,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
 
                                 @Override
                                 public void onFailure(Exception t) {
-                                    onShardFailure(getName(), counter, querySearchResult.getRequestId(),
+                                    onShardFailure(getName(), counter, querySearchResult.getContextId(),
                                         t, querySearchResult.getSearchShardTarget(),
                                         () -> sendResponsePhase(reducedQueryPhase, fetchResults));
                                 }

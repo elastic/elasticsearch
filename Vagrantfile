@@ -329,8 +329,12 @@ end
 
 def sles_common(config, name)
   extra = <<-SHELL
-    zypper rr systemsmanagement_puppet puppetlabs-pc1
+    zypper rr systemsmanagement_puppet puppetlabs-pc1 devel_tools_scm
+    zypper ar http://download.opensuse.org/distribution/12.3/repo/oss/ oss
+    zypper --non-interactive  --gpg-auto-import-keys refresh
     zypper --non-interactive install git-core
+    # choose to "ignore some dependencies" of expect, which has a problem with tcl... 
+    zypper --non-interactive install --force-resolution expect
   SHELL
   suse_common config, name, extra: extra
 end
@@ -487,22 +491,12 @@ JAVA
       rm -rf /tmp/bats
     }
 
-    cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
-export ZIP=/elasticsearch/distribution/zip/build/distributions
-export TAR=/elasticsearch/distribution/tar/build/distributions
-export RPM=/elasticsearch/distribution/rpm/build/distributions
-export DEB=/elasticsearch/distribution/deb/build/distributions
-export PACKAGING_TESTS=/project/build/packaging/tests
-VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
-Defaults   env_keep += "ZIP"
-Defaults   env_keep += "TAR"
-Defaults   env_keep += "RPM"
-Defaults   env_keep += "DEB"
-Defaults   env_keep += "PACKAGING_ARCHIVES"
-Defaults   env_keep += "PACKAGING_TESTS"
 Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
+Defaults   env_keep += "BATS_PLUGINS"
+Defaults   env_keep += "BATS_UPGRADE"
+Defaults   env_keep += "PACKAGE_NAME"
 Defaults   env_keep += "JAVA_HOME"
 Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS

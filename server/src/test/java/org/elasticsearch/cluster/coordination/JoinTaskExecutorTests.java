@@ -19,8 +19,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -36,32 +36,32 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
-        MetaData.Builder metaBuilder = MetaData.builder();
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1).build();
-        metaBuilder.put(indexMetaData, false);
-        MetaData metaData = metaBuilder.build();
-        JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metaData);
+        metaBuilder.put(indexMetadata, false);
+        Metadata metadata = metaBuilder.build();
+        JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
 
         expectThrows(IllegalStateException.class, () ->
         JoinTaskExecutor.ensureIndexCompatibility(VersionUtils.getPreviousVersion(Version.CURRENT),
-            metaData));
+            metadata));
     }
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
-        MetaData.Builder metaBuilder = MetaData.builder();
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1).build();
-        metaBuilder.put(indexMetaData, false);
-        MetaData metaData = metaBuilder.build();
+        metaBuilder.put(indexMetadata, false);
+        Metadata metadata = metaBuilder.build();
         expectThrows(IllegalStateException.class, () ->
             JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metaData));
+                metadata));
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -101,21 +101,21 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
     public void testSuccess() {
         Settings.builder().build();
-        MetaData.Builder metaBuilder = MetaData.builder();
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(VersionUtils.randomVersionBetween(random(),
                 Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
             .numberOfShards(1)
             .numberOfReplicas(1).build();
-        metaBuilder.put(indexMetaData, false);
-        indexMetaData = IndexMetaData.builder("test1")
+        metaBuilder.put(indexMetadata, false);
+        indexMetadata = IndexMetadata.builder("test1")
             .settings(settings(VersionUtils.randomVersionBetween(random(),
                 Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)))
             .numberOfShards(1)
             .numberOfReplicas(1).build();
-        metaBuilder.put(indexMetaData, false);
-        MetaData metaData = metaBuilder.build();
+        metaBuilder.put(indexMetadata, false);
+        Metadata metadata = metaBuilder.build();
             JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
-                metaData);
+                metadata);
     }
 }

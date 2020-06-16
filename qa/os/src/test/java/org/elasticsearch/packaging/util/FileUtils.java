@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -111,22 +112,21 @@ public class FileUtils {
 
     public static Path mktempDir(Path path) {
         try {
-            return Files.createTempDirectory(path,"tmp");
+            return Files.createTempDirectory(path, "tmp");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-
     public static Path mkdir(Path path) {
         try {
             return Files.createDirectories(path);
-         } catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
-         }
-     }
+        }
+    }
 
-     public static Path cp(Path source, Path target) {
+    public static Path cp(Path source, Path target) {
         try {
             return Files.copy(source, target);
         } catch (IOException e) {
@@ -142,9 +142,22 @@ public class FileUtils {
         }
     }
 
+    /**
+     * Creates or appends to the specified file, and writes the supplied string to it.
+     * No newline is written - if a trailing newline is required, it should be present
+     * in <code>text</code>, or use {@link Files#write(Path, Iterable, OpenOption...)}.
+     * @param file the file to create or append
+     * @param text the string to write
+     */
     public static void append(Path file, String text) {
-        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+        try (
+            BufferedWriter writer = Files.newBufferedWriter(
+                file,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND
+            )
+        ) {
 
             writer.write(text);
         } catch (IOException e) {
@@ -204,7 +217,7 @@ public class FileUtils {
             for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
                 logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
             }
-            return(logFileJoiner.toString());
+            return (logFileJoiner.toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -221,14 +234,14 @@ public class FileUtils {
                 // gc logs are verbose and not useful in this context
                 .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
                 .forEach(file -> {
-                logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
-                try (Stream<String> stream = Files.lines(file)) {
-                    stream.forEach(logger::info);
-                } catch (IOException e) {
-                    logger.error("Can't show contents", e);
-                }
-                logger.info("=== End of contents of `{}`===", file);
-            });
+                    logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
+                    try (Stream<String> stream = Files.lines(file)) {
+                        stream.forEach(logger::info);
+                    } catch (IOException e) {
+                        logger.error("Can't show contents", e);
+                    }
+                    logger.info("=== End of contents of `{}`===", file);
+                });
         } catch (IOException e) {
             logger.error("Can't list log files", e);
         }
@@ -284,7 +297,6 @@ public class FileUtils {
         return numericPathOwnership;
     }
 
-
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {
         return Paths.get("/tmp").toAbsolutePath();
@@ -295,6 +307,7 @@ public class FileUtils {
     }
 
     private static final Pattern VERSION_REGEX = Pattern.compile("(\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?)");
+
     public static String getCurrentVersion() {
         // TODO: just load this once
         String distroFile = System.getProperty("tests.distribution");
@@ -314,12 +327,12 @@ public class FileUtils {
     }
 
     public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
-        return new FeatureMatcher<Path,Iterable<Path>>(not(emptyIterable()),"File with pattern exist", "file with pattern"){
+        return new FeatureMatcher<Path, Iterable<Path>>(not(emptyIterable()), "File with pattern exist", "file with pattern") {
 
             @Override
             protected Iterable<Path> featureValueOf(Path actual) {
                 try {
-                    return Files.newDirectoryStream(actual,glob);
+                    return Files.newDirectoryStream(actual, glob);
                 } catch (IOException e) {
                     return Collections.emptyList();
                 }

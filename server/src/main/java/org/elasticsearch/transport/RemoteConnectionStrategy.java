@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -48,7 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -88,6 +88,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return numberOfChannels;
         }
 
+        public Supplier<Stream<Setting.AffixSetting<?>>> getEnablementSettings() {
+            return enablementSettings;
+        }
+
         public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
             return reader.get();
         }
@@ -101,10 +105,14 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Setting.Property.NodeScope,
             Setting.Property.Dynamic));
 
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS =
+        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 1000, Setting.Property.NodeScope);
 
-    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    private final int maxPendingConnectionListeners;
 
-    private static final int MAX_LISTENERS = 100;
+    protected final Logger logger = LogManager.getLogger(getClass());
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
@@ -113,10 +121,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
-    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                             Settings settings) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
+        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);
     }
 
@@ -149,7 +159,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static Set<String> getRemoteClusters(Settings settings) {
         final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enablementSettings.get());
+            .flatMap(strategy -> strategy.getEnablementSettings().get());
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
@@ -159,7 +169,21 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {
-            String address = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            String address = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return Strings.isEmpty(address) == false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static boolean isConnectionEnabled(String clusterAlias, Map<Setting<?>, Object> settings) {
+        ConnectionStrategy mode = (ConnectionStrategy) settings.get(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias));
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = (List<String>) settings.get(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+                .getConcreteSettingForNamespace(clusterAlias));
+            return seeds.isEmpty() == false;
+        } else {
+            String address = (String) settings.get(ProxyConnectionStrategy.PROXY_ADDRESS
+                .getConcreteSettingForNamespace(clusterAlias));
             return Strings.isEmpty(address) == false;
         }
     }
@@ -219,9 +243,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             if (closed) {
                 assert listeners.isEmpty();
             } else {
-                if (listeners.size() >= MAX_LISTENERS) {
-                    assert listeners.size() == MAX_LISTENERS;
-                    listener.onFailure(new RejectedExecutionException("connect listener queue is full"));
+                if (listeners.size() >= maxPendingConnectionListeners) {
+                    assert listeners.size() == maxPendingConnectionListeners;
+                    listener.onFailure(new EsRejectedExecutionException("connect listener queue is full"));
                     return;
                 } else {
                     listeners.add(listener);
@@ -289,8 +313,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(
-                ignore -> logger.trace("successfully connected after disconnect of {}", node),
-                e -> logger.trace(() -> new ParameterizedMessage("failed to connect after disconnect of {}", node), e)));
+                ignore -> logger.trace("[{}] successfully connected after disconnect of {}", clusterAlias, node),
+                e -> logger.debug(() -> new ParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node), e)));
         }
     }
 

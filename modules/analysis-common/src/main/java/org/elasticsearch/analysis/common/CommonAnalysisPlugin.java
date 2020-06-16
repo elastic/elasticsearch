@@ -114,6 +114,7 @@ import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -136,6 +137,7 @@ import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -149,6 +151,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -162,7 +165,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.scriptService.set(scriptService);
         return Collections.emptyList();
     }
@@ -249,9 +254,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                                 "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                         + "Please change the filter name to [edge_ngram] instead.");
                     } else {
-                        deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
-                                "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                                        + "Please change the filter name to [edge_ngram] instead.");
+                        deprecationLogger.deprecate("edgeNGram_deprecation",
+                            "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
+                             + "Please change the filter name to [edge_ngram] instead.");
                     }
                     return super.create(tokenStream);
                 }
@@ -286,9 +291,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                                 "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                         + "Please change the filter name to [ngram] instead.");
                     } else {
-                        deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
-                                "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                                        + "Please change the filter name to [ngram] instead.");
+                        deprecationLogger.deprecate("nGram_deprecation",
+                            "The [nGram] token filter name is deprecated and will be removed in a future version. "
+                            + "Please change the filter name to [ngram] instead.");
                     }
                     return super.create(tokenStream);
                 }
@@ -342,9 +347,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 throw new IllegalArgumentException("The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead.");
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("nGram_tokenizer_deprecation",
-                        "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                                + "Please change the tokenizer name to [ngram] instead.");
+                deprecationLogger.deprecate("nGram_tokenizer_deprecation",
+                    "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [ngram] instead.");
             }
             return new NGramTokenizerFactory(indexSettings, environment, name, settings);
         });
@@ -354,9 +359,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 throw new IllegalArgumentException("The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead.");
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("edgeNGram_tokenizer_deprecation",
-                        "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                                + "Please change the tokenizer name to [edge_ngram] instead.");
+                deprecationLogger.deprecate("edgeNGram_tokenizer_deprecation",
+                    "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [edge_ngram] instead.");
             }
             return new EdgeNGramTokenizerFactory(indexSettings, environment, name, settings);
         });
@@ -547,9 +552,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 throw new IllegalArgumentException("The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead.");
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("nGram_tokenizer_deprecation",
-                        "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
-                                + "Please change the tokenizer name to [ngram] instead.");
+                deprecationLogger.deprecate("nGram_tokenizer_deprecation",
+                    "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [ngram] instead.");
             }
             return new NGramTokenizer();
         }));
@@ -558,9 +563,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 throw new IllegalArgumentException("The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead.");
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("edgeNGram_tokenizer_deprecation",
-                        "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
-                                + "Please change the tokenizer name to [edge_ngram] instead.");
+                deprecationLogger.deprecate("edgeNGram_tokenizer_deprecation",
+                    "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [edge_ngram] instead.");
             }
             if (version.onOrAfter(Version.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

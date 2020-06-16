@@ -26,6 +26,240 @@ index that make warmers not necessary anymore.
 The types exists endpoint has been removed. See <<removal-of-types>> for
 more details.
 
+[role="exclude",id="xpack-commands"]
+=== X-Pack commands
+
+See <<commands>>.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See <<ml-get-calendar>> and
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{ml-docs}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="index-apis"]
+=== Index APIs
+{es} index APIs are now documented in <<indices>>.
+
+[role="exclude",id="search-request-docvalue-fields"]
+=== Doc value fields parameter for request body search API
+See <<request-body-search-docvalue-fields>>.
+
+[role="exclude",id="search-request-explain"]
+=== Explain parameter for request body search API
+See <<request-body-search-explain>>.
+
+[role="exclude",id="search-request-collapse"]
+=== Collapse parameter for request body search API
+See <<request-body-search-collapse>>.
+
+[role="exclude",id="search-request-from-size"]
+=== From and size parameters for request body search API
+See <<paginate-search-results>>.
+
+[role="exclude",id="search-request-highlighting"]
+=== Highlight parameter for request body search API
+See <<request-body-search-highlighting>>.
+
+[role="exclude",id="search-request-index-boost"]
+=== Index boost parameter for request body search API
+See <<request-body-search-index-boost>>.
+
+[role="exclude",id="search-request-inner-hits"]
+=== Inner hits parameter for request body search API
+See <<request-body-search-inner-hits>>.
+
+[role="exclude",id="search-request-min-score"]
+=== Minimum score parameter for request body search API
+See <<request-body-search-min-score>>.
+
+[role="exclude",id="search-request-named-queries-and-filters"]
+=== Named query parameter for request body search API
+See <<request-body-search-queries-and-filters>>.
+
+[role="exclude",id="search-request-post-filter"]
+=== Post filter parameter for request body search API
+See <<request-body-search-post-filter>>.
+
+[role="exclude",id="search-request-preference"]
+=== Preference parameter for request body search API
+See <<request-body-search-preference>>.
+
+[role="exclude",id="search-request-query"]
+=== Query parameter for request body search API
+See <<request-body-search-query>>.
+
+[role="exclude",id="search-request-rescore"]
+=== Rescoring parameter for request body search API
+See <<request-body-search-rescore>>.
+
+[role="exclude",id="search-request-script-fields"]
+=== Script fields parameter for request body search API
+See <<request-body-search-script-fields>>.
+
+[role="exclude",id="search-request-scroll"]
+=== Scroll parameter for request body search API
+See <<request-body-search-scroll>>.
+
+[role="exclude",id="search-request-search-after"]
+=== Search after parameter for request body search API
+See <<request-body-search-search-after>>.
+
+[role="exclude",id="search-request-search-type"]
+=== Search type parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-seq-no-primary-term"]
+=== Sequence numbers and primary terms parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-sort"]
+=== Sort parameter for request body search API
+See <<request-body-search-sort>>.
+
+[role="exclude",id="search-request-source-filtering"]
+=== Source filtering parameter for request body search API
+See <<request-body-search-source-filtering>>.
+
+[role="exclude",id="search-request-stored-fields"]
+=== Stored fields parameter for request body search API
+See <<request-body-search-stored-fields>>.
+
+[role="exclude",id="search-request-track-total-hits"]
+=== Track total hits parameter for request body search API
+See <<request-body-search-track-total-hits>>.
+
+[role="exclude",id="search-request-version"]
+=== Version parameter for request body search API
+See <<request-body-search-version>>.
+
+[role="exclude",id="search-suggesters-term"]
+=== Term suggester
+See <<term-suggester>>.
+
+[role="exclude",id="search-suggesters-phrase"]
+=== Phrase suggester
+See <<phrase-suggester>>.
+
+[role="exclude",id="search-suggesters-completion"]
+=== Completion suggester
+See <<completion-suggester>>.
+
+[role="exclude",id="suggester-context"]
+=== Context suggester
+See <<context-suggester>>.
+
+[role="exclude",id="returning-suggesters-type"]
+=== Return suggester type
+See <<return-suggesters-type>>.
+
+[role="exclude",id="search-profile-queries"]
+=== Profiling queries
+See <<profiling-queries>>.
+
+[role="exclude",id="search-profile-aggregations"]
+=== Profiling aggregations
+See <<profiling-aggregations>>.
+
+[role="exclude",id="search-profile-considerations"]
+=== Profiling considerations
+See <<profiling-considerations>>.
+
+[role="exclude",id="_explain_analyze"]
+=== Explain analyze API
+See <<explain-analyze-api>>.
+
+[role="exclude",id="indices-synced-flush"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="indices-synced-flush-api"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
 [role="exclude",id="delete-data-frame-transform"]
 ===  Delete {transforms} API
 
@@ -91,11 +325,6 @@ See <<transform-resource>>.
 
 See <<transform-resource>>.
 
-[role="exclude",id="configuring-monitoring"]
-=== Configuring monitoring
-
-See <<monitoring-overview>>.
-
 [role="exclude",id="es-monitoring"]
 === Monitoring {es}
 
@@ -125,7 +354,7 @@ See <<native-realm-configuration>>.
 [role="exclude",id="native-settings"]
 ==== Native realm settings
 
-See <<ref-native-settings>>. 
+See <<ref-native-settings>>.
 
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
@@ -135,27 +364,27 @@ See <<saml-guide>>.
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings
 
-See <<ref-saml-settings>>. 
+See <<ref-saml-settings>>.
 
 [role="exclude",id="_saml_realm_signing_settings"]
 ==== SAML realm signing settings
 
-See <<ref-saml-signing-settings>>. 
+See <<ref-saml-signing-settings>>.
 
 [role="exclude",id="_saml_realm_encryption_settings"]
 ==== SAML realm encryption settings
 
-See <<ref-saml-encryption-settings>>. 
+See <<ref-saml-encryption-settings>>.
 
 [role="exclude",id="_saml_realm_ssl_settings"]
 ==== SAML realm SSL settings
 
-See <<ref-saml-ssl-settings>>. 
+See <<ref-saml-ssl-settings>>.
 
 [role="exclude",id="configuring-file-realm"]
 === Configuring a file realm
 
-See <<file-realm-configuration>>. 
+See <<file-realm-configuration>>.
 
 [role="exclude",id="ldap-user-search"]
 === User search mode and user DN templates mode
@@ -175,7 +404,7 @@ See <<ref-ldap-settings>>.
 [role="exclude",id="ldap-ssl"]
 === Setting up SSL between Elasticsearch and LDAP
 
-See <<tls-ldap>>. 
+See <<tls-ldap>>.
 
 [role="exclude",id="configuring-kerberos-realm"]
 === Configuring a Kerberos realm
@@ -186,12 +415,13 @@ See <<kerberos-realm-configuration>>.
 === Beats and Security
 
 See:
-* {auditbeat-ref}/securing-beats.html[{auditbeat}]
-* {filebeat-ref}/securing-beats.html[{filebeat}]
-* {heartbeat-ref}/securing-beats.html[{heartbeat}]
-* {metricbeat-ref}/securing-beats.html[{metricbeat}]
-* {packetbeat-ref}/securing-beats.html[{packetbeat}]
-* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+* {auditbeat-ref}/securing-auditbeat.html[{auditbeat}]
+* {filebeat-ref}/securing-filebeat.html[{filebeat}]
+* {heartbeat-ref}/securing-heartbeat.html[{heartbeat}]
+* {metricbeat-ref}/securing-metricbeat.html[{metricbeat}]
+* {packetbeat-ref}/securing-packetbeat.html[{packetbeat}]
+* {winlogbeat-ref}/securing-winlogbeat.html[{winlogbeat}]
 
 [role="exclude",id="configuring-pki-realm"]
 === Configuring a PKI realm
@@ -216,7 +446,7 @@ See <<ref-ad-settings>>.
 [role="exclude",id="mapping-roles-ad"]
 === Mapping Active Directory users and groups to roles
 
-See <<ad-realm-configuration>>. 
+See <<ad-realm-configuration>>.
 
 [role="exclude",id="how-security-works"]
 === How security works
@@ -242,9 +472,9 @@ See the details in
 
 This page was deleted.
 [[ml-datafeed-chunking-config]]
-See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>, 
+See the details in <<ml-put-datafeed>>, <<ml-update-datafeed>>,
 [[ml-datafeed-delayed-data-check-config]]
-<<ml-get-datafeed>>, 
+<<ml-get-datafeed>>,
 [[ml-datafeed-counts]]
 <<ml-get-datafeed-stats>>.
 
@@ -283,6 +513,16 @@ See <<put-transform>>, <<preview-transform>>, <<update-transform>>,
 This page was deleted.
 See <<put-dfanalytics>>.
 
+[role="exclude",id="data-frames-settings"]
+=== {transforms-cap}  settings in Elasticsearch
+
+See <<transform-settings>>.
+
+[role="exclude",id="general-data-frames-settings"]
+==== General {transforms} settings
+
+See <<general-transform-settings>>.
+
 [role="exclude",id="ml-results-resource"]
 === Results resources
 
@@ -305,6 +545,11 @@ See <<ml-get-bucket>>,
 
 See <<snapshot-restore>>.
 
+[role="exclude",id="_repository_plugins"]
+==== Repository plugins
+
+See <<snapshots-repository-plugins>>.
+
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
 
@@ -318,7 +563,7 @@ See <<snapshots-register-repository>>.
 [role="exclude",id="ml-dfa-analysis-objects"]
 === Analysis configuration objects
 
-This page was deleted. 
+This page was deleted.
 See <<put-dfanalytics>>.
 
 [role="exclude",id="slm-api-delete"]
@@ -365,3 +610,312 @@ See <<slm-api-start>>.
 === Stop {slm} API
 
 See <<slm-api-stop>>.
+
+[role="exclude",id="ccs-works"]
+=== How {ccs} works
+
+See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
+
+[role="exclude",id="indices-component-templates"]
+=== Component template APIs
+
+coming::[7.x]
+
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+[role="exclude",id="testing"]
+=== Testing
+
+This page was deleted.
+
+[role="exclude",id="testing-framework"]
+=== Java testing framework
+
+This page was deleted.
+
+[role="exclude",id="why-randomized-testing"]
+=== Why randomized testing?
+
+This page was deleted.
+
+[role="exclude",id="using-elasticsearch-test-classes"]
+=== Using the {es} test classes
+
+This page was deleted.
+
+[role="exclude",id="unit-tests"]
+=== Unit tests
+
+This page was deleted.
+
+[role="exclude",id="integration-tests"]
+=== Integration tests
+
+This page was deleted.
+
+[role="exclude",id="number-of-shards"]
+==== Number of shards
+
+This section was deleted.
+
+[role="exclude",id="helper-methods"]
+==== Generic helper methods
+
+This section was deleted.
+
+[role="exclude",id="test-cluster-methods"]
+==== Test cluster methods
+
+This section was deleted.
+
+[role="exclude",id="changing-node-settings"]
+==== Changing node settings
+
+This section was deleted.
+
+[role="exclude",id="accessing-clients"]
+==== Accessing clients
+
+This section was deleted.
+
+[role="exclude",id="scoping"]
+==== Scoping
+
+This section was deleted.
+
+[role="exclude",id="changing-node-configuration"]
+==== Changing plugins via configuration
+
+This section was deleted.
+
+[role="exclude",id="randomized-testing"]
+=== Randomized testing
+
+This page was deleted.
+
+[role="exclude",id="generating-random-data"]
+==== Generating random data
+
+This section was deleted.
+
+[role="exclude",id="assertions"]
+=== Assertions
+
+This page was deleted.
+
+[role="exclude",id="_actions"]
+=== {ilm-init} actions
+
+See <<ilm-actions>>.
+
+[role="exclude",id="ilm-policy-definition"]
+=== {ilm-init} policy definition
+
+See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="search-uri-request"]
+=== URI search
+
+See <<search-search>>.
+
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<dangling-indices>>.
+
+[role="exclude",id="shards-allocation"]
+=== Cluster-level shard allocation
+
+See <<cluster-shard-allocation-settings>>.
+
+[role="exclude",id="disk-allocator"]
+=== Disk-based shard allocation
+
+See <<disk-based-shard-allocation>>.
+
+[role="exclude",id="allocation-awareness"]
+=== Shard allocation awareness
+
+See <<shard-allocation-awareness>>.
+
+[role="exclude",id="allocation-filtering"]
+=== Cluster-level shard allocation filtering
+
+See <<cluster-shard-allocation-filtering>>.
+
+[role="exclude",id="misc-cluster"]
+=== Miscellaneous cluster settings
+
+See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+See <<settings,Configuring Elasticsearch>> for settings information:
+
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-discovery-settings>>
+* <<modules-fielddata>>
+* <<modules-http>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+For other information, see:
+
+* <<modules-transport>>
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.
+
+[role="exclude",id="_timing"]
+=== Timing
+
+See <<ilm-phase-transitions>>.
+
+[role="exclude",id="_installation"]
+=== Installation
+
+See <<install-elasticsearch>>.
+
+[role="exclude",id="mapping-ttl-field"]
+=== `_ttl` mappings
+
+The `_ttl` mappings have been removed. As a replacement for `_ttl`
+mappings, we recommend using <<index-lifecycle-management,{ilm-init}>> to create
+time-based indices.
+
+[role="exclude",id="setup-service"]
+=== Running as a service on Linux
+
+See <<starting-elasticsearch>>.
+
+[role="exclude",id="modules-scripting-painless-syntax"]
+=== Painless syntax
+
+See {painless}/painless-lang-spec.html[Painless language specification].
+
+[role="exclude",id="using-policies-rollover"]
+=== Using policies to manage index rollover
+
+See <<getting-started-index-lifecycle-management>>.
+
+[role="exclude",id="_applying_a_policy_to_our_index"]
+=== Applying a policy to our index
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="setup-dir-layout"]
+=== Directory layout
+
+See <<settings>>.
+
+[role="exclude",id="scan-scroll"]
+=== Scan and scroll
+
+See <<request-body-search-scroll>>.
+
+[role="exclude",id="mapping-dynamic-mapping"]
+=== Dynamic mapping
+
+See <<dynamic-mapping>>.
+
+[role="exclude",id="applying-policy-to-template"]
+=== Applying a policy to an index template
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="indices-status"]
+=== Index status API
+
+The  index `_status` API has been replaced with the <<indices-stats,index
+stats>> and <<indices-recovery,index recovery>> APIs.
+
+[role="exclude",id="search-facets"]
+=== Search facets
+
+See <<search-aggregations>>.
+
+[role="exclude",id="_executing_searches"]
+=== Executing searches
+
+See <<getting-started-search>>.
+
+[role="exclude",id="mapping-root-object-type"]
+=== Mapping root object type
+
+Mapping types have been removed. See <<mapping>>.
+
+[role="exclude",id="query-dsl-filters"]
+=== Query DSL filters
+
+See <<query-filter-context>>.
+
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
+
+[role="exclude",id="ilm-with-existing-periodic-indices"]
+=== Manage existing periodic indices with {ilm-init}
+
+See <<ilm-existing-indices-apply>>.
+
+[role="exclude",id="ilm-reindexing-into-rollover"]
+=== Reindexing via {ilm-init}
+
+See <<ilm-existing-indices-reindex>>.
+
+
+////
+[role="exclude",id="search-request-body"]
+=== Request body search
+
+This page has been removed.
+
+For search API reference documentation, see <<search-search>>.
+
+For search examples, see <<run-a-search>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+
+[role="exclude",id="request-body-search-source-filtering"]
+==== Source filtering
+
+See <<source-filtering, source filtering>>.
+
+[role="exclude",id="request-body-search-docvalue-fields"]
+==== Doc value fields
+
+See <<docvalue-fields, doc value fields>>.
+////

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 public class DefOptimizationTests extends ScriptTestCase {
+
     public void testIntBraceArrayOptiLoad() {
         final String script = "int x = 0; def y = new int[1]; y[0] = 5; x = y[0]; return x;";
         assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)I");

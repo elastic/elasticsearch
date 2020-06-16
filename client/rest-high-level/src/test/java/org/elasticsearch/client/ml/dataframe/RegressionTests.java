@@ -30,11 +30,13 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
             .setLambda(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
             .setGamma(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
             .setEta(randomBoolean() ? null : randomDoubleBetween(0.001, 1.0, true))
-            .setMaximumNumberTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
+            .setMaxTrees(randomBoolean() ? null : randomIntBetween(1, 2000))
             .setFeatureBagFraction(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setNumTopFeatureImportanceValues(randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE))
             .setPredictionFieldName(randomBoolean() ? null : randomAlphaOfLength(10))
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
+            .setLossFunction(randomBoolean() ? null : randomFrom(Regression.LossFunction.values()))
+            .setLossFunctionParameter(randomBoolean() ? null : randomDoubleBetween(1.0, Double.MAX_VALUE, true))
             .build();
     }
 

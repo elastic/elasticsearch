@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
@@ -57,8 +58,9 @@ public class PivotTests extends ESTestCase {
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
 
-    private final Set<String> supportedAggregations = Stream.of(AggregationType.values()).map(AggregationType::getName)
-            .collect(Collectors.toSet());
+    private final Set<String> supportedAggregations = Stream.of(AggregationType.values())
+        .map(AggregationType::getName)
+        .collect(Collectors.toSet());
     private final String[] unsupportedAggregations = { "stats" };
 
     @Before
@@ -87,14 +89,14 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[]{"existing_source_index"}, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig(new String[] { "existing_source_index" }, QueryConfig.matchAll());
         Pivot pivot = new Pivot(getValidPivotConfig());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[]{"non_existing_source_index"}, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig(new String[] { "non_existing_source_index" }, QueryConfig.matchAll());
         Pivot pivot = new Pivot(getValidPivotConfig());
 
         assertInvalidTransform(client, source, pivot);
@@ -107,7 +109,9 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
 
         pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
-        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
+        assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
+
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     public void testSearchFailure() throws Exception {
@@ -123,7 +127,7 @@ public class PivotTests extends ESTestCase {
     public void testValidateAllSupportedAggregations() throws Exception {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
+            SourceConfig source = new SourceConfig(new String[] { "existing_source" }, QueryConfig.matchAll());
 
             Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
             assertValidTransform(client, source, pivot);
@@ -147,8 +151,11 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -166,10 +173,24 @@ public class PivotTests extends ESTestCase {
                 }
 
                 final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0), null, null, false, null, null,
-                        1);
-                final SearchResponse response = new SearchResponse(sections, null, 10, searchFailures.size() > 0 ? 0 : 5, 0, 0,
-                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]), null);
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                );
+                final SearchResponse response = new SearchResponse(
+                    sections,
+                    null,
+                    10,
+                    searchFailures.size() > 0 ? 0 : 5,
+                    0,
+                    0,
+                    searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
+                    null
+                );
 
                 listener.onResponse((Response) response);
                 return;
@@ -193,44 +214,60 @@ public class PivotTests extends ESTestCase {
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
-            return parseAggregations("{\"pivot_scripted_metric\": {\n" +
-                "\"scripted_metric\": {\n" +
-                "    \"init_script\" : \"state.transactions = []\",\n" +
-                "    \"map_script\" : \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n" +
-                "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n" +
-                "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n" +
-                "  }\n" +
-                "}}");
+            return parseAggregations(
+                "{\"pivot_scripted_metric\": {\n"
+                    + "\"scripted_metric\": {\n"
+                    + "    \"init_script\" : \"state.transactions = []\",\n"
+                    + "    \"map_script\" : "
+                    + "        \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n"
+                    + "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n"
+                    + "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n"
+                    + "  }\n"
+                    + "}}"
+            );
         }
         if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
-            return parseAggregations("{\"pivot_bucket_script\":{" +
-                "\"bucket_script\":{" +
-                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
-                "\"script\":\"return params.param_1\"}}}");
+            return parseAggregations(
+                "{\"pivot_bucket_script\":{"
+                    + "\"bucket_script\":{"
+                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
+                    + "\"script\":\"return params.param_1\"}}}"
+            );
         }
         if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
-            return parseAggregations("{\"pivot_bucket_selector\":{" +
-                "\"bucket_selector\":{" +
-                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
-                "\"script\":\"params.param_1 > 42.0\"}}}");
+            return parseAggregations(
+                "{\"pivot_bucket_selector\":{"
+                    + "\"bucket_selector\":{"
+                    + "\"buckets_path\":{\"param_1\":\"other_bucket\"},"
+                    + "\"script\":\"params.param_1 > 42.0\"}}}"
+            );
         }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
-            return parseAggregations("{\n" +
-                "\"pivot_weighted_avg\": {\n" +
-                "  \"weighted_avg\": {\n" +
-                "   \"value\": {\"field\": \"values\"},\n" +
-                "   \"weight\": {\"field\": \"weights\"}\n" +
-                "  }\n" +
-                "}\n" +
-                "}");
+            return parseAggregations(
+                "{\n"
+                    + "\"pivot_weighted_avg\": {\n"
+                    + "  \"weighted_avg\": {\n"
+                    + "   \"value\": {\"field\": \"values\"},\n"
+                    + "   \"weight\": {\"field\": \"weights\"}\n"
+                    + "  }\n"
+                    + "}\n"
+                    + "}"
+            );
         }
-        return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
-                + "    }\n" + "  }" + "}");
+        if (agg.equals(AggregationType.FILTER.getName())) {
+            return parseAggregations(
+                "{" + "\"pivot_filter\": {" + "  \"filter\": {" + "   \"term\": {\"field\": \"value\"}" + "  }" + "}" + "}"
+            );
+        }
+
+        return parseAggregations(
+            "{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n" + "    }\n" + "  }" + "}"
+        );
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         // parseAggregators expects to be already inside the xcontent object
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         return AggregationConfig.fromXContent(parser, false);

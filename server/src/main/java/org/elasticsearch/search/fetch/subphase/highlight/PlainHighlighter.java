@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.Formatter;
 import org.apache.lucene.search.highlight.Fragmenter;
@@ -36,6 +37,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -102,6 +104,12 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         Analyzer analyzer = context.getMapperService().documentMapper().mappers().indexAnalyzer();
+        Integer keywordIgnoreAbove = null;
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
+                .mappers().getMapper(highlighterContext.fieldName);
+            keywordIgnoreAbove = mapper.ignoreAbove();
+        }
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         try {
@@ -110,7 +118,11 @@ public class PlainHighlighter implements Highlighter {
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = convertFieldValue(fieldType, textToHighlight);
-                if (text.length() > maxAnalyzedOffset) {
+                int textLength = text.length();
+                if (keywordIgnoreAbove != null  && textLength > keywordIgnoreAbove) {
+                    continue; // skip highlighting keyword terms that were ignored during indexing
+                }
+                if (textLength > maxAnalyzedOffset) {
                     throw new IllegalArgumentException(
                         "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
                             "] doc of [" + context.index().getName() + "] index " +
@@ -191,7 +203,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(MappedFieldType fieldType) {
+    public boolean canHighlight(FieldType fieldType) {
         return true;
     }
 

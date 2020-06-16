@@ -15,8 +15,8 @@ import java.util.HashSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 
 public class AccountsTests extends ESTestCase {
@@ -82,7 +82,7 @@ public class AccountsTests extends ESTestCase {
         assertThat(account.name(), equalTo("account2"));
         account = service.getAccount(null);
         assertThat(account, notNullValue());
-        assertThat(account.name(), isOneOf("account1", "account2"));
+        assertThat(account.name(), is(oneOf("account1", "account2")));
     }
 
     public void testMultipleAccountsUnknownDefault() throws Exception {

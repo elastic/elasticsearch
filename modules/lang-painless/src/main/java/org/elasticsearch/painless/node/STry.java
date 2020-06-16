@@ -21,86 +21,89 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.singleton;
+import java.util.Objects;
 
 /**
  * Represents the try block as part of a try-catch block.
  */
-public final class STry extends AStatement {
+public class STry extends AStatement {
 
-    private final SBlock block;
-    private final List<SCatch> catches;
+    private final SBlock blockNode;
+    private final List<SCatch> catcheNodes;
 
-    public STry(Location location, SBlock block, List<SCatch> catches) {
-        super(location);
+    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catcheNodes) {
+        super(identifier, location);
 
-        this.block = block;
-        this.catches = Collections.unmodifiableList(catches);
+        this.blockNode = blockNode;
+        this.catcheNodes = Collections.unmodifiableList(Objects.requireNonNull(catcheNodes));
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (block == null) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
-        block.lastSource = lastSource;
-        block.inLoop = inLoop;
-        block.lastLoop = lastLoop;
+        Input blockInput = new Input();
+        blockInput.lastSource = input.lastSource;
+        blockInput.inLoop = input.inLoop;
+        blockInput.lastLoop = input.lastLoop;
 
-        block.analyze(scriptRoot, scope.newLocalScope());
+        Output blockOutput = blockNode.analyze(classNode, scriptRoot, scope.newLocalScope(), blockInput);
 
-        methodEscape = block.methodEscape;
-        loopEscape = block.loopEscape;
-        allEscape = block.allEscape;
-        anyContinue = block.anyContinue;
-        anyBreak = block.anyBreak;
+        output.methodEscape = blockOutput.methodEscape;
+        output.loopEscape = blockOutput.loopEscape;
+        output.allEscape = blockOutput.allEscape;
+        output.anyContinue = blockOutput.anyContinue;
+        output.anyBreak = blockOutput.anyBreak;
 
         int statementCount = 0;
 
-        for (SCatch catc : catches) {
-            catc.lastSource = lastSource;
-            catc.inLoop = inLoop;
-            catc.lastLoop = lastLoop;
+        List<Output> catchOutputs = new ArrayList<>();
 
-            catc.analyze(scriptRoot, scope.newLocalScope());
+        for (SCatch catc : catcheNodes) {
+            Input catchInput = new Input();
+            catchInput.lastSource = input.lastSource;
+            catchInput.inLoop = input.inLoop;
+            catchInput.lastLoop = input.lastLoop;
 
-            methodEscape &= catc.methodEscape;
-            loopEscape &= catc.loopEscape;
-            allEscape &= catc.allEscape;
-            anyContinue |= catc.anyContinue;
-            anyBreak |= catc.anyBreak;
+            Output catchOutput = catc.analyze(classNode, scriptRoot, scope.newLocalScope(), catchInput);
 
-            statementCount = Math.max(statementCount, catc.statementCount);
+            output.methodEscape &= catchOutput.methodEscape;
+            output.loopEscape &= catchOutput.loopEscape;
+            output.allEscape &= catchOutput.allEscape;
+            output.anyContinue |= catchOutput.anyContinue;
+            output.anyBreak |= catchOutput.anyBreak;
+
+            catchOutputs.add(catchOutput);
+
+            statementCount = Math.max(statementCount, catchOutput.statementCount);
         }
 
-        this.statementCount = block.statementCount + statementCount;
-    }
+        output.statementCount = blockOutput.statementCount + statementCount;
 
-    @Override
-    TryNode write(ClassNode classNode) {
         TryNode tryNode = new TryNode();
 
-        for (SCatch catc : catches) {
-            tryNode.addCatchNode(catc.write(classNode));
+        for (Output catchOutput : catchOutputs) {
+            tryNode.addCatchNode((CatchNode)catchOutput.statementNode);
         }
 
-        tryNode.setBlockNode(block.write(classNode));
+        tryNode.setBlockNode((BlockNode)blockOutput.statementNode);
+        tryNode.setLocation(getLocation());
 
-        tryNode.setLocation(location);
+        output.statementNode = tryNode;
 
-        return tryNode;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(singleton(block), catches);
+        return output;
     }
 }

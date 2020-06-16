@@ -33,9 +33,9 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.InternalSignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;

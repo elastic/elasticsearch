@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -56,6 +57,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -818,7 +820,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null,
                                     OriginalIndices.NONE)), new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
                                 new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null,
-                                    OriginalIndices.NONE)), new ShardSearchFailure(new SearchContextMissingException(0L), null)
+                                    OriginalIndices.NONE)), new ShardSearchFailure(
+                                        new SearchContextMissingException(new SearchContextId(UUIDs.randomBase64UUID(), 0L)), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 

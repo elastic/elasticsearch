@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,9 +121,8 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     protected final BucketOrder order;
     protected final long maxDocCount;
 
-    protected InternalRareTerms(String name, BucketOrder order, long maxDocCount,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    protected InternalRareTerms(String name, BucketOrder order, long maxDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.order = order;
         this.maxDocCount = maxDocCount;
     }

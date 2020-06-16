@@ -27,8 +27,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,19 +41,24 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMapper.Builder> {
     private IndexService indexService;
     private DocumentMapperParser parser;
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
+    }
 
     @Before
     public void setup() {
@@ -80,7 +85,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
 
-        try (Directory dir = new RAMDirectory();
+        try (Directory dir = new ByteBuffersDirectory();
              IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
             w.addDocuments(doc.docs());
             try (DirectoryReader reader = DirectoryReader.open(w)) {
@@ -279,4 +284,10 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
+
+    @Override
+    protected BooleanFieldMapper.Builder newBuilder() {
+        return new BooleanFieldMapper.Builder("boolean");
+    }
+
 }

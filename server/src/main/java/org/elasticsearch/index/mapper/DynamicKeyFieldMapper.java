@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -42,7 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class DynamicKeyFieldMapper extends FieldMapper {
 
     public DynamicKeyFieldMapper(String simpleName,
-                                 MappedFieldType fieldType,
+                                 FieldType fieldType,
                                  MappedFieldType defaultFieldType,
                                  Settings indexSettings,
                                  CopyTo copyTo) {

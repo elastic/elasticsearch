@@ -36,7 +36,7 @@ import org.elasticsearch.action.support.single.instance.TransportInstanceSingleO
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -102,13 +102,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void resolveRequest(ClusterState state, UpdateRequest request) {
-        resolveAndValidateRouting(state.metaData(), request.concreteIndex(), request);
+        resolveAndValidateRouting(state.metadata(), request.concreteIndex(), request);
     }
 
-    public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
-        request.routing((metaData.resolveWriteIndexRouting(request.routing(), request.index())));
+    public static void resolveAndValidateRouting(Metadata metadata, String concreteIndex, UpdateRequest request) {
+        request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && metaData.routingRequired(concreteIndex)) {
+        if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
             throw new RoutingMissingException(concreteIndex, request.id());
         }
     }
@@ -117,8 +117,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
-            client.admin().indices().create(new CreateIndexRequest().index(request.index()).cause("auto(update api)")
-                    .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            client.admin().indices().create(new CreateIndexRequest()
+                .index(request.index())
+                .cause("auto(update api)")
+                .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(task, request, listener);

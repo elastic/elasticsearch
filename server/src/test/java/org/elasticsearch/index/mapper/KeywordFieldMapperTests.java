@@ -36,10 +36,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -49,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -57,7 +58,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
+public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMapper.Builder> {
+
+    @Override
+    protected KeywordFieldMapper.Builder newBuilder() {
+        return new KeywordFieldMapper.Builder("keyword");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer");
+    }
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -80,17 +92,32 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
     }
 
+    @Override
+    protected Settings getIndexMapperSettings() {
+        return mapperSettings;
+    }
+
+    private static final Settings mapperSettings = Settings.builder()
+        .put("index.analysis.normalizer.my_lowercase.type", "custom")
+        .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
+        .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
+        .putList("index.analysis.normalizer.my_other_lowercase.filter", "lowercase").build();
+
     IndexService indexService;
     DocumentMapperParser parser;
 
     @Before
     public void setup() {
-        indexService = createIndex("test", Settings.builder()
-                .put("index.analysis.normalizer.my_lowercase.type", "custom")
-                .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
-                .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
-                .putList("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
+        indexService = createIndex("test", mapperSettings);
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("normalizer", false, (a, b) -> {
+            a.normalizer(indexService.getIndexAnalyzers(), "my_lowercase");
+        });
+        addBooleanModifier("split_queries_on_whitespace", true, KeywordFieldMapper.Builder::splitQueriesOnWhitespace);
+        addModifier("index_options", false, (a, b) -> {
+            a.indexOptions(IndexOptions.DOCS);
+            b.indexOptions(IndexOptions.DOCS_AND_FREQS);
+        });
     }
 
     public void testDefaults() throws Exception {
@@ -128,6 +155,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+
+        // used by TermVectorsService
+        assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -340,10 +370,18 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testNormalizer() throws IOException {
+    public void testCustomNormalizer() throws IOException {
+        checkLowercaseNormalizer("my_lowercase");
+    }
+
+    public void testInBuiltNormalizer() throws IOException {
+        checkLowercaseNormalizer("lowercase");
+    }
+
+    public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
-                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .field("type", "keyword").field("normalizer", normalizerName).endObject().endObject()
                 .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));

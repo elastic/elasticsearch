@@ -183,7 +183,7 @@ s|Description
 |
 |range containment, string matching
 
-|< > <= >= = <=> <> !=
+|+++< > <= >= = <=> <> !=+++
 |
 |comparison
 

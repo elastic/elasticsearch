@@ -7,11 +7,27 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
-It is best to upgrade the master-eligible nodes in your cluster after all of
-the other nodes. Once you have started to upgrade the master-eligible nodes
-they may form a cluster that nodes of older versions cannot join. If you
-upgrade the master-eligible nodes last then all the other nodes will not be
-running an older version and so they will be able to join the cluster.
+We strongly recommend that when you upgrade you divide your cluster's nodes
+into the following two groups and upgrade the groups in this order:
+
+. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
+of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
+configured with `node.master: false`.
+
+. Master-eligible nodes, which are the remaining nodes. You can retrieve a list
+of these nodes with `GET /_nodes/master:true`.
+
+You may upgrade the nodes within each of these groups in any order.
+
+Upgrading the nodes in this order ensures that the master-ineligible nodes are
+always running a version at least as new as the master-eligible nodes. Newer
+nodes can always join a cluster with an older master, but older nodes cannot
+always join a cluster with a newer master. By upgrading the master-eligible
+nodes last you ensure that all the master-ineligible nodes will be able to join
+the cluster whether the master-eligible nodes have been upgraded or not. If you
+upgrade any master-eligible nodes before the master-ineligible nodes then there
+is a risk that the older nodes will leave the cluster and will not be able to
+rejoin until they have been upgraded.
 
 Rolling upgrades are supported:
 
@@ -19,6 +35,9 @@ Rolling upgrades are supported:
 * {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
 * {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
@@ -129,8 +148,8 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 GET _cat/health?v
 --------------------------------------------------
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================

@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -96,6 +96,12 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Base class for Watcher integration tests
+ *
+ * Note that SLM has been observed to cause timing issues during testsuite teardown:
+ * https://github.com/elastic/elasticsearch/issues/50302
+ */
 @ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
 
@@ -107,7 +113,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
@@ -116,9 +121,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put("indices.lifecycle.history_index_enabled", false)
-                // SLM can cause timing issues during testsuite teardown: https://github.com/elastic/elasticsearch/issues/50302
-                // SLM is not required for tests extending from this base class and only add noise.
-                .put("xpack.slm.enabled", false)
                 .build();
     }
 
@@ -266,7 +268,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]);
+        MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -513,7 +515,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                assertThat(licenseState.isWatcherAllowed(), is(true));
+                assertThat(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER), is(true));
             }
         });
     }

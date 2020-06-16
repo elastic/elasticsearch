@@ -29,6 +29,12 @@ dependencies {
   compile "ua.net.nlp:morfologik-ukrainian-search:3.7.5"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search'
+  }
+}
+
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /morfologik-.*/, to: 'lucene'

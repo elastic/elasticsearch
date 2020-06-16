@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -35,600 +36,153 @@ import java.util.regex.Pattern;
 /**
  * Represents a binary math expression.
  */
-public final class EBinary extends AExpression {
+public class EBinary extends AExpression {
 
-    final Operation operation;
-    private AExpression left;
-    private AExpression right;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final Operation operation;
 
-    private Class<?> promote = null;            // promoted type
-    private Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
-    boolean cat = false;
-    private boolean originallyExplicit = false; // record whether there was originally an explicit cast
-
-    public EBinary(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
+    public EBinary(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        originallyExplicit = explicit;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
 
-        if (operation == Operation.MUL) {
-            analyzeMul(scriptRoot, scope);
-        } else if (operation == Operation.DIV) {
-            analyzeDiv(scriptRoot, scope);
-        } else if (operation == Operation.REM) {
-            analyzeRem(scriptRoot, scope);
-        } else if (operation == Operation.ADD) {
-            analyzeAdd(scriptRoot, scope);
-        } else if (operation == Operation.SUB) {
-            analyzeSub(scriptRoot, scope);
-        } else if (operation == Operation.FIND) {
-            analyzeRegexOp(scriptRoot, scope);
-        } else if (operation == Operation.MATCH) {
-            analyzeRegexOp(scriptRoot, scope);
-        } else if (operation == Operation.LSH) {
-            analyzeLSH(scriptRoot, scope);
-        } else if (operation == Operation.RSH) {
-            analyzeRSH(scriptRoot, scope);
-        } else if (operation == Operation.USH) {
-            analyzeUSH(scriptRoot, scope);
-        } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(scriptRoot, scope);
-        } else if (operation == Operation.XOR) {
-            analyzeXor(scriptRoot, scope);
-        } else if (operation == Operation.BWOR) {
-            analyzeBWOr(scriptRoot, scope);
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
+        Class<?> promote = null;            // promoted type
+        Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
+        boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
+
+        Input leftInput = new Input();
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+
+        Output output = new Output();
+        Input rightInput = new Input();
+        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+
+        if (operation == Operation.FIND || operation == Operation.MATCH) {
+            leftInput.expected = String.class;
+            rightInput.expected = Pattern.class;
+            promote = boolean.class;
+            output.actual = boolean.class;
         } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-    }
+            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            } else if (operation == Operation.ADD) {
+                promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+            } else if (operation == Operation.SUB) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
 
-    private void analyzeMul(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant * (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant * (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant * (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant * (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeDiv(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply divide [/] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            try {
-                if (promote == int.class) {
-                    constant = (int)left.constant / (int)right.constant;
-                } else if (promote == long.class) {
-                    constant = (long)left.constant / (long)right.constant;
-                } else if (promote == float.class) {
-                    constant = (float)left.constant / (float)right.constant;
-                } else if (promote == double.class) {
-                    constant = (double)left.constant / (double)right.constant;
-                } else {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
+                if (shiftDistance == null) {
+                    promote = null;
                 }
-            } catch (ArithmeticException exception) {
-                throw createError(exception);
+            } else if (operation == Operation.BWOR || operation == Operation.BWAND) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, false);
+            } else if (operation == Operation.XOR) {
+                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+            } else {
+                throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
             }
-        }
-    }
 
-    private void analyzeRem(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                        "[" + operation.symbol + "] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
             }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
 
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
+            output.actual = promote;
 
-        if (left.constant != null && right.constant != null) {
-            try {
-                if (promote == int.class) {
-                    constant = (int)left.constant % (int)right.constant;
-                } else if (promote == long.class) {
-                    constant = (long)left.constant % (long)right.constant;
-                } else if (promote == float.class) {
-                    constant = (float)left.constant % (float)right.constant;
-                } else if (promote == double.class) {
-                    constant = (double)left.constant % (double)right.constant;
-                } else {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
+            if (operation == Operation.ADD && promote == String.class) {
+                leftInput.expected = leftOutput.actual;
+                rightInput.expected = rightOutput.actual;
+
+                if (leftOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
+
+                    if (binaryMathNode.getOperation() == Operation.ADD && leftOutput.actual == String.class) {
+                        ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
+                    }
                 }
-            } catch (ArithmeticException exception) {
-                throw createError(exception);
-            }
-        }
-    }
 
-    private void analyzeAdd(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
+                if (rightOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
 
-        promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
+                    if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                        ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                    }
+                }
+            } else if (promote == def.class || shiftDistance == def.class) {
+                leftInput.expected = leftOutput.actual;
+                rightInput.expected = rightOutput.actual;
 
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply add [+] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == String.class) {
-            left.expected = left.actual;
-
-            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual == String.class) {
-                ((EBinary)left).cat = true;
-            }
-
-            right.expected = right.actual;
-
-            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual == String.class) {
-                ((EBinary)right).cat = true;
-            }
-        } else if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant + (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant + (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant + (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant + (double)right.constant;
-            } else if (promote == String.class) {
-                constant = left.constant.toString() + right.constant.toString();
+                if (input.expected != null) {
+                    output.actual = input.expected;
+                }
             } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
+                leftInput.expected = promote;
+
+                if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+                    if (shiftDistance == long.class) {
+                        rightInput.expected = int.class;
+                        rightInput.explicit = true;
+                    } else {
+                        rightInput.expected = shiftDistance;
+                    }
+                } else {
+                    rightInput.expected = promote;
+                }
             }
         }
 
-    }
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-    private void analyzeSub(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant - (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant - (long)right.constant;
-            } else if (promote == float.class) {
-                constant = (float)left.constant - (float)right.constant;
-            } else if (promote == double.class) {
-                constant = (double)left.constant - (double)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeRegexOp(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        left.expected = String.class;
-        right.expected = Pattern.class;
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        promote = boolean.class;
-        actual = boolean.class;
-    }
-
-    private void analyzeLSH(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
-
-        if (lhspromote == null || rhspromote == null) {
-            throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote = lhspromote;
-        shiftDistance = rhspromote;
-
-        if (lhspromote == def.class || rhspromote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = lhspromote;
-
-            if (rhspromote == long.class) {
-                right.expected = int.class;
-                right.explicit = true;
-            } else {
-                right.expected = rhspromote;
-            }
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant << (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant << (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeRSH(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
-
-        if (lhspromote == null || rhspromote == null) {
-            throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote = lhspromote;
-        shiftDistance = rhspromote;
-
-        if (lhspromote == def.class || rhspromote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = lhspromote;
-
-            if (rhspromote == long.class) {
-                right.expected = int.class;
-                right.explicit = true;
-            } else {
-                right.expected = rhspromote;
-            }
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant >> (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant >> (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeUSH(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
-        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
-
-        actual = promote = lhspromote;
-        shiftDistance = rhspromote;
-
-        if (lhspromote == null || rhspromote == null) {
-            throw createError(new ClassCastException("Cannot apply unsigned shift [>>>] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (lhspromote == def.class || rhspromote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = lhspromote;
-
-            if (rhspromote == long.class) {
-                right.expected = int.class;
-                right.explicit = true;
-            } else {
-                right.expected = rhspromote;
-            }
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant >>> (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant >>> (int)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeBWAnd(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply and [&] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant & (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant & (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeXor(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply xor [^] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == boolean.class) {
-                constant = (boolean)left.constant ^ (boolean)right.constant;
-            } else if (promote == int.class) {
-                constant = (int)left.constant ^ (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant ^ (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    private void analyzeBWOr(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
-
-        if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply or [|] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        actual = promote;
-
-        if (promote == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-            if (expected != null) {
-                actual = expected;
-            }
-        } else {
-            left.expected = promote;
-            right.expected = promote;
-        }
-
-        left = left.cast(scriptRoot, variables);
-        right = right.cast(scriptRoot, variables);
-
-        if (left.constant != null && right.constant != null) {
-            if (promote == int.class) {
-                constant = (int)left.constant | (int)right.constant;
-            } else if (promote == long.class) {
-                constant = (long)left.constant | (long)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-    }
-
-    @Override
-    BinaryMathNode write(ClassNode classNode) {
         BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        binaryMathNode.setLeftNode(left.write(classNode));
-        binaryMathNode.setRightNode(right.write(classNode));
+        binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        binaryMathNode.setLocation(location);
-        binaryMathNode.setExpressionType(actual);
+        binaryMathNode.setLocation(getLocation());
+        binaryMathNode.setExpressionType(output.actual);
         binaryMathNode.setBinaryType(promote);
         binaryMathNode.setShiftType(shiftDistance);
         binaryMathNode.setOperation(operation);
-        binaryMathNode.setCat(cat);
+        binaryMathNode.setCat(false);
         binaryMathNode.setOriginallExplicit(originallyExplicit);
 
-        return binaryMathNode;
-    }
+        output.expressionNode = binaryMathNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return output;
     }
 }

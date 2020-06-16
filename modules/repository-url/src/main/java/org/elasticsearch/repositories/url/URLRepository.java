@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.url;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -80,7 +80,7 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetaData metadata, Environment environment,
+    public URLRepository(RepositoryMetadata metadata, Environment environment,
                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
         super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
 

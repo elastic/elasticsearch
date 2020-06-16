@@ -4,5 +4,151 @@
 <titleabbrev>Remove duplicates</titleabbrev>
 ++++
 
-A token filter of type `remove_duplicates` that drops identical tokens at the
-same position.
+Removes duplicate tokens in the same position.
+
+The `remove_duplicates` filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/RemoveDuplicatesTokenFilter.html[RemoveDuplicatesTokenFilter].
+
+[[analysis-remove-duplicates-tokenfilter-analyze-ex]]
+==== Example
+
+To see how the `remove_duplicates` filter works, you first need to produce a
+token stream containing duplicate tokens in the same position.
+
+The following <<indices-analyze,analyze API>> request uses the
+<<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>> and
+<<analysis-stemmer-tokenfilter,`stemmer`>> filters to create stemmed and
+unstemmed tokens for `jumping dog`.
+
+[source,console]
+----
+GET _analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    "keyword_repeat",
+    "stemmer"
+  ],
+  "text": "jumping dog"
+}
+----
+
+The API returns the following response. Note that the `dog` token in position
+`1` is duplicated.
+
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "jumping",
+      "start_offset": 0,
+      "end_offset": 7,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "jump",
+      "start_offset": 0,
+      "end_offset": 7,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "dog",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "dog",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----
+
+To remove one of the duplicate `dog` tokens, add the `remove_duplicates` filter
+to the previous analyze API request.
+
+[source,console]
+----
+GET _analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    "keyword_repeat",
+    "stemmer",
+    "remove_duplicates"
+  ],
+  "text": "jumping dog"
+}
+----
+
+The API returns the following response. There is now only one `dog` token in
+position `1`.
+
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "jumping",
+      "start_offset": 0,
+      "end_offset": 7,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "jump",
+      "start_offset": 0,
+      "end_offset": 7,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "dog",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----
+
+[[analysis-remove-duplicates-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`remove_duplicates` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+This custom analyzer uses the `keyword_repeat` and `stemmer` filters to create a
+stemmed and unstemmed version of each token in a stream. The `remove_duplicates`
+filter then removes any duplicate tokens in the same position.
+
+[source,console]
+----
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "keyword_repeat",
+            "stemmer",
+            "remove_duplicates"
+          ]
+        }
+      }
+    }
+  }
+}
+----

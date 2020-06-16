@@ -32,11 +32,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Collections;
@@ -80,12 +83,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().process(true).threadPool(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().threadPool(true);
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -181,7 +186,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     poolThreadStats.put(threadPoolStat.getName(), threadPoolStat);
                 }
                 if (info != null) {
-                    for (ThreadPool.Info threadPoolInfo : info.getThreadPool()) {
+                    for (ThreadPool.Info threadPoolInfo : info.getInfo(ThreadPoolInfo.class)) {
                         poolThreadInfo.put(threadPoolInfo.getName(), threadPoolInfo);
                     }
                 }
@@ -195,7 +200,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(node.getName());
                 table.addCell(node.getId());
                 table.addCell(node.getEphemeralId());
-                table.addCell(info == null ? null : info.getProcess().getId());
+                table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
                 table.addCell(node.getAddress().address().getPort());
@@ -203,7 +208,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
                 Long maxQueueSize = null;
-                String keepAlive = null;
+                TimeValue keepAlive = null;
                 Integer core = null;
                 Integer max = null;
                 Integer size = null;
@@ -213,7 +218,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         maxQueueSize = poolInfo.getQueueSize().singles();
                     }
                     if (poolInfo.getKeepAlive() != null) {
-                        keepAlive = poolInfo.getKeepAlive().toString();
+                        keepAlive = poolInfo.getKeepAlive();
                     }
 
                     if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {

@@ -748,28 +748,21 @@ The three additional settings that are required for SAML support are shown below
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [saml]
-xpack.security.authc.saml.realm: saml1
-server.xsrf.whitelist: [/api/security/saml/callback]
+xpack.security.authc.providers:
+  saml.saml1:
+    order: 0
+    realm: "saml1"
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
 `xpack.security.authc.providers`::
-Set this to `[ saml ]` to instruct {kib} to use SAML SSO as the authentication
+Add `saml` provider to instruct {kib} to use SAML SSO as the authentication
 method.
 
-`xpack.security.authc.saml.realm`::
+`xpack.security.authc.providers.saml.<provider-name>.realm`::
 Set this to the name of the SAML realm that you have used in your <<saml-create-realm,
 Elasticsearch realm configuration>>, for instance: `saml1`
-
-`server.xsrf.whitelist`::
-{kib} has in-built protection against _Cross Site Request Forgery_ attacks which
-are designed to prevent the {kib} server from processing requests that
-originated from outside the {kib} application.
-In order to support SAML authentication messages that originate from your
-Identity Provider, we need to explicitly _whitelist_ the SAML authentication URL
-within {kib}, so that the {kib} server will not reject these external messages.
 
 [[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
@@ -782,17 +775,19 @@ example below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [saml, basic]
+xpack.security.authc.providers:
+  saml.saml1:
+    order: 0
+    realm: "saml1"
+  basic.basic1:
+    order: 1
 ------------------------------------------------------------
 
-The order is important - this will _initiate_ SAML authentication for
-unauthenticated users, but will _accept_ basic authentication.
-
-If {kib} is configured in this way, then users who wish to login with a
-username and password, can do so by directly accessing the `/login` page in
-{kib}. This login will not use SAML credentials, and will rely on one of the
-other security realms within {es}. Only users who have a username and password
-for a configured {es} authentication realm will be able to login via this page.
+If {kib} is configured in this way, users are presented with a choice
+at the Login Selector UI. They log in with SAML or they provide a username and password and rely on one
+of the other security realms within {es}. Only users who have
+a username and password for a configured {es} authentication realm can
+log in via {kib} login form.
 
 Alternatively, when the `basic` authentication provider is enabled, you can
 place a reverse proxy in front of {kib}, and configure it to send a basic
@@ -879,7 +874,7 @@ an {es} access token and a refresh token. The access token is used as credential
 for subsequent calls to {es}. The refresh token enables the user to get new {es}
 access tokens after the current one expires.
 
-[[saml-no-kibana-realm]]]
+[[saml-no-kibana-realm]]
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly

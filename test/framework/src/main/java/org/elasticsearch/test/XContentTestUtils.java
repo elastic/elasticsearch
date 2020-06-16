@@ -58,6 +58,13 @@ public final class XContentTestUtils {
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
+    public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+            builder.map(map);
+            return BytesReference.bytes(builder);
+        }
+    }
+
 
     /**
      * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.

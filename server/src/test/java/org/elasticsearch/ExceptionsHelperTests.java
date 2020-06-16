@@ -25,7 +25,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
@@ -134,7 +134,7 @@ public class ExceptionsHelperTests extends ESTestCase {
 
     private static SearchShardTarget createSearchShardTarget(String nodeId, int shardId, String index, String clusterAlias) {
         return new SearchShardTarget(nodeId,
-            new ShardId(new Index(index, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+            new ShardId(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     public void testGroupByNullTarget() {

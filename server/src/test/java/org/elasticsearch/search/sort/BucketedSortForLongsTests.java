@@ -22,25 +22,24 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.DocValueFormat;
 
-import java.io.IOException;
-
 public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort.ForLongs> {
     @Override
-    public BucketedSort.ForLongs build(SortOrder sortOrder, DocValueFormat format, double[] values) {
-        return new BucketedSort.ForLongs(bigArrays(), sortOrder, format) {
+    public BucketedSort.ForLongs build(SortOrder sortOrder, DocValueFormat format, int bucketSize,
+            BucketedSort.ExtraData extra, double[] values) {
+        return new BucketedSort.ForLongs(bigArrays(), sortOrder, format, bucketSize, extra) {
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
+            public Leaf forLeaf(LeafReaderContext ctx) {
+                return new Leaf(ctx) {
                     int index = -1;
 
                     @Override
-                    protected boolean advanceExact(int doc) throws IOException {
+                    protected boolean advanceExact(int doc) {
                         index = doc;
                         return doc < values.length;
                     }
 
                     @Override
-                    protected long docValue() throws IOException {
+                    protected long docValue() {
                         return (long) values[index];
                     }
                 };
@@ -51,5 +50,11 @@ public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort
     @Override
     protected SortValue expectedSortValue(double v) {
         return SortValue.from((long) v);
+    }
+
+    @Override
+    protected double randomValue() {
+        // 2L^50 fits in the mantisa of a double which the test sort of needs.
+        return randomLongBetween(-2L^50, 2L^50);
     }
 }

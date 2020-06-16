@@ -16,7 +16,9 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,7 +30,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -45,7 +47,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -206,7 +208,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             },
             e -> {
                 if (request.isForce()
-                    && MlTasks.getJobTask(request.getJobId(), state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE)) != null) {
+                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)) != null) {
                     logger.info(
                         "[{}] config is missing but task exists. Attempting to delete tasks and stop process",
                         request.getJobId());
@@ -311,15 +313,15 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
                 response -> {
                     if (response && indexNames.get().length > 0) {
-                        logger.info("Running DBQ on [" + String.join(", ", indexNames.get()) + "] for job [" + jobId + "]");
-                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get());
+                        logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indexNames.get()));
                         ConstantScoreQueryBuilder query =
-                                new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                        request.setQuery(query);
-                        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-                        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
-                        request.setAbortOnVersionConflict(false);
-                        request.setRefresh(true);
+                            new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+                        DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get())
+                            .setQuery(query)
+                            .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
+                            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                            .setAbortOnVersionConflict(false)
+                            .setRefresh(true);
 
                         executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, dbqHandler);
                     } else { // We did not execute DBQ, no need to delete aliases or check the response
@@ -328,72 +330,97 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 },
                 failureHandler);
 
-        // Step 6. If we have any hits, that means we are NOT the only job on these indices, and should not delete the indices.
-        // If we do not have any hits, we can drop the indices and then skip the DBQ and alias deletion.
-        ActionListener<SearchResponse> customIndexSearchHandler = ActionListener.wrap(
-                searchResponse -> {
-                    if (searchResponse == null || searchResponse.getHits().getTotalHits().value > 0) {
-                        deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
-                    } else {
-                        logger.info("Running DELETE Index on [" + String.join(", ", indexNames.get()) + "] for job [" + jobId + "]");
-                        DeleteIndexRequest request = new DeleteIndexRequest(indexNames.get());
-                        request.indicesOptions(IndicesOptions.lenientExpandOpen());
-                        // If we have deleted the index, then we don't need to delete the aliases or run the DBQ
-                        executeAsyncWithOrigin(
-                                parentTaskClient.threadPool().getThreadContext(),
-                                ML_ORIGIN,
-                                request,
-                                ActionListener.<AcknowledgedResponse>wrap(
-                                        response -> deleteByQueryExecutor.onResponse(false), // skip DBQ && Alias
-                                        failureHandler),
-                                parentTaskClient.admin().indices()::delete);
-                    }
-                },
-                failure -> {
-                    if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
-                        deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
-                    } else {
-                        failureHandler.accept(failure);
-                    }
-                }
+        // Step 6. Handle each multi-search response. There should be one response for each underlying index.
+        // For each underlying index that contains results ONLY for the current job, we will delete that index.
+        // If there exists at least 1 index that has another job's results, we will run DBQ.
+        ActionListener<MultiSearchResponse> customIndexSearchHandler = ActionListener.wrap(
+           multiSearchResponse -> {
+               if (multiSearchResponse == null) {
+                   deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
+                   return;
+               }
+               String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
+                   AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+               List<String> indicesToDelete = new ArrayList<>();
+               boolean needToRunDBQTemp = false;
+               assert multiSearchResponse.getResponses().length == indexNames.get().length;
+               int i = 0;
+               for (MultiSearchResponse.Item item : multiSearchResponse.getResponses()) {
+                   if (item.isFailure()) {
+                       ++i;
+                       if (ExceptionsHelper.unwrapCause(item.getFailure()) instanceof IndexNotFoundException) {
+                           // index is already deleted, no need to take action against it
+                           continue;
+                       } else {
+                           failureHandler.accept(item.getFailure());
+                           return;
+                       }
+                   }
+                   SearchResponse searchResponse = item.getResponse();
+                   if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                       needToRunDBQTemp = true;
+                   } else {
+                       indicesToDelete.add(indexNames.get()[i]);
+                   }
+                   ++i;
+               }
+               final boolean needToRunDBQ = needToRunDBQTemp;
+               if (indicesToDelete.isEmpty()) {
+                   deleteByQueryExecutor.onResponse(needToRunDBQ);
+                   return;
+               }
+               logger.info("[{}] deleting the following indices directly {}", jobId, indicesToDelete);
+               DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(String[]::new));
+               request.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+               executeAsyncWithOrigin(
+                   parentTaskClient.threadPool().getThreadContext(),
+                   ML_ORIGIN,
+                   request,
+                   ActionListener.<AcknowledgedResponse>wrap(
+                       response -> deleteByQueryExecutor.onResponse(needToRunDBQ), // only run DBQ if there is a shared index
+                       failureHandler),
+                   parentTaskClient.admin().indices()::delete);
+           },
+           failure -> {
+               if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
+                   deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
+               } else {
+                   failureHandler.accept(failure);
+               }
+           }
         );
 
-        // Step 5. Determine if we are on shared indices by looking at whether the initial index was ".ml-anomalies-shared"
-        // or whether the indices that the job's results alias points to contain any documents from other jobs.
-        // TODO: this check is currently assuming that a job's results indices are either ALL shared or ALL
-        // dedicated to the job.  We have considered functionality like rolling jobs that generate large
-        // volumes of results from shared to dedicated indices.  On deletion such a job would have a mix of
-        // shared indices requiring DBQ and dedicated indices that could be simply dropped.  The current
-        // functionality would apply DBQ to all these indices, which is safe but suboptimal.  So this functionality
-        // should be revisited when we add rolling results index functionality, especially if we add the ability
-        // to switch a job over to a dedicated index for future results.
+        // Step 5. If we successfully find a job, gather information about its result indices.
+        // This will execute a multi-search action for every concrete index behind the job results alias.
+        // If there are no concrete indices, take no action and go to the next step.
         ActionListener<Job.Builder> getJobHandler = ActionListener.wrap(
-                builder -> {
-                    Job job = builder.build();
-                    indexNames.set(indexNameExpressionResolver.concreteIndexNames(clusterService.state(),
-                        IndicesOptions.lenientExpandOpen(), AnomalyDetectorsIndex.jobResultsAliasedName(jobId)));
-                    // The job may no longer be using the initial shared index, but if it started off on a
-                    // shared index then it will still be on a shared index even if it's been reindexed
-                    if (job.getInitialResultsIndexName()
-                            .equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
-                        // don't bother searching the index any further, we are on the default shared
-                        customIndexSearchHandler.onResponse(null);
-                    } else if (indexNames.get().length == 0) {
-                        // don't bother searching the index any further - it's already been closed or deleted
-                        customIndexSearchHandler.onResponse(null);
-                    } else {
-                        SearchSourceBuilder source = new SearchSourceBuilder()
-                                .size(1)
-                                .trackTotalHits(true)
-                                .query(QueryBuilders.boolQuery().filter(
-                                        QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
-
-                        SearchRequest searchRequest = new SearchRequest(indexNames.get());
-                        searchRequest.source(source);
-                        executeAsyncWithOrigin(parentTaskClient, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, customIndexSearchHandler);
-                    }
-                },
-                failureHandler
+            builder -> {
+                indexNames.set(indexNameExpressionResolver.concreteIndexNames(clusterService.state(),
+                    IndicesOptions.lenientExpandOpen(), AnomalyDetectorsIndex.jobResultsAliasedName(jobId)));
+                if (indexNames.get().length == 0) {
+                    // don't bother searching the index any further - it's already been closed or deleted
+                    customIndexSearchHandler.onResponse(null);
+                    return;
+                }
+                MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+                // It is important that the requests are in the same order as the index names.
+                // This is because responses are ordered according to their requests.
+                for (String indexName : indexNames.get()) {
+                    SearchSourceBuilder source = new SearchSourceBuilder()
+                        .size(0)
+                        // if we have just one hit we cannot delete the index
+                        .trackTotalHitsUpTo(1)
+                        .query(QueryBuilders.boolQuery().filter(
+                            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
+                    multiSearchRequest.add(new SearchRequest(indexName).source(source));
+                }
+                executeAsyncWithOrigin(parentTaskClient,
+                    ML_ORIGIN,
+                    MultiSearchAction.INSTANCE,
+                    multiSearchRequest,
+                    customIndexSearchHandler);
+            },
+            failureHandler
         );
 
         // Step 4. Get the job as the initial result index name is required
@@ -489,7 +516,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // first find the concrete indices associated with the aliases
         GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
+                .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
                 ActionListener.<GetAliasesResponse>wrap(
                         getAliasesResponse -> {
@@ -511,9 +538,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
-        for (ObjectObjectCursor<String, List<AliasMetaData>> entry : getAliasesResponse.getAliases()) {
+        for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
             // The response includes _all_ indices, but only those associated with
-            // the aliases we asked about will have associated AliasMetaData
+            // the aliases we asked about will have associated AliasMetadata
             if (entry.value.isEmpty() == false) {
                 indices.add(entry.key);
                 entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
@@ -577,16 +604,16 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
     private void removePersistentTask(String jobId, ClusterState currentState,
                                       ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
             persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                         @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                             listener.onResponse(Boolean.TRUE);
                         }
 
@@ -599,8 +626,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     private void checkJobIsNotOpen(String jobId, ClusterState state) {
-        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {
             JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
             throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "

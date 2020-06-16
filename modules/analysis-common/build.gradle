@@ -23,6 +23,12 @@ esplugin {
   extendedPlugins = ['lang-painless']
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+  }
+}
+
 dependencies {
   compileOnly project(':modules:lang-painless')
 }

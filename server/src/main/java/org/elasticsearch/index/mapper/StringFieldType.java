@@ -19,25 +19,26 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -47,20 +48,14 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * can be implemented. */
 public abstract class StringFieldType extends TermBasedFieldType {
 
-    public StringFieldType() {}
+    private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
+
+    public StringFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+        super(name, isSearchable, hasDocValues, meta);
+    }
 
     protected StringFieldType(MappedFieldType ref) {
         super(ref);
-    }
-
-    @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
     }
 
     @Override
@@ -90,18 +85,51 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return query;
     }
 
+    public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer)  {
+        if (normalizer == null) {
+            return value;
+        }
+        // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
+        // is a char_filter that would otherwise remove them
+        Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
+        BytesRefBuilder sb = new BytesRefBuilder();
+        int last = 0;
+
+        while (wildcardMatcher.find()) {
+            if (wildcardMatcher.start() > 0) {
+                String chunk = value.substring(last, wildcardMatcher.start());
+
+                BytesRef normalized = normalizer.normalize(fieldname, chunk);
+                sb.append(normalized);
+            }
+            // append the matched group - without normalizing
+            sb.append(new BytesRef(wildcardMatcher.group()));
+
+            last = wildcardMatcher.end();
+        }
+        if (last < value.length()) {
+            String chunk = value.substring(last);
+            BytesRef normalized = normalizer.normalize(fieldname, chunk);
+            sb.append(normalized);
+        }
+        return sb.toBytesRef().utf8ToString();
+    }
+
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        Query termQuery = termQuery(value, context);
-        if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-            return termQuery;
-        }
-
+        failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
-        Term term = MappedFieldType.extractTerm(termQuery);
+
+        Term term;
+        if (searchAnalyzer() != null) {
+            value = normalizeWildcardPattern(name(), value, searchAnalyzer());
+            term = new Term(name(), value);
+        } else {
+            term = new Term(name(), indexedValueForSearch(value));
+        }
 
         WildcardQuery query = new WildcardQuery(term);
         QueryParsers.setRewriteMethod(query, method);

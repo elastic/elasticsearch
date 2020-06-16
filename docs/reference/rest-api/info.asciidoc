@@ -36,7 +36,7 @@ The information provided by this API includes:
   The default value is `true`.
 
 [discrete]
-[[info-api--example]]
+[[info-api-example]]
 === {api-examples-title}
 
 The following example queries the info API:
@@ -74,10 +74,6 @@ Example response:
       "enrich" : {
           "available" : true,
           "enabled" : true
-      },
-      "flattened" : {
-         "available" : true,
-         "enabled" : true
       },
       "frozen_indices" : {
          "available" : true,

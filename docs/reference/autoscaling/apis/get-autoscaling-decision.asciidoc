@@ -47,6 +47,6 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-
+  decisions: []
 }
 --------------------------------------------------

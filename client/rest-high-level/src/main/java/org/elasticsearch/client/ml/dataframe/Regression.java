@@ -22,11 +22,15 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Regression implements DataFrameAnalysis {
 
@@ -44,12 +48,14 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField LAMBDA = new ParseField("lambda");
     static final ParseField GAMMA = new ParseField("gamma");
     static final ParseField ETA = new ParseField("eta");
-    static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
+    static final ParseField MAX_TREES = new ParseField("max_trees");
     static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+    static final ParseField LOSS_FUNCTION = new ParseField("loss_function");
+    static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
 
     private static final ConstructingObjectParser<Regression, Void> PARSER =
         new ConstructingObjectParser<>(
@@ -65,46 +71,61 @@ public class Regression implements DataFrameAnalysis {
                 (Integer) a[6],
                 (String) a[7],
                 (Double) a[8],
-                (Long) a[9]));
+                (Long) a[9],
+                (LossFunction) a[10],
+                (Double) a[11]
+            ));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_TREES);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
+        PARSER.declareField(optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return LossFunction.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, LOSS_FUNCTION, ObjectParser.ValueType.STRING);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
     }
 
     private final String dependentVariable;
     private final Double lambda;
     private final Double gamma;
     private final Double eta;
-    private final Integer maximumNumberTrees;
+    private final Integer maxTrees;
     private final Double featureBagFraction;
     private final Integer numTopFeatureImportanceValues;
     private final String predictionFieldName;
     private final Double trainingPercent;
     private final Long randomizeSeed;
+    private final LossFunction lossFunction;
+    private final Double lossFunctionParameter;
 
     private Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                       @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction,
+                       @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
                        @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
-                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed) {
+                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed, @Nullable LossFunction lossFunction,
+                       @Nullable Double lossFunctionParameter) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
         this.eta = eta;
-        this.maximumNumberTrees = maximumNumberTrees;
+        this.maxTrees = maxTrees;
         this.featureBagFraction = featureBagFraction;
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent;
         this.randomizeSeed = randomizeSeed;
+        this.lossFunction = lossFunction;
+        this.lossFunctionParameter = lossFunctionParameter;
     }
 
     @Override
@@ -128,8 +149,8 @@ public class Regression implements DataFrameAnalysis {
         return eta;
     }
 
-    public Integer getMaximumNumberTrees() {
-        return maximumNumberTrees;
+    public Integer getMaxTrees() {
+        return maxTrees;
     }
 
     public Double getFeatureBagFraction() {
@@ -152,6 +173,14 @@ public class Regression implements DataFrameAnalysis {
         return randomizeSeed;
     }
 
+    public LossFunction getLossFunction() {
+        return lossFunction;
+    }
+
+    public Double getLossFunctionParameter() {
+        return lossFunctionParameter;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -165,8 +194,8 @@ public class Regression implements DataFrameAnalysis {
         if (eta != null) {
             builder.field(ETA.getPreferredName(), eta);
         }
-        if (maximumNumberTrees != null) {
-            builder.field(MAXIMUM_NUMBER_TREES.getPreferredName(), maximumNumberTrees);
+        if (maxTrees != null) {
+            builder.field(MAX_TREES.getPreferredName(), maxTrees);
         }
         if (featureBagFraction != null) {
             builder.field(FEATURE_BAG_FRACTION.getPreferredName(), featureBagFraction);
@@ -183,14 +212,20 @@ public class Regression implements DataFrameAnalysis {
         if (randomizeSeed != null) {
             builder.field(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         }
+        if (lossFunction != null) {
+            builder.field(LOSS_FUNCTION.getPreferredName(), lossFunction);
+        }
+        if (lossFunctionParameter != null) {
+            builder.field(LOSS_FUNCTION_PARAMETER.getPreferredName(), lossFunctionParameter);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed);
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
+            predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter);
     }
 
     @Override
@@ -202,12 +237,14 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)
             && Objects.equals(eta, that.eta)
-            && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
+            && Objects.equals(maxTrees, that.maxTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
             && Objects.equals(numTopFeatureImportanceValues, that.numTopFeatureImportanceValues)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(trainingPercent, that.trainingPercent)
-            && Objects.equals(randomizeSeed, that.randomizeSeed);
+            && Objects.equals(randomizeSeed, that.randomizeSeed)
+            && Objects.equals(lossFunction, that.lossFunction)
+            && Objects.equals(lossFunctionParameter, that.lossFunctionParameter);
     }
 
     @Override
@@ -220,12 +257,14 @@ public class Regression implements DataFrameAnalysis {
         private Double lambda;
         private Double gamma;
         private Double eta;
-        private Integer maximumNumberTrees;
+        private Integer maxTrees;
         private Double featureBagFraction;
         private Integer numTopFeatureImportanceValues;
         private String predictionFieldName;
         private Double trainingPercent;
         private Long randomizeSeed;
+        private LossFunction lossFunction;
+        private Double lossFunctionParameter;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -246,8 +285,8 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
-        public Builder setMaximumNumberTrees(Integer maximumNumberTrees) {
-            this.maximumNumberTrees = maximumNumberTrees;
+        public Builder setMaxTrees(Integer maxTrees) {
+            this.maxTrees = maxTrees;
             return this;
         }
 
@@ -276,9 +315,32 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setLossFunction(LossFunction lossFunction) {
+            this.lossFunction = lossFunction;
+            return this;
+        }
+
+        public Builder setLossFunctionParameter(Double lossFunctionParameter) {
+            this.lossFunctionParameter = lossFunctionParameter;
+            return this;
+        }
+
         public Regression build() {
-            return new Regression(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
-                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed);
+            return new Regression(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
+                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter);
+        }
+    }
+
+    public enum LossFunction {
+        MSE, MSLE, HUBER;
+
+        private static LossFunction fromString(String value) {
+            return LossFunction.valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 }

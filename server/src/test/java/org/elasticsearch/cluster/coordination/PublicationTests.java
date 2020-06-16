@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -71,7 +71,7 @@ public class PublicationTests extends ESTestCase {
         MockNode(Settings settings, DiscoveryNode localNode) {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
-                CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
+                CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG, 0L);
             coordinationState = new CoordinationState(localNode, new InMemoryPersistedState(0L, initialState),
                 ElectionStrategy.DEFAULT_INSTANCE);
         }
@@ -176,7 +176,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testSimpleClusterStatePublishing() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -252,7 +252,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingWithFaultyNodeBeforeCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -295,7 +295,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingWithFaultyNodeAfterCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -348,7 +348,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingFailsOrTimesOutBeforeCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(Sets.newHashSet(n1.getId(), n2.getId()));
+        VotingConfiguration config = VotingConfiguration.of(n1, n2);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -387,7 +387,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testPublishingToMastersFirst() {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
@@ -403,8 +403,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(randomBoolean() ?
-            Sets.newHashSet(n1.getId(), n2.getId()) : Sets.newHashSet(n1.getId(), n2.getId(), n3.getId()));
+        VotingConfiguration config = randomBoolean() ? VotingConfiguration.of(n1, n2): VotingConfiguration.of(n1, n2, n3);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());

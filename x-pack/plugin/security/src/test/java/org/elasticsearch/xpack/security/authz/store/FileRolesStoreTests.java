@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -287,7 +288,8 @@ public class FileRolesStoreTests extends ESTestCase {
         List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
         events.clear();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
@@ -352,8 +354,6 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(descriptors, notNullValue());
             assertTrue(descriptors.isEmpty());
 
-            watcherService.start();
-
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("\n");
             }
@@ -394,51 +394,62 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check("cluster:admin/foo/bar", request, authentication), is(false));
 
             // truncate to remove some
-            final Set<String> truncatedFileRolesModified = new HashSet<>();
+            // Not asserting exact content of the role change set since file truncation and subsequent are not
+            // atomic and hence can result in different change set to be reported.
             final CountDownLatch truncateLatch = new CountDownLatch(1);
             store = new FileRolesStore(settings, env, watcherService, roleSet -> {
-                truncatedFileRolesModified.addAll(roleSet);
-                truncateLatch.countDown();
+                if (roleSet.contains("dummy1")) {
+                    truncateLatch.countDown();
+                }
             }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
 
             final Set<String> allRolesPreTruncate = store.getAllRoleNames();
+            assertTrue(allRolesPreTruncate.contains("role5"));
+            // Use a marker role so that when the countdown latch is triggered,
+            // we are sure it is triggered by the new file content instead of the initial truncation
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
                 writer.append("role5:").append(System.lineSeparator());
                 writer.append("  cluster:").append(System.lineSeparator());
-                writer.append("    - 'MONITOR'");
+                writer.append("    - 'MONITOR'").append(System.lineSeparator());
+                writer.append("dummy1:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'ALL'");
             }
 
-            truncateLatch.await();
-            assertEquals(allRolesPreTruncate.size() - 1, truncatedFileRolesModified.size());
-            assertTrue(allRolesPreTruncate.contains("role5"));
-            assertFalse(truncatedFileRolesModified.contains("role5"));
+            assertTrue(truncateLatch.await(5, TimeUnit.SECONDS));
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
+            assertArrayEquals(new String[]{"MONITOR"}, descriptors.iterator().next().getClusterPrivileges());
 
             // modify
             final Set<String> modifiedFileRolesModified = new HashSet<>();
             final CountDownLatch modifyLatch = new CountDownLatch(1);
             store = new FileRolesStore(settings, env, watcherService, roleSet -> {
                 modifiedFileRolesModified.addAll(roleSet);
-                modifyLatch.countDown();
+                if (roleSet.contains("dummy2")) {
+                    modifyLatch.countDown();
+                }
             }, new XPackLicenseState(Settings.EMPTY), xContentRegistry());
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
                 writer.append("role5:").append(System.lineSeparator());
                 writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'ALL'").append(System.lineSeparator());
+                writer.append("dummy2:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
                 writer.append("    - 'ALL'");
             }
 
-            modifyLatch.await();
-            assertEquals(1, modifiedFileRolesModified.size());
+            assertTrue(modifyLatch.await(5, TimeUnit.SECONDS));
             assertTrue(modifiedFileRolesModified.contains("role5"));
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
+            assertArrayEquals(new String[]{"ALL"}, descriptors.iterator().next().getClusterPrivileges());
         } finally {
             if (watcherService != null) {
-                watcherService.stop();
+                watcherService.close();
             }
             terminate(threadPool);
         }

@@ -30,132 +30,167 @@ import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.node.AStatement.Input;
+import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.painless.Scope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
  */
-public final class SFunction extends ANode {
+public class SFunction extends ANode {
 
-    private final String rtnTypeStr;
-    public final String name;
-    private final List<String> paramTypeStrs;
-    private final List<String> paramNameStrs;
-    private final SBlock block;
-    public final boolean isInternal;
-    public final boolean isStatic;
-    public final boolean synthetic;
+    private final String returnCanonicalTypeName;
+    private final String functionName;
+    private final List<String> canonicalTypeNameParameters;
+    private final List<String> parameterNames;
+    private final SBlock blockNode;
+    private final boolean isInternal;
+    private final boolean isStatic;
+    private final boolean isSynthetic;
+    private final boolean isAutoReturnEnabled;
+
+    public SFunction(int identifier, Location location,
+            String returnCanonicalTypeName, String name, List<String> canonicalTypeNameParameters, List<String> parameterNames,
+            SBlock blockNode,
+            boolean isInternal, boolean isStatic, boolean isSynthetic, boolean isAutoReturnEnabled) {
+
+        super(identifier, location);
+
+        this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
+        this.functionName = Objects.requireNonNull(name);
+        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+        this.parameterNames = Collections.unmodifiableList(Objects.requireNonNull(parameterNames));
+        this.blockNode = Objects.requireNonNull(blockNode);
+        this.isInternal = isInternal;
+        this.isSynthetic = isSynthetic;
+        this.isStatic = isStatic;
+        this.isAutoReturnEnabled = isAutoReturnEnabled;
+    }
+
+    public String getReturnCanonicalTypeName() {
+        return returnCanonicalTypeName;
+    }
+
+    public String getFunctionName() {
+        return functionName;
+    }
+
+    public List<String> getCanonicalTypeNameParameters() {
+        return canonicalTypeNameParameters;
+    }
+
+    public List<String> getParameterNames() {
+        return parameterNames;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
+    }
+
+    public boolean isInternal() {
+        return isInternal;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
+    public boolean isSynthetic() {
+        return isSynthetic;
+    }
 
     /**
      * If set to {@code true} default return values are inserted if
      * not all paths return a value.
      */
-    public final boolean isAutoReturnEnabled;
-
-    private int maxLoopCounter;
-
-    Class<?> returnType;
-    List<Class<?>> typeParameters;
-    MethodType methodType;
-
-    org.objectweb.asm.commons.Method method;
-
-    private ScriptRoot scriptRoot;
-    private boolean methodEscape;
-
-    public SFunction(Location location, String rtnType, String name,
-            List<String> paramTypes, List<String> paramNames,
-            SBlock block, boolean isInternal, boolean isStatic, boolean synthetic, boolean isAutoReturnEnabled) {
-        super(location);
-
-        this.rtnTypeStr = Objects.requireNonNull(rtnType);
-        this.name = Objects.requireNonNull(name);
-        this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
-        this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.block = Objects.requireNonNull(block);
-        this.isInternal = isInternal;
-        this.synthetic = synthetic;
-        this.isStatic = isStatic;
-        this.isAutoReturnEnabled = isAutoReturnEnabled;
+    public boolean isAutoReturnEnabled() {
+        return isAutoReturnEnabled;
     }
 
-    void generateSignature(PainlessLookup painlessLookup) {
-        returnType = painlessLookup.canonicalTypeNameToType(rtnTypeStr);
+    void buildClassScope(ScriptRoot scriptRoot) {
+        if (canonicalTypeNameParameters.size() != parameterNames.size()) {
+            throw createError(new IllegalStateException(
+                "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
+                "parameter names size [" + parameterNames.size() + "]"));
+        }
+
+        PainlessLookup painlessLookup = scriptRoot.getPainlessLookup();
+        FunctionTable functionTable = scriptRoot.getFunctionTable();
+
+        String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
+
+        if (functionTable.getFunction(functionKey) != null) {
+            throw createError(new IllegalArgumentException("illegal duplicate functions [" + functionKey + "]."));
+        }
+
+        Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
 
         if (returnType == null) {
-            throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
+            throw createError(new IllegalArgumentException(
+                "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
         }
 
-        if (paramTypeStrs.size() != paramNameStrs.size()) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        List<Class<?>> typeParameters = new ArrayList<>();
 
-        Class<?>[] paramClasses = new Class<?>[this.paramTypeStrs.size()];
-        List<Class<?>> paramTypes = new ArrayList<>();
-
-        for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
+        for (String typeParameter : canonicalTypeNameParameters) {
+            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
 
             if (paramType == null) {
                 throw createError(new IllegalArgumentException(
-                    "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));
+                    "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
             }
 
-            paramClasses[param] = PainlessLookupUtility.typeToJavaType(paramType);
-            paramTypes.add(paramType);
+            typeParameters.add(paramType);
         }
 
-        typeParameters = paramTypes;
-        methodType = MethodType.methodType(PainlessLookupUtility.typeToJavaType(returnType), paramClasses);
-        method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
-                PainlessLookupUtility.typeToJavaType(returnType), paramClasses).toMethodDescriptorString());
+        functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
     }
 
-    void analyze(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
-        FunctionScope functionScope = newFunctionScope(returnType);
+    FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
+        FunctionTable.LocalFunction localFunction =
+                scriptRoot.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
+        Class<?> returnType = localFunction.getReturnType();
+        List<Class<?>> typeParameters = localFunction.getTypeParameters();
+        FunctionScope functionScope = newFunctionScope(localFunction.getReturnType());
 
-        for (int index = 0; index < typeParameters.size(); ++index) {
-            Class<?> typeParameter = typeParameters.get(index);
-            String parameterName = paramNameStrs.get(index);
-            functionScope.defineVariable(location, typeParameter, parameterName, false);
+        for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
+            Class<?> typeParameter = localFunction.getTypeParameters().get(index);
+            String parameterName = parameterNames.get(index);
+            functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
         }
 
-        maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
+        int maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
 
-        if (block.statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
+        if (blockNode.getStatementNodes().isEmpty()) {
+            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
         }
 
-        block.lastSource = true;
-        block.analyze(scriptRoot, functionScope.newLocalScope());
-        methodEscape = block.methodEscape;
+        Input blockInput = new Input();
+        blockInput.lastSource = true;
+        Output blockOutput = blockNode.analyze(classNode, scriptRoot, functionScope.newLocalScope(), blockInput);
+        boolean methodEscape = blockOutput.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
             throw createError(new IllegalArgumentException("not all paths provide a return value " +
-                    "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                    "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
         }
 
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841
-        if ("execute".equals(name)) {
+        if ("execute".equals(functionName)) {
             scriptRoot.setUsedVariables(functionScope.getUsedVariables());
         }
         // TODO: end
-    }
 
-    @Override
-    public FunctionNode write(ClassNode classNode) {
-        BlockNode blockNode = block.write(classNode);
+        BlockNode blockNode = (BlockNode)blockOutput.statementNode;
 
         if (methodEscape == false) {
             ExpressionNode expressionNode;
@@ -165,7 +200,7 @@ public final class SFunction extends ANode {
             } else if (isAutoReturnEnabled) {
                 if (returnType.isPrimitive()) {
                     ConstantNode constantNode = new ConstantNode();
-                    constantNode.setLocation(location);
+                    constantNode.setLocation(getLocation());
                     constantNode.setExpressionType(returnType);
 
                     if (returnType == boolean.class) {
@@ -184,22 +219,22 @@ public final class SFunction extends ANode {
                     } else {
                         throw createError(new IllegalStateException("unexpected automatic return type " +
                                 "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
-                                "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                                "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
                     }
 
                     expressionNode = constantNode;
                 } else {
                     expressionNode = new NullNode();
-                    expressionNode.setLocation(location);
+                    expressionNode.setLocation(getLocation());
                     expressionNode.setExpressionType(returnType);
                 }
             } else {
                 throw createError(new IllegalStateException("not all paths provide a return value " +
-                        "for function [" + name + "] with [" + typeParameters.size() + "] parameters"));
+                        "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
             }
 
             ReturnNode returnNode = new ReturnNode();
-            returnNode.setLocation(location);
+            returnNode.setLocation(getLocation());
             returnNode.setExpressionNode(expressionNode);
 
             blockNode.addStatementNode(returnNode);
@@ -209,27 +244,16 @@ public final class SFunction extends ANode {
 
         functionNode.setBlockNode(blockNode);
 
-        functionNode.setLocation(location);
-        functionNode.setScriptRoot(scriptRoot);
-        functionNode.setName(name);
+        functionNode.setLocation(getLocation());
+        functionNode.setName(functionName);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParameters);
-        functionNode.getParameterNames().addAll(paramNameStrs);
+        functionNode.getParameterNames().addAll(parameterNames);
         functionNode.setStatic(isStatic);
-        functionNode.setSynthetic(synthetic);
+        functionNode.setVarArgs(false);
+        functionNode.setSynthetic(isSynthetic);
         functionNode.setMaxLoopCounter(maxLoopCounter);
 
         return functionNode;
-    }
-
-    @Override
-    public String toString() {
-        List<Object> description = new ArrayList<>();
-        description.add(rtnTypeStr);
-        description.add(name);
-        if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
-            description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
-        }
-        return multilineToString(description, block.statements);
     }
 }

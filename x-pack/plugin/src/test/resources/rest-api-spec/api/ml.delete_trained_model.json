@@ -1,7 +1,8 @@
 {
   "ml.delete_trained_model":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html",
+      "description":"Deletes an existing trained inference model that is currently not referenced by an ingest pipeline."
     },
     "stability":"experimental",
     "url":{

@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,10 +92,14 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
         SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]." +
-            " Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(1));
+        assertThat(fieldExtraction.v2().get(0).getName(), equalTo("some_keyword"));
+        assertThat(fieldExtraction.v2().get(0).isIncluded(), is(false));
+        assertThat(fieldExtraction.v2().get(0).getReason(), equalTo("unsupported type; supported types are " +
+            "[boolean, byte, double, float, half_float, integer, long, scaled_float, short]"));
     }
 
     public void testDetect_GivenOutlierDetectionAndFieldWithNumericAndNonNumericTypes() {
@@ -103,10 +108,14 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(1));
+        assertThat(fieldExtraction.v2().get(0).getName(), equalTo("indecisive_field"));
+        assertThat(fieldExtraction.v2().get(0).isIncluded(), is(false));
+        assertThat(fieldExtraction.v2().get(0).getReason(), equalTo("unsupported type; supported types are " +
+            "[boolean, byte, double, float, half_float, integer, long, scaled_float, short]"));
     }
 
     public void testDetect_GivenOutlierDetectionAndMultipleFields() {
@@ -294,10 +303,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(SOURCE_INDEX,
-            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 3L));
+            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 31L));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -306,10 +315,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().isEmpty(), is(true));
     }
 
     public void testDetect_GivenIncludedIgnoredField() {
@@ -410,9 +419,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(2));
+        assertThat(fieldExtraction.v2().stream().filter(FieldSelection::isIncluded).findAny().isPresent(), is(false));
     }
 
     public void testDetect_GivenInclusionsAndExclusions() {

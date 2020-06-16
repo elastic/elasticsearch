@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -655,19 +652,18 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                     analyzer = fieldType.searchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
-                // TODO Intervals.wildcard() should take BytesRef
-                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
+                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
             }
             else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = XIntervals.wildcard(normalizedTerm);
+                source = Intervals.wildcard(normalizedTerm);
             }
             return source;
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            if (type.hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }
@@ -797,8 +793,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
-            CompiledAutomaton[] automata = fq.getAutomata();
-            source = XIntervals.multiterm(automata[automata.length - 1], term);
+            source = Intervals.multiterm(fq.getAutomata(), term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -806,7 +801,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            if (type.hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }

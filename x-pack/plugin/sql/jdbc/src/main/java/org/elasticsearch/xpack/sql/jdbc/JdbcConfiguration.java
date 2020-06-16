@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.StringUtils;
-import org.elasticsearch.xpack.sql.client.Version;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
@@ -47,6 +47,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
+    static final String DEBUG_FLUSH_ALWAYS = "debug.flushAlways";
+    // can be buffered/immediate
+    static final String DEBUG_FLUSH_ALWAYS_DEFAULT = "false";
+
     public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
@@ -63,19 +67,20 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     // options that don't change at runtime
     private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT));
+            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS));
 
     static {
         // trigger version initialization
         // typically this should have already happened but in case the
         // EsDriver/EsDataSource are not used and the impl. classes used directly
         // this covers that case
-        Version.CURRENT.toString();
+        ClientVersion.CURRENT.toString();
     }
 
     // immutable properties
     private final boolean debug;
     private final String debugOut;
+    private final boolean flushAlways;
 
     // mutable ones
     private ZoneId zoneId;
@@ -107,7 +112,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     private static URI parseUrl(String u) throws JdbcSQLException {
         String url = u;
-        String format = "jdbc:es://[http|https]?[host[:port]]*/[prefix]*[?[option=value]&]*";
+        String format = "jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*";
         if (!canAccept(u)) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
@@ -158,6 +163,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
+        this.flushAlways = parseValue(DEBUG_FLUSH_ALWAYS, props.getProperty(DEBUG_FLUSH_ALWAYS, DEBUG_FLUSH_ALWAYS_DEFAULT),
+                Boolean::parseBoolean);
 
         this.zoneId = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT),
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
@@ -182,6 +189,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     public String debugOut() {
         return debugOut;
+    }
+
+    public boolean flushAlways() {
+        return flushAlways;
     }
 
     public TimeZone timeZone() {

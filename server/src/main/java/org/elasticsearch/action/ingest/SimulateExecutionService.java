@@ -47,7 +47,7 @@ class SimulateExecutionService {
                          BiConsumer<SimulateDocumentResult, Exception> handler) {
         if (verbose) {
             List<SimulateProcessorResult> processorResultList = new CopyOnWriteArrayList<>();
-            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), processorResultList);
+            CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
             Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
                 verbosePipelineProcessor);
             ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
@@ -69,6 +69,13 @@ class SimulateExecutionService {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses =
                 new CopyOnWriteArrayList<>(new SimulateDocumentBaseResult[request.getDocuments().size()]);
+
+            if (request.getDocuments().isEmpty()) {
+                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
+                    request.isVerbose(), responses));
+                return;
+            }
+
             int iter = 0;
             for (IngestDocument ingestDocument : request.getDocuments()) {
                 final int index = iter;

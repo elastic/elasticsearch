@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,11 +62,11 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
-        for (IndexMetaData indexMetaData : state.metaData()) {
+        for (IndexMetadata indexMetadata : state.metadata()) {
             Set<String> indexAnalyzers = new HashSet<>();
-            MappingMetaData mappingMetaData = indexMetaData.mapping();
-            if (mappingMetaData != null) {
-                MappingVisitor.visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
+            MappingMetadata mappingMetadata = indexMetadata.mapping();
+            if (mappingMetadata != null) {
+                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), fieldMapping -> {
                     for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
                         Object analyzerO = fieldMapping.get(key);
                         if (analyzerO != null) {
@@ -90,7 +90,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Set<String> indexTokenizerTypes = new HashSet<>();
             Set<String> indexTokenFilterTypes = new HashSet<>();
 
-            Settings indexSettings = indexMetaData.getSettings();
+            Settings indexSettings = indexMetadata.getSettings();
             Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
             usedBuiltInAnalyzers.keySet().removeAll(analyzerSettings.keySet());
             for (Settings analyzerSetting : analyzerSettings.values()) {

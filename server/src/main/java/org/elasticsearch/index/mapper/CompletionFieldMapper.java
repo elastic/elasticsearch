@@ -20,7 +20,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -32,7 +33,7 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -52,7 +53,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,7 +85,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
  */
-public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class CompletionFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "completion";
 
     /**
@@ -94,8 +94,12 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new CompletionFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
         static {
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
@@ -125,7 +129,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
@@ -191,7 +195,12 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType() {
+        public CompletionFieldType(String name, Map<String, String> meta) {
+            super(name, true, false, meta);
+        }
+
+        public CompletionFieldType(String name) {
+            this(name, Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {
@@ -202,17 +211,14 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         public void setPreserveSep(boolean preserveSep) {
-            checkIfFrozen();
             this.preserveSep = preserveSep;
         }
 
         public void setPreservePositionIncrements(boolean preservePositionIncrements) {
-            checkIfFrozen();
             this.preservePositionIncrements = preservePositionIncrements;
         }
 
         public void setContextMappings(ContextMappings contextMappings) {
-            checkIfFrozen();
             this.contextMappings = contextMappings;
         }
 
@@ -310,7 +316,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
             if (preserveSep != that.preserveSep) return false;
             if (preservePositionIncrements != that.preservePositionIncrements) return false;
-            return !(contextMappings != null ? !contextMappings.equals(that.contextMappings) : that.contextMappings != null);
+            return Objects.equals(contextMappings, that.contextMappings);
 
         }
 
@@ -332,30 +338,12 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             return CONTENT_TYPE;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            CompletionFieldType other = (CompletionFieldType)fieldType;
-
-            if (preservePositionIncrements != other.preservePositionIncrements) {
-                conflicts.add("mapper [" + name() + "] has different [preserve_position_increments] values");
-            }
-            if (preserveSep != other.preserveSep) {
-                conflicts.add("mapper [" + name() + "] has different [preserve_separators] values");
-            }
-            if (hasContextMappings() != other.hasContextMappings()) {
-                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
-            } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
-                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
-            }
-        }
-
     }
 
     /**
      * Builder for {@link CompletionFieldMapper}
      */
-    public static class Builder extends FieldMapper.Builder<Builder, CompletionFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int maxInputLength = Defaults.DEFAULT_MAX_INPUT_LENGTH;
         private ContextMappings contextMappings = null;
@@ -368,7 +356,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
          * @param name of the completion field to build
          */
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -408,12 +396,15 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            setupFieldType(context);
-            CompletionFieldType completionFieldType = (CompletionFieldType) this.fieldType;
-            completionFieldType.setContextMappings(contextMappings);
-            completionFieldType.setPreservePositionIncrements(preservePositionIncrements);
-            completionFieldType.setPreserveSep(preserveSeparators);
-            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(),
+            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), meta);
+            ft.setContextMappings(contextMappings);
+            ft.setPreservePositionIncrements(preservePositionIncrements);
+            ft.setPreserveSep(preserveSeparators);
+            ft.setIndexAnalyzer(indexAnalyzer);
+            ft.setSearchAnalyzer(searchAnalyzer);
+            ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
+            ft.setSimilarity(similarity);
+            return new CompletionFieldMapper(name, this.fieldType, ft, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
 
@@ -423,26 +414,40 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecated("You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
-                        " in the mapping for index [" + context.indexSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME) + "]. " +
-                        "The maximum allowed number of completion contexts in a mapping will be limited to " +
-                        "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
+                    deprecationLogger.deprecate("excessive_completion_contexts",
+                        "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
+                            " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
+                            "The maximum allowed number of completion contexts in a mapping will be limited to " +
+                            "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
                 }
             }
+        }
+
+        @Override
+        public Builder index(boolean index) {
+            if (index == false) {
+                throw new MapperParsingException("Completion field type must be indexed");
+            }
+            return builder;
         }
     }
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
+    public CompletionFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings,
                                  MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
     @Override
     public CompletionFieldType fieldType() {
         return (CompletionFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
     }
 
     /**
@@ -463,7 +468,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
-        Map<String, CompletionInputMetaData> inputMap = new HashMap<>(1);
+        Map<String, CompletionInputMetadata> inputMap = new HashMap<>(1);
 
         if (context.externalValueSet()) {
             inputMap = getInputMapFromExternalValue(context);
@@ -478,10 +483,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         // index
-        for (Map.Entry<String, CompletionInputMetaData> completionInput : inputMap.entrySet()) {
+        for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
-                context.addIgnoredField(fieldType.name());
+                context.addIgnoredField(mappedFieldType.name());
                 continue;
             }
             // truncate input
@@ -493,35 +498,30 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 }
                 input = input.substring(0, len);
             }
-            CompletionInputMetaData metaData = completionInput.getValue();
+            CompletionInputMetadata metadata = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
                 fieldType().getContextMappings().addField(context.doc(), fieldType().name(),
-                        input, metaData.weight, metaData.contexts);
+                        input, metadata.weight, metadata.contexts);
             } else {
-                context.doc().add(new SuggestField(fieldType().name(), input, metaData.weight));
+                context.doc().add(new SuggestField(fieldType().name(), input, metadata.weight));
             }
         }
 
-        List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
-
-        for (CompletionInputMetaData metaData: inputMap.values()) {
-            ParseContext externalValueContext = context.createExternalValueContext(metaData);
+        createFieldNamesField(context);
+        for (CompletionInputMetadata metadata: inputMap.values()) {
+            ParseContext externalValueContext = context.createExternalValueContext(metadata);
             multiFields.parse(this, externalValueContext);
         }
     }
 
-    private Map<String, CompletionInputMetaData> getInputMapFromExternalValue(ParseContext context) {
-        Map<String, CompletionInputMetaData> inputMap;
-        if (isExternalValueOfClass(context, CompletionInputMetaData.class)) {
-            CompletionInputMetaData inputAndMeta = (CompletionInputMetaData) context.externalValue();
+    private Map<String, CompletionInputMetadata> getInputMapFromExternalValue(ParseContext context) {
+        Map<String, CompletionInputMetadata> inputMap;
+        if (isExternalValueOfClass(context, CompletionInputMetadata.class)) {
+            CompletionInputMetadata inputAndMeta = (CompletionInputMetadata) context.externalValue();
             inputMap = Collections.singletonMap(inputAndMeta.input, inputAndMeta);
         } else {
             String fieldName = context.externalValue().toString();
-            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetaData(fieldName, Collections.emptyMap(), 1));
+            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetadata(fieldName, Collections.emptyMap(), 1));
         }
         return inputMap;
     }
@@ -536,10 +536,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      */
     private void parse(ParseContext parseContext, Token token,
-                       XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
+                       XContentParser parser, Map<String, CompletionInputMetadata> inputMap) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
-            inputMap.put(parser.text(), new CompletionInputMetaData(parser.text(), Collections.<String, Set<String>>emptyMap(), 1));
+            inputMap.put(parser.text(), new CompletionInputMetadata(parser.text(), Collections.<String, Set<String>>emptyMap(), 1));
         } else if (token == Token.START_OBJECT) {
             Set<String> inputs = new HashSet<>();
             int weight = 1;
@@ -617,7 +617,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             }
             for (String input : inputs) {
                 if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
-                    inputMap.put(input, new CompletionInputMetaData(input, contextsMap, weight));
+                    inputMap.put(input, new CompletionInputMetadata(input, contextsMap, weight));
                 }
             }
         } else {
@@ -626,12 +626,12 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
     }
 
-    static class CompletionInputMetaData {
+    static class CompletionInputMetadata {
         public final String input;
         public final Map<String, Set<String>> contexts;
         public final int weight;
 
-        CompletionInputMetaData(String input, Map<String, Set<String>> contexts, int weight) {
+        CompletionInputMetadata(String input, Map<String, Set<String>> contexts, int weight) {
             this.input = input;
             this.contexts = contexts;
             this.weight = weight;
@@ -666,7 +666,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // no-op
     }
 
@@ -676,9 +676,22 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        this.maxInputLength = fieldMergeWith.maxInputLength;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        CompletionFieldType c = (CompletionFieldType)other.fieldType();
+
+        if (fieldType().preservePositionIncrements != c.preservePositionIncrements) {
+            conflicts.add("mapper [" + name() + "] has different [preserve_position_increments] values");
+        }
+        if (fieldType().preserveSep != c.preserveSep) {
+            conflicts.add("mapper [" + name() + "] has different [preserve_separators] values");
+        }
+        if (fieldType().hasContextMappings() != c.hasContextMappings()) {
+            conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
+        } else if (fieldType().hasContextMappings() && fieldType().contextMappings.equals(c.contextMappings) == false) {
+            conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
+        }
+
+        this.maxInputLength = ((CompletionFieldMapper)other).maxInputLength;
     }
+
 }

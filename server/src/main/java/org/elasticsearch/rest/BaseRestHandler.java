@@ -183,4 +183,57 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    public static class Wrapper extends BaseRestHandler {
+
+        protected final BaseRestHandler delegate;
+
+        public Wrapper(BaseRestHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public List<Route> routes() {
+            return delegate.routes();
+        }
+
+        @Override
+        public List<DeprecatedRoute> deprecatedRoutes() {
+            return delegate.deprecatedRoutes();
+        }
+
+        @Override
+        public List<ReplacedRoute> replacedRoutes() {
+            return delegate.replacedRoutes();
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            return delegate.prepareRequest(request, client);
+        }
+
+        @Override
+        protected Set<String> responseParams() {
+            return delegate.responseParams();
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
+        @Override
+        public boolean supportsContentStream() {
+            return delegate.supportsContentStream();
+        }
+
+        @Override
+        public boolean allowsUnsafeBuffers() {
+            return delegate.allowsUnsafeBuffers();
+        }
+    }
 }

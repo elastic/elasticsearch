@@ -42,8 +42,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
@@ -523,7 +523,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
-            assertThat(searchSessionFactory.bindCredentials.getBindDN(), isEmptyString());
+            assertThat(searchSessionFactory.bindCredentials.getBindDN(), is(emptyString()));
         }
         assertDeprecationWarnings(config.identifier(), false, useLegacyBindPassword);
     }

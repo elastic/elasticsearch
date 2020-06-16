@@ -20,15 +20,14 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class CallNode extends BinaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
-        getLeftNode().write(classWriter, methodWriter, globals, scopeTable);
-        getRightNode().write(classWriter, methodWriter, globals, scopeTable);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        getLeftNode().write(classWriter, methodWriter, scopeTable);
+        getRightNode().write(classWriter, methodWriter, scopeTable);
     }
 }

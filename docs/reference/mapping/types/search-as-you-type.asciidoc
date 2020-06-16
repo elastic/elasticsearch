@@ -162,15 +162,18 @@ GET my_index/_search
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field and are specific to this field type
 
-[horizontal]
-
 `max_shingle_size`::
++
+--
+(Optional, integer)
+Largest shingle size to create. Valid values are `2` (inclusive) to `4`
+(inclusive). Defaults to `3`.
 
-    The largest shingle size to index the input with and create subfields for,
-    creating one subfield for each shingle size between 2 and
-    `max_shingle_size`. Accepts integer values between 2 and 4 inclusive. This
-    option defaults to 3.
+A subfield is created for each integer between `2` and this value. For example,
+a value of `3` creates two subfields: `my_field._2gram` and `my_field._3gram`
 
+More subfields enables more specific queries but increases index size.
+--
 
 [[general-params]]
 ==== Parameters of the field type as a text field

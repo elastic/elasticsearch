@@ -83,6 +83,7 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
                 ProxyConnectionStrategy.ProxyModeInfo serverModeInfo =
                         (ProxyConnectionStrategy.ProxyModeInfo) serverRemoteInfo.getModeInfo();
                 assertThat(clientModeInfo.getAddress(), equalTo(serverModeInfo.getAddress()));
+                assertThat(clientModeInfo.getServerName(), equalTo(serverModeInfo.getServerName()));
                 assertThat(clientModeInfo.getMaxSocketConnections(), equalTo(serverModeInfo.getMaxSocketConnections()));
                 assertThat(clientModeInfo.getNumSocketsConnected(), equalTo(serverModeInfo.getNumSocketsConnected()));
             } else {
@@ -95,9 +96,10 @@ public class RemoteInfoResponseTests extends AbstractResponseTestCase<org.elasti
         RemoteConnectionInfo.ModeInfo modeInfo;
         if (randomBoolean()) {
             String address = randomAlphaOfLength(8);
+            String serverName = randomAlphaOfLength(8);
             int maxSocketConnections = randomInt(5);
             int numSocketsConnected = randomInt(5);
-            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(address, maxSocketConnections, numSocketsConnected);
+            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(address, serverName, maxSocketConnections, numSocketsConnected);
         } else {
             List<String> seedNodes = randomList(randomInt(8), () -> randomAlphaOfLength(8));
             int maxConnectionsPerCluster = randomInt(5);

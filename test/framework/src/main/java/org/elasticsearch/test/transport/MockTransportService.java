@@ -120,7 +120,13 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        return createNewService(settings, transport, version, threadPool, clusterSettings, taskHeaders, NOOP_TRANSPORT_INTERCEPTOR);
+    }
+
+    public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
+                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders,
+                                                        TransportInterceptor interceptor) {
+        return new MockTransportService(settings, transport, threadPool, interceptor,
             boundAddress ->
                 new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
                     Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
@@ -190,19 +196,26 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Clears the rule associated with the provided delegate service.
+     * Clears all the inbound rules.
      */
-    public void clearRule(TransportService transportService) {
+    public void clearInboundRules() {
+        transport().clearInboundBehaviors();
+    }
+
+    /**
+     * Clears the outbound rules associated with the provided delegate service.
+     */
+    public void clearOutboundRules(TransportService transportService) {
         for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            clearRule(transportAddress);
+            clearOutboundRules(transportAddress);
         }
     }
 
     /**
-     * Clears the rule associated with the provided delegate address.
+     * Clears the outbound rules associated with the provided delegate address.
      */
-    public void clearRule(TransportAddress transportAddress) {
-        transport().clearBehavior(transportAddress);
+    public void clearOutboundRules(TransportAddress transportAddress) {
+        transport().clearOutboundBehaviors(transportAddress);
         connectionManager().clearBehavior(transportAddress);
     }
 
@@ -407,6 +420,15 @@ public final class MockTransportService extends TransportService {
                 }
             }
         });
+    }
+
+    /**
+     * Adds a new handling behavior that is used when the defined request is received.
+     *
+     */
+    public <R extends TransportRequest> void addRequestHandlingBehavior(String actionName,
+                                                                        StubbableTransport.RequestHandlingBehavior<R> handlingBehavior) {
+        transport().addRequestHandlingBehavior(actionName, handlingBehavior);
     }
 
     /**

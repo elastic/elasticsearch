@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.util.List;
 
 final class SystemJvmOptions {
@@ -50,6 +52,8 @@ final class SystemJvmOptions {
              * debugging.
              */
             "-XX:-OmitStackTraceInFastThrow",
+            // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
+            maybeShowCodeDetailsInExceptionMessages(),
             // flags to configure Netty
             "-Dio.netty.noUnsafe=true",
             "-Dio.netty.noKeySetOptimization=true",
@@ -64,6 +68,14 @@ final class SystemJvmOptions {
              */
             "-Djava.locale.providers=SPI,COMPAT"
         );
+    }
+
+    private static String maybeShowCodeDetailsInExceptionMessages() {
+        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
+            return "-XX:+ShowCodeDetailsInExceptionMessages";
+        } else {
+            return "";
+        }
     }
 
 }

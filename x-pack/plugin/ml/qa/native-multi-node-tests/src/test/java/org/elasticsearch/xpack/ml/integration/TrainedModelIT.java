@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -39,6 +40,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -93,6 +95,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
         assertThat(response, containsString("\"estimated_heap_memory_usage\""));
         assertThat(response, containsString("\"definition\""));
+        assertThat(response, not(containsString("\"compressed_definition\"")));
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
@@ -185,6 +188,43 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"definition\""));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testExportImportModel() throws IOException {
+        String modelId = "regression_model_to_export";
+        putRegressionModel(modelId);
+        Response getModel = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "inference/" + modelId));
+
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+        String response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"model_id\":\"regression_model_to_export\""));
+        assertThat(response, containsString("\"count\":1"));
+
+        getModel = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH +
+                "inference/" + modelId +
+                "?include_model_definition=true&decompress_definition=false&for_export=true"));
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+
+        Map<String, Object> exportedModel = entityAsMap(getModel);
+        Map<String, Object> modelDefinition = ((List<Map<String, Object>>)exportedModel.get("trained_model_configs")).get(0);
+
+        String importedModelId = "regression_model_to_import";
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map(modelDefinition);
+            Request model = new Request("PUT", "_ml/inference/" + importedModelId);
+            model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
+            assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
+        }
+        getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "inference/regression*"));
+
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+        response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"model_id\":\"regression_model_to_export\""));
+        assertThat(response, containsString("\"model_id\":\"regression_model_to_import\""));
+        assertThat(response, containsString("\"count\":2"));
+    }
+
     private void putRegressionModel(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder()
@@ -192,6 +232,7 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setTrainedModel(buildRegression());
             TrainedModelConfig.builder()
                 .setDefinition(definition)
+                .setInferenceConfig(new RegressionConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
                 .build().toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -210,14 +251,14 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(0)
                 .setThreshold(0.5),
-                TreeNode.builder(1).setLeafValue(0.3),
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(0.3)),
                 TreeNode.builder(2)
                 .setThreshold(0.0)
                 .setSplitFeature(3)
                 .setLeftChild(3)
                 .setRightChild(4),
-                TreeNode.builder(3).setLeafValue(0.1),
-                TreeNode.builder(4).setLeafValue(0.2))
+                TreeNode.builder(3).setLeafValue(Collections.singletonList(0.1)),
+                TreeNode.builder(4).setLeafValue(Collections.singletonList(0.2)))
             .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -226,8 +267,8 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(2)
                 .setThreshold(1.0),
-                TreeNode.builder(1).setLeafValue(1.5),
-                TreeNode.builder(2).setLeafValue(0.9))
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
+                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9)))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -236,8 +277,8 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setRightChild(2)
                 .setSplitFeature(1)
                 .setThreshold(0.2),
-                TreeNode.builder(1).setLeafValue(1.5),
-                TreeNode.builder(2).setLeafValue(0.9))
+                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
+                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9)))
             .build();
         return Ensemble.builder()
             .setTargetType(TargetType.REGRESSION)

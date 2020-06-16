@@ -17,10 +17,8 @@ file.
 
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
-`kibana.yml`. To control how monitoring data is collected from
-Logstash, configure
-{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
-in `logstash.yml`.
+`kibana.yml`. To control how monitoring data is collected from Logstash,
+configure monitoring settings in `logstash.yml`.
 
 For more information, see <<monitor-elasticsearch-cluster>>.
 
@@ -29,12 +27,8 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 ==== General Monitoring Settings
 
 `xpack.monitoring.enabled`::
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
-+
---
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled`
-to `true`. Its default value is `false`.
---
+deprecated:[7.8.0,Basic License features should always be enabled] +
+This deprecated setting has no effect.
 
 [float]
 [[monitoring-collection-settings]]
@@ -154,6 +148,11 @@ Whether to create cluster alerts for this cluster. The default value is `true`.
 To use this feature, {watcher} must be enabled.  If you have a basic license,
 cluster alerts are not displayed.
 
+`wait_master.timeout`::
+
+(<<time-units,time value>>) Time to wait for the master node to setup `local` exporter for monitoring.
+After that, the non-master nodes will warn the user for possible missing X-Pack configuration. Defaults to `30s`.
+
 [float]
 [[http-exporter-settings]]
 ==== HTTP Exporter Settings
@@ -198,17 +197,11 @@ xpack.monitoring.exporters:
 
 `auth.username`::
 
-The username is required if `auth.secure_password` or `auth.password` is supplied.
+The username is required if `auth.secure_password` is supplied.
 
 `auth.secure_password` (<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)::
 
-The password for the `auth.username`. Takes precedence over `auth.password` if it is also specified.
-
-`auth.password`::
-
-The password for the `auth.username`. If `auth.secure_password` is also specified, this setting is ignored.
-
-deprecated[7.7.0, Use `auth.secure_password` instead.]
+The password for the `auth.username`.
 
 `connection.timeout`::
 
@@ -250,7 +243,7 @@ anything defined here.
 `index.name.time_format`::
 
 A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
-The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+The default value is `yyyy.MM.dd`, which is why the indices are created daily.
 
 `use_ingest`::
 

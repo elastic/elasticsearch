@@ -42,7 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -53,13 +53,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -359,7 +359,7 @@ public class DatafeedConfigProvider {
      */
     public void expandDatafeedIds(String expression,
                                   boolean allowNoDatafeeds,
-                                  PersistentTasksCustomMetaData tasks,
+                                  PersistentTasksCustomMetadata tasks,
                                   boolean allowMissingConfigs,
                                   ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
@@ -404,10 +404,10 @@ public class DatafeedConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)} but
+     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
      * the full datafeed configuration is returned.
      *
-     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetaData, boolean, ActionListener)}
+     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -491,28 +491,8 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
-    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetaData tasksMetaData) {
-        Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(tasksMetaData);
-        if (startedDatafeedIds.isEmpty()) {
-            return Collections.emptyList()  ;
-        }
-        if (Strings.isAllOrWildcard(datafeedIdPatterns)) {
-            return startedDatafeedIds;
-        }
-
-        List<String> matchingDatafeedIds = new ArrayList<>();
-        for (String datafeedIdPattern : datafeedIdPatterns) {
-            if (startedDatafeedIds.contains(datafeedIdPattern))  {
-                matchingDatafeedIds.add(datafeedIdPattern);
-            } else if (Regex.isSimpleMatchPattern(datafeedIdPattern)) {
-                for (String startedDatafeedId : startedDatafeedIds) {
-                    if (Regex.simpleMatch(datafeedIdPattern, startedDatafeedId)) {
-                        matchingDatafeedIds.add(startedDatafeedId);
-                    }
-                }
-            }
-        }
-        return matchingDatafeedIds;
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 
     private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {

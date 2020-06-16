@@ -39,8 +39,6 @@ import java.util.Arrays;
  */
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    protected boolean local = false;
-
     private String[] fields = Strings.EMPTY_ARRAY;
 
     private boolean includeDefaults = false;
@@ -59,24 +57,15 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
             if (types != Strings.EMPTY_ARRAY) {
                 throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
             }
+
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        local = in.readBoolean();
+        // Consume the deprecated local parameter
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readBoolean();
+        }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
-    }
-
-    /**
-     * Indicate whether the receiving node should operate based on local index information or forward requests,
-     * where needed, to other nodes. If running locally, request will not raise errors if running locally &amp; missing indices.
-     */
-    public GetFieldMappingsRequest local(boolean local) {
-        this.local = local;
-        return this;
-    }
-
-    public boolean local() {
-        return local;
     }
 
     @Override
@@ -133,7 +122,9 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(local);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(true);
+        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
     }

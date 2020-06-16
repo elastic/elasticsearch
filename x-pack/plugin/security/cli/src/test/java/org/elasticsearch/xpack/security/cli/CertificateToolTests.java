@@ -39,7 +39,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateAuthorityCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
@@ -90,10 +89,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -400,7 +402,7 @@ public class CertificateToolTests extends ESTestCase {
                             GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
-                assertThat(p12, Matchers.not(TestMatchers.pathExists(p12)));
+                assertThat(p12, Matchers.not(pathExists()));
             }
         }
     }
@@ -561,10 +563,10 @@ public class CertificateToolTests extends ESTestCase {
 
         final int days = randomIntBetween(7, 1500);
 
-        final String caPassword = randomAlphaOfLengthBetween(4, 16);
-        final String node1Password = randomAlphaOfLengthBetween(4, 16);
-        final String node2Password = randomAlphaOfLengthBetween(4, 16);
-        final String node3Password = randomAlphaOfLengthBetween(4, 16);
+        final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node1Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node2Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final String node3Password = randomFrom("", randomAlphaOfLengthBetween(4, 16));
 
         final String node1Ip = "200.181." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
         final String node2Ip = "200.182." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
@@ -586,7 +588,7 @@ public class CertificateToolTests extends ESTestCase {
         );
         caCommand.execute(terminal, caOptions, env);
 
-        assertThat(caFile, TestMatchers.pathExists(caFile));
+        assertThat(caFile, pathExists());
 
         final GenerateCertificateCommand gen1Command = new PathAwareGenerateCertificateCommand(caFile, node1File);
         final OptionSet gen1Options = gen1Command.getParser().parse(
@@ -601,7 +603,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-name", "node01");
         gen1Command.execute(terminal, gen1Options, env);
 
-        assertThat(node1File, TestMatchers.pathExists(node1File));
+        assertThat(node1File, pathExists());
 
         final GenerateCertificateCommand gen2Command = new PathAwareGenerateCertificateCommand(caFile, node2File);
         final OptionSet gen2Options = gen2Command.getParser().parse(
@@ -616,7 +618,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-name", "node02");
         gen2Command.execute(terminal, gen2Options, env);
 
-        assertThat(node2File, TestMatchers.pathExists(node2File));
+        assertThat(node2File, pathExists());
 
         // Node 3 uses an auto generated CA, and therefore should not be trusted by the other nodes.
         final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
@@ -630,7 +632,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-ip", node3Ip);
         gen3Command.execute(terminal, gen3Options, env);
 
-        assertThat(node3File, TestMatchers.pathExists(node3File));
+        assertThat(node3File, pathExists());
 
         final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1File, "PKCS12", node1Password.toCharArray());
         final KeyStore node2KeyStore = CertParsingUtils.readKeyStore(node2File, "PKCS12", node2Password.toCharArray());
@@ -702,16 +704,16 @@ public class CertificateToolTests extends ESTestCase {
         terminal.addSecretInput(node1Password);
         gen1Command.execute(terminal, gen1Options, env);
 
-        assertThat(pkcs12Zip, TestMatchers.pathExists(pkcs12Zip));
+        assertThat(pkcs12Zip, pathExists());
 
         FileSystem zip1FS = FileSystems.newFileSystem(new URI("jar:" + pkcs12Zip.toUri()), Collections.emptyMap());
         Path zip1Root = zip1FS.getPath("/");
 
         final Path caP12 = zip1Root.resolve("ca/ca.p12");
-        assertThat(caP12, TestMatchers.pathExists(caP12));
+        assertThat(caP12, pathExists());
 
         final Path node1P12 = zip1Root.resolve("node01/node01.p12");
-        assertThat(node1P12, TestMatchers.pathExists(node1P12));
+        assertThat(node1P12, pathExists());
 
         final GenerateCertificateCommand gen2Command = new PathAwareGenerateCertificateCommand(caP12, pemZip);
         final OptionSet gen2Options = gen2Command.getParser().parse(
@@ -727,18 +729,18 @@ public class CertificateToolTests extends ESTestCase {
         terminal.addSecretInput(caPassword);
         gen2Command.execute(terminal, gen2Options, env);
 
-        assertThat(pemZip, TestMatchers.pathExists(pemZip));
+        assertThat(pemZip, pathExists());
 
         FileSystem zip2FS = FileSystems.newFileSystem(new URI("jar:" + pemZip.toUri()), Collections.emptyMap());
         Path zip2Root = zip2FS.getPath("/");
 
         final Path ca2 = zip2Root.resolve("ca/ca.p12");
-        assertThat(ca2, Matchers.not(TestMatchers.pathExists(ca2)));
+        assertThat(ca2, Matchers.not(pathExists()));
 
         final Path node2Cert = zip2Root.resolve("node02/node02.crt");
-        assertThat(node2Cert, TestMatchers.pathExists(node2Cert));
+        assertThat(node2Cert, pathExists());
         final Path node2Key = zip2Root.resolve("node02/node02.key");
-        assertThat(node2Key, TestMatchers.pathExists(node2Key));
+        assertThat(node2Key, pathExists());
 
         final KeyStore node1KeyStore = CertParsingUtils.readKeyStore(node1P12, "PKCS12", node1Password.toCharArray());
         final KeyStore node1TrustStore = node1KeyStore;
@@ -862,7 +864,7 @@ public class CertificateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
                 ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
                 assertThat(tagged.getObject(), instanceOf(ASN1String.class));
-                assertThat(tagged.getObject().toString(), Matchers.isIn(certInfo.commonNames));
+                assertThat(tagged.getObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

@@ -24,8 +24,8 @@ automatically applied to any backing indices created after the update.
 `logs_data_stream` is an existing composable template associated with the
 `logs` data stream.
 
-The following <<indices-templates,put composable template API>> makes the
-several changes to the `logs_data_stream` template:
+The following <<indices-templates,put composable template API>> makes several
+changes to the `logs_data_stream` template:
 
 * It changes the `@timestamp` field mapping from the `date` field datatype to
   the `date_nanos` datatype.

@@ -35,25 +35,29 @@ import java.util.List;
  */
 public class SDeclBlock extends AStatement {
 
-    protected final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
-        List<Output> declarationOutputs = new ArrayList<>(declarations.size());
+        List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
 
-        for (SDeclaration declaration : declarations) {
+        for (SDeclaration declaration : declarationNodes) {
             declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
         }
 
-        output.statementCount = declarations.size();
+        output.statementCount = declarationNodes.size();
 
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
@@ -61,7 +65,7 @@ public class SDeclBlock extends AStatement {
             declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         }
 
-        declarationBlockNode.setLocation(location);
+        declarationBlockNode.setLocation(getLocation());
 
         output.statementNode = declarationBlockNode;
 

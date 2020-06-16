@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -158,6 +159,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    public FieldType getLuceneFieldType(String field) {
+        Mapper mapper = documentMapper().mappers().getMapper(field);
+        if (mapper == null) {
+            return null;
+        }
+        if (mapper instanceof FieldMapper == false) {
+            return null;
+        }
+        return ((FieldMapper) mapper).fieldType;
     }
 
     /**

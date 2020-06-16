@@ -258,10 +258,9 @@ backing indices that contains a mix of new and old data.
 [IMPORTANT]
 ====
 While mixing new and old data is safe, it could interfere with data retention.
-If you use {ilm-init} to automatically delete older indices, you could
-accidentally delete a backing index that contains both new and old data. To
-prevent premature data loss, you would need to retain such backing indices until
-you are ready to delete its newest data.
+If you delete older indices, you could accidentally delete a backing index that
+contains both new and old data. To prevent premature data loss, you would need
+to retain such backing indices until you are ready to delete its newest data.
 ====
 +
 .*Example*

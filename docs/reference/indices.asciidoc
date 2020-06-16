@@ -20,6 +20,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-rollover-index>>
 * <<freeze-index-api>>
 * <<unfreeze-index-api>>
+* <<indices-resolve-index-api>>
 
 
 [float]
@@ -152,3 +153,5 @@ include::indices/apis/unfreeze.asciidoc[]
 include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
+
+include::indices/resolve.asciidoc[]

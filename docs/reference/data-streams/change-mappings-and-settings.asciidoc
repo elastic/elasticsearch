@@ -147,8 +147,14 @@ See <<data-streams-use-reindex-to-change-mappings-settings>>.
 [[data-streams-use-reindex-to-change-mappings-settings]]
 === Use reindex to change mappings or settings
 
-To apply mapping or setting changes to every existing backing index in a data
-stream as well as any future ones, follow these steps:
+To change the mappings or settings for every backing index in a data stream, you
+must first create or update a composable template so that it contains the
+changes. You can then reindex the existing data stream into a new one associated
+with the template. This applies the mapping and setting changes in the template
+to each document and backing index of the data stream destination. These changes
+also affect any future backing index created by the new stream.
+
+Follow these steps:
 
 . Choose a name or wildcard (`*`) pattern for a new data stream. This new data
 stream will contain data from your existing stream.
@@ -183,16 +189,17 @@ this pattern.
 ----
 ====
 
-. Create a new composable template that contains the mappings and settings you'd
-like to apply to the new data stream's backing indices.
+. Create or update a composable template. This template should contain the
+mappings and settings you'd like to apply to the new data stream's backing
+indices.
 +
 This composable template must meet the
 <<create-a-data-stream-template,requirements for a data stream template>>. It
 should also contain your previously chosen name or wildcard pattern in the
 `index_patterns` property.
 +
-TIP: If you are only adding or changing a few things, we recommend you duplicate
-an existing template and modify it as needed.
+TIP: If you are only adding or changing a few things, we recommend you create a
+new template by copying an existing one and modifying it as needed.
 +
 .*Example*
 [%collapsible]

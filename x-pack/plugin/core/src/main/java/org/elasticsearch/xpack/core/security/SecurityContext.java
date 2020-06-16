@@ -145,6 +145,7 @@ public class SecurityContext {
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+        // TODO: bwc here for API key metadata changes? i.e. deserialize the raw bytes into Map for older node.
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

@@ -436,7 +436,7 @@ public class ApiKeyService {
             }).collect(Collectors.toList());
     }
 
-    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    private static List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -990,18 +990,18 @@ public class ApiKeyService {
             PARSER = builder.build();
         }
 
-        private final String docType;
-        private final long creationTime;
-        private final long expirationTime;
-        private final Boolean invalidated;
+        final String docType;
+        final long creationTime;
+        final long expirationTime;
+        final Boolean invalidated;
         @Nullable
-        private final String hash;
-        private final String name;
-        private final int version;
+        final String hash;
+        final String name;
+        final int version;
         @Nullable
-        private final BytesReference roleDescriptorsBytes;
-        private final BytesReference limitedByRoleDescriptorsBytes;
-        private final Map<String, Object> creator;
+        final BytesReference roleDescriptorsBytes;
+        final BytesReference limitedByRoleDescriptorsBytes;
+        final Map<String, Object> creator;
 
         public ApiKeyDoc(
             String docType,
@@ -1014,6 +1014,7 @@ public class ApiKeyService {
             @Nullable BytesReference roleDescriptorsBytes,
             BytesReference limitedByRoleDescriptorsBytes,
             BytesReference creator) {
+
             this.docType = docType;
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;

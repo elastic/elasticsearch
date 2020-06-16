@@ -827,7 +827,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endArray()
                     .endObject())
             ), XContentType.JSON))
-            .addSort("_doc", SortOrder.ASC)
+            .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));

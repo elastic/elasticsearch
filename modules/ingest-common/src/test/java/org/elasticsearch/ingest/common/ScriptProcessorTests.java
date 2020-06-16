@@ -69,14 +69,14 @@ public class ScriptProcessorTests extends ESTestCase {
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, null, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);
     }
 
     public void testScriptingWithPrecompiledIngestScript() {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, ingestScript, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, ingestScript, scriptService);
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);

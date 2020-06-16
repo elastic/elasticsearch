@@ -68,6 +68,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
+            hasDocValues = false;
             builder = this;
         }
 
@@ -211,6 +212,11 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

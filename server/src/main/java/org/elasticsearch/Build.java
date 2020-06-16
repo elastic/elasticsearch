@@ -192,6 +192,8 @@ public class Build {
      * @return the location of the code source for Elasticsearch which may be null
      */
     static URL getElasticsearchCodeSourceLocation() {
+        // getProtectionDomain() is not implemented in Android's version of Java.
+        // https://stackoverflow.com/q/27790348
         final ProtectionDomain protectionDomain = Build.class.getProtectionDomain();
         final CodeSource codeSource = protectionDomain == null ? null : protectionDomain.getCodeSource();
         return codeSource == null ? null : codeSource.getLocation();

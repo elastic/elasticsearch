@@ -256,7 +256,6 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
-                Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(keepOnCompletion, that.keepOnCompletion) &&

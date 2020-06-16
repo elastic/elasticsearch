@@ -57,12 +57,14 @@ public final class ScriptProcessor extends AbstractProcessor {
     /**
      * Processor that evaluates a script with an ingest document in its context
      *  @param tag The processor's tag.
+     * @param description The processor's description.
      * @param script The {@link Script} to execute.
      * @param precompiledIngestScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(String tag, Script script, @Nullable IngestScript precompiledIngestScript, ScriptService scriptService)  {
-        super(tag);
+    ScriptProcessor(String tag, String description, Script script, @Nullable IngestScript precompiledIngestScript,
+                    ScriptService scriptService) {
+        super(tag, description);
         this.script = script;
         this.precompiledIngestScript = precompiledIngestScript;
         this.scriptService = scriptService;
@@ -109,7 +111,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+                                      String description, Map<String, Object> config) throws Exception {
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                  InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
@@ -128,7 +130,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptProcessor(processorTag, script, ingestScript, scriptService);
+                return new ScriptProcessor(processorTag, description, script, ingestScript, scriptService);
             }
         }
     }

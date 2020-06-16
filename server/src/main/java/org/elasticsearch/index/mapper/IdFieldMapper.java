@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -76,20 +78,22 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = IdFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new IdFieldType();
-        public static final MappedFieldType NESTED_FIELD_TYPE;
+        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType NESTED_FIELD_TYPE;
+        public static final MappedFieldType MAPPED_FIELD_TYPE = new IdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 
-            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
+            NESTED_FIELD_TYPE = new FieldType();
+            NESTED_FIELD_TYPE.setTokenized(false);
+            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            NESTED_FIELD_TYPE.setStored(true);
+            NESTED_FIELD_TYPE.setOmitNorms(true);
             NESTED_FIELD_TYPE.setStored(false);
             NESTED_FIELD_TYPE.freeze();
         }
@@ -105,13 +109,18 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new IdFieldMapper(indexSettings, Defaults.FIELD_TYPE);
+            return new IdFieldMapper(Defaults.FIELD_TYPE, indexSettings);
         }
     }
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        IdFieldType() {
+        public static final IdFieldType INSTANCE = new IdFieldType();
+
+        private IdFieldType() {
+            super(NAME, true, false, Collections.emptyMap());
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected IdFieldType(IdFieldType ref) {
@@ -160,9 +169,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (indexOptions() == IndexOptions.NONE) {
-                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");
-            }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
@@ -279,19 +285,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
-        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        defaultFieldType.setIndexOptions(IndexOptions.DOCS);
-        defaultFieldType.setStored(true);
-        return defaultFieldType;
-    }
-
-    private IdFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
-        this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
-    }
-
-    private IdFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
+    private IdFieldMapper(FieldType fieldType, IndexSettings indexSettings) {
+        super(fieldType, new IdFieldType(), indexSettings.getSettings());
     }
 
     @Override

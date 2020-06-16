@@ -61,7 +61,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
+            if (dataStream.getWriteIndex().getIndex().equals(index)) {
                 String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. " +
                     "stopping execution of lifecycle [%s]. manually rolling over the index will resume the execution of the policy as " +
                     "the index will not be the data stream's write index anymore", indexName, dataStream.getName(), policyName);

@@ -224,7 +224,7 @@ public class CompositeRolesStore {
 
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
-            if (authentication.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (authentication.getVersion().onOrAfter(Version.V_8_0_0)) {
                 getOrBuildRoleForApiKey(authentication, false, ActionListener.wrap(
                     role -> {
                         if (role == Role.EMPTY) {

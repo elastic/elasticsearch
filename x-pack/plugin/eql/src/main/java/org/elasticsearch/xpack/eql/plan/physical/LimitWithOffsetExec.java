@@ -5,38 +5,43 @@
  */
 package org.elasticsearch.xpack.eql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
-public class LimitExec extends UnaryExec implements Unexecutable {
+public class LimitWithOffsetExec extends UnaryExec implements Unexecutable {
 
-    private final Expression limit;
+    private final int limit;
+    private final int offset;
 
-    public LimitExec(Source source, PhysicalPlan child, Expression limit) {
+    public LimitWithOffsetExec(Source source, PhysicalPlan child, int limit, int offset) {
         super(source, child);
         this.limit = limit;
+        this.offset = offset;
     }
 
     @Override
-    protected NodeInfo<LimitExec> info() {
-        return NodeInfo.create(this, LimitExec::new, child(), limit);
+    protected NodeInfo<LimitWithOffsetExec> info() {
+        return NodeInfo.create(this, LimitWithOffsetExec::new, child(), limit, offset);
     }
 
     @Override
-    protected LimitExec replaceChild(PhysicalPlan newChild) {
-        return new LimitExec(source(), newChild, limit);
+    protected LimitWithOffsetExec replaceChild(PhysicalPlan newChild) {
+        return new LimitWithOffsetExec(source(), newChild, limit, offset);
     }
 
-    public Expression limit() {
+    public int limit() {
         return limit;
+    }
+
+    public int offset() {
+        return offset;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child());
+        return Objects.hash(limit, offset, child());
     }
 
     @Override
@@ -49,8 +54,9 @@ public class LimitExec extends UnaryExec implements Unexecutable {
             return false;
         }
 
-        LimitExec other = (LimitExec) obj;
+        LimitWithOffsetExec other = (LimitWithOffsetExec) obj;
         return Objects.equals(limit, other.limit)
+                && Objects.equals(offset, other.offset)
                 && Objects.equals(child(), other.child());
     }
 }

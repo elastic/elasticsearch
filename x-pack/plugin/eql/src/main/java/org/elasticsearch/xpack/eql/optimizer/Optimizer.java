@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -34,12 +35,17 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunct
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -51,7 +57,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE,
                 new ReplaceSurrogateFunction());
-                
+
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
@@ -65,20 +71,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineBinaryComparisons(),
                 // prune/elimination
                 new PruneFilters(),
-                new PruneLiteralsInOrderBy(), new CombineLimits()
-                );
+                new PruneLiteralsInOrderBy(),
+                new CombineLimits());
 
         Batch local = new Batch("Skip Elasticsearch",
                 new SkipEmptyFilter(),
-                new SkipEmptyJoin());
+                new SkipEmptyJoin(),
+                new SkipQueryOnLimitZero());
+
+        Batch ordering = new Batch("Implicit Order",
+                new SortByLimit(),
+                new PushDownOrderBy());
 
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(substitutions, operators, local, label);
+        return Arrays.asList(substitutions, operators, local, ordering, label);
     }
 
-    
+
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -140,8 +151,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
 
         @Override
-        protected LogicalPlan nonMatchingFilter(Filter filter) {
-            return new LocalRelation(filter.source(), filter.output());
+        protected LogicalPlan skipPlan(Filter filter) {
+            return Optimizer.skipPlan(filter);
         }
     }
 
@@ -159,7 +170,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
     }
-    
+
+    static class SkipQueryOnLimitZero extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SkipQueryOnLimitZero {
+
+        @Override
+        protected LogicalPlan skipPlan(Limit limit) {
+            return Optimizer.skipPlan(limit);
+        }
+    }
+
+    private static LogicalPlan skipPlan(UnaryPlan plan) {
+        return new LocalRelation(plan.source(), plan.output());
+    }
+
     /**
      * Combine tail and head into one limit.
      * The rules moves up since the first limit is the one that defines whether it's the head (positive) or
@@ -206,6 +229,65 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return limit;
+        }
+    }
+
+    /**
+     * If there is a negative limit (such as tail), change the order of the implicit sort.
+     * That's because we're looking at the end of the stream, not at the beginning.
+     */
+    static final class SortByLimit extends OptimizerRule<LimitWithOffset> {
+
+        @Override
+        protected LogicalPlan rule(LimitWithOffset limit) {
+            // only care if the limit is negative (tail)
+            
+            if (limit.limit().foldable() && Integer.signum((Integer) limit.limit().fold()) < 0) {
+                LogicalPlan child = limit.child();
+                if (child instanceof OrderBy) {
+                    OrderBy ob = (OrderBy) child;
+                    if (PushDownOrderBy.isDefaultOrderBy(ob)) {
+                        ob = new OrderBy(ob.source(), ob.child(), PushDownOrderBy.changeDirection(ob.order(), Order.OrderDirection.DESC));
+                        limit = new LimitWithOffset(limit.source(), limit.limit(), limit.offset(), ob);
+                    }
+                }
+            }
+            
+            return limit;
+        }
+    }
+
+    /**
+     * Push down the OrderBy into the actual queries before translating them.
+     * There is always an implicit order (timestamp + tiebreaker ascending) however if
+     * a limit has been applied to look at the tail, push that down taking into the account
+     * the matching construct.
+     */
+    static final class PushDownOrderBy extends OptimizerRule<OrderBy> {
+
+        @Override
+        protected LogicalPlan rule(OrderBy order) {
+            return order;
+        }
+
+        private static boolean isDefaultOrderBy(OrderBy orderBy) {
+            LogicalPlan child = orderBy.child();
+            // the default order by is the first pipe
+            // so it has to be on top of a event query or join/sequence
+            return child instanceof Project || child instanceof Join;
+        }
+
+        private static List<Order> changeDirection(List<Order> orders, Order.OrderDirection direction) {
+            List<Order> changed = new ArrayList<>(orders.size());
+            boolean hasChanged = false;
+            for (Order order : orders) {
+                if (order.direction() != direction) {
+                    order = new Order(order.source(), order.child(), direction, order.nullsPosition());
+                    hasChanged = true;
+                }
+                changed.add(order);
+            }
+            return hasChanged ? changed : orders;
         }
     }
 

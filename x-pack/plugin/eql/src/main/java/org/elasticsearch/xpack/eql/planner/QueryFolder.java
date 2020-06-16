@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.planner;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
@@ -39,6 +40,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         Batch fold = new Batch("Fold queries",
                 new FoldProject(),
                 new FoldFilter(),
+                new FoldLimit(),
                 new FoldOrderBy()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
@@ -83,6 +85,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
     
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
+
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
             if (plan.child() instanceof EsQueryExec) {
@@ -111,6 +114,15 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 return exec.with(qContainer);
             }
+            return plan;
+        }
+    }
+
+    private static class FoldLimit extends FoldingRule<LimitWithOffsetExec> {
+
+        @Override
+        protected PhysicalPlan rule(LimitWithOffsetExec plan) {
+
             return plan;
         }
     }

@@ -51,7 +51,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -75,6 +77,18 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Object visitStatement(StatementContext ctx) {
         LogicalPlan plan = plan(ctx.query());
+
+        // the first pipe will be the implicit order
+        List<Order> orders = new ArrayList<>(2);
+        Source source = plan.source();
+        orders.add(new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        // make sure to add the tiebreaker as well
+        Attribute tiebreaker = fieldTiebreaker();
+        if (Expressions.isPresent(tiebreaker)) {
+            orders.add(new Order(source, tiebreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        }
+        plan = new OrderBy(source, plan, orders);
+        // add the actual declared pipes
         for (PipeContext pipeCtx : ctx.pipe()) {
             plan = pipe(pipeCtx, plan);
         }
@@ -83,7 +97,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
-        return new Project(source(ctx), visitEventFilter(ctx.eventFilter()), emptyList());
+        return new Project(source(ctx), visitEventFilter(ctx.eventFilter()), defaultProjection());
     }
 
     @Override
@@ -102,19 +116,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             condition = new And(source, eventMatch, condition);
         }
 
-        Filter filter = new Filter(source, RELATION, condition);
-        List<Order> orders = new ArrayList<>(2);
-
-        // TODO: add implicit sorting - when pipes are added, this would better sit there (as a default pipe)
-        orders.add(new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        // make sure to add the tiebreaker as well
-        Attribute tiebreaker = fieldTiebreaker();
-        if (Expressions.isPresent(tiebreaker)) {
-            orders.add(new Order(source, tiebreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        }
-
-        OrderBy orderBy = new OrderBy(source, filter, orders);
-        return orderBy;
+        return new Filter(source, RELATION, condition);
     }
 
     @Override
@@ -168,14 +170,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
 
-        List<Attribute> output = CollectionUtils.combine(keys, fieldTimestamp());
+        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, defaultProjection()));
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
+    }
+
+    private List<Attribute> defaultProjection() {
         Attribute fieldTieBreaker = fieldTiebreaker();
         if (Expressions.isPresent(fieldTieBreaker)) {
-            output = CollectionUtils.combine(output, fieldTieBreaker);
+            return asList(fieldTimestamp(), fieldTiebreaker());
         }
-        LogicalPlan child = new Project(source(ctx), eventQuery, output);
-
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
+        return singletonList(fieldTimestamp());
     }
 
     @Override

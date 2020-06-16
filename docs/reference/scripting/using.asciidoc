@@ -248,6 +248,13 @@ you can configure the size of this cache using the
 By default, the cache size is `100` for all contexts except the `ingest` and the
 `processor_conditional` context, where it is `200`.
 
+|====
+| Context | Default Cache Size
+| `ingest`  | 200
+| `processor_conditional` | 200
+| default | 100
+|====
+
 NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a

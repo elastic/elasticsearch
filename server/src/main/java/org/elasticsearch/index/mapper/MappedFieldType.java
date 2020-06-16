@@ -409,7 +409,6 @@ public abstract class MappedFieldType {
      * Associate metadata with this field.
      */
     public void updateMeta(Map<String, String> meta) {
-        this.meta.clear();
-        this.meta.putAll(meta);
+        this.meta = meta;
     }
 }

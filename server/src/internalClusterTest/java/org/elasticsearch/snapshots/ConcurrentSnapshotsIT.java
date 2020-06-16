@@ -38,10 +38,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -51,6 +55,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -625,6 +630,96 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
     }
 
+    public void testQueuedOperationsOnMasterFailOver() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
+        final String secondSnapshot = "snapshot-two";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute());
+
+        final String masterNode = internalCluster().getMasterName();
+        blockNodeOnControlFiles(repoName, masterNode);
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(false).get();
+
+        final PlainActionFuture<Void> bothDeletesVisible = awaitClusterState(state -> {
+            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            return deletionsInProgress.getEntries().size() == 2;
+        });
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        bothDeletesVisible.get(30L, TimeUnit.SECONDS);
+
+        internalCluster().stopCurrentMasterNode();
+        ensureStableCluster(3);
+        final PlainActionFuture<Void> allStateCleanedUp = awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshotsInProgress == null || snapshotDeletionsInProgress == null) {
+                return false;
+            }
+            return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
+        });
+
+        logger.info("verify that all operations finish in the cluster state after all");
+        allStateCleanedUp.get(30L, TimeUnit.SECONDS);
+    }
+
+    public void testQueuedOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
+        disableRepoConsistencyCheck("This test corrupts the repository on purpose");
+
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
+        final String secondSnapshot = "snapshot-two";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute());
+
+        final long generation = getRepositoryData(repoName).getGenId();
+        final String masterNode = internalCluster().getMasterName();
+        blockNodeOnControlFiles(repoName, masterNode);
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        Path indexNBlob = repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation);
+        assertFileExists(indexNBlob);
+        Files.write(indexNBlob, randomByteArrayOfLength(1), StandardOpenOption.TRUNCATE_EXISTING);
+
+        client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(false).get();
+
+        final PlainActionFuture<Void> bothDeletesVisible = awaitClusterState(state -> {
+            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            return deletionsInProgress.getEntries().size() == 2;
+        });
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        bothDeletesVisible.get(30L, TimeUnit.SECONDS);
+
+        internalCluster().stopCurrentMasterNode();
+        ensureStableCluster(3);
+        final PlainActionFuture<Void> allStateCleanedUp = awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshotsInProgress == null || snapshotDeletionsInProgress == null) {
+                return false;
+            }
+            return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
+        });
+
+        logger.info("verify that all operations finish in the cluster state after all");
+        allStateCleanedUp.get(30L, TimeUnit.SECONDS);
+    }
+
     private PlainActionFuture<Void> awaitDeleteInClusterState() {
         return awaitClusterState(state -> {
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
@@ -635,7 +730,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private PlainActionFuture<Void> awaitClusterState(Predicate<ClusterState> statePredicate) {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
-        clusterService.addListener(new ClusterStateListener() {
+        final ClusterStateListener listener = new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 if (statePredicate.test(event.state())) {
@@ -643,7 +738,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     clusterService.removeListener(this);
                 }
             }
-        });
+        };
+        clusterService.addListener(listener);
+        if (statePredicate.test(clusterService.state())) {
+            clusterService.removeListener(listener);
+            future.onResponse(null);
+        }
         return future;
     }
 

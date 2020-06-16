@@ -203,6 +203,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper == null) {
             return null;
         }
+        if (mapper instanceof FieldAliasMapper) {
+            return getLuceneFieldType(((FieldAliasMapper)mapper).path());
+        }
         if (mapper instanceof FieldMapper == false) {
             return null;
         }

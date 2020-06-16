@@ -813,7 +813,7 @@ teardown:
 
 
 ---
-"Test simulate with provided pipeline definition with description in processors":
+"Test simulate with provided pipeline definition with tag and description in processors":
   - do:
       ingest.simulate:
         verbose: true
@@ -825,6 +825,7 @@ teardown:
                 {
                   "set" : {
                     "description": "processor_description",
+                    "tag": "processor_tag",
                     "field" : "field2",
                     "value" : "_value"
                   }
@@ -844,3 +845,5 @@ teardown:
   - length: { docs: 1 }
   - length: { docs.0.processor_results: 1 }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
+  - match: { docs.0.processor_results.0.description: "processor_description" }
+  - match: { docs.0.processor_results.0.tag: "processor_tag" }

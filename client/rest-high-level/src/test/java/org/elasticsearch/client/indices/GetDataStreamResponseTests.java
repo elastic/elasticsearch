@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 
@@ -84,7 +85,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
             org.elasticsearch.client.indices.DataStream client = clientIt.next();
             DataStream server = serverIt.next();
             assertEquals(server.getName(), client.getName());
-            assertEquals(server.getIndices(), client.getIndices());
+            assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
             assertEquals(server.getTimeStampField(), client.getTimeStampField());
             assertEquals(server.getGeneration(), client.getGeneration());
         }

@@ -130,11 +130,6 @@ settings from the recently updated `logs_data_stream` template.
 [source,console]
 ----
 POST /logs/_rollover/
-{
-  "conditions": {
-    "max_docs":   "1"
-  }
-}
 ----
 // TEST[continued]
 ====

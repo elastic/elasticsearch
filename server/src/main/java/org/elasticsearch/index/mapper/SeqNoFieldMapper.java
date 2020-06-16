@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -91,27 +93,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
 
-    public static class SeqNoDefaults {
+    public static class Defaults {
         public static final String NAME = SeqNoFieldMapper.NAME;
-        public static final MappedFieldType FIELD_TYPE = new SeqNoFieldType();
+        public static final MappedFieldType MAPPED_FIELD_TYPE = new SeqNoFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
-
-        public Builder() {
-            super(SeqNoDefaults.NAME, SeqNoDefaults.FIELD_TYPE, SeqNoDefaults.FIELD_TYPE);
-        }
-
-        @Override
-        public SeqNoFieldMapper build(BuilderContext context) {
-            return new SeqNoFieldMapper(context.indexSettings());
         }
     }
 
@@ -132,6 +121,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
+            super(NAME, true, true, Collections.emptyMap());
         }
 
         protected SeqNoFieldType(SeqNoFieldType ref) {
@@ -220,7 +210,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     public SeqNoFieldMapper(Settings indexSettings) {
-        super(NAME, SeqNoDefaults.FIELD_TYPE, SeqNoDefaults.FIELD_TYPE, indexSettings);
+        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE, indexSettings);
     }
 
     @Override

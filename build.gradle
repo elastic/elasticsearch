@@ -431,7 +431,7 @@ allprojects {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      configurations.findAll { it.isCanBeResolved() && !it.name.equals("testCompile") }.each { it.resolve() }
     }
   }
 

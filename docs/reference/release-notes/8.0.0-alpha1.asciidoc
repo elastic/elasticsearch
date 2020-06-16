@@ -1,6 +1,8 @@
 [[release-notes-8.0.0-alpha1]]
 == {es} version 8.0.0-alpha1
 
+coming[8.0.0]
+
 The changes listed below have been released for the first time in {es}
 8.0.0-alpha1.
 
@@ -25,4 +27,4 @@ all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
 `index.indexing.slowlog.threshold.index.trace` to `-1` {pull}57591[#57591]
 
 
-coming[8.0.0]
+

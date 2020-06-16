@@ -35,7 +35,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     @Override
-    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
+    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
+        throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
@@ -69,6 +70,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             case EnrichPolicy.MATCH_TYPE:
                 return new MatchProcessor(
                     tag,
+                    description,
                     client,
                     policyName,
                     field,
@@ -83,6 +85,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
                 return new GeoMatchProcessor(
                     tag,
+                    description,
                     client,
                     policyName,
                     field,

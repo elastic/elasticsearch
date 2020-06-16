@@ -17,13 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.fielddata.plain;
 
-public class RankFeatureMetaFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+import org.apache.lucene.index.BinaryDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
+final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData{
+    StringBinaryDVLeafFieldData(BinaryDocValues values) {
+        super(values);
     }
 
+    @Override
+    public ScriptDocValues<String> getScriptValues() {
+        return new ScriptDocValues.Strings(getBytesValues());
+    }
 }

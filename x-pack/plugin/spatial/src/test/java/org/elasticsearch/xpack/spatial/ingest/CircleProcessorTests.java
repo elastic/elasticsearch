@@ -213,9 +213,8 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-        shapeType.setHasDocValues(false);
-        shapeType.setName(fieldName);
+        MappedFieldType shapeType
+            = new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType(fieldName, true, false, Collections.emptyMap());
 
         VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);
@@ -247,9 +246,7 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldMapper.ShapeFieldType();
-        shapeType.setHasDocValues(false);
-        shapeType.setName(fieldName);
+        MappedFieldType shapeType = new ShapeFieldMapper.ShapeFieldType(fieldName, true, false, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         QueryShardContext mockedContext = mock(QueryShardContext.class);

@@ -843,11 +843,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Run the next queued up repository operation for the given repository name.
+     *
      * @param newGeneration current repository generation for given repository
      * @param repository    repository name
      */
     private void runNextQueuedOperation(long newGeneration, String repository) {
         synchronized (currentlyFinalizing) {
+            assert currentlyFinalizing.contains(repository);
             final Deque<SnapshotFinalization> outstandingForRepo = snapshotsToFinalize.get(repository);
             final SnapshotFinalization nextFinalization;
             if (outstandingForRepo == null) {
@@ -1614,10 +1616,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failListenersIgnoringException(deleteListeners, failure);
                 }
                 runningDeletions.remove(deleteEntry.uuid());
-                for (SnapshotsInProgress.Entry entry : newFinalizations) {
-                    endSnapshot(entry, newState.metadata());
-                }
                 if (repositoryData == null) {
+                    // Failure corner case, we failed loading repository data before the delete so we fail all queued up snapshots and
+                    // deletes for the repository that this delete belonged to
                     for (Snapshot snapshot : snapshotsToFail) {
                         failSnapshotCompletionListeners(snapshot, failure);
                     }
@@ -1626,6 +1627,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         runningDeletions.remove(delete);
                     }
                 } else {
+                    for (SnapshotsInProgress.Entry entry : newFinalizations) {
+                        endSnapshot(entry, newState.metadata());
+                    }
                     runNextQueuedOperation(repositoryData.getGenId(), deleteEntry.repository());
                 }
             }

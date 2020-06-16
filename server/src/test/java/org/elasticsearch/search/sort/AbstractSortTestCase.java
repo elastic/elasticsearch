@@ -220,9 +220,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * Tests that require other field types can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        doubleFieldType.setName(name);
-        doubleFieldType.setHasDocValues(true);
+        NumberFieldMapper.NumberFieldType doubleFieldType
+            = new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
         return doubleFieldType;
     }
 

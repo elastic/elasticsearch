@@ -738,7 +738,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-integer");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -767,7 +766,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-decimal");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 

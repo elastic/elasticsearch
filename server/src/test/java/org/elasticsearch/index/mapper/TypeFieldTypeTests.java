@@ -29,15 +29,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-public class TypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TypeFieldMapper.TypeFieldType();
-    }
+public class TypeFieldTypeTests extends ESTestCase {
 
-    public void testTermsQuery() throws Exception {
+    public void testTermsQuery() {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
         Settings indexSettings = Settings.builder()
@@ -54,8 +51,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
         Mockito.when(mapperService.documentMapper()).thenReturn(null);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
-        TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType();
-        ft.setName(TypeFieldMapper.NAME);
+        TypeFieldMapper.TypeFieldType ft = TypeFieldMapper.TypeFieldType.INSTANCE;
         Query query = ft.termQuery("my_type", context);
         assertEquals(new MatchNoDocsQuery(), query);
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +51,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        MappedFieldType fieldType = mapperService.fieldType("name");
+        FieldType fieldType = mapperService.getLuceneFieldType("name");
         assertThat(fieldType.stored(), equalTo(true));
 
         boolean stored = false;
@@ -59,7 +60,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         }
         assertTrue(stored);
 
-        fieldType = mapperService.fieldType("age");
+        fieldType = mapperService.getLuceneFieldType("age");
         assertThat(fieldType.stored(), equalTo(true));
     }
 }

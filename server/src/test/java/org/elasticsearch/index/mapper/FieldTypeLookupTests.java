@@ -19,11 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -92,8 +87,8 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testUpdateFieldAlias() {
         // Add an alias 'alias' to the concrete field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType();
-        MockFieldMapper field1 = new MockFieldMapper("foo", fieldType1);
+        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
+        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
         FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
 
         FieldTypeLookup lookup = new FieldTypeLookup();
@@ -104,9 +99,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(fieldType1, aliasType1);
 
         // Update the alias to refer to a new concrete field 'bar'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType();
-        fieldType2.setStored(!fieldType1.stored());
-        MockFieldMapper field2 = new MockFieldMapper("bar", fieldType2);
+        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("bar");
+        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
 
         FieldAliasMapper alias2 = new FieldAliasMapper("alias", "alias", "bar");
         lookup = lookup.copyAndAddAll("type", newList(field2), newList(alias2));
@@ -119,9 +113,9 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testUpdateConcreteFieldWithAlias() {
         // Add an alias 'alias' to the concrete field 'foo'.
         FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType();
+        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
         fieldType1.setBoost(1.0f);
-        MockFieldMapper field1 = new MockFieldMapper("foo", fieldType1);
+        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
 
         FieldTypeLookup lookup = new FieldTypeLookup();
         lookup = lookup.copyAndAddAll("type", newList(field1), newList(alias1));
@@ -131,9 +125,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(fieldType1, aliasType1);
 
         // Update the boost for field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType();
+        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("foo");
         fieldType2.setBoost(2.0f);
-        MockFieldMapper field2 = new MockFieldMapper("foo", fieldType2);
+        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
         lookup = lookup.copyAndAddAll("type", newList(field2), emptyList());
 
         // Check that the alias maps to the new field type.
@@ -196,33 +190,5 @@ public class FieldTypeLookupTests extends ESTestCase {
             iterator.next();
         }
         return count;
-    }
-
-    static class OtherFakeFieldType extends TermBasedFieldType {
-        OtherFakeFieldType() {
-        }
-
-        protected OtherFakeFieldType(OtherFakeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new OtherFakeFieldType(this);
-        }
-
-        @Override
-        public String typeName() {
-            return "otherfaketype";
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (hasDocValues()) {
-                return new DocValuesFieldExistsQuery(name());
-            } else {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            }
-        }
     }
 }

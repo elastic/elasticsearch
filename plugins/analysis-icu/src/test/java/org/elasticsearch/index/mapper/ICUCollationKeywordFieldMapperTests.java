@@ -43,6 +43,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -58,6 +59,11 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
     @Override
     protected ICUCollationKeywordFieldMapper.Builder newBuilder() {
         return new ICUCollationKeywordFieldMapper.Builder("icu");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
     }
 
     IndexService indexService;

@@ -195,10 +195,10 @@ public class RolloverIT extends ESIntegTestCase {
             testAlias.writeIndex(true);
         }
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
-        indexDoc("test_index-2", "1", "field", "value");
+        index("test_index-2", "_doc", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
-            .put("number_of_shards", 1) 
+            .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")

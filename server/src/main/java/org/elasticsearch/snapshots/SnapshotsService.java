@@ -196,7 +196,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
-        Map<String, Object> adaptedUserMeta = repository.adaptUserMetadata(request.userMetadata());
+        Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -238,12 +238,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
                 }
 
-                Map<String, Object> userMeta = adaptedUserMeta;
-                if (dataStreams.size() > 0) {
-                    userMeta = userMeta == null ? new HashMap<>() : new HashMap<>(userMeta);
-                    userMeta.put(DataStream.DATA_STREAMS_METADATA_FIELD, dataStreams);
-                }
-
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
@@ -261,14 +255,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
                         newEntry = new SnapshotsInProgress.Entry(
                                 new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
-                                State.FAILED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                                State.FAILED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                                 "Indices don't have primary shards " + missing, userMeta, version);
                     }
                 }
                 if (newEntry == null) {
                     newEntry = new SnapshotsInProgress.Entry(
                             new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                            State.STARTED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                            State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                             null, userMeta, version);
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,

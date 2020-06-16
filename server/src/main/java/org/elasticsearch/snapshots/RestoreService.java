@@ -210,17 +210,7 @@ public class RestoreService implements ClusterStateApplier {
                 Map<String, DataStream> dataStreams;
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
 
-                List<String> dataStreamNames;
-                if (snapshotInfo.userMetadata() != null &&
-                    snapshotInfo.userMetadata().containsKey(DataStream.DATA_STREAMS_METADATA_FIELD)) {
-                    @SuppressWarnings("unchecked")
-                    List<String> ds = (List<String>) snapshotInfo.userMetadata().get(DataStream.DATA_STREAMS_METADATA_FIELD);
-                    dataStreamNames = ds;
-                } else {
-                    dataStreamNames = Collections.emptyList();
-                }
-
-                List<String> requestedDataStreams = filterIndices(dataStreamNames, requestIndices.toArray(String[]::new),
+                List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(String[]::new),
                     IndicesOptions.fromOptions(true, true, true, true));
                 if (requestedDataStreams.isEmpty()) {
                     dataStreams = new HashMap<>();

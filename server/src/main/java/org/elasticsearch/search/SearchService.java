@@ -114,8 +114,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -917,21 +915,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            List<FetchDocValuesContext.FieldAndFormat> docValueFields = new ArrayList<>();
-            for (FetchDocValuesContext.FieldAndFormat format : source.docValueFields()) {
-                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(format.field);
-                for (String fieldName: fieldNames) {
-                   docValueFields.add(new FetchDocValuesContext.FieldAndFormat(fieldName, format.format));
-                }
-            }
-            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();
-            if (docValueFields.size() > maxAllowedDocvalueFields) {
-                throw new IllegalArgumentException(
-                    "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                        + "] but was [" + docValueFields.size() + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
-            }
-            context.docValuesContext(new FetchDocValuesContext(docValueFields));
+            FetchDocValuesContext docValuesContext = FetchDocValuesContext.create(context.mapperService(), source.docValueFields());
+            context.docValuesContext(docValuesContext);
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

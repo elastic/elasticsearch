@@ -165,7 +165,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.Avg).innerHit(
                         new InnerHitBuilder().setHighlightBuilder(new HighlightBuilder().field("comments.message"))
                                 .setExplain(true)
-                                .addDocValueField("comments.message")
+                                .addDocValueField("comments.mes*")
                                 .addScriptField("script",
                                         new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                 .setSize(1))).get();

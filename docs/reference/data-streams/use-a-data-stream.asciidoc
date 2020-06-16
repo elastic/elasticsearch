@@ -286,8 +286,8 @@ POST /_reindex
 
 Data streams are designed to be <<data-streams-append-only,append-only>>. This
 means you cannot send update or deletion requests for existing documents to a
-data stream. However, you cannot send update or deletion requests for existing
-documents to a data stream.
+data stream. However, you can send update or deletion requests to the backing
+index containing the document.
 
 To delete or update a document in a data stream, you first need to get:
 
@@ -389,7 +389,7 @@ information for any documents matching the search.
 
 You can use an <<docs-index_,index API>> request to update an individual
 document. To prevent an accidental overwrite, this request must include valid
-<<optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>> arguments.
+`if_seq_no` and `if_primary_term` arguments.
 
 .*Example*
 [%collapsible]
@@ -436,7 +436,7 @@ DELETE /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX
 You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
 one request using `delete`, `index`, or `update` actions.
 
-If the action type is `index`, the action must include valid
+If the type is `index`, the action must include valid
 <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
 arguments.
 

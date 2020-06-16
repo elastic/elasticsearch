@@ -40,7 +40,7 @@ public class ProgressListenableActionFuture<T> extends AdapterActionFuture<T, T>
     public void onProgress(final long progress) {
         assert executedListeners == false;
         assert start <= progress : start + "<=" + progress;
-        assert progress < end : progress + '<' + end;
+        assert progress <= end : progress + "<=" + end;
 
         List<ActionListener<T>> listenersToExecute = null;
         synchronized (this) {
@@ -52,7 +52,7 @@ public class ProgressListenableActionFuture<T> extends AdapterActionFuture<T, T>
             }
 
             List<Tuple<Long, ActionListener<T>>> listenersToKeep = null;
-            for(Tuple<Long, ActionListener<T>> listener : listeners) {
+            for (Tuple<Long, ActionListener<T>> listener : listeners) {
                 if (listener.v1() <= current) {
                     if (listenersToExecute == null) {
                         listenersToExecute = new ArrayList<>();
@@ -77,10 +77,15 @@ public class ProgressListenableActionFuture<T> extends AdapterActionFuture<T, T>
     @Override
     protected void done() {
         super.done();
+        List<Tuple<Long, ActionListener<T>>> listenersToExecute = null;
         synchronized (this) {
             executedListeners = true;
+            listenersToExecute = this.listeners;
+            this.listeners = null;
         }
-        listeners.stream().map(Tuple::v2).forEach(this::executeListener);
+        if (listenersToExecute != null) {
+            listenersToExecute.stream().map(Tuple::v2).forEach(this::executeListener);
+        }
     }
 
     @Override
@@ -111,9 +116,7 @@ public class ProgressListenableActionFuture<T> extends AdapterActionFuture<T, T>
 
     private void executeListener(final ActionListener<T> listener) {
         try {
-            // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
-            // here we know we will never block
-            listener.onResponse(actionGet(0));
+            listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -7,11 +7,10 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.io.IOException;
@@ -20,13 +19,19 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 
 public class CacheFile {
 
@@ -260,36 +265,125 @@ public class CacheFile {
         }
     }
 
-    CompletableFuture<Integer> fetchRange(
-        long start,
-        long end,
-        CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-        CheckedBiConsumer<Long, Long, IOException> onRangeMissing
+    @FunctionalInterface
+    interface CacheReader {
+        int read(FileChannel channel) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface CacheWriter {
+        void write(FileChannel channel, long from, long to, Consumer<Long> monitor) throws IOException;
+    }
+
+    Integer fetch(final long rangeStart, final long rangeEnd, final CacheReader reader, final CacheWriter writer) throws IOException {
+        try {
+            return executeFetch(rangeStart, rangeEnd, rangeStart, rangeEnd, reader, writer, false, null).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Failed to fetch range [" + rangeStart + '-' + rangeEnd + ']', e);
+        } catch (ExecutionException e) {
+            throw new IOException("Failed to fetch range [" + rangeStart + '-' + rangeEnd + ']', e);
+        }
+    }
+
+    CompletableFuture<Integer> fetchAsync(
+        final long rangeStart,
+        final long rangeEnd,
+        final long rangeFrom,
+        final long rangeTo,
+        final CacheReader reader,
+        final CacheWriter writer,
+        final Executor executor
+    ) {
+        return executeFetch(rangeStart, rangeEnd, rangeFrom, rangeTo, reader, writer, true, executor);
+    }
+
+    private CompletableFuture<Integer> executeFetch(
+        final long rangeStart,
+        final long rangeEnd,
+        final long rangeFrom,
+        final long rangeTo,
+        final CacheReader reader,
+        final CacheWriter writer,
+        final boolean async,
+        final Executor executor
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
+            if (rangeStart < 0 || rangeStart > tracker.getLength() || rangeStart > rangeEnd || rangeEnd > tracker.getLength()) {
                 throw new IllegalArgumentException(
-                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
+                    String.format(
+                        Locale.ROOT,
+                        "invalid range [start=%d, end=%d] for length [%d]",
+                        rangeStart,
+                        rangeEnd,
+                        tracker.getLength()
+                    )
                 );
             }
+            if (rangeTo < rangeFrom || rangeFrom < rangeStart || rangeEnd < rangeTo) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "invalid listener notification range [from=%d, to=%d] ] with range to write [start=%d, end=%d]",
+                        rangeFrom,
+                        rangeTo,
+                        rangeStart,
+                        rangeEnd
+                    )
+                );
+            }
+
             ensureOpen();
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                start,
-                end,
-                ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
-                    rangeFailure -> future.completeExceptionally(rangeFailure)
-                )
+                rangeStart,
+                rangeEnd,
+                rangeFrom,
+                rangeTo,
+                ActionListener.wrap(success -> future.complete(reader.read(channel)), future::completeExceptionally)
             );
 
-            for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    ensureOpen();
-                    onRangeMissing.accept(gap.start, gap.end);
-                    gap.onCompletion();
-                } catch (Exception e) {
-                    gap.onFailure(e);
+            if (gaps.isEmpty() == false) {
+                final Iterator<SparseFileTracker.Gap> iterator = new ArrayList<>(gaps).iterator();
+                final AbstractRunnable fetchMethod = new AbstractRunnable() {
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        iterator.forEachRemaining(gap -> gap.onFailure(e));
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        while (iterator.hasNext()) {
+                            final SparseFileTracker.Gap gap = iterator.next();
+                            try {
+                                if (readLock.tryLock() == false) {
+                                    throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
+                                }
+                                try {
+                                    ensureOpen();
+                                    if (channel == null) {
+                                        throw new AlreadyClosedException("Cache file channel has been released and closed");
+                                    }
+                                    writer.write(channel, gap.start, gap.end, gap::onProgress);
+                                    gap.onCompletion();
+                                } finally {
+                                    readLock.unlock();
+                                }
+                            } catch (Exception e) {
+                                gap.onFailure(e);
+                            } finally {
+                                iterator.remove();
+                            }
+                        }
+                    }
+                };
+                if (async) {
+                    assert executor != null;
+                    executor.execute(fetchMethod);
+                } else {
+                    assert executor == null;
+                    fetchMethod.run();
                 }
             }
         } catch (Exception e) {

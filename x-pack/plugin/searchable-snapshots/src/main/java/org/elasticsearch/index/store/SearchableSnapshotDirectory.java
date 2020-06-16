@@ -363,10 +363,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory;
     }
 
+    public Executor executor() {
+        return threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+    }
+
     private void prewarmCache() {
         if (prewarmCache) {
             final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
-            final Executor executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+            final Executor executor = executor();
 
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
                 if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {

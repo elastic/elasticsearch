@@ -43,9 +43,9 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 
   // explicitly add our dependency on the JDK
-  def jdkVersion = VersionProperties.versions.get('bundled_jdk')
-  def jdkMajorVersion = jdkVersion.split('[+.]')[0]
-  def sourceUrl = "http://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  String jdkVersion = VersionProperties.versions.get('bundled_jdk')
+  String jdkMajorVersion = jdkVersion.split('[+.]')[0]
+  String sourceUrl = "http://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
   additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 }
 

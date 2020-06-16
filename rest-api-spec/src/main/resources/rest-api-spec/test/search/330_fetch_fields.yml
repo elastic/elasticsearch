@@ -190,13 +190,10 @@ setup:
       index:
         index:  test
         id:     1
+        refresh: true
         body:
           keyword: "x"
           integer: 42
-
-  - do:
-      indices.refresh:
-        index: [ test ]
 
   - do:
       search:

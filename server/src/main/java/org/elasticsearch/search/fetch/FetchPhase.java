@@ -116,7 +116,7 @@ public class FetchPhase implements SearchPhase {
 
                 Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+                    MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         if (context.getObjectMapper(fieldName) != null) {

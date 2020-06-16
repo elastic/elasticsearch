@@ -23,20 +23,21 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class DataStream implements ToXContentObject {
 
     private final String name;
     private final String timeStampField;
-    private final List<Index> indices;
+    private final List<String> indices;
     private long generation;
 
-    public DataStream(String name, String timeStampField, List<Index> indices, long generation) {
+    public DataStream(String name, String timeStampField, List<String> indices, long generation) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -51,7 +52,7 @@ public final class DataStream implements ToXContentObject {
         return timeStampField;
     }
 
-    public List<Index> getIndices() {
+    public List<String> getIndices() {
         return indices;
     }
 
@@ -66,12 +67,15 @@ public final class DataStream implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> new DataStream((String) args[0], (String) args[1], (List<Index>) args[2], (Long) args[3]));
+        args -> {
+            List<String> indices = ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("name")).collect(Collectors.toList());
+            return new DataStream((String) args[0], (String) args[1], indices, (Long) args[3]);
+        });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
     }
 

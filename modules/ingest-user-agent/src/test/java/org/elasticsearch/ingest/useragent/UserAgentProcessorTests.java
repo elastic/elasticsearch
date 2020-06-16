@@ -47,12 +47,12 @@ public class UserAgentProcessorTests extends ESTestCase {
 
         UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, new UserAgentCache(1000));
 
-        processor = new UserAgentProcessor(randomAlphaOfLength(10), "source_field", "target_field", parser,
+        processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", parser,
                 EnumSet.allOf(UserAgentProcessor.Property.class), false);
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), "source_field", "target_field", null,
+        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
             EnumSet.allOf(UserAgentProcessor.Property.class), true);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
@@ -62,7 +62,7 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), "source_field", "target_field", null,
+        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
             EnumSet.allOf(UserAgentProcessor.Property.class), true);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
@@ -71,7 +71,7 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     public void testNullWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), "source_field", "target_field", null,
+        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
             EnumSet.allOf(UserAgentProcessor.Property.class), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
@@ -81,7 +81,7 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), "source_field", "target_field", null,
+        UserAgentProcessor processor = new UserAgentProcessor(randomAlphaOfLength(10), null, "source_field", "target_field", null,
             EnumSet.allOf(UserAgentProcessor.Property.class), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);

@@ -1,174 +1,16 @@
-[role="xpack"]
 [[schedule-cron]]
-==== `cron` schedule
+==== Cron schedule
 
-A <<trigger-schedule,`schedule`>> trigger that enables you to use a
-https://en.wikipedia.org/wiki/Cron[cron] style expression to specify when you
-want the scheduler to start the watch execution. {watcher} uses the cron parser
-from the http://www.quartz-scheduler.org[Quartz Job Scheduler]. For more
-information about writing Quartz cron expressions, see the
-http://www.quartz-scheduler.org/documentation/quartz-2.2.x/tutorials/tutorial-lesson-06.html[Quartz CronTrigger Tutorial].
+Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
+that specifiues when to execute a watch.
 
-WARNING:  While `cron` triggers are super powerful, we recommend using one of
-          the other schedule types if you can, as they are much more
-          straightforward to configure. If you use `cron`, construct your `cron`
-          expressions with care to be sure you are actually setting the schedule
-          you want. You can use the <<croneval,`elasticsearch-croneval`>> tool to validate
-          your cron expressions and see what the resulting trigger times will be.
+TIP:  While cron expressions are powerful, a regularly occurring schedule 
+is easier to configure with the other schedule types. 
+If you must use a cron schedule, make sure you verify it with 
+<<elasticsearch-croneval, `elasticsearch-croneval`>> . 
 
-[[_cron_expressions]]
-===== Cron expressions
 
-A cron expression is a string of the following form:
-
-[source,txt]
-------------------------------
-    <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> [year]
-------------------------------
-
-All elements are required except for `year`. <<schedule-cron-elements>> shows
-the valid values for each element in a cron expression.
-
-[[schedule-cron-elements]]
-.Cron expression elements
-[cols=",^,,", options="header"]
-|======
-| Name           | Required  | Valid Values            | Valid Special Characters
-| `seconds`      | yes       | `0`-`59`                | `,` `-` `*` `/`
-| `minutes`      | yes       | `0`-`59`                | `,` `-` `*` `/`
-| `hours`        | yes       | `0`-`23`                | `,` `-` `*` `/`
-| `day_of_month` | yes       | `1`-`31`                | `,` `-` `*` `/` `?` `L` `W`
-| `month`        | yes       | `1`-`12` or `JAN`-`DEC` | `,` `-` `*` `/`
-| `day_of_week`  | yes       | `1`-`7` or `SUN`-`SAT`  | `,` `-` `*` `/` `?` `L` `#`
-| `year`         | no        | empty or `1970`-`2099   | `,` `-` `*` `/`
-|======
-
-The special characters you can use in a cron expression are described in
-<<schedule-cron-special-characters>>. The names of months and days of the week
-are not case sensitive. For example, `MON` and `mon` are equivalent.
-
-NOTE: Currently, you must specify `?` for either the `day_of_week` or
-      `day_of_month`. Explicitly specifying both values is not supported.
-
-[[schedule-cron-special-characters]]
-.Cron special characters
-[options="header"]
-|======
-| Special Character | Description
-
-| *                 | All values. Selects every possible value for a field. For
-                      example, `*` in the `hours` field means "every hour".
-
-| ?                 | No specific value. Use when you don't care what the value
-                      is. For example, if you want the schedule to trigger on a
-                      particular day of the month, but don't care what day of
-                      the week that happens to be, you can specify `?` in the
-                      `day_of_week` field.
-
-| -                 | A range of values (inclusive). Use to separate a minimum
-                      and maximum value. For example, if you want the schedule
-                      to trigger every hour between 9:00 AM and 5:00 PM, you
-                      could specify  `9-17` in the `hours` field.
-
-| ,                 | Multiple values. Use to separate multiple values for a
-                      field. For example, if you want the schedule to trigger
-                      every Tuesday and Thursday, you could specify `TUE,THU`
-                      in the `day_of_week` field.
-
-| /                 | Increment. Use to separate values when specifying a time
-                      increment. The first value represents the starting point,
-                      and the second value represents the interval. For example,
-                      if you want the schedule to trigger every 20 minutes
-                      starting at the top of the hour, you could specify `0/20`
-                      in the `minutes` field. Similarly, specifying `1/5` in
-                      `day_of_month` field will trigger every 5 days starting on
-                      the first day of the month.
-
-| L                 | Last. Use in the `day_of_month` field to mean the last day
-                      of the month--day 31 for January, day 28 for February in
-                      non-leap years, day 30 for April, and so on. Use alone in
-                      the `day_of_week` field in place of `7` or `SAT`, or after
-                      a particular day of the week to select the last day of that
-                      type in the month. For example `6L` means the last Friday
-                      of the month. You can specify `LW` in the `day_of_month`
-                      field to specify the last weekday of the month. Avoid using
-                      the `L` option when specifying lists or ranges of values,
-                      as the results likely won't be what you expect.
-
-| W                 | Weekday. Use to specify the weekday (Monday-Friday) nearest
-                      the given day. As an example, if you specify `15W` in the
-                      `day_of_month` field and the 15th is a Saturday, the
-                      schedule will trigger on the 14th. If the 15th is a Sunday,
-                      the schedule will trigger on Monday the 16th. If the 15th
-                      is a Tuesday, the schedule will trigger on Tuesday the 15th.
-                      However if you specify `1W` as the value for `day_of_month`,
-                      and the 1st is a Saturday, the schedule will trigger on
-                      Monday the 3rd--it won't jump over the month boundary. You
-                      can specify `LW` in the `day_of_month` field to specify the
-                      last weekday of the month. You can only use the `W` option
-                      when the `day_of_month` is a single day--it is not valid
-                      when specifying a range or list of days.
-
-| #                 | Nth XXX day in a month. Use in the `day_of_week` field to
-                      specify the nth XXX day of the month. For example, if you
-                      specify `6#1`, the schedule will trigger on the first
-                      Friday of the month. Note that if you specify `3#5` and
-                      there are not 5 Tuesdays in a particular month, the
-                      schedule won't trigger that month.
-
-|======
-
-.Setting daily triggers
-[options="header"]
-|======
-| Cron Expression       | Description
-| `0 5 9 * * ?`         | Trigger at 9:05 AM every day.
-| `0 5 9 * * ? 2015`    | Trigger at 9:05 AM every day during the year 2015.
-|======
-
-.Restricting triggers to a range of days or times
-[options="header"]
-|======
-| Cron Expression       | Description
-| `0 5 9 ? * MON-FRI`   | Trigger at 9:05 AM Monday through Friday.
-| `0 0-5 9 * * ?`       | Trigger every minute starting at 9:00 AM and ending
-                          at 9:05 AM every day.
-|======
-
-.Setting interval triggers
-[options="header"]
-|======
-| Cron Expression       | Description
-| `0 0/15 9 * * ?`      | Trigger every 15 minutes starting at 9:00 AM and ending
-                          at 9:45 AM every day.
-| `0 5 9 1/3 * ?`       | Trigger at 9:05 AM every 3 days every month, starting
-                          on the first day of the month.
-|======
-
-.Setting schedules that trigger on a particular day
-[options="header"]
-|======
-| Cron Expression       | Description
-| `0 1 4 1 4 ?`         | Trigger every April 1st at 4:01 AM.
-| `0 0,30 9 ? 4 WED`    | Trigger at 9:00 AM and at 9:30 AM every Wednesday in
-                          the month of April.
-| `0 5 9 15 * ?`        | Trigger at 9:05 AM on the 15th day of every month.
-| `0 5 9 15W * ?`       | Trigger at 9:05 AM on the nearest weekday to the 15th
-                          of every month.
-| `0 5 9 ? * 6#1`       | Trigger at 9:05 AM on the first Friday of every month.
-|======
-
-.Setting triggers using last
-[options="header"]
-|======
-| Cron Expression       | Description
-| `0 5 9 L * ?`         | Trigger at 9:05 AM on the last day of every month.
-| `0 5 9 ? * 2L`        | Trigger at 9:05 AM on the last Monday of every month
-| `0 5 9 LW * ?`        | Trigger at 9:05 AM on the last weekday of every month.
-|======
-
-[[_configuring_a_cron_schedule]]
-===== Configuring a cron schedule
+===== Configure a cron schedule with one time
 
 To configure a `cron` schedule, you simply specify the cron expression as a
 string value. For example, the following snippet configures a `cron` schedule
@@ -189,7 +31,7 @@ that triggers every day at noon:
 // NOTCONSOLE
 
 [[_configuring_a_multiple_times_cron_schedule]]
-===== Configuring a multiple times cron schedule
+===== Configure a cron schedule with multiple times
 
 To configure a `cron` schedule that triggers multiple times, you can
 specify an array of cron expressions. For example, the following `cron`
@@ -214,21 +56,15 @@ minute during the weekend:
 // NOTCONSOLE
 
 [[croneval]]
-===== Verifying cron expressions
+===== Use croneval to validate cron expressions
 
-The {es} {alert-features} provide a
-<<elasticsearch-croneval,`elasticsearch-croneval`>> command line tool
-that you can use to verify that your cron expressions are valid and produce the
-expected results. This tool is provided in the `$ES_HOME/bin` directory.
+{es} provides a <<elasticsearch-croneval, `elasticsearch-croneval`>> command line tool 
+in the `$ES_HOME/bin` directory that you can use to check that your cron expressions 
+are valid and produce the expected results.
 
-To verify a cron expression, simply pass it in as a parameter to
-`elasticsearch-croneval`:
+To validate a cron expression, pass it in as a parameter to `elasticsearch-croneval`:	
 
 [source,bash]
 --------------------------------------------------
 bin/elasticsearch-croneval "0 0/1 * * * ?"
---------------------------------------------------
-
-If the cron expression is valid, `elasticsearch-croneval` displays the next 10
-times that the schedule will be triggered. You can specify the `-c` option to
-control how many future trigger times are displayed.
+--------------------------------------------------	

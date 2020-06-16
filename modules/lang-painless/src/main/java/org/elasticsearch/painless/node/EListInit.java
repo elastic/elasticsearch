@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -40,12 +42,16 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class EListInit extends AExpression {
 
-    protected final List<AExpression> values;
+    private final List<AExpression> valueNodes;
 
-    public EListInit(Location location, List<AExpression> values) {
-        super(location);
+    public EListInit(int identifier, Location location, List<AExpression> valueNodes) {
+        super(identifier, location);
 
-        this.values = Collections.unmodifiableList(Objects.requireNonNull(values));
+        this.valueNodes = Collections.unmodifiableList(Objects.requireNonNull(valueNodes));
+    }
+
+    public List<AExpression> getValueNodes() {
+        return valueNodes;
     }
 
     @Override
@@ -74,24 +80,26 @@ public class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", add/1] not found"));
         }
 
-        List<Output> valueOutputs = new ArrayList<>(values.size());
+        List<Output> valueOutputs = new ArrayList<>(valueNodes.size());
+        List<PainlessCast> valueCasts = new ArrayList<>(valueNodes.size());
 
-        for (AExpression expression : values) {
+        for (AExpression expression : valueNodes) {
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             valueOutputs.add(expressionOutput);
+            valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
-        for (int i = 0; i < values.size(); ++i) {
-            listInitializationNode.addArgumentNode(values.get(i).cast(valueOutputs.get(i)));
+        for (int i = 0; i < valueNodes.size(); ++i) {
+            listInitializationNode.addArgumentNode(cast(valueOutputs.get(i).expressionNode, valueCasts.get(i)));
         }
 
-        listInitializationNode.setLocation(location);
+        listInitializationNode.setLocation(getLocation());
         listInitializationNode.setExpressionType(output.actual);
         listInitializationNode.setConstructor(constructor);
         listInitializationNode.setMethod(method);

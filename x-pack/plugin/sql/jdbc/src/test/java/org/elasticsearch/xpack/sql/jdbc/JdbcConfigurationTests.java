@@ -36,6 +36,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         return JdbcConfiguration.create(url, null, 0);
     }
 
+    public void testInvalidUrl() {
+        JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
+        assertEquals("Invalid URL [jdbc:es://localhost9200/?ssl=#5#], format should be " +
+            "[jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]", e.getMessage());
+    }
+
     public void testJustThePrefix() throws Exception {
        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es:"));
        assertEquals("Expected [jdbc:es://] url, received [jdbc:es:]", e.getMessage());

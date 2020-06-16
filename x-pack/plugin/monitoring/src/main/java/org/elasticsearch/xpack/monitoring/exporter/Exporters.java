@@ -243,7 +243,12 @@ public class Exporters extends AbstractLifecycleComponent {
                 } else {
                     listener.onFailure(exceptionRef.get());
                 }
-            }, listener::onFailure));
+            }, (exception) -> {
+                if (exceptionRef.get() != null) {
+                    exception.addSuppressed(exceptionRef.get());
+                }
+                listener.onFailure(exception);
+            }));
         }
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Lambda expression node.
@@ -64,18 +65,30 @@ import java.util.List;
  */
 public class ELambda extends AExpression {
 
-    protected final List<String> paramTypeStrs;
-    protected final List<String> paramNameStrs;
-    protected final List<AStatement> statements;
+    private final List<String> canonicalTypeNameParameters;
+    private final List<String> parameterNames;
+    private final SBlock blockNode;
 
-    public ELambda(Location location,
-                   List<String> paramTypes, List<String> paramNames,
-                   List<AStatement> statements) {
-        super(location);
-        this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
-        this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+    public ELambda(int identifier, Location location,
+            List<String> canonicalTypeNameParameters, List<String> parameterNames, SBlock blockNode) {
 
+        super(identifier, location);
+
+        this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+        this.parameterNames = Collections.unmodifiableList(Objects.requireNonNull(parameterNames));
+        this.blockNode = Objects.requireNonNull(blockNode);
+    }
+
+    public List<String> getCanonicalTypeNameParameters() {
+        return canonicalTypeNameParameters;
+    }
+
+    public List<String> getParameterNames() {
+        return parameterNames;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
@@ -92,7 +105,6 @@ public class ELambda extends AExpression {
         Class<?> returnType;
         List<Class<?>> typeParametersWithCaptures;
         List<String> parameterNames;
-        SBlock block;
         int maxLoopCounter;
 
         Output output = new Output();
@@ -105,8 +117,8 @@ public class ELambda extends AExpression {
             // we don't know anything: treat as def
             returnType = def.class;
             // don't infer any types, replace any null types with def
-            typeParameters = new ArrayList<>(paramTypeStrs.size());
-            for (String type : paramTypeStrs) {
+            typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
+            for (String type : canonicalTypeNameParameters) {
                 if (type == null) {
                     typeParameters.add(def.class);
                 } else {
@@ -128,7 +140,7 @@ public class ELambda extends AExpression {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
-            if (interfaceMethod.typeParameters.size() != paramTypeStrs.size())
+            if (interfaceMethod.typeParameters.size() != canonicalTypeNameParameters.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
                         "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]");
             // for method invocation, its allowed to ignore the return value
@@ -138,9 +150,9 @@ public class ELambda extends AExpression {
                 returnType = interfaceMethod.returnType;
             }
             // replace any null types with the actual type
-            typeParameters = new ArrayList<>(paramTypeStrs.size());
-            for (int i = 0; i < paramTypeStrs.size(); i++) {
-                String paramType = paramTypeStrs.get(i);
+            typeParameters = new ArrayList<>(canonicalTypeNameParameters.size());
+            for (int i = 0; i < canonicalTypeNameParameters.size(); i++) {
+                String paramType = canonicalTypeNameParameters.get(i);
                 if (paramType == null) {
                     typeParameters.add(interfaceMethod.typeParameters.get(i));
                 } else {
@@ -159,17 +171,16 @@ public class ELambda extends AExpression {
 
         for (int index = 0; index < typeParameters.size(); ++index) {
             Class<?> type = typeParameters.get(index);
-            String paramName = paramNameStrs.get(index);
-            lambdaScope.defineVariable(location, type, paramName, true);
+            String paramName = this.parameterNames.get(index);
+            lambdaScope.defineVariable(getLocation(), type, paramName, true);
         }
 
-        block = new SBlock(location, statements);
-        if (block.statements.isEmpty()) {
+        if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
         AStatement.Input blockInput = new AStatement.Input();
         blockInput.lastSource = true;
-        AStatement.Output blockOutput = block.analyze(classNode, scriptRoot, lambdaScope, blockInput);
+        AStatement.Output blockOutput = blockNode.analyze(classNode, scriptRoot, lambdaScope, blockInput);
 
         if (blockOutput.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
@@ -180,13 +191,13 @@ public class ELambda extends AExpression {
         // prepend capture list to lambda's arguments
         List<Variable> captures = new ArrayList<>(lambdaScope.getCaptures());
         typeParametersWithCaptures = new ArrayList<>(captures.size() + typeParameters.size());
-        parameterNames = new ArrayList<>(captures.size() + paramNameStrs.size());
+        parameterNames = new ArrayList<>(captures.size() + this.parameterNames.size());
         for (Variable var : captures) {
             typeParametersWithCaptures.add(var.getType());
             parameterNames.add(var.getName());
         }
         typeParametersWithCaptures.addAll(typeParameters);
-        parameterNames.addAll(paramNameStrs);
+        parameterNames.addAll(this.parameterNames);
 
         // desugar lambda body into a synthetic method
         name = scriptRoot.getNextSyntheticName("lambda");
@@ -204,7 +215,7 @@ public class ELambda extends AExpression {
             referenceNode = defInterfaceReferenceNode;
         } else {
             FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, input.expected, "this", name, captures.size());
+                    getLocation(), input.expected, "this", name, captures.size());
             output.actual = input.expected;
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
@@ -214,7 +225,7 @@ public class ELambda extends AExpression {
 
         FunctionNode functionNode = new FunctionNode();
         functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        functionNode.setLocation(location);
+        functionNode.setLocation(getLocation());
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
         functionNode.getTypeParameters().addAll(typeParametersWithCaptures);
@@ -226,7 +237,7 @@ public class ELambda extends AExpression {
 
         classNode.addFunctionNode(functionNode);
 
-        referenceNode.setLocation(location);
+        referenceNode.setLocation(getLocation());
         referenceNode.setExpressionType(output.actual);
 
         for (Variable capture : captures) {

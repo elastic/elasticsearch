@@ -22,7 +22,7 @@ abstract class Verifier {
 
         plan.forEachUp(p -> {
             if (p instanceof UnplannedExec) {
-                failures.add(fail(p, "Unplanned item"));
+                failures.add(fail(p, "Unplanned item {}", ((UnplannedExec) p).plan().nodeName()));
             }
             p.forEachExpressionsUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
@@ -38,7 +38,7 @@ abstract class Verifier {
 
         plan.forEachUp(p -> {
             if (p instanceof Unexecutable) {
-                failures.add(fail(p, "Unexecutable item"));
+                failures.add(fail(p, "Unexecutable item {}", p.nodeName()));
             }
             p.forEachExpressionsUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {

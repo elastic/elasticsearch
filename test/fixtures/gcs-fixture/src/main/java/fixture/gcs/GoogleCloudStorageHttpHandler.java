@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -40,7 +39,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -169,13 +167,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final StringBuilder batch = new StringBuilder();
                 for (String line : Streams.readAllLines(requestBody.streamInput())) {
                     if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        batch.append(line).append('\n');
+                        batch.append(line).append("\r\n");
                     } else if (line.startsWith("DELETE")) {
                         final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
                         if (Strings.hasText(name)) {
                             blobs.remove(URLDecoder.decode(name, UTF_8));
-                            batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
-                            batch.append('\n');
+                            batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
+                            batch.append("\r\n");
                         }
                     }
                 }
@@ -231,7 +229,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final int start = getContentRangeStart(range);
                 final int end = getContentRangeEnd(range);
 
-                blob = new CompositeBytesReference(blob, requestBody);
+                blob = CompositeBytesReference.of(blob, requestBody);
                 blobs.put(blobName, blob);
 
                 if (limit == null) {
@@ -245,7 +243,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else {
-                exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
         } finally {
             int read = exchange.getRequestBody().read();
@@ -259,8 +257,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String httpServerUrl(final HttpExchange exchange) {
-        final InetSocketAddress address = exchange.getLocalAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }
 
     private static final Pattern NAME_PATTERN = Pattern.compile("\"name\":\"([^\"]*)\"");

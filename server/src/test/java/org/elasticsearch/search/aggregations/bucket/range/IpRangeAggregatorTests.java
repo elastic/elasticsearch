@@ -110,8 +110,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 }
                 w.addDocument(doc);
             }
-            MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalBinaryRange range = search(searcher, new MatchAllDocsQuery(), builder, fieldType);

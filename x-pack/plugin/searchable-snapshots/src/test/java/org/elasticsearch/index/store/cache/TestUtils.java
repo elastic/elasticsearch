@@ -158,6 +158,11 @@ public final class TestUtils {
         }
 
         @Override
+        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            throw unsupportedException();
+        }
+
+        @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }

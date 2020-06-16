@@ -41,12 +41,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
-public final class GeoPoint implements ToXContentFragment {
+public class GeoPoint implements ToXContentFragment {
 
-    private double lat;
-    private double lon;
+    protected double lat;
+    protected double lon;
 
     public GeoPoint() {
     }

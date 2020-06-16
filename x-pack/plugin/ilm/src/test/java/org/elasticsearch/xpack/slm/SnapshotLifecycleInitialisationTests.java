@@ -49,8 +49,6 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(Environment.PATH_REPO_SETTING.getKey(), repositoryLocation);
-
-        settings.put(XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.getKey(), true);
         return settings.build();
     }
 

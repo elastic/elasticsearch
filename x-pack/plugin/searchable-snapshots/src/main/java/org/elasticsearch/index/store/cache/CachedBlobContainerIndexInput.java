@@ -128,16 +128,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    protected void readInternal(final byte[] buffer, final int offset, final int length) throws IOException {
+    protected void readInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getFilePointer() + this.offset;
+        final int length = b.remaining();
 
         int totalBytesRead = 0;
         while (totalBytesRead < length) {
             final long pos = position + totalBytesRead;
-            final int off = offset + totalBytesRead;
             final int len = length - totalBytesRead;
-
             int bytesRead = 0;
             try {
                 final CacheFile cacheFile = getCacheFileSafe();
@@ -146,7 +145,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     bytesRead = cacheFile.fetchRange(
                         range.v1(),
                         range.v2(),
-                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, buffer, off, len),
+                        (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, b, len),
                         (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
                     ).get();
                 }
@@ -154,7 +153,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
                     try {
                         // cache file was evicted during the range fetching, read bytes directly from source
-                        bytesRead = readDirectly(pos, pos + len, buffer, off);
+                        bytesRead = readDirectly(pos, pos + len, b);
                         continue;
                     } catch (Exception inner) {
                         e.addSuppressed(inner);
@@ -319,9 +318,20 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return true;
     }
 
-    private int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
+    private int readCacheFile(FileChannel fc, long end, long position, ByteBuffer b, long length) throws IOException {
         assert assertFileChannelOpen(fc);
-        int bytesRead = Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
+        final int bytesRead;
+
+        assert b.remaining() == length;
+        if (end - position < b.remaining()) {
+            final ByteBuffer duplicate = b.duplicate();
+            duplicate.limit(b.position() + Math.toIntExact(end - position));
+            bytesRead = Channels.readFromFileChannel(fc, position, duplicate);
+            assert duplicate.position() < b.limit();
+            b.position(duplicate.position());
+        } else {
+            bytesRead = Channels.readFromFileChannel(fc, position, b);
+        }
         if (bytesRead == -1) {
             throw new EOFException(
                 String.format(Locale.ROOT, "unexpected EOF reading [%d-%d] from %s", position, position + length, cacheFileReference)
@@ -416,7 +426,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             + '}';
     }
 
-    private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
+    private int readDirectly(long start, long end, ByteBuffer b) throws IOException {
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
@@ -440,7 +450,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         )
                     );
                 }
-                System.arraycopy(copyBuffer, 0, buffer, offset + bytesCopied, bytesRead);
+                b.put(copyBuffer, 0, bytesRead);
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }

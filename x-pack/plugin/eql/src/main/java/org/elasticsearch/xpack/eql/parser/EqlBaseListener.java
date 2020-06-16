@@ -138,6 +138,16 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitEventQuery(EqlBaseParser.EventQueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link EqlBaseParser#eventFilter}.
+   * @param ctx the parse tree
+   */
+  void enterEventFilter(EqlBaseParser.EventFilterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#eventFilter}.
+   * @param ctx the parse tree
+   */
+  void exitEventFilter(EqlBaseParser.EventFilterContext ctx);
+  /**
    * Enter a parse tree produced by {@link EqlBaseParser#expression}.
    * @param ctx the parse tree
    */

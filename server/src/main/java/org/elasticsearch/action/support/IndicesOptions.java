@@ -102,8 +102,7 @@ public class IndicesOptions implements ToXContentFragment {
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED,
-        INCLUDE_DATA_STREAMS; // Remove once backporting #56034 to 7.x branch
+        IGNORE_THROTTLED;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }

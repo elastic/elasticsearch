@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -36,19 +37,26 @@ import java.util.Objects;
  */
 public class EUnary extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression child;
+    private final AExpression childNode;
+    private final Operation operation;
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
+    public EUnary(int identifier, Location location, AExpression childNode, Operation operation) {
+        super(identifier, location);
 
+        this.childNode = Objects.requireNonNull(childNode);
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -67,47 +75,78 @@ public class EUnary extends AExpression {
         Input childInput = new Input();
         Output childOutput;
 
-        if (operation == Operation.NOT) {
+        if ((operation == Operation.SUB || operation == Operation.ADD) &&
+                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
+            childInput.expected = input.expected;
+            childInput.explicit = input.explicit;
+            childInput.internal = input.internal;
 
-            childInput.expected = boolean.class;
-            childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-            child.cast(childInput, childOutput);
+            if (childNode instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)childNode;
 
-            output.actual = boolean.class;
-        } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-            childOutput = child.analyze(classNode, scriptRoot, scope, new Input());
+                if (operation == Operation.SUB) {
+                    childOutput = numeric.analyze(childInput, numeric.getNumeric().charAt(0) != '-');
+                } else {
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
+                }
+            } else if (childNode instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)childNode;
 
-            promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                        "[" + operation.symbol + "] to the type " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
-            }
-
-            childInput.expected = promote;
-            child.cast(childInput, childOutput);
-
-            if (promote == def.class && input.expected != null) {
-                output.actual = input.expected;
+                if (operation == Operation.SUB) {
+                    childOutput = decimal.analyze(childInput, decimal.getDecimal().charAt(0) != '-');
+                } else {
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
+                }
             } else {
-                output.actual = promote;
+                throw createError(new IllegalArgumentException("illegal tree structure"));
             }
+
+            output.actual = childOutput.actual;
+            output.expressionNode = childOutput.expressionNode;
         } else {
-            throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            PainlessCast childCast;
+
+            if (operation == Operation.NOT) {
+                childInput.expected = boolean.class;
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, childInput);
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+                output.actual = boolean.class;
+            } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, new Input());
+
+                promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
+
+                if (promote == null) {
+                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                            "[" + operation.symbol + "] to the type " +
+                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
+                }
+
+                childInput.expected = promote;
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+                if (promote == def.class && input.expected != null) {
+                    output.actual = input.expected;
+                } else {
+                    output.actual = promote;
+                }
+            } else {
+                throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            }
+
+            UnaryMathNode unaryMathNode = new UnaryMathNode();
+            unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
+            unaryMathNode.setLocation(getLocation());
+            unaryMathNode.setExpressionType(output.actual);
+            unaryMathNode.setUnaryType(promote);
+            unaryMathNode.setOperation(operation);
+            unaryMathNode.setOriginallExplicit(originallyExplicit);
+
+            output.expressionNode = unaryMathNode;
         }
-
-        UnaryMathNode unaryMathNode = new UnaryMathNode();
-
-        unaryMathNode.setChildNode(child.cast(childOutput));
-
-        unaryMathNode.setLocation(location);
-        unaryMathNode.setExpressionType(output.actual);
-        unaryMathNode.setUnaryType(promote);
-        unaryMathNode.setOperation(operation);
-        unaryMathNode.setOriginallExplicit(originallyExplicit);
-
-        output.expressionNode = unaryMathNode;
 
         return output;
     }

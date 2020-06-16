@@ -47,7 +47,7 @@ set per-context.
 *Impact* +
 To avoid deprecation warnings, discontinue use of the `script.cache.expire`
 setting. You may use `script.context.$CONTEXT.cache_expire` for the particular context.
-For example, for the `update` context, use `script.context.update.context_max_size`.
+For example, for the `update` context, use `script.context.update.cache_expire`.
 
 ====
 
@@ -65,7 +65,7 @@ set per-context.
 To avoid deprecation warnings, discontinue use of the `script.max_compilations_rate`
 setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
 context.  For example, for the `processor_conditional` context, use
-`script.context.processor_conditional.context_max_size`.
+`script.context.processor_conditional.max_compilations_rate`.
 
 ====
 //end::notable-breaking-changes[]

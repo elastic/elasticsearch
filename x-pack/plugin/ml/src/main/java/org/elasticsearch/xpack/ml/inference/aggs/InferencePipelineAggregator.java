@@ -84,7 +84,9 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     }
                 } else if (propertyValue instanceof StringTerms.Bucket) {
                     StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
-                        inputFields.put(aggName, b.getKeyAsString());
+                    inputFields.put(aggName, b.getKeyAsString());
+                } else if (propertyValue instanceof String) {
+                    inputFields.put(aggName, propertyValue);
                 } else if (propertyValue != null) {
                     // Doubles, String terms or null are valid, any other type is an error
                     throw invalidAggTypeError(bucketPath, propertyValue);
@@ -124,10 +126,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
         String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() +
             " must reference either a number value, a single value numeric metric aggregation or a string: got [" +
-            propertyValue +
-            "] at aggregation [" +
-            aggPath +
-            "]";
+            propertyValue + "] of type [" + propertyValue.getClass().getSimpleName() + "] " +
+            "] at aggregation [" + aggPath + "]";
         return new AggregationExecutionException(msg);
     }
 }

@@ -783,6 +783,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             state == that.state &&
             Objects.equals(reason, that.reason) &&
             Objects.equals(indices, that.indices) &&
+            Objects.equals(dataStreams, that.dataStreams) &&
             Objects.equals(includeGlobalState, that.includeGlobalState) &&
             Objects.equals(version, that.version) &&
             Objects.equals(shardFailures, that.shardFailures) &&
@@ -792,7 +793,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     @Override
     public int hashCode() {
 
-        return Objects.hash(snapshotId, state, reason, indices, startTime, endTime,
+        return Objects.hash(snapshotId, state, reason, indices, dataStreams, startTime, endTime,
                 totalShards, successfulShards, includeGlobalState, version, shardFailures, userMetadata);
     }
 }

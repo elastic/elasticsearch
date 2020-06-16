@@ -122,8 +122,9 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.reason(), instance.endTime(), instance.totalShards(), instance.shardFailures(), instance.includeGlobalState(),
                     randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata));
             case 8:
-                return new SnapshotInfo(instance.snapshotId(), instance.indices(), randomValueOtherThan(instance.dataStreams(),
-                    () -> Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)))),
+                List<String> dataStreams = randomValueOtherThan(instance.dataStreams(),
+                    () -> Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))));
+                return new SnapshotInfo(instance.snapshotId(), instance.indices(), dataStreams,
                     instance.startTime(), instance.reason(), instance.endTime(), instance.totalShards(), instance.shardFailures(),
                     instance.includeGlobalState(), instance.userMetadata());
             default:

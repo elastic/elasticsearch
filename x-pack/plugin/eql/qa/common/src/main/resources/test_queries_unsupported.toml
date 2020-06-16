@@ -566,6 +566,29 @@ process where true
 | sort serial_event_id
 '''
 
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+'''
+expected_event_ids  = [54, 55, 61, 67]
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+'''
+expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
 case_sensitive = true

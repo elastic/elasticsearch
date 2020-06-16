@@ -120,12 +120,13 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
-        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
+        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(after.metadata().getIndices().get(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().get(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
     }
 
     public void testDeleteCurrentWriteIndexForDataStream() {
@@ -134,7 +135,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
-        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
+        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +

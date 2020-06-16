@@ -32,18 +32,28 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
+public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity");
+    }
+
+    @Override
+    protected BinaryFieldMapper.Builder newBuilder() {
+        return new BinaryFieldMapper.Builder("binary");
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -60,10 +70,10 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType fieldType = mapperService.fieldType("field");
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
-        assertThat(fieldType, instanceOf(BinaryFieldMapper.BinaryFieldType.class));
-        assertThat(fieldType.stored(), equalTo(false));
+        assertThat(mapper, instanceOf(BinaryFieldMapper.class));
+        assertThat(mapper.fieldType.stored(), equalTo(false));
     }
 
     public void testStoredValue() throws IOException {

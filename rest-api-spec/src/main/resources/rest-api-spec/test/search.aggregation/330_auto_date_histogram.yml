@@ -4,6 +4,7 @@ setup:
           index: test
           body:
             settings:
+              number_of_shards: 1
               number_of_replicas: 0
             mappings:
               properties:
@@ -75,3 +76,25 @@ setup:
   - match: { aggregations.histo.buckets.1.doc_count: 2 }
   - match: { aggregations.histo.buckets.1.v.value: 7 }
   - match: { aggregations.histo_avg_v.value: 5 }
+
+---
+"profile at top level":
+  - skip:
+      version: " - 7.99.99"
+      reason: Debug information added in 8.0.0 (to be backported to 7.9.0)
+
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            histo:
+              auto_date_histogram:
+                field: date
+                buckets: 2
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { profile.shards.0.aggregations.0.type: AutoDateHistogramAggregator.FromSingle }
+  - match: { profile.shards.0.aggregations.0.debug.surviving_buckets: 4 }

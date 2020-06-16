@@ -32,32 +32,36 @@ import java.util.Objects;
  */
 public class EString extends AExpression {
 
-    protected String constant;
+    private String string;
 
-    public EString(Location location, String string) {
-        super(location);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
 
-        this.constant = Objects.requireNonNull(string);
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to string constant [" + constant + "]"));
+                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: string constant [" + constant + "] not used"));
+            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
         }
 
         Output output = new Output();
         output.actual = String.class;
 
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
+        constantNode.setConstant(string);
 
         output.expressionNode = constantNode;
 

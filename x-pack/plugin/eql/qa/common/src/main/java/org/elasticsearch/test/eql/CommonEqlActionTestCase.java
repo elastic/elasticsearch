@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toList;
@@ -78,18 +79,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             List<Object> list = parser.list();
             for (Object item : list) {
                 assertThat(item, instanceOf(HashMap.class));
-
-                HashMap<String, Object> entry = (HashMap<String, Object>) item;
-
-                // Adjust the structure of the document with additional event.category and @timestamp fields
-                // Add event.category field
-                HashMap<String, Object> objEvent = new HashMap<>();
-                objEvent.put("category", entry.get("event_type"));
-                entry.put("event", objEvent);
-
-                // Add @timestamp field
-                entry.put("@timestamp", entry.get("timestamp"));
-
+                Map<String, Object> entry = (Map<String, Object>) item;
                 bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
@@ -158,13 +148,15 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     public static List<Object[]> asArray(List<EqlSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
         return specs.stream().map(spec -> {
-            String name = spec.description();
-            if (Strings.isNullOrEmpty(name)) {
+            String name = spec.query();
+
+            if (Strings.isNullOrEmpty(spec.description()) == false) {
+                name = spec.description();
+            }
+            else if (Strings.isNullOrEmpty(spec.note()) == false) {
                 name = spec.note();
             }
-            if (Strings.isNullOrEmpty(name)) {
-                name = spec.query();
-            }
+
             return new Object[] { counter.incrementAndGet(), name, spec };
         }).collect(toList());
     }
@@ -204,6 +196,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query, isCaseSensitive);
+        request.tiebreakerField("event.sequence");
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 

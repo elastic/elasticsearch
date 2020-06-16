@@ -55,16 +55,13 @@ public class MetadataCreateDataStreamService {
         new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
-    private final IndicesService indicesService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
     public MetadataCreateDataStreamService(ThreadPool threadPool,
                                            ClusterService clusterService,
-                                           IndicesService indicesService,
                                            MetadataCreateIndexService metadataCreateIndexService) {
         this.clusterService = clusterService;
-        this.indicesService = indicesService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
     }

@@ -45,6 +45,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -64,6 +65,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -237,6 +239,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
+import org.elasticsearch.xpack.ml.inference.aggs.InternalInferenceAggregation;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -980,11 +983,16 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return Collections.singletonList(new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
+        PipelineAggregationSpec spec = new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
             in -> new InferencePipelineAggregationBuilder(in, modelLoadingService),
             (ContextParser<String, ? extends PipelineAggregationBuilder>)
                 (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser
-            )));
+                ));
+
+        spec.addResultReader(InternalInferenceAggregation::new);
+
+
+        return Collections.singletonList(spec);
     }
 
     @Override

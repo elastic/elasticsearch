@@ -28,7 +28,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
         this.inferenceResult = inferenceResult;
     }
 
-    protected InternalInferenceAggregation(StreamInput in) throws IOException {
+    public InternalInferenceAggregation(StreamInput in) throws IOException {
         super(in);
         inferenceResult = in.readNamedWriteable(InferenceResults.class);
     }

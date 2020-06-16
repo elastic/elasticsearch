@@ -56,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -360,19 +361,33 @@ public class ApiKeyService {
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
+        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
 
-        final List<RoleDescriptor> roleDescriptors =
-            parseRoleDescriptors(apiKeyId, (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY));
-        final List<RoleDescriptor> limitedByRoleDescriptors =
-            parseRoleDescriptors(apiKeyId, (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
-
-        if (roleDescriptors == null && limitedByRoleDescriptors == null) {
+        if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
         } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, limitedByRoleDescriptors, null));
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, authnRoleDescriptorsList, null));
         } else {
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptors, limitedByRoleDescriptors));
+            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
+            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
+            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptorList, authnRoleDescriptorsList));
         }
+    }
+
+    public BytesReference getRoleDescriptorsBytesForApiKey(Authentication authentication, boolean limitedBy) {
+        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
+            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
+        }
+        final Map<String, Object> metadata = authentication.getMetadata();
+        return (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY);
+    }
+
+    public List<RoleDescriptor> getRoleDescriptorsForApiKey(Authentication authentication, boolean limitedBy) {
+        final BytesReference bytesReference = getRoleDescriptorsBytesForApiKey(authentication, limitedBy);
+        final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+        return parseRoleDescriptors(apiKeyId, bytesReference);
     }
 
     public static class ApiKeyRoleDescriptors {
@@ -400,7 +415,28 @@ public class ApiKeyService {
         }
     }
 
-    List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
+        if (roleDescriptors == null) {
+            return null;
+        }
+        return roleDescriptors.entrySet().stream()
+            .map(entry -> {
+                final String name = entry.getKey();
+                final Map<String, Object> rdMap = (Map<String, Object>) entry.getValue();
+                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    builder.map(rdMap);
+                    try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                        new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
+                        BytesReference.bytes(builder).streamInput())) {
+                        return RoleDescriptor.parse(name, parser, false);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).collect(Collectors.toList());
+    }
+
+    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }

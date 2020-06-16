@@ -80,9 +80,9 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
         CheckNotDataStreamWriteIndexStep.Info info = (CheckNotDataStreamWriteIndexStep.Info) result.getInfomationContext();
-        assertThat(info.getMessage(), is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "]. " +
-            "stopping execution of lifecycle [" + policyName + "]. manually rolling over the index will resume the execution of the " +
-            "policy as the index will not be the data stream's write index anymore"));
+        assertThat(info.getMessage(), is("index [" + indexName + "] is the write index for data stream [" + dataStreamName + "], " +
+            "pausing ILM execution of lifecycle [" + policyName + "] until this index is no longer the write index for the data stream " +
+            "via manual or automated rollover"));
     }
 
     public void testStepCompleteIfPartOfDataStreamButNotWriteIndex() {

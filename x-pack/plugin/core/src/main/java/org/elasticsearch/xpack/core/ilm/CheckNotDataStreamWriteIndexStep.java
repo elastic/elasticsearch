@@ -62,9 +62,9 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().getIndex().equals(index)) {
-                String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. " +
-                    "stopping execution of lifecycle [%s]. manually rolling over the index will resume the execution of the policy as " +
-                    "the index will not be the data stream's write index anymore", indexName, dataStream.getName(), policyName);
+                String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s], pausing " +
+                    "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or " +
+                    "automated rollover", indexName, dataStream.getName(), policyName);
                 logger.debug(errorMessage);
                 return new Result(false, new Info(errorMessage));
             }

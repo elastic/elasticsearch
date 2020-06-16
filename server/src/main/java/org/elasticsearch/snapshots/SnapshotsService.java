@@ -465,15 +465,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
-                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                if (snapshotsInProgress == null) {
+                    snapshotsInProgress = new SnapshotsInProgress();
+                }
                 final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
-                if (snapshotsInProgress != null) {
-                    processExternalChanges(newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
-                            event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event));
-                }
-                if (newMaster) {
-                    finalizeSnapshotDeletionFromPreviousMaster(event.state());
-                }
+                processExternalChanges(newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
+                        event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event));
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
@@ -541,28 +539,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Finalizes a snapshot deletion in progress if the current node is the master but it
-     * was not master in the previous cluster state and there is still a lingering snapshot
-     * deletion in progress in the cluster state.  This means that the old master failed
-     * before it could clean up an in-progress snapshot deletion.  We attempt to delete the
-     * snapshot files and remove the deletion from the cluster state.  It is possible that the
-     * old master was in a state of long GC and then it resumes and tries to delete the snapshot
-     * that has already been deleted by the current master.  This is acceptable however, since
-     * the old master's snapshot deletion will just respond with an error but in actuality, the
-     * snapshot was deleted and a call to GET snapshots would reveal that the snapshot no longer exists.
-     */
-    private void finalizeSnapshotDeletionFromPreviousMaster(ClusterState state) {
-        SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-            for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                if (entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
-                    deleteSnapshotsFromRepository(entry, entry.repositoryStateId(), state.nodes().getMinNodeVersion());
-                }
-            }
-        }
-    }
-
-    /**
      * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (master fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
      * {@link SnapshotsInProgress.ShardState#WAITING}.
@@ -581,11 +557,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private final Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
 
+            private List<SnapshotDeletionsInProgress.Entry> deletionsToExecute = List.of();
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
-                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                assert snapshots != null : "We only submit this kind of update if there have been snapshots before";
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                if (snapshots == null) {
+                    snapshots = new SnapshotsInProgress();
+                }
                 DiscoveryNodes nodes = currentState.nodes();
                 boolean changed = false;
                 final EnumSet<State> statesToUpdate;
@@ -628,11 +608,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         entries.add(snapshot);
                     }
                 }
-                if (changed) {
-                    return ClusterState.builder(currentState)
-                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
-                }
-                return currentState;
+                final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(
+                        changed ? ClusterState.builder(currentState)
+                                .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build() :
+                                currentState);
+                deletionsToExecute = res.v2();
+                return res.v1();
             }
 
             @Override
@@ -644,7 +625,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 final SnapshotDeletionsInProgress snapshotDeletionsInProgress = newState.custom(SnapshotDeletionsInProgress.TYPE);
-                boolean triggeredSnapshotFinalization = false;
                 if (finishedSnapshots.isEmpty() == false) {
                     // If we found snapshots that should be finalized as a result of the CS update we try to initiate finalization for them
                     // unless there is an executing snapshot delete already. If there is an executing snapshot delete we don't have to
@@ -657,13 +637,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
                         if (reposWithRunningDeletes.contains(entry.repository()) == false) {
                             endSnapshot(entry, newState.metadata());
-                            triggeredSnapshotFinalization = true;
                         }
                     }
                 }
-                if (triggeredSnapshotFinalization == false) {
-                    // TODO: fold this task into the current cluster state update, no need to run another CS update here
-                    runReadyDeletions();
+                // run newly ready deletes
+                for (SnapshotDeletionsInProgress.Entry entry : deletionsToExecute) {
+                    deleteSnapshotsFromRepository(entry, entry.repositoryStateId(), newState.nodes().getMinNodeVersion());
                 }
             }
         });
@@ -899,37 +878,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void runReadyDeletions() {
         clusterService.submitStateUpdateTask("Run ready deletions", new ClusterStateUpdateTask() {
 
-            private final List<SnapshotDeletionsInProgress.Entry> deletionsToRun = new ArrayList<>();
+            private List<SnapshotDeletionsInProgress.Entry> deletionsToRun;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletions == null) {
-                    return currentState;
-                }
-                final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
-                assert snapshotsInProgress != null;
-                final Set<String> repositoriesSeen = new HashSet<>();
-                boolean changed = false;
-                final List<SnapshotDeletionsInProgress.Entry> newDeletes = new ArrayList<>();
-                for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
-                    final String repo = entry.repository();
-                    if (repositoriesSeen.add(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                            && snapshotsInProgress.entries().stream()
-                            .filter(se -> se.repository().equals(repo)).noneMatch(SnapshotsService::isWritingToRepository)) {
-                        changed = true;
-                        final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
-                        deletionsToRun.add(newEntry);
-                        newDeletes.add(newEntry);
-                    } else {
-                        newDeletes.add(entry);
-                    }
-                }
-                if (changed) {
-                    return ClusterState.builder(currentState)
-                            .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newDeletes)).build();
-                }
-                return currentState;
+                final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(currentState);
+                deletionsToRun = res.v2();
+                return res.v1();
             }
 
             @Override
@@ -944,6 +899,40 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         });
+    }
+
+    private static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(ClusterState currentState) {
+        final SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletions == null) {
+            return Tuple.tuple(currentState, List.of());
+        }
+        final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
+        assert snapshotsInProgress != null;
+        final Set<String> repositoriesSeen = new HashSet<>();
+        boolean changed = false;
+        final ArrayList<SnapshotDeletionsInProgress.Entry> readyDeletions = new ArrayList<>();
+        final List<SnapshotDeletionsInProgress.Entry> newDeletes = new ArrayList<>();
+        for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
+            final String repo = entry.repository();
+            if (repositoriesSeen.add(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.WAITING
+                    && snapshotsInProgress.entries().stream()
+                    .filter(se -> se.repository().equals(repo)).noneMatch(SnapshotsService::isWritingToRepository)) {
+                changed = true;
+                final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
+                readyDeletions.add(newEntry);
+                newDeletes.add(newEntry);
+            } else {
+                if (entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
+                    readyDeletions.add(entry);
+                }
+                newDeletes.add(entry);
+            }
+        }
+        if (changed) {
+            return Tuple.tuple(ClusterState.builder(currentState).putCustom(
+                    SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newDeletes)).build(), readyDeletions);
+        }
+        return Tuple.tuple(currentState, readyDeletions);
     }
 
     private static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {

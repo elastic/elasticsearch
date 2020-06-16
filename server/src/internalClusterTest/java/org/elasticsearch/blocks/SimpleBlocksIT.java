@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,8 +50,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
@@ -177,29 +176,40 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
 
-        final APIBlock otherBlock = randomFrom(APIBlock.values());
+        for (APIBlock otherBlock : APIBlock.values()) {
 
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
-            try {
-                enableIndexBlock("test", blockSetting);
+            for (APIBlock block : Arrays.asList(APIBlock.READ, APIBlock.WRITE)) {
+                try {
+                    enableIndexBlock("test", block.settingName());
 
-                // Adding a block is not blocked
-                AcknowledgedResponse closeIndexResponse = client().admin().indices()
-                    .prepareAddBlock(otherBlock,"test").get();
-                assertAcked(closeIndexResponse);
-            } finally {
-                disableIndexBlock("test", otherBlock.settingName());
-                disableIndexBlock("test", blockSetting);
+                    // Adding a block is not blocked
+                    AcknowledgedResponse closeIndexResponse = client().admin().indices()
+                        .prepareAddBlock(otherBlock, "test").get();
+                    assertAcked(closeIndexResponse);
+                } finally {
+                    disableIndexBlock("test", otherBlock.settingName());
+                    disableIndexBlock("test", block.settingName());
+                }
             }
-        }
 
-        // Adding a block is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
-            try {
-                enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareAddBlock(otherBlock,"test"));
-            } finally {
-                disableIndexBlock("test", blockSetting);
+            for (APIBlock block : Arrays.asList(APIBlock.READ_ONLY, APIBlock.METADATA, APIBlock.READ_ONLY_ALLOW_DELETE)) {
+                boolean success = false;
+                try {
+                    enableIndexBlock("test", block.settingName());
+                    // Adding a block is blocked when there is a metadata block and the new block to be added is not a metadata block
+                    if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) &&
+                        otherBlock.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) == false) {
+                        assertBlocked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
+                    } else {
+                        assertAcked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
+                        success = true;
+                    }
+                } finally {
+                    if (success) {
+                        disableIndexBlock("test", otherBlock.settingName());
+                    }
+                    disableIndexBlock("test", block.settingName());
+                }
             }
         }
     }

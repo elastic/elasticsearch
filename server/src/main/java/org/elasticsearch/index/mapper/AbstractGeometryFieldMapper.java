@@ -61,6 +61,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }

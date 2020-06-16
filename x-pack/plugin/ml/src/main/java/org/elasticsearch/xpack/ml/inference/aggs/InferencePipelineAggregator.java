@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -70,9 +71,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 String bucketPath = entry.getValue();
                 Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
 
-                if (propertyValue instanceof String) {
-                    inputFields.put(aggName, propertyValue);
-                } else if (propertyValue instanceof Number) {
+                if (propertyValue instanceof Number) {
                     double doubleVal = ((Number) propertyValue).doubleValue();
                     // NaN or infinite values may indicate a missing value
                     if (Double.isFinite(doubleVal)) {
@@ -83,10 +82,12 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     if (Double.isFinite(doubleVal)) {
                         inputFields.put(aggName, doubleVal);
                     }
+                } else if (propertyValue instanceof StringTerms.Bucket) {
+                    StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
+                        inputFields.put(aggName, b.getKeyAsString());
                 } else if (propertyValue != null) {
-                    // Doubles, String or null is valid, any other
-                    // type is an error
-                    throw aggPathError(bucketPath, propertyValue);
+                    // Doubles, String terms or null are valid, any other type is an error
+                    throw invalidAggTypeError(bucketPath, propertyValue);
                 }
             }
 
@@ -119,7 +120,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
         return bucket.getProperty(agg.getName(), aggPathsList);
     }
 
-    private static AggregationExecutionException aggPathError(String aggPath, @Nullable Object propertyValue) {
+    private static AggregationExecutionException invalidAggTypeError(String aggPath, @Nullable Object propertyValue) {
 
         String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() +
             " must reference either a number value, a single value numeric metric aggregation or a string: got [" +

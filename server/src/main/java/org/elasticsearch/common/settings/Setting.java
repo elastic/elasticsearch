@@ -748,6 +748,15 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        /**
+         * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
+         * should be preferred for most all cases.
+         * @return the raw list of dependencies for this setting
+         */
+        public Set<AffixSettingDependency> getDependencies() {
+            return Collections.unmodifiableSet(dependencies);
+        }
+
         @Override
         public Set<SettingDependency> getSettingsDependencies(String settingsKey) {
             if (dependencies.isEmpty()) {

@@ -117,7 +117,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 public void onFailure(Exception exc) {
                     listener.onFailure(exc);
                 }
-            }, request.getWaitForCompletion());
+            }, request.getWaitForCompletionTimeout());
         } catch (Exception exc) {
             listener.onFailure(exc);
         }

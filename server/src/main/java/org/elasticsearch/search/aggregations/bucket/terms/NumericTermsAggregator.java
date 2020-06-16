@@ -26,9 +26,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -41,6 +39,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForLong;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -164,15 +163,16 @@ public class NumericTermsAggregator extends TermsAggregator {
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
                 while (ordsEnum.next()) {
+                    long docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += docCount;
+                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                        continue;
+                    }
                     if (spare == null) {
                         spare = emptyBucketBuilder.get();
                     }
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (bucketCountThresholds.getShardMinDocCount() <= docCount) {
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                    }
+                    updateBucket(spare, ordsEnum, docCount);
+                    spare = ordered.insertWithOverflow(spare);
                 }
 
                 // Get the top buckets
@@ -250,7 +250,7 @@ public class NumericTermsAggregator extends TermsAggregator {
          * Collect extra entries for "zero" hit documents if they were requested
          * and required.
          */
-        abstract void collectZeroDocEntriesIfNeeded(long ord) throws IOException;
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -295,11 +295,11 @@ public class NumericTermsAggregator extends TermsAggregator {
         abstract B buildEmptyBucket();
 
         @Override
-        final void collectZeroDocEntriesIfNeeded(long ord) throws IOException {
+        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
             if (bucketCountThresholds.getMinDocCount() != 0) {
                 return;
             }
-            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(ord) >= bucketCountThresholds.getRequiredSize()) {
+            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
                 return;
             }
             // we need to fill-in the blanks
@@ -311,7 +311,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                         for (int v = 0; v < valueCount; ++v) {
                             long value = values.nextValue();
                             if (longFilter == null || longFilter.accept(value)) {
-                                bucketOrds.add(ord, value);
+                                bucketOrds.add(owningBucketOrd, value);
                             }
                         }
                     }
@@ -468,19 +468,18 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     class SignificantLongTermsResults extends ResultStrategy<SignificantLongTerms, SignificantLongTerms.Bucket> {
-        private final BackgroundFrequencies backgroundFrequencies;
+        private final BackgroundFrequencyForLong backgroundFrequencies;
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
         private LongArray subsetSizes;
 
         SignificantLongTermsResults(
-            SignificantTermsAggregatorFactory termsAggFactory,
+            SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
             boolean collectsFromSingleBucket
         ) {
-            LookupBackgroundFrequencies lookup = new LookupBackgroundFrequencies(termsAggFactory);
-            backgroundFrequencies = collectsFromSingleBucket ? lookup : new CacheBackgroundFrequencies(lookup, context.bigArrays());
-            supersetSize = termsAggFactory.getSupersetNumDocs();
+            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), collectsFromSingleBucket);
+            supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
             subsetSizes = context.bigArrays().newLongArray(1, true);
         }
@@ -545,10 +544,10 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long ord) throws IOException {}
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
 
         @Override
-        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCounts, SignificantLongTerms.Bucket[] topBuckets) {
+        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),
@@ -587,66 +586,5 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
     }
 
-    /**
-     * Lookup frequencies for terms.
-     */
-    private interface BackgroundFrequencies extends Releasable {
-        long freq(long term) throws IOException;
-    }
 
-    /**
-     * Lookup frequencies for terms.
-     */
-    private static class LookupBackgroundFrequencies implements BackgroundFrequencies {
-        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
-        private final SignificantTermsAggregatorFactory termsAggFactory;
-
-        LookupBackgroundFrequencies(SignificantTermsAggregatorFactory termsAggFactory) {
-            this.termsAggFactory = termsAggFactory;
-        }
-
-        @Override
-        public long freq(long term) throws IOException {
-            return termsAggFactory.getBackgroundFrequency(term);
-        }
-
-        @Override
-        public void close() {
-            termsAggFactory.close();
-        }
-    }
-
-    /**
-     * Lookup and cache background frequencies for terms.
-     */
-    private static class CacheBackgroundFrequencies implements BackgroundFrequencies {
-        private final LookupBackgroundFrequencies lookup;
-        private final BigArrays bigArrays;
-        private final LongHash termToPosition;
-        private LongArray positionToFreq;
-
-        CacheBackgroundFrequencies(LookupBackgroundFrequencies lookup, BigArrays bigArrays) {
-            this.lookup = lookup;
-            this.bigArrays = bigArrays;
-            termToPosition = new LongHash(1, bigArrays);
-            positionToFreq = bigArrays.newLongArray(1, false);
-        }
-
-        @Override
-        public long freq(long term) throws IOException {
-            long position = termToPosition.add(term);
-            if (position < 0) {
-                return positionToFreq.get(-1 - position);
-            }
-            long freq = lookup.freq(term);
-            positionToFreq = bigArrays.grow(positionToFreq, position + 1);
-            positionToFreq.set(position, freq);
-            return freq;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(lookup, termToPosition, positionToFreq);
-        }
-    }
 }

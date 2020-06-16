@@ -73,8 +73,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Construct a geo-IP processor.
-     *
-     * @param tag           the processor tag
+     *  @param tag           the processor tag
+     * @param description   the processor description
      * @param field         the source field to geo-IP map
      * @param lazyLoader    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
      * @param targetField   the target field
@@ -85,14 +85,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
      */
     GeoIpProcessor(
         final String tag,
-        final String field,
+        String description, final String field,
         final DatabaseReaderLazyLoader lazyLoader,
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
         final GeoIpCache cache,
         boolean firstOnly) {
-        super(tag);
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.lazyLoader = lazyLoader;
@@ -394,9 +394,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         @Override
         public GeoIpProcessor create(
-            final Map<String, Processor.Factory> registry,
-            final String processorTag,
-            final Map<String, Object> config) throws IOException {
+                final Map<String, Processor.Factory> registry,
+                final String processorTag,
+                final String description, final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -436,7 +436,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
 
-            return new GeoIpProcessor(processorTag, ipField, lazyLoader, targetField, properties, ignoreMissing, cache, firstOnly);
+            return new GeoIpProcessor(processorTag, description, ipField, lazyLoader, targetField, properties, ignoreMissing, cache,
+                firstOnly);
         }
     }
 

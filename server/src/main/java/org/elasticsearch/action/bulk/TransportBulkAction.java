@@ -569,7 +569,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                bulkShardRequest.markCoordinatingBytesAccounted();
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {

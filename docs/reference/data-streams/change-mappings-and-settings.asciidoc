@@ -248,10 +248,21 @@ PUT /_index_template/new_logs_data_stream
 create the new data stream. The name of the data stream must match the name or
 wildcard pattern defined in the new template's `index_patterns` property.
 +
-IMPORTANT: If you do not want to mix new and old data, do not use an indexing
-request to create the data stream. Mixing old and new data is safe, but the
-backing index containing this data needs to be retained until you are ready to
-delete the new data.
+We do not recommend <<index-documents-to-create-a-data-stream,indexing new data
+to create this data stream>>. Later, you will reindex older data from an
+existing data stream into this new stream. This could result in one or more
+backing indices that contains a mix of new and old data.
++
+[[data-stream-mix-new-old-data]]
+.Mixing new and old data in a data stream
+[IMPORTANT]
+====
+While mixing new and old data is safe, it could interfere with data retention.
+If you use {ilm-init} to automatically delete older indices, you could
+accidentally delete a backing index that contains both new and old data. To
+prevent premature data loss, you would need to retain such backing indices until
+you are ready to delete its newest data.
+====
 +
 .*Example*
 [%collapsible]
@@ -269,10 +280,12 @@ PUT /_data_stream/new_logs
 ====
 
 . If you do not want to mix new and old data in your new data stream, pause the
-indexing of new documents.
+indexing of new documents. While mixing old and new data is safe, it could
+interfere with data retention. See <<data-stream-mix-new-old-data,Mixing new and
+old data in a data stream>>.
 
 . If you use {ilm-init} to <<getting-started-index-lifecycle-management,automate
-rollover>>, reduce the {ilm-init} poll interval to ensure that the current write
+rollover>>, reduce the {ilm-init} poll interval. This ensures the current write
 index doesn’t grow too large while waiting for the rollover check. By default,
 {ilm-init} checks rollover conditions every 10 minutes.
 +

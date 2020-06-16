@@ -171,6 +171,7 @@ uses the target name as the name for the stream.
 NOTE: Data streams support only specific types of indexing requests. See
 <<add-documents-to-a-data-stream>>.
 
+[[index-documents-to-create-a-data-stream]]
 .*Example: Index documents to create a data stream*
 [%collapsible]
 ====

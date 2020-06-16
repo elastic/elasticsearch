@@ -23,8 +23,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
-        private final String test;
-        private final long expirationTimeMillis;
+        public final String test;
+        public final long expirationTimeMillis;
 
         public TestAsyncResponse(String test, long expirationTimeMillis) {
             this.test = test;
@@ -38,7 +38,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public long getExpirationTime() {
-            return 0;
+            return expirationTimeMillis;
         }
 
         @Override

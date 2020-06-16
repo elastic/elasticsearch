@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.Objects;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
@@ -191,7 +192,8 @@ public class Build {
      * @return the location of the code source for Elasticsearch which may be null
      */
     static URL getElasticsearchCodeSourceLocation() {
-        final CodeSource codeSource = Build.class.getProtectionDomain().getCodeSource();
+        final ProtectionDomain protectionDomain = Build.class.getProtectionDomain();
+        final CodeSource codeSource = protectionDomain == null ? null : protectionDomain.getCodeSource();
         return codeSource == null ? null : codeSource.getLocation();
     }
 

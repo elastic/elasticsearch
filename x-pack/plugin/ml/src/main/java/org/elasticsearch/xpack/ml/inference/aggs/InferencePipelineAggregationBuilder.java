@@ -117,7 +117,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (modelId == null) {
             context.addValidationError("Model Id must be set");
         }
-        if (gapPolicy == BucketHelpers.GapPolicy.INSERT_ZEROS) {
+        if (gapPolicy != BucketHelpers.GapPolicy.SKIP) {
             context.addValidationError("gap policy [" + gapPolicy + "] in not valid for [" + NAME + "] aggregation");
         }
     }

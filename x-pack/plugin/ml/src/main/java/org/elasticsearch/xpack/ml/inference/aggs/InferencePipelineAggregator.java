@@ -73,7 +73,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
                 if (propertyValue instanceof Number) {
                     double doubleVal = ((Number) propertyValue).doubleValue();
-                    // NaN or infinite values may indicate a missing value
+                    // NaN or infinite values indicate a missing value
                     if (Double.isFinite(doubleVal)) {
                         inputFields.put(aggName, doubleVal);
                     }

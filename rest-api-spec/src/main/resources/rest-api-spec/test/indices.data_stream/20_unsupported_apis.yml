@@ -51,3 +51,14 @@
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged
+
+---
+"APIs temporarily muted":
+  - skip:
+      version: "all"
+      reason: "restore to above test after data stream resolution PRs have been merged"
+
+  - do:
+      catch: bad_request
+      indices.close:
+        index: logs-*

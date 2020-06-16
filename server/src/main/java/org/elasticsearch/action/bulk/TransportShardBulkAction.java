@@ -112,11 +112,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected boolean shouldMarkCoordinatingBytes(BulkShardRequest request) {
-        return request.getParentTask().getNodeId().equals(clusterService.localNode().getId()) == false;
-    }
-
-    @Override
     protected void dispatchedShardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());

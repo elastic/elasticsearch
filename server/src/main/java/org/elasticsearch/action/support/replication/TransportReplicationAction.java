@@ -273,7 +273,7 @@ public abstract class TransportReplicationAction<
         return false;
     }
 
-    protected void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
+    private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener =
             ActionListener.runAfter(new ChannelActionListener<>(channel, actionName, request), releasable::close);

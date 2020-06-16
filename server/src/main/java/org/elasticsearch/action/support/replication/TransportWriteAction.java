@@ -80,16 +80,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        if (shouldMarkCoordinatingBytes(request)) {
-            long operationSizeInBytes = primaryOperationSize(request);
-            return writeMemoryLimits.markCoordinatingOperationStarted(operationSizeInBytes);
-        } else {
-            return () -> {};
-        }
-    }
-
-    protected boolean shouldMarkCoordinatingBytes(Request request) {
-        return true;
+        return writeMemoryLimits.markCoordinatingOperationStarted(primaryOperationSize(request));
     }
 
     @Override

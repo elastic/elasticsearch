@@ -28,7 +28,7 @@ import java.util.Objects;
  */
 public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
 
-    public static final String NAME = "check-no-write-index";
+    public static final String NAME = "check-not-write-index";
 
     private static final Logger logger = LogManager.getLogger(CheckNotDataStreamWriteIndexStep.class);
 

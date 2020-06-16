@@ -131,7 +131,7 @@ public class FetchPhase implements SearchPhase {
                     }
                 }
             }
-            boolean loadSource = context.sourceRequested();
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 fieldsVisitor = new FieldsVisitor(loadSource);

@@ -236,7 +236,7 @@ URLs using the `file` protocol must point to the location of a shared filesystem
 accessible to all master and data nodes in the cluster. This location must be
 registered in the `path.repo` setting.
 
-URLs using the `http`, `https`, or `ftp` protocols must be whitelisted in the
+URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the
 `repositories.url.allowed_urls` setting. This setting supports wildcards in the
 place of a host, path, query, or fragment in the URL.
 ====

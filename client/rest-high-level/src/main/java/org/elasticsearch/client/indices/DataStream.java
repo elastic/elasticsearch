@@ -68,7 +68,8 @@ public final class DataStream implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> {
-            List<String> indices = ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
+            List<String> indices =
+                ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
             return new DataStream((String) args[0], (String) args[1], indices, (Long) args[3]);
         });
 

@@ -154,9 +154,9 @@ current write index when it meets specified criteria, such as a maximum age or
 size.
 
 However, you can also use the <<indices-rollover-index,rollover API>> to
-manually perform a rollover. This can be useful if you want to apply mapping or
-setting changes to the stream's write index after updating a data stream's
-template.
+manually perform a rollover. This can be useful if you want to
+<<data-streams-change-mappings-and-settings,apply mapping or setting changes>>
+to the stream's write index after updating a data stream's template.
 
 .*Example*
 [%collapsible]
@@ -201,7 +201,8 @@ A reindex can be used to:
 * Apply a new or updated <<create-a-data-stream-template,composable template>>
   by reindexing an existing data stream into a new one. This applies mapping
   and setting changes in the template to each document and backing index of the
-  data stream destination.
+  data stream destination. See
+  <<data-streams-use-reindex-to-change-mappings-settings>>.
 
 TIP: If you only want to update the mappings or settings of a data stream's
 write index, we recommend you update the <<create-a-data-stream-template,data

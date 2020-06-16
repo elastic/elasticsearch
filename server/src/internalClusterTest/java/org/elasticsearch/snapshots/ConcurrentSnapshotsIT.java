@@ -788,6 +788,33 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
+    public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
+        final String secondSnapshot = "snapshot-two";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute());
+
+        blockNodeOnControlFiles(repoName, masterNode);
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        final ActionFuture<CreateSnapshotResponse> snapshotThree =
+                client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(true).execute();
+        final ActionFuture<CreateSnapshotResponse> snapshotFour =
+                client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-four").setWaitForCompletion(true).execute();
+
+        unblockNode(repoName, masterNode);
+
+        assertSuccessful(snapshotThree);
+        assertSuccessful(snapshotFour);
+    }
+
     private void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
         final ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);

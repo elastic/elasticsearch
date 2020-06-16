@@ -132,6 +132,8 @@
  *
  * In either of the above scenarios, in-progress snapshots will be aborted in the same cluster state update that adds a delete to the
  * cluster state, if a delete applies to them.
- * TODO: explain why the approach prioritizes finalization over deletion
+ *
+ * If a snapshot request is received while there already is a delete in the cluster state for the same repository, that snapshot will not
+ * start doing any shard snapshots until the delete has been executed.
  */
 package org.elasticsearch.snapshots;

@@ -1,0 +1,71 @@
+[[breaking-changes-7.9]]
+== Breaking changes in 7.9
+++++
+<titleabbrev>7.9</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.9.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_79_script_cache_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[discrete]
+[[breaking_79_script_cache_changes]]
+=== Script cache changes
+[[deprecate_general_script_cache_size]]
+.The `script.cache.max_size` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.max_size` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
+setting. You may use `script.context.$CONTEXT.context_max_size` for the particular context.
+For example, for the `ingest` context, use `script.context.ingest.context_max_size`.
+
+====
+
+[discrete]
+[[deprecate_general_script_expire]]
+.The `script.cache.expire` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.cache.expire` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.cache.expire`
+setting. You may use `script.context.$CONTEXT.cache_expire` for the particular context.
+For example, for the `update` context, use `script.context.update.cache_expire`.
+
+====
+
+[discrete]
+[[deprecate_general_script_compile_rate]]
+.The `script.max_compilations_rate` setting is deprecated.
+
+[%collapsible]
+====
+*Details* +
+The `script.max_compilations_rate` setting is deprecated. In {es} 8.0.0, this is
+set per-context.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the `script.max_compilations_rate`
+setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
+context.  For example, for the `processor_conditional` context, use
+`script.context.processor_conditional.max_compilations_rate`.
+
+====
+//end::notable-breaking-changes[]

@@ -174,14 +174,16 @@ This is fixed in {es} 7.7 and later versions.
 +
 This issue is fixed in {es} 6.8.10 and 7.7.1.
 
-* Week based date patterns are not working correctly with `Y`. Using `Y` together with `w` will result in
-a failed request and an exception in logs. (issue: {issue}57128[#57128]). Using `y` together with `w` results in
-incorrect date calculations. A workaround is to add a following line to `jvm.options` file.
+* Week-based date patterns are not working correctly with `Y`. Using `Y` with `w` will result in
+a failed request and an exception in the logs (issue: {issue}57128[#57128]). Using `y` with `w` results in
+incorrect date calculations. A workaround is to add the following line to the `jvm.options` file.
++
 [source,shell]
 --------------------------------------------
 9-:-Djava.locale.providers=SPI,COMPAT
 --------------------------------------------
-This is fixed in {es} 7.7.0 and later versions. (issue: {issue}50916[#50916])
++
+This issue is fixed in {es} 7.7.0 and later versions (issue: {issue}50916[#50916]).
 
 [[breaking-7.6.0]]
 [float]

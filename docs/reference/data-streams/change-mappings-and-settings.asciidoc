@@ -430,7 +430,7 @@ POST /_reindex
 // TEST[continued]
 ====
 +
-You can also use a query to only reindex a subset of documents with each
+You can also use a query to reindex only a subset of documents with each
 request.
 +
 .*Example*

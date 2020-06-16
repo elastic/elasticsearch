@@ -201,7 +201,7 @@ accessible to all master and data nodes in the cluster. This location must be
 registered in the `path.repo` setting, similar to a
 <<snapshots-filesystem-repository,shared file system repository>>.
 
-URLs using the `ftp`, `http`, or `https` protocols must be whitelisted in the
+URLs using the `ftp`, `http`, or `https` protocols must be explicitly allowed with the
 `repositories.url.allowed_urls` setting. This setting supports wildcards (`*`)
 in place of a host, path, query, or fragment in the URL. For example:
 

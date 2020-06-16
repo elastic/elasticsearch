@@ -101,7 +101,37 @@ stream uses this template to create its backing indices.
 Composable templates for data streams must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
-  property.
+property.
++
+You can use the resolve index API to check if the name or pattern
+matches any existing indices, index aliases, or data streams. If so, you should
+consider using another name or pattern.
++
+.*Example*
+[%collapsible]
+====
+The following resolve index API request checks for any existing indices, index
+aliases, or data streams that start with `logs`. If not, the `logs*`
+wildcard pattern can be used to create a new data stream.
+
+[source,console]
+----
+GET /_resolve/index/logs*
+----
+// TEST[continued]
+
+The API returns the following response, indicating no existing targets match
+this pattern.
+
+[source,console-result]
+----
+{
+  "indices" : [ ],
+  "aliases" : [ ],
+  "data_streams" : [ ]
+}
+----
+====
 
 * A `data_stream` definition containing the `timestamp_field` property.
   This timestamp field must be included in every document indexed to the data

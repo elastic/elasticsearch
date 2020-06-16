@@ -10,9 +10,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -23,9 +25,14 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -145,13 +152,29 @@ public class SecurityContext {
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
-        // TODO: bwc here for API key metadata changes? i.e. deserialize the raw bytes into Map for older node.
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), version, authentication.getAuthenticationType(), authentication.getMetadata()));
+                authentication.getLookedUpBy(), version, authentication.getAuthenticationType(),
+                rewriteMetadataIfNecessary(version, authentication)));
             consumer.accept(original);
         }
+    }
+
+    private Map<String, Object> rewriteMetadataIfNecessary(Version version, Authentication authentication) {
+        Map<String, Object> metadata = authentication.getMetadata();
+        if (authentication.getAuthenticationType() == AuthenticationType.API_KEY
+            && authentication.getVersion().onOrAfter(Version.V_8_0_0)
+            && version.before(Version.V_8_0_0)) {
+            metadata = new HashMap<>(metadata);
+            metadata.put(
+                API_KEY_ROLE_DESCRIPTORS_KEY,
+                XContentHelper.convertToMap((BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY), false).v2());
+            metadata.put(
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                XContentHelper.convertToMap((BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), false).v2());
+        }
+        return metadata;
     }
 }

@@ -110,6 +110,8 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
@@ -122,9 +124,6 @@ public class ApiKeyService {
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
     public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
-    static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
-    static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
-
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key.hashing.algorithm", "pbkdf2", Function.identity(), v -> {
@@ -436,7 +435,7 @@ public class ApiKeyService {
             }).collect(Collectors.toList());
     }
 
-    private static List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }

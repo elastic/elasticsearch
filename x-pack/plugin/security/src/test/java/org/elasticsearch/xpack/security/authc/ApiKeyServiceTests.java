@@ -65,6 +65,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -301,8 +303,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+        assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
@@ -315,8 +317,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("test_user"));
         assertThat(result.getUser().roles(), is(emptyArray()));
         assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+        assertThat(result.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
+        assertThat(result.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
@@ -347,9 +349,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
-        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
-        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
@@ -376,7 +378,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             roleARDMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
                 BytesReference.bytes(roleARoleDescriptor.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(), false);
         }
-        authMetadata.put(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY,
+        authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY,
             (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
                 : Collections.singletonMap("a role", roleARDMap));
 
@@ -392,7 +394,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .streamInput(),
                 false);
         }
-        authMetadata.put(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
+        authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);

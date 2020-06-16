@@ -37,21 +37,29 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.discovery.AbstractDisruptionTestCase;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -67,8 +75,17 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    private static final Settings SINGLE_SHARD_NO_REPLICA =
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
+                .build();
+    }
 
     public void testLongRunningSnapshotAllowsConcurrentSnapshot() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -630,7 +647,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(client().admin().cluster().prepareGetSnapshots(repoName).get().getSnapshots(repoName), empty());
     }
 
-    public void testQueuedOperationsOnMasterFailOver() throws Exception {
+    public void testQueuedOperationsOnMasterRestart() throws Exception {
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -669,6 +686,64 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("verify that all operations finish in the cluster state after all");
         allStateCleanedUp.get(30L, TimeUnit.SECONDS);
+    }
+
+    public void testQueuedOperationsOnMasterDisconnect() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, firstSnapshot).setWaitForCompletion(true).execute());
+        final String secondSnapshot = "snapshot-two";
+        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, secondSnapshot).setWaitForCompletion(true).execute());
+
+        final String masterNode = internalCluster().getMasterName();
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(
+                        Collections.singleton(masterNode),
+                        Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
+                                .collect(Collectors.toSet())),
+                new NetworkDisruption.NetworkDisconnect());
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        blockNodeOnControlFiles(repoName, masterNode);
+        ActionFuture<AcknowledgedResponse> firstDeleteFuture = client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(false).get();
+
+        final PlainActionFuture<Void> bothDeletesVisible = awaitClusterState(state -> {
+            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            return deletionsInProgress.getEntries().size() == 2;
+        });
+        final ActionFuture<AcknowledgedResponse> secondDeleteFuture =
+                client(masterNode).admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        bothDeletesVisible.get(30L, TimeUnit.SECONDS);
+
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+
+        networkDisruption.stopDisrupting();
+        unblockNode(repoName, masterNode);
+        firstDeleteFuture.get();
+        secondDeleteFuture.get();
+
+        final PlainActionFuture<Void> allStateCleanedUp = awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshotsInProgress == null || snapshotDeletionsInProgress == null) {
+                return false;
+            }
+            return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
+        });
+
+        logger.info("verify that all operations finish in the cluster state after all");
+        allStateCleanedUp.get(30L, TimeUnit.SECONDS);
+
+        networkDisruption.stopDisrupting();
     }
 
     public void testQueuedOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
@@ -746,6 +821,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
         return future;
     }
+
+    private static final Settings SINGLE_SHARD_NO_REPLICA =
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
 
     private void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);

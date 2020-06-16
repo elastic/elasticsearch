@@ -260,7 +260,7 @@ backing indices that contains a mix of new and old data.
 While mixing new and old data is safe, it could interfere with data retention.
 If you delete older indices, you could accidentally delete a backing index that
 contains both new and old data. To prevent premature data loss, you would need
-to retain such backing indices until you are ready to delete its newest data.
+to retain such a backing index until you are ready to delete its newest data.
 ====
 +
 .*Example*

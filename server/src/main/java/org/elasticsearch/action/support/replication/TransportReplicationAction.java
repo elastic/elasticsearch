@@ -287,7 +287,7 @@ public abstract class TransportReplicationAction<
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
         Releasable releasable = checkPrimaryLimits(request.getRequest());
         ActionListener<Response> listener =
-            ActionListener.runAfter(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
+            ActionListener.runBefore(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
 
         try {
             new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
@@ -512,7 +512,7 @@ public abstract class TransportReplicationAction<
                                         final Task task) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener =
-            ActionListener.runAfter(new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), releasable::close);
+            ActionListener.runBefore(new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), releasable::close);
 
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();

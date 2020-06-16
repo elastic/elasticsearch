@@ -39,10 +39,10 @@ subprojects {
          * dependencies but we don't really want them because they cause
          * all kinds of trouble with the jar hell checks. So we suppress
          * them explicitly for non-es projects. */
-        testCompile(xpackProject('plugin:sql:qa:jdbc')) {
+        testImplementation(xpackProject('plugin:sql:qa:jdbc')) {
             transitive = false
         }
-        testCompile project(":test:framework")
+        testImplementation project(":test:framework")
 
         testRuntime project(path: xpackModule('sql:jdbc'))
     }

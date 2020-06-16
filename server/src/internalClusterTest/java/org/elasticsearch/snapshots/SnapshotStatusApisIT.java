@@ -30,8 +30,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
@@ -164,9 +162,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
 
         logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
-        final RepositoriesService service = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        final Repository repository = service.repository("test-repo");
-        final String indexRepoId = getRepositoryData(repository).resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
+        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
         IOUtils.rm(repoPath.resolve("indices").resolve(indexRepoId).resolve("0").resolve(
             BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
 

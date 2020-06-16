@@ -86,10 +86,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public CategoryDefinition(StreamInput in) throws IOException {
         jobId = in.readString();
         categoryId = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            partitionFieldName = in.readOptionalString();
-            partitionFieldValue = in.readOptionalString();
-        }
+        partitionFieldName = in.readOptionalString();
+        partitionFieldValue = in.readOptionalString();
         terms = in.readString();
         regex = in.readString();
         maxMatchingLength = in.readLong();
@@ -105,10 +103,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeLong(categoryId);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(partitionFieldName);
-            out.writeOptionalString(partitionFieldValue);
-        }
+        out.writeOptionalString(partitionFieldName);
+        out.writeOptionalString(partitionFieldValue);
         out.writeString(terms);
         out.writeString(regex);
         out.writeLong(maxMatchingLength);

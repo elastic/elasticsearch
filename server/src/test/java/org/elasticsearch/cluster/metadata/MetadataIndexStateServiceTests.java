@@ -399,7 +399,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
             int numBackingIndices = randomIntBetween(1, 5);
             dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
-            writeIndices.add(DataStream.getBackingIndexName(dataStreamName, numBackingIndices));
+            writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
         }
         ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
 

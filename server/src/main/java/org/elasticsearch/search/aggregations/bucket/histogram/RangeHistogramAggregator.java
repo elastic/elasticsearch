@@ -21,17 +21,16 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,8 +50,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
         long minDocCount,
         double minBound,
         double maxBound,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
         boolean collectsFromSingleBucket,
@@ -68,13 +66,14 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             minDocCount,
             minBound,
             maxBound,
-            formatter,
+            valuesSourceConfig.format(),
             context,
             parent,
             collectsFromSingleBucket,
             metadata
         );
-        this.valuesSource = (ValuesSource.Range) valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
         if (this.valuesSource.rangeType().isNumeric() == false) {
             throw new IllegalArgumentException(
                 "Expected numeric range type but found non-numeric range [" + this.valuesSource.rangeType().name + "]"

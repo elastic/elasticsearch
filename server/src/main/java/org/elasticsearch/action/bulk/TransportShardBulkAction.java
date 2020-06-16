@@ -113,12 +113,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected boolean shouldMarkCoordinatingBytes(BulkShardRequest request) {
-        if (request.isCoordinatingBytesAccounted()) {
-            return false;
-        } else {
-            request.markCoordinatingBytesAccounted();
-            return true;
-        }
+        return request.getParentTask().getNodeId().equals(clusterService.localNode().getId()) == false;
     }
 
     @Override

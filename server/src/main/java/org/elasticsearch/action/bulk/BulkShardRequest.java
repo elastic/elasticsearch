@@ -31,12 +31,10 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
-    private final AtomicBoolean bytesAccounted = new AtomicBoolean(false);
-    private final BulkItemRequest[] items;
+    private BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -155,14 +153,5 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
-    }
-
-    public void markCoordinatingBytesAccounted() {
-        assert bytesAccounted.get() == false;
-        bytesAccounted.set(true);
-    }
-
-    public boolean isCoordinatingBytesAccounted() {
-        return bytesAccounted.get();
     }
 }

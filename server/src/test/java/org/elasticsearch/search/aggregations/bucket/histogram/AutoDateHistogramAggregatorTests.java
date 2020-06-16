@@ -216,10 +216,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
             setNumBuckets(10).field("bogus_bogus");
 
-        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName("date_field");
+        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
         testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
@@ -233,10 +230,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
             setNumBuckets(10).field("bogus_bogus").missing("2017-12-12");
 
-        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName("date_field");
+        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
         testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
@@ -829,18 +823,12 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(aggregationBuilder.field());
+                final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggregationBuilder.field());
 
-                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                instantFieldType.setName(INSTANT_FIELD);
-                instantFieldType.setHasDocValues(true);
-
-                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                numericFieldType.setName(NUMERIC_FIELD);
-                numericFieldType.setHasDocValues(true);
+                MappedFieldType instantFieldType
+                    = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType numericFieldType
+                    = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram;
                 if (reduced) {

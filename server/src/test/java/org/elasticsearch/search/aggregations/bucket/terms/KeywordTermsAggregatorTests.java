@@ -143,9 +143,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType();
-                keywordFieldType.setName(KEYWORD_FIELD);
-                keywordFieldType.setHasDocValues(true);
+                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD);
 
                 InternalMappedTerms rareTerms;
                 if (reduced) {

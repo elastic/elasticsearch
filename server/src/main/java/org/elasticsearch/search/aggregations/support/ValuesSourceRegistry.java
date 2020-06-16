@@ -125,7 +125,7 @@ public class ValuesSourceRegistry {
             if (supplier == null) {
                 // TODO: push building the description into ValuesSourceConfig
                 MappedFieldType fieldType = valuesSourceConfig.fieldContext().fieldType();
-                String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
+                String fieldDescription = fieldType.typeName();
                 throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
                     "] is not supported for aggregation [" + aggregationName + "]");            }
             return supplier;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -59,15 +60,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
 
-        public static final MappedFieldType FIELD_TYPE = new SourceFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -81,7 +79,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private String[] excludes = null;
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder enabled(boolean enabled) {
@@ -148,7 +146,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     static final class SourceFieldType extends MappedFieldType {
 
-        SourceFieldType() {}
+        public static final SourceFieldType INSTANCE = new SourceFieldType();
+
+        private SourceFieldType() {
+            super(NAME, false, false, Collections.emptyMap());
+        }
 
         protected SourceFieldType(SourceFieldType ref) {
             super(ref);
@@ -188,12 +190,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes, Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE.clone(), Defaults.FIELD_TYPE, indexSettings); // Only stored.
+        super(Defaults.FIELD_TYPE, SourceFieldType.INSTANCE, indexSettings); // Only stored.
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
+        this.filter = enabled && filtered && fieldType.stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }
 
@@ -245,7 +247,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (enabled && fieldType().stored() && originalSource != null) {
+        if (enabled && fieldType.stored() && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...

@@ -634,8 +634,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             new String(hash),
             randomAlphaOfLength(12),
             0,
-            new BytesArray("{\"a role\": {\"cluster\": \"all\"}}"),
-            new BytesArray("{\"limited role\": {\"cluster\": \"all\"}}"),
+            new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
+            new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"principal\": \"test_user\",\"realm\": \"realm1\",\"realm_type\": \"realm_type1\",\"metadata\": {}}")
         );
     }

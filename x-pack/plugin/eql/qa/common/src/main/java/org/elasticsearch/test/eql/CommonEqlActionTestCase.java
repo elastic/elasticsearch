@@ -171,11 +171,11 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     public void test() throws Exception {
-        if (spec.supportsCaseSensitive()) {
+        if (spec.caseSensitive()) {
             assertResponse(runQuery(testIndexName, spec.query(), true));
         }
 
-        if (spec.supportsCaseInsensitive()) {
+        if (spec.caseInsensitive()) {
             assertResponse(runQuery(testIndexName, spec.query(), false));
         }
     }

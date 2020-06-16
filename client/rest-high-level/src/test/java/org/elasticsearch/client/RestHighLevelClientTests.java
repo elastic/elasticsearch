@@ -801,9 +801,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "render_search_template",
             "scripts_painless_execute",
-            "indices.create_data_stream",
-            "indices.get_data_stream",
-            "indices.delete_data_stream",
             "indices.simulate_template",
             "indices.resolve_index"
         };

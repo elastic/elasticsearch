@@ -1573,7 +1573,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testDataStreams() throws Exception {
         String dataStreamName = "data-stream";
 
-        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), null,
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
+        Template template = new Template(null, mappings, null);
+        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
             Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);

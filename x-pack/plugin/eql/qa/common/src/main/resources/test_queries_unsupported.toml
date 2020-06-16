@@ -16,17 +16,6 @@
 [[queries]]
 case_sensitive = true
 case_insensitive = true
-note = "Sequence: many-1 match."
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id = 5]
-'''
-expected_event_ids  = [4, 5]
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "Sequence: 1-1-1."
 query = '''
 sequence
@@ -208,6 +197,74 @@ sequence by user_name
   [process where true] by process_path, parent_process_path
 '''
 expected_event_ids  = [61, 62]
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+'''
+expected_event_ids  = [54, 55, 61, 67]
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+'''
+expected_event_ids  = [54, 55, 61, 67]
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+until
+  [file where opcode == 2]    by unique_pid
+'''
+expected_event_ids  = []
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+  [file where opcode == 0]    by unique_pid
+until
+  [file where opcode == 200]  by unique_pid
+'''
+expected_event_ids  = [54, 55, 61, 67]
+
+[[queries]]
+case_sensitive = true
+case_insensitive = true
+query = '''
+sequence
+  [process where opcode == 1] by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+  [file where opcode == 0]    by unique_pid,  process_path
+until
+  [file where opcode == 200]  by unique_pid,  process_path
+'''
+expected_event_ids  = [54, 55, 61, 67]
+
+
 
 #############################
 # NOT (YET) SUPPORTED TESTS #

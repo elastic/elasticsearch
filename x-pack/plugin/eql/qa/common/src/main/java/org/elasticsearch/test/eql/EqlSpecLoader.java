@@ -56,11 +56,11 @@ public class EqlSpecLoader {
             spec.description(getTrimmedString(table, "description"));
 
             // default these values to false
-            spec.caseSensitiveOnly(Boolean.TRUE.equals(table.getBoolean("case_sensitive")));
-            spec.caseInsensitiveOnly(Boolean.TRUE.equals(table.getBoolean("case_insensitive")));
+            spec.caseSensitive(Boolean.TRUE.equals(table.getBoolean("case_sensitive")));
+            spec.caseInsensitive(Boolean.TRUE.equals(table.getBoolean("case_insensitive")));
 
-            if (spec.supportsCaseInsensitive() == false && spec.supportsCaseSensitive() == false) {
-                throw new IllegalArgumentException("Invalid case (in)sensitivity for test: " + spec.toString());
+            if (spec.caseInsensitive() == false && spec.caseSensitive() == false) {
+                throw new IllegalArgumentException("Test must support case-sensitivity or case-insensitivity for test: " + spec.toString());
             }
 
             List<?> arr = table.getList("tags");

@@ -48,8 +48,8 @@ public class CacheFile {
         }
     };
 
-    private final ReleasableLock evictionLock;
-    private final ReleasableLock readLock;
+    private final ReentrantReadWriteLock.WriteLock evictionLock;
+    private final ReentrantReadWriteLock.ReadLock readLock;
 
     private final SparseFileTracker tracker;
     private final String description;
@@ -69,8 +69,8 @@ public class CacheFile {
         this.evicted = false;
 
         final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
-        this.evictionLock = new ReleasableLock(cacheLock.writeLock());
-        this.readLock = new ReleasableLock(cacheLock.readLock());
+        this.evictionLock = cacheLock.writeLock();
+        this.readLock = cacheLock.readLock();
 
         assert invariant();
     }
@@ -85,7 +85,8 @@ public class CacheFile {
 
     ReleasableLock fileLock() {
         boolean success = false;
-        final ReleasableLock fileLock = readLock.acquire();
+        final ReleasableLock fileLock = new ReleasableLock(readLock);
+        fileLock.acquire();
         try {
             ensureOpen();
             // check if we have a channel while holding the read lock
@@ -112,7 +113,8 @@ public class CacheFile {
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
-            try (ReleasableLock ignored = evictionLock.acquire()) {
+            evictionLock.lock();
+            try {
                 try {
                     ensureOpen();
                     final Set<EvictionListener> newListeners = new HashSet<>(listeners);
@@ -126,6 +128,8 @@ public class CacheFile {
                         refCounter.decRef();
                     }
                 }
+            } finally {
+                evictionLock.unlock();
             }
         }
         assert invariant();
@@ -136,7 +140,8 @@ public class CacheFile {
         assert listener != null;
 
         boolean success = false;
-        try (ReleasableLock ignored = evictionLock.acquire()) {
+        evictionLock.lock();
+        try {
             try {
                 final Set<EvictionListener> newListeners = new HashSet<>(listeners);
                 final boolean removed = newListeners.remove(Objects.requireNonNull(listener));
@@ -152,6 +157,8 @@ public class CacheFile {
                     refCounter.decRef();
                 }
             }
+        } finally {
+            evictionLock.unlock();
         }
         assert invariant();
         return success;
@@ -171,12 +178,15 @@ public class CacheFile {
     public void startEviction() {
         if (evicted == false) {
             final Set<EvictionListener> evictionListeners = new HashSet<>();
-            try (ReleasableLock ignored = evictionLock.acquire()) {
+            evictionLock.lock();
+            try {
                 if (evicted == false) {
                     evicted = true;
                     evictionListeners.addAll(listeners);
                     refCounter.decRef();
                 }
+            } finally {
+                evictionLock.unlock();
             }
             evictionListeners.forEach(listener -> listener.onEviction(this));
         }
@@ -206,7 +216,8 @@ public class CacheFile {
     }
 
     private boolean invariant() {
-        try (ReleasableLock ignored = readLock.acquire()) {
+        readLock.lock();
+        try {
             assert listeners != null;
             if (listeners.isEmpty()) {
                 assert channel == null;
@@ -217,6 +228,8 @@ public class CacheFile {
                 assert channel.isOpen();
                 assert Files.exists(file);
             }
+        } finally {
+            readLock.unlock();
         }
         return true;
     }
@@ -274,7 +287,7 @@ public class CacheFile {
                 try {
                     ensureOpen();
                     onRangeMissing.accept(gap.start, gap.end);
-                    gap.onResponse(null);
+                    gap.onCompletion();
                 } catch (Exception e) {
                     gap.onFailure(e);
                 }

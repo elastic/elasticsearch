@@ -111,7 +111,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                 if (gapIndex == gaps.size() - 1) {
                     expectNotification.set(true);
                 }
-                gap.onResponse(null);
+                gap.onCompletion();
             }
             assertTrue(wasNotified.get());
         }
@@ -270,8 +270,9 @@ public class SparseFileTrackerTests extends ESTestCase {
         } else {
             for (long i = gap.start; i < gap.end; i++) {
                 fileContents[Math.toIntExact(i)] = AVAILABLE;
+                gap.onProgress(i);
             }
-            gap.onResponse(null);
+            gap.onCompletion();
         }
     }
 }

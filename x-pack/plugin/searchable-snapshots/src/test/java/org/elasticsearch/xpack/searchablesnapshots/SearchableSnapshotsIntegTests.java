@@ -447,7 +447,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .cluster()
                 .preparePutRepository(fsRepoName)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", repo).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES))
+                .setSettings(Settings.builder().put("location", repo))
         );
 
         final int dataNodesCount = internalCluster().numDataNodes();

@@ -33,7 +33,7 @@ public final class DataStream {
     private final String name;
     private final String timeStampField;
     private final List<String> indices;
-    private long generation;
+    private final long generation;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation) {
         this.name = name;

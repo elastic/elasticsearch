@@ -44,6 +44,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
         Parser(DataType parseType, TemporalQuery<?>... queries) {
             this.parseType = parseType;
+            // queries's length must must be greater than one
             this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
                     .parseBest(timestampStr, queries);
         }

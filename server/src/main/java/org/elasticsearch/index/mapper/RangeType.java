@@ -27,17 +27,21 @@ import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.VersionRangeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.RangeFieldMapper.Range;
+import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -52,6 +56,185 @@ import java.util.function.BiFunction;
 
 /** Enum defining the type of range */
 public enum RangeType {
+    VERSION("version_range", LengthType.VARIABLE) {
+
+        // TODO check if these are really safe min/max values
+        private BytesRef MIN_VALUE = new BytesRef(0);
+        private BytesRef MAX_VALUE = new BytesRef(new byte[] {-1});
+
+        @Override
+        public Field getRangeField(String name, RangeFieldMapper.Range r) {
+            return new VersionRangeField(name, (BytesRef) r.from, (BytesRef) r.to);
+        }
+        @Override
+        public BytesRef parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
+                throws IOException {
+            BytesRef version = VersionEncoder.encodeVersion(parser.text(), SortMode.SEMVER);
+            return version;
+        }
+        @Override
+        public BytesRef parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
+                throws IOException {
+            return parseFrom(fieldType, parser, coerce, included);
+        }
+        @Override
+        public BytesRef parse(Object value, boolean coerce) {
+            if (value instanceof BytesRef) {
+                value = ((BytesRef) value).utf8ToString();
+            }
+            // TODO make this support different SortModes
+            return VersionEncoder.encodeVersion(value.toString(), SortMode.SEMVER);
+        }
+        @Override
+        public BytesRef minValue() {
+            return MIN_VALUE;
+        }
+        @Override
+        public BytesRef maxValue() {
+            return MAX_VALUE;
+        }
+        @Override
+        public BytesRef nextUp(Object value) {
+            // TODO currently no up/down
+            return (BytesRef) value;
+        }
+        @Override
+        public BytesRef nextDown(Object value) {
+            // TODO currently no up/down
+            return (BytesRef) value;
+        }
+
+        @Override
+        public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
+            int length = 0;
+            for (RangeFieldMapper.Range range : ranges) {
+                length += ((BytesRef) range.from).length;
+                length += ((BytesRef) range.to).length;
+            }
+            final byte[] encoded = new byte[15 + length];
+            ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+            out.writeVInt(ranges.size());
+            for (RangeFieldMapper.Range range : ranges) {
+                BytesRef fromValue = (BytesRef) range.from;
+                byte[] encodedFromValue = fromValue.bytes;
+                int fromLength = ((BytesRef) range.from).length;
+                out.writeByte((byte) fromLength);
+                out.writeBytes(encodedFromValue, 0, fromLength);
+
+                BytesRef toValue = (BytesRef) range.to;
+                byte[] encodedToValue = toValue.bytes;
+                int toLength = ((BytesRef) range.to).length;
+                out.writeByte((byte) toLength);
+                out.writeBytes(encodedToValue, 0, toLength);
+            }
+            return new BytesRef(encoded, 0, out.getPosition());
+        }
+
+        @Override
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+            // TODO: Implement this.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Double doubleValue (Object endpointValue) {
+            throw new UnsupportedOperationException("Version ranges cannot be safely converted to doubles");
+        }
+
+        @Override
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
+            if (includeFrom == false) {
+                from = nextUp(from);
+            }
+
+            if (includeTo == false) {
+                to = nextDown(to);
+            }
+
+            byte[] encodedFrom = ((BytesRef) from).bytes;
+            byte[] encodedTo = ((BytesRef) to).bytes;
+            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FULL_BYTE,
+                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+        }
+
+        @Override
+        public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            return createQuery(
+                field,
+                (BytesRef) from,
+                (BytesRef) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> VersionRangeField.newWithinQuery(
+                    field,
+                    f,
+                    t,
+                    dvRangeQuery(field, BinaryDocValuesRangeQuery.QueryType.WITHIN, f, t, includeFrom, includeTo)
+                )
+            );
+        }
+
+        @Override
+        public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            return createQuery(
+                field,
+                (BytesRef) from,
+                (BytesRef) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> VersionRangeField.newContainsQuery(
+                    field,
+                    f,
+                    t,
+                    dvRangeQuery(field, BinaryDocValuesRangeQuery.QueryType.CONTAINS, f, t, includeFrom, includeTo)
+                )
+            );
+        }
+
+        @Override
+        public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            return createQuery(
+                field,
+                (BytesRef) from,
+                (BytesRef) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> VersionRangeField.newIntersectsQuery(
+                    field,
+                    f,
+                    t,
+                    dvRangeQuery(field, BinaryDocValuesRangeQuery.QueryType.INTERSECTS, f, t, includeFrom, includeTo)
+                )
+            );
+        }
+
+        private Query createQuery(
+            String field,
+            BytesRef lower,
+            BytesRef upper,
+            boolean includeFrom,
+            boolean includeTo,
+            BiFunction<BytesRef, BytesRef, Query> querySupplier
+        ) {
+            byte[] lowerBytes = lower.bytes;
+            byte[] upperBytes = upper.bytes;
+//            if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
+//                throw new IllegalArgumentException(
+//                        "Range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")");
+//            }
+//            BytesRef correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
+//            BytesRef correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);;
+//            lowerBytes = InetAddressPoint.encode(correctedFrom);
+//            upperBytes = InetAddressPoint.encode(correctedTo);
+            if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
+                return new MatchNoDocsQuery("float range didn't intersect anything");
+            } else {
+                return querySupplier.apply(lower, upper);
+            }
+        }
+
+    },
     IP("ip_range", LengthType.FIXED_16) {
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
@@ -712,11 +895,29 @@ public enum RangeType {
                 }
                 return 1 + length;
             }
+        },
+        FULL_BYTE {
+            @Override
+            public int readLength(byte[] bytes, int offset) {
+                return bytes[offset];
+            }
+
+            @Override
+            public int advanceBy() {
+                return 1;
+            };
         };
 
         /**
-         * Return the length of the value that starts at {@code offset} in {@code bytes}.
+         * Return the length of the value encoded at {@code offset} in {@code bytes}.
          */
         public abstract int readLength(byte[] bytes, int offset);
+
+        /**
+         * Return the number of positions the offset needs to be advances after reading the length
+         */
+        public int advanceBy() {
+            return 0;
+        };
     }
 }

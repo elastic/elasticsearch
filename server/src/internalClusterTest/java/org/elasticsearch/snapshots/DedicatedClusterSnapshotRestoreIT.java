@@ -1415,6 +1415,36 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertFalse(restoredRetentionLeases.toString() + " has no " + leaseId, restoredRetentionLeases.contains(leaseId));
     }
 
+    public void testAbortWaitsOnDataNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNodeName = internalCluster().startDataOnlyNode();
+        final String indexName = "test-index";
+        createIndex(indexName);
+        indexDoc(indexName, "some_id", "foo", "bar");
+
+        internalCluster().startDataOnlyNode();
+
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        blockAllDataNodes(repoName);
+        final String snapshotName = "test-snap";
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse =
+                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute();
+        waitForBlock(dataNodeName, repoName, TimeValue.timeValueSeconds(30L));
+
+        logger.info("--> abort snapshot");
+        final ActionFuture<AcknowledgedResponse> deleteResponse =
+                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute();
+
+        logger.info("--> wait for 5s to give data nodes some time to process the updated shard snapshot status");
+        TimeUnit.SECONDS.sleep(5L);
+
+        assertFalse("delete should not be able to finish until data node is unblocked", deleteResponse.isDone());
+        unblockAllDataNodes(repoName);
+        assertAcked(deleteResponse.get());
+        assertThat(snapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+    }
+
     private long calculateTotalFilesSize(List<Path> files) {
         return files.stream().mapToLong(f -> {
             try {

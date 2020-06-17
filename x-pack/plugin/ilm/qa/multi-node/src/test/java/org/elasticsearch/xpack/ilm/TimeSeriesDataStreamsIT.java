@@ -16,10 +16,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
@@ -27,6 +29,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
@@ -38,21 +41,19 @@ import static org.hamcrest.Matchers.is;
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
+    public static final String TIMESTAMP_MAPPING = "{\n" +
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }";
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        Settings lifecycleNameSetting = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
-        Template template = new Template(lifecycleNameSetting, new CompressedXContent(mapping), null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -68,19 +69,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, new CompressedXContent(mapping), null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -104,19 +93,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createFullPolicy(client(), policyName, TimeValue.ZERO);
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, new CompressedXContent(mapping), null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -137,19 +114,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, new CompressedXContent(mapping), null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
@@ -168,5 +133,38 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
+    }
+
+    public void testReadOnlyAction() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "warm", new ReadOnlyAction());
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(
+            "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
+        assertThat(getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+    }
+
+    private static Template getTemplate(String policyName) throws IOException {
+        return new Template(getLifcycleSettings(policyName), new CompressedXContent(TIMESTAMP_MAPPING), null);
+    }
+
+    private static Settings getLifcycleSettings(String policyName) {
+        return Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .build();
     }
 }

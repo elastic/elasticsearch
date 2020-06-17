@@ -311,11 +311,7 @@ public class ApiKeyService {
                     },
                     e -> {
                         credentials.close();
-                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
-                        } else {
-                            listener.onFailure(e);
-                        }
+                        listener.onFailure(e);
                     }
                 ));
             } else {
@@ -336,7 +332,13 @@ public class ApiKeyService {
         executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                 if (response.isExists()) {
                     final Map<String, Object> source = response.getSource();
-                    validateApiKeyCredentials(docId, source, credentials, clock, listener);
+                    validateApiKeyCredentials(docId, source, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
                 } else {
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
@@ -480,7 +482,7 @@ public class ApiKeyService {
                                 validateApiKeyCredentials(docId, source, credentials, clock, listener);
                             }
                         }, listener::onFailure),
-                        threadPool.executor(THREAD_POOL_NAME), threadPool.getThreadContext());
+                        threadPool.generic(), threadPool.getThreadContext());
                 } else {
                     verifyKeyAgainstHash(apiKeyHash, credentials, ActionListener.wrap(
                         verified -> {
@@ -575,10 +577,9 @@ public class ApiKeyService {
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
         Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-        final String executorName = Thread.currentThread().getName().contains(THREAD_POOL_NAME) ? ThreadPool.Names.SAME : THREAD_POOL_NAME;
-        threadPool.executor(executorName).execute(ActionRunnable.supply(listener, () -> {
+        threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
+            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {

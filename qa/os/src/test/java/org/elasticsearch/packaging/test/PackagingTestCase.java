@@ -119,8 +119,7 @@ public abstract class PackagingTestCase extends Assert {
         assumeTrue("only compatible distributions", distribution.packaging.compatible);
 
         // cleanup from previous test
-        installation = null;
-        cleanEverything();
+        cleanup();
 
         // create shell
         if (distribution().isDocker()) {
@@ -198,6 +197,11 @@ public abstract class PackagingTestCase extends Assert {
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
+    }
+
+    protected static void cleanup() throws Exception {
+        installation = null;
+        cleanEverything();
     }
 
     /**

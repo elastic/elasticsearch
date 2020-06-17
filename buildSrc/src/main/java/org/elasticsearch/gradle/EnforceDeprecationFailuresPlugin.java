@@ -73,9 +73,6 @@ public class EnforceDeprecationFailuresPlugin implements Plugin<Project> {
         });
     }
 
-    /**
-     * TODO this can be more generic once we also have direct testRuntime and runtime usage removed from es build
-     */
     private void failOnCompileConfigurationResolution(SourceSet sourceSet) {
         project.getConfigurations()
             .getByName(sourceSet.getCompileConfigurationName())

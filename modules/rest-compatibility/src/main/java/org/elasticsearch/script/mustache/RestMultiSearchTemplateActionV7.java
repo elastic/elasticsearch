@@ -78,7 +78,7 @@ public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActi
         TypeConsumer typeConsumer = new TypeConsumer(request, "type", "types");
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex, typeConsumer);
         if (typeConsumer.hasTypes()) {
-            deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }

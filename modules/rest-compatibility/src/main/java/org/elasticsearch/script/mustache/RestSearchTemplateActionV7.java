@@ -63,7 +63,7 @@ public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("search_with_types", RestSearchActionV7.TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("search_with_types", RestSearchActionV7.TYPES_DEPRECATION_MESSAGE);
             request.param("type");
         }
         return super.prepareRequest(request, client);

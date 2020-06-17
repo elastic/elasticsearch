@@ -64,7 +64,7 @@ public class RestSearchActionV7 extends RestSearchAction {
         request.param(INCLUDE_TYPE_NAME_PARAMETER);
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("search_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         return super.prepareRequest(request, client);

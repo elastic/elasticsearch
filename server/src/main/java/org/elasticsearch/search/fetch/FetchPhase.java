@@ -101,7 +101,8 @@ public class FetchPhase implements SearchPhase {
             if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
+            fieldsVisitor = new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             fieldsVisitor = null;
@@ -130,7 +131,7 @@ public class FetchPhase implements SearchPhase {
                     }
                 }
             }
-            boolean loadSource = context.sourceRequested();
+            boolean loadSource = context.sourceRequested() || context.fetchFieldsContext() != null;
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 fieldsVisitor = new FieldsVisitor(loadSource);

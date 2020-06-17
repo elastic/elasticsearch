@@ -21,9 +21,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
-    // history (please add a comment why you increased the version here)
-    // version 1: initial
-    public static final int REGISTRY_VERSION = 1;
+    // The stack template registry should remain at version 0. This is because templates and
+    // policies will be changed by the ingest manager once they exist, and ES should only ever put
+    // the template in place if it does not exist. If this were incremented we could accidentally
+    // overwrite a template or policy changed by the ingest manager.
+    public static final int REGISTRY_VERSION = 0;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
 

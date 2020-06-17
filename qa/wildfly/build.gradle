@@ -46,7 +46,7 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   compile project(path: ':client:rest-high-level', configuration: 'shadow')
-  testCompile project(':test:framework')
+  testImplementation project(':test:framework')
 }
 
 war {

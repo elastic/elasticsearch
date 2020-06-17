@@ -59,12 +59,12 @@ public class ScriptCacheTests extends ESTestCase {
         final TimeValue expire = ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY);
         String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
         ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE, settingName);
-        long lastInlineCompileTime = cache.lastInlineCompileTime;
-        double scriptsPerTimeWindow = cache.scriptsPerTimeWindow;
+        ScriptCache.TokenBucketState initialState = cache.tokenBucketState.get();
         for(int i=0; i < 3000; i++) {
             cache.checkCompilationLimit();
-            assertEquals(lastInlineCompileTime, cache.lastInlineCompileTime);
-            assertEquals(scriptsPerTimeWindow, cache.scriptsPerTimeWindow, 0.0); // delta of 0.0 because it should never change
+            ScriptCache.TokenBucketState currentState = cache.tokenBucketState.get();
+            assertEquals(initialState.lastInlineCompileTime, currentState.lastInlineCompileTime);
+            assertEquals(initialState.availableTokens, currentState.availableTokens, 0.0); // delta of 0.0 because it should never change
         }
     }
 }

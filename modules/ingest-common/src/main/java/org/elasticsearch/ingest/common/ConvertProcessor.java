@@ -148,8 +148,8 @@ public final class ConvertProcessor extends AbstractProcessor {
     private final Type convertType;
     private final boolean ignoreMissing;
 
-    ConvertProcessor(String tag, String field, String targetField, Type convertType, boolean ignoreMissing) {
-        super(tag);
+    ConvertProcessor(String tag, String description, String field, String targetField, Type convertType, boolean ignoreMissing) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.convertType = convertType;
@@ -205,13 +205,13 @@ public final class ConvertProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public ConvertProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                         Map<String, Object> config) throws Exception {
+                                       String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             Type convertType = Type.fromString(processorTag, "type", typeProperty);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new ConvertProcessor(processorTag, field, targetField, convertType, ignoreMissing);
+            return new ConvertProcessor(processorTag, description, field, targetField, convertType, ignoreMissing);
         }
     }
 }

@@ -1493,7 +1493,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 
-    public void testFieldCaps() {
+    public void testFieldCaps() throws IOException {
         // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
         String[] fields = generateRandomStringArray(5, 10, false, false);
@@ -1529,6 +1529,48 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         assertNull(request.getEntity());
+    }
+
+    public void testFieldCapsWithIndexFilter() throws IOException {
+        // Create a random request.
+        String[] indices = randomIndicesNames(0, 5);
+        String[] fields = generateRandomStringArray(5, 10, false, false);
+
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
+            .indices(indices)
+            .fields(fields)
+            .indexFilter(QueryBuilders.matchAllQuery());
+
+        Map<String, String> indicesOptionsParams = new HashMap<>();
+        setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions, fieldCapabilitiesRequest::indicesOptions, indicesOptionsParams);
+
+        Request request = RequestConverters.fieldCaps(fieldCapabilitiesRequest);
+
+        // Verify that the resulting REST request looks as expected.
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String joinedIndices = String.join(",", indices);
+        if (!joinedIndices.isEmpty()) {
+            endpoint.add(joinedIndices);
+        }
+        endpoint.add("_field_caps");
+
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(5, request.getParameters().size());
+
+        // Note that we don't check the field param value explicitly, as field names are
+        // passed through
+        // a hash set before being added to the request, and can appear in a
+        // non-deterministic order.
+        assertThat(request.getParameters(), hasKey("fields"));
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        assertEquals(new HashSet<>(Arrays.asList(fields)), new HashSet<>(Arrays.asList(requestFields)));
+
+        for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+
+        assertNotNull(request.getEntity());
+        assertToXContentBody(fieldCapabilitiesRequest, request.getEntity());
     }
 
     public void testRankEval() throws Exception {

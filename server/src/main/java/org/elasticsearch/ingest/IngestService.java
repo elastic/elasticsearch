@@ -691,7 +691,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
         String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
-        Processor failureProcessor = new AbstractProcessor(tag) {
+        Processor failureProcessor = new AbstractProcessor(tag, "this is a placeholder processor") {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) {
                 throw new IllegalStateException(errorMessage);

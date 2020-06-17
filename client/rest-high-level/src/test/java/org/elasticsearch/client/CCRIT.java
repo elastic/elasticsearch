@@ -277,7 +277,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
-        assertThat(getIndexSettingsAsMap("copy-logs-20200101"), hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
+        assertThat(
+            getIndexSettingsAsMap("copy-logs-20200101"),
+            hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();

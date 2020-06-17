@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,7 @@ public final class TrackingResultProcessor implements Processor {
     private final ConditionalProcessor conditionalProcessor;
     private final List<SimulateProcessorResult> processorResultList;
     private final boolean ignoreFailure;
+    private Tuple<String, Boolean> conditionalWithResult = null; //null = no conditional
 
     TrackingResultProcessor(boolean ignoreFailure, Processor actualProcessor, ConditionalProcessor conditionalProcessor,
                             List<SimulateProcessorResult> processorResultList) {
@@ -48,8 +50,13 @@ public final class TrackingResultProcessor implements Processor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (conditionalProcessor != null ) {
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
+                conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.FALSE);
+                processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                    actualProcessor.getDescription(), conditionalWithResult));
                 handler.accept(ingestDocument, null);
                 return;
+            } else{
+                conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.TRUE);
             }
         }
 
@@ -65,11 +72,11 @@ public final class TrackingResultProcessor implements Processor {
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
                     if (elasticsearchException.getCause() instanceof IllegalStateException) {
                         if (ignoreFailure) {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
                         } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), e));
+                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                                pipelineProcessor.getDescription(), e, conditionalWithResult));
                         }
                         handler.accept(null, elasticsearchException);
                     }
@@ -87,21 +94,21 @@ public final class TrackingResultProcessor implements Processor {
         actualProcessor.execute(ingestDocument, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), e, conditionalWithResult));
                 }
                 handler.accept(null, e);
             } else {
                 if (result != null) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), new IngestDocument(ingestDocument)));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), conditionalWithResult));
                     handler.accept(result, null);
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription()));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), conditionalWithResult));
                     handler.accept(null, null);
                 }
             }

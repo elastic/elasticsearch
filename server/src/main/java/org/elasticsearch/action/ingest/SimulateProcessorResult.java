@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +33,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -39,10 +41,31 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     private static final String IGNORED_ERROR_FIELD = "ignored_error";
+    private static final String STATUS_FIELD = "status";
+    private static final String TYPE_FIELD = "processor_type";
+
+    private enum Status {
+        SUCCESS,
+        ERROR,
+        ERROR_IGNORED,
+        SKIPPED,
+        DROPPED;
+
+        @Override
+        public String toString() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
+
+        public static Status fromString(String string) {
+            return Status.valueOf(string.toUpperCase(Locale.ROOT));
+        }
+    }
+    private final String type;
     private final String processorTag;
     private final String description;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
+    private final Tuple<String, Boolean> conditionalWithResult;
 
     private static final ConstructingObjectParser<ElasticsearchException, Void> IGNORED_ERROR_PARSER =
         new ConstructingObjectParser<>(
@@ -63,19 +86,26 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             "simulate_processor_result",
             true,
             a -> {
-                String processorTag = a[0] == null ? null : (String)a[0];
-                String description = a[1] == null ? null : (String)a[1];
-                IngestDocument document = a[2] == null ? null : ((WriteableIngestDocument)a[2]).getIngestDocument();
+                String type = (String) a[0];
+                String processorTag = a[1] == null ? null : (String)a[1];
+                String description = a[2] == null ? null : (String)a[2];
+                IngestDocument document = a[3] == null ? null : ((WriteableIngestDocument)a[3]).getIngestDocument();
                 Exception failure = null;
-                if (a[3] != null) {
-                    failure = (ElasticsearchException)a[3];
-                } else if (a[4] != null) {
+                if (a[4] != null) {
                     failure = (ElasticsearchException)a[4];
+                } else if (a[5] != null) {
+                    failure = (ElasticsearchException)a[5];
                 }
-                return new SimulateProcessorResult(processorTag, description, document, failure);
+                //TODO:
+                Tuple<String, Boolean> conditionalWithResult = null;
+                //Status status = Status.fromString((String) a[6]);
+                //FIXME
+
+                return new SimulateProcessorResult(type, processorTag, description, document, failure, conditionalWithResult);
             }
         );
     static {
+        PARSER.declareString(optionalConstructorArg(), new ParseField(TYPE_FIELD));
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.TAG_KEY));
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.DESCRIPTION_KEY));
         PARSER.declareObject(
@@ -93,26 +123,31 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             (p, c) -> ElasticsearchException.fromXContent(p),
             new ParseField("error")
         );
+        PARSER.declareString(optionalConstructorArg(), new ParseField(STATUS_FIELD)); //fixme ... don't acutually need the status field, only the if condition object
     }
 
-    public SimulateProcessorResult(String processorTag, String description, IngestDocument ingestDocument,
-                                   Exception failure) {
+    public SimulateProcessorResult(String type, String processorTag, String description, IngestDocument ingestDocument,
+                                   Exception failure, Tuple<String, Boolean> conditionalWithResult) {
         this.processorTag = processorTag;
         this.description = description;
         this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
         this.failure = failure;
+        this.conditionalWithResult = conditionalWithResult;
+        this.type = type;
     }
 
-    public SimulateProcessorResult(String processorTag, String description, IngestDocument ingestDocument) {
-        this(processorTag, description, ingestDocument, null);
+    public SimulateProcessorResult(String type, String processorTag, String description, IngestDocument ingestDocument,
+                                   Tuple<String, Boolean> conditionalWithResult) {
+        this(type, processorTag, description, ingestDocument, null, conditionalWithResult);
     }
 
-    public SimulateProcessorResult(String processorTag, String description, Exception failure) {
-        this(processorTag, description, null, failure);
+    public SimulateProcessorResult(String type, String processorTag, String description, Exception failure,
+                                   Tuple<String, Boolean> conditionalWithResult ) {
+        this(type, processorTag, description, null, failure, conditionalWithResult);
     }
 
-    public SimulateProcessorResult(String processorTag, String description) {
-        this(processorTag, description, null, null);
+    public SimulateProcessorResult(String type, String processorTag, String description, Tuple<String, Boolean> conditionalWithResult) {
+        this(type, processorTag, description, null, null, conditionalWithResult);
     }
 
     /**
@@ -123,9 +158,18 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
         if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            this.type = in.readString();
             this.description = in.readOptionalString();
+            boolean hasConditional = in.readBoolean();
+            if (hasConditional) {
+                this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
+            } else{
+                this.conditionalWithResult = null; //no condition exists
+            }
         } else {
             this.description = null;
+            this.conditionalWithResult = null;
+            this.type = null;
         }
     }
 
@@ -135,7 +179,13 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeString(type);
             out.writeOptionalString(description);
+            out.writeBoolean(conditionalWithResult != null);
+            if (conditionalWithResult != null) {
+                out.writeString(conditionalWithResult.v1());
+                out.writeBoolean(conditionalWithResult.v2());
+            }
         }
     }
 
@@ -154,22 +204,33 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return failure;
     }
 
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (processorTag == null && failure == null && ingestDocument == null) {
-            builder.nullValue();
-            return builder;
+        builder.startObject();
+
+
+        if(type != null){
+            builder.field(TYPE_FIELD, type);
         }
 
-        builder.startObject();
+        builder.field(STATUS_FIELD, getStatus());
+
+        if (description != null) {
+            builder.field(ConfigurationUtils.DESCRIPTION_KEY, description);
+        }
 
         if (processorTag != null) {
             builder.field(ConfigurationUtils.TAG_KEY, processorTag);
         }
 
-        if (description != null) {
-            builder.field(ConfigurationUtils.DESCRIPTION_KEY, description);
+        if(conditionalWithResult != null){
+            builder.startObject("if");
+            builder.field("condition", conditionalWithResult.v1());
+            builder.field("result", conditionalWithResult.v2());
+            builder.endObject();
         }
+
 
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);
@@ -189,5 +250,28 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     public static SimulateProcessorResult fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    //TODO: clean this up and this
+    private Status getStatus() {
+        if (conditionalWithResult != null) {
+            if (conditionalWithResult.v2() == false) {
+                return Status.SKIPPED;
+            }
+            return getStatusTrueCondition();
+        }
+        return getStatusTrueCondition();
+    }
+    private Status getStatusTrueCondition(){
+        if (failure != null) {
+            if (ingestDocument == null) {
+                return Status.ERROR;
+            } else {
+                return Status.ERROR_IGNORED;
+            }
+        } else if (ingestDocument == null) {
+            return Status.DROPPED;
+        }
+        return Status.SUCCESS;
     }
 }

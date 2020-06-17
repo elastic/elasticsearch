@@ -376,9 +376,7 @@ public abstract class PackagingTestCase extends Assert {
         if (Platforms.WINDOWS) {
             NEW_DIR_PERMS = new FileAttribute<?>[0];
         } else {
-            NEW_DIR_PERMS = new FileAttribute<?>[]{
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x"))
-            };
+            NEW_DIR_PERMS = new FileAttribute<?>[] { PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")) };
         }
     }
 

@@ -438,8 +438,10 @@ public class IngestClientIT extends ESIntegTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factories = new HashMap<>(super.getProcessors(parameters));
             factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
-            factories.put("fail", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", new RuntimeException()));
-            factories.put("onfailure_processor", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", document -> {
+            factories.put("fail", (processorFactories, tag, description, config) ->
+                new TestProcessor(tag, "fail", description, new RuntimeException()));
+            factories.put("onfailure_processor", (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail",
+                description, document -> {
                 String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
                 document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
             }));

@@ -180,7 +180,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
-     * Collect debug information to add to the profiling results.. This will
+     * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.
      * <p>
      * Well behaved implementations will always call the superclass

@@ -115,18 +115,14 @@ public abstract class PackagingTestCase extends Assert {
     public final TestName testNameRule = new TestName();
 
     @BeforeClass
-    public static void filterCompatible() {
+    public static void init() throws Exception {
         assumeTrue("only compatible distributions", distribution.packaging.compatible);
-    }
 
-    @BeforeClass
-    public static void cleanup() throws Exception {
+        // cleanup from previous test
         installation = null;
         cleanEverything();
-    }
 
-    @BeforeClass
-    public static void createShell() throws Exception {
+        // create shell
         if (distribution().isDocker()) {
             ensureImageIsLoaded(distribution);
             sh = new Docker.DockerShell();

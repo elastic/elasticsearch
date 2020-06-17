@@ -2,6 +2,12 @@
 === Cloud settings
 The following {es} settings are supported on {ess}:
 
+// NOTE: This file uses `include::` directives to pull information from many other files. If you are adding a new Elasticsearch setting that is supported on Elastic Search Service (ESS), complete these steps:
+//  * Add the new setting in the corresponding file
+//  * Add the `{ess-icon}` after the setting name to include the ESS icon
+//  * Create a https://asciidoctor.org/docs/user-manual/#by-tagged-regions[tagged region] at the beginning and end of the parameter
+//  * Add an `include::` directive to this file that includes the name of the tagged region
+
 * <<cloud-auditing-settings,Auditing settings>>
 * <<cloud-circuit-breaker-settings,Circuit breaker settings>>
 * <<cloud-disk-based-shard-allocation-settings,Disk-based shard allocation settings>>
@@ -10,8 +16,11 @@ The following {es} settings are supported on {ess}:
 * <<cloud-machine-learning-settings,Machine learning settings>>
 * <<cloud-monitoring-collection-settings,Monitoring collection settings>>
 * <<cloud-node-settings,Node settings>>
-* <<cloud-realm-settings,Realm settings>>
 * <<cloud-reindex-settings,Reindex settings>>
+* <<cloud-realm-settings,Realm settings>>
+* <<cloud-saml-realm-settings,SAML realm settings>>
+* <<cloud-saml-realm-encryption-settings,SAML realm encryption settings>>
+* <<cloud-saml-realm-signing-settings,SAML realm signing settings>>
 * <<cloud-snapshot-restore-settings,Snapshot and restore settings>>
 * <<cloud-watcher-settings,Watcher settings>>
 
@@ -105,20 +114,64 @@ include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-node-ingest-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-settings-description-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-order-tag]
 
+[[cloud-saml-realm-settings]]
 ===== SAML realm settings
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-allowed-clock-skew-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-dn-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-groups-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-mail-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-name-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-principal-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-patterns-principal-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-patterns-dn-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-patterns-groups-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-patterns-mail-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-patterns-name-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-force-authn-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-entity-id-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-metadata-path-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-metadata-http-refresh-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-idp-use-single-logout-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-nameid-format-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-nameid-allow-create-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-nameid-sp-qualifier-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-populate-user-metadata-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-req-authn-context-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-acs-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-entity-id-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-sp-logout-tag]
+
+<<cloud-settings,Back to top>>
+
+[[cloud-saml-realm-encryption-settings]]
+===== SAML realm encryption settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-certificate-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-key-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-alias-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-type-tag]
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
+
+<<cloud-settings,Back to top>>
+
+[[cloud-saml-realm-signing-settings]]
+===== SAML realm signing settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-certificate-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-key-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-keystore-alias-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-keystore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-keystore-type-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-messages-tag]
 
 <<cloud-settings,Back to top>>
 

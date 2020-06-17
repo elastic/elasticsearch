@@ -966,46 +966,66 @@ The Name of the SAML attribute that contains the user's X.50
 _Distinguished Name_.
 // end::saml-attributes-dn-tag[]
 
-`attribute_patterns.principal`::
+// tag::saml-attributes-patterns-principal-tag[]
+`attribute_patterns.principal` {ess-icon}::
 A Java regular expression that is matched against the SAML attribute specified
 by `attributes.pattern` before it is applied to the user's _principal_ property.
 The attribute value must match the pattern and the value of the first
 _capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
 matches email addresses from the "example.com" domain and uses the local-part as
 the principal.
+// end::saml-attributes-patterns-principal-tag[]
 
-`attribute_patterns.groups`::
+// tag::saml-attributes-patterns-groups-tag[]
+`attribute_patterns.groups` {ess-icon}::
 As per `attribute_patterns.principal`, but for the _group_ property.
+// end::saml-attributes-patterns-groups-tag[]
 
-`attribute_patterns.name`::
+// tag::saml-attributes-patterns-name-tag[]
+`attribute_patterns.name` {ess-icon}::
 As per `attribute_patterns.principal`, but for the _name_ property.
+// end::saml-attributes-patterns-name-tag[]
 
-`attribute_patterns.mail`::
+// tag::saml-attributes-patterns-mail-tag[]
+`attribute_patterns.mail` {ess-icon}::
 As per `attribute_patterns.principal`, but for the _mail_ property.
+// end::saml-attributes-patterns-mail-tag[]
 
-`attribute_patterns.dn`::
+// tag::saml-attributes-patterns-dn-tag[]
+`attribute_patterns.dn` {ess-icon}::
 As per `attribute_patterns.principal`, but for the _dn_ property.
+// end::saml-attributes-patterns-dn-tag[]
 
-`nameid_format`::
+// tag::saml-nameid-format-tag[]
+`nameid_format` {ess-icon}::
 The NameID format that should be requested when asking the IdP to authenticate
 the current user. The default is to not  include the `nameid_format` attribute.
+// end::saml-nameid-format-tag[]
 
-`nameid.allow_create`:: The value of the `AllowCreate` attribute of the
+// tag::saml-nameid-allow-create-tag[]
+`nameid.allow_create` {ess-icon}:: The value of the `AllowCreate` attribute of the
 `NameIdPolicy` element in an authentication request. The default value is false.
+// end::saml-nameid-allow-create-tag[]
 
-`nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the
+// tag::saml-nameid-sp-qualifier-tag[]
+`nameid.sp_qualifier` {ess-icon}:: The value of the `SPNameQualifier` attribute of the
 `NameIdPolicy` element in an authentication request. The default is to not
 include the `SPNameQualifier` attribute.
+// end::saml-nameid-sp-qualifier-tag[]
 
-`force_authn`::
+// tag::saml-force-authn-tag[]
+`force_authn` {ess-icon}::
 Specifies whether to set the `ForceAuthn` attribute when requesting that the IdP
 authenticate the current user. If set to `true`, the IdP is required to verify
 the user’s identity, irrespective of any existing sessions they might have.
 Defaults to `false`.
+// end::saml-force-authn-tag[]
 
-`populate_user_metadata`::
+// tag::saml-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
 Specifies whether to populate the {es} user's metadata with the values that are
 provided by the SAML attributes. Defaults to `true`.
+// end::saml-populate-user-metadata-tag[]
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
@@ -1013,12 +1033,15 @@ If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
 See <<authorization_realms>>.
 
+// tag::saml-allowed-clock-skew-tag[]
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
+// end::saml-allowed-clock-skew-tag[]
 
-`req_authn_context_class_ref`::
+// tag::saml-req-authn-context-tag[]
+`req_authn_context_class_ref` {ess-icon}::
 A comma separated list of Authentication Context Class Reference values to be
 included in the Requested Authentication Context when requesting the IdP to
 authenticate the current user. The Authentication Context of the corresponding
@@ -1026,96 +1049,121 @@ authentication response should contain at least one of the requested values.
 +
 For more information, see
 <<req-authn-context>>.
+// end::saml-req-authn-context-tag[]
 
 [float]
 [[ref-saml-signing-settings]]
 ===== SAML realm signing settings
-
+// tag::saml-signing-description-tag[]
 If a signing key is configured (that is, either `signing.key` or
 `signing.keystore.path` is set), then {es} signs outgoing SAML messages.
 Signing can be configured using the following settings:
+// end::saml-signing-description-tag[]
 
-`signing.saml_messages`::
+// tag::saml-signing-messages-tag[]
+`signing.saml_messages` {ess-icon}::
 A list of SAML message types that should be signed or `*` to sign all messages.
 Each element in the list should be the local name of a SAML XML Element.
 Supported element types are `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 Only valid if `signing.key` or `signing.keystore.path` is also specified.
 Defaults to `*`.
+// end::saml-signing-messages-tag[]
 
-`signing.key`::
+// tag::saml-signing-key-tag[]
+`signing.key` {ess-icon}::
 Specifies the path to the PEM encoded private key to use for SAML message signing.
 `signing.key` and `signing.keystore.path` cannot be used at the same time.
+// end::saml-signing-key-tag[]
 
-`signing.secure_key_passphrase` (<<secure-settings,Secure>>)::
+`signing.secure_key_passphrase` (<<secure-settings,Secure>>) {ess-icon}::
 Specifies the passphrase to decrypt the PEM encoded private key (`signing.key`)
 if it is encrypted.
 
-`signing.certificate`::
+// tag::saml-signing-certificate-tag[]
+`signing.certificate` {ess-icon}::
 Specifies the path to the PEM encoded certificate (or certificate chain) that
 corresponds to the `signing.key`. This certificate must also be included in the
 Service Provider metadata or manually configured within the IdP to allow for
 signature validation. This setting can only be used if `signing.key` is set.
+// end::saml-signing-certificate-tag[]
 
-`signing.keystore.path`::
+// tag::saml-signing-keystore-path-tag[]
+`signing.keystore.path` {ess-icon}::
 The path to the keystore that contains a private key and certificate. It must be
 either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
 `signing.key` at the same time.
+// end::saml-signing-keystore-path-tag[]
 
-`signing.keystore.type`::
+// tag::saml-signing-keystore-type-tag[]
+`signing.keystore.type` {ess-icon}::
 The type of the keystore in `signing.keystore.path`.
 Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx",
 or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+// end::saml-signing-keystore-type-tag[]
 
-`signing.keystore.alias`::
+// tag::saml-signing-keystore-alias-tag[]
+`signing.keystore.alias` {ess-icon}::
 Specifies the alias of the key within the keystore that should be
 used for SAML message signing. If the keystore contains more than one private
 key, this setting must be specified.
+// end::saml-signing-keystore-alias-tag[]
 
-`signing.keystore.secure_password` (<<secure-settings,Secure>>)::
+`signing.keystore.secure_password` (<<secure-settings,Secure>>) {ess-icon}::
 The password to the keystore in `signing.keystore.path`.
 
-`signing.keystore.secure_key_password` (<<secure-settings,Secure>>)::
+`signing.keystore.secure_key_password` (<<secure-settings,Secure>>) {ess-icon}::
 The password for the key in the keystore (`signing.keystore.path`).
 Defaults to the keystore password.
 
 [float]
 [[ref-saml-encryption-settings]]
 ===== SAML realm encryption settings
-
+// tag::saml-encryption-description-tag[]
 If an encryption key is configured (that is, either `encryption.key` or
 `encryption.keystore.path` is set), then {es} publishes an encryption
 certificate when generating metadata and attempts to decrypt incoming SAML
 content. Encryption can be configured using the following settings:
+// end::saml-encryption-description-tag[]
 
+// tag::saml-encryption-key-tag[]
 `encryption.key`::
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
 `encryption.key` and `encryption.keystore.path` cannot be used at the same time.
+// end::saml-encryption-key-tag[]
 
 `encryption.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`encryption.key`) if it is encrypted.
 
-`encryption.certificate`::
+// tag::saml-encryption-certificate-tag[]
+`encryption.certificate` {ess-icon}::
 Specifies the path to the PEM encoded certificate (or certificate chain) that is
 associated with the `encryption.key`. This certificate must also be included in
 the Service Provider metadata or manually configured within the IdP to enable
 message encryption. This setting can be used only if `encryption.key` is set.
+// end::saml-encryption-certificate-tag[]
 
-`encryption.keystore.path`::
+// tag::saml-encryption-keystore-path-tag[]
+`encryption.keystore.path` {ess-icon}::
 The path to the keystore that contains a private key and certificate. It must be
 either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and
 `encryption.key` at the same time.
+// end::saml-encryption-keystore-path-tag[]
 
-`encryption.keystore.type`::
+// tag::saml-encryption-keystore-type-tag[]
+`encryption.keystore.type` {ess-icon}::
 The type of the keystore (`encryption.keystore.path`).
 Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx",
 or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
+// end::saml-encryption-keystore-type-tag[]
 
-`encryption.keystore.alias`::
+// tag::saml-encryption-keystore-alias-tag[]
+`encryption.keystore.alias` {ess-icon}::
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
 that should be used for SAML message decryption. If not specified, all compatible
 key pairs from the keystore are considered as candidate keys for decryption.
+// end::saml-encryption-keystore-alias-tag[]
 
 `encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`encryption.keystore.path`).

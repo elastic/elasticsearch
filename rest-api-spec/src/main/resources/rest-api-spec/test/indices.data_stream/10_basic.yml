@@ -273,3 +273,58 @@ setup:
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged
+
+---
+"Indexing a document into a data stream without a timestamp field":
+  - skip:
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          template:
+            mappings:
+              properties:
+                'timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: timestamp
+
+  - do:
+      catch: bad_request
+      index:
+        index:  logs-foobar
+        body:   { foo: bar }
+
+  - do:
+      bulk:
+        body:
+          - create:
+              _index: logs-foobar
+          - foo: bar
+          - create:
+              _index: logs-foobar
+          - timestamp: '2020-12-12'
+          - create:
+              _index: logs-foobar
+          - timestamp: ['2020-12-12', '2022-12-12']
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "required timestamp field is missing" }
+  - match: { items.1.create.result: created }
+  - match: { items.1.create._index: .ds-logs-foobar-000001 }
+  - match: { items.2.create.status: 400 }
+  - match: { items.2.create.error.type: illegal_argument_exception }
+  - match: { items.2.create.error.reason: "timestamp field has multiple values, only a single value is allowed" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

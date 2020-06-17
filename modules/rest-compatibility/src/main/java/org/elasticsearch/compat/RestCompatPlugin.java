@@ -33,10 +33,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7;
+import org.elasticsearch.rest.action.document.RestDeleteActionV7;
 import org.elasticsearch.rest.action.document.RestGetActionV7;
 import org.elasticsearch.rest.action.document.RestIndexActionV7;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsActionV7;
 import org.elasticsearch.rest.action.document.RestTermVectorsActionV7;
+import org.elasticsearch.rest.action.document.RestUpdateActionV7;
 import org.elasticsearch.rest.action.search.RestMultiSearchActionV7;
 import org.elasticsearch.rest.action.search.RestSearchActionV7;
 import org.elasticsearch.script.mustache.RestMultiSearchTemplateActionV7;
@@ -72,7 +74,9 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
                 new RestSearchActionV7(),
                 new RestMultiSearchActionV7(settings),
                 new RestSearchTemplateActionV7(),
-                new RestMultiSearchTemplateActionV7(settings)
+                new RestMultiSearchTemplateActionV7(settings),
+                new RestDeleteActionV7(),
+                new RestUpdateActionV7()
             );
         }
         return Collections.emptyList();

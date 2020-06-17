@@ -59,11 +59,11 @@ public class StratifiedCrossValidationSplitter implements CrossValidationSplitte
 
         // We ensure the target sample count is at least 1 as if the cardinality
         // is too low we might get a target of zero and, thus, no samples of the whole class
-        double targetSampleCount = Math.max(1.0, samplingRatio * sample.cardinality);
+        long targetSampleCount = (long) Math.max(1.0, samplingRatio * sample.cardinality);
 
         // The idea here is that the probability increases as the chances we have to get the target proportion
         // for a class decreases.
-        double p = (targetSampleCount - sample.training) / (sample.cardinality - sample.observed);
+        double p = (double) (targetSampleCount - sample.training) / (sample.cardinality - sample.observed);
 
         boolean isTraining = random.nextDouble() <= p;
 

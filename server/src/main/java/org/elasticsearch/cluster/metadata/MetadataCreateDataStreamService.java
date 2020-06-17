@@ -156,6 +156,9 @@ public class MetadataCreateDataStreamService {
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         Map<String, Object> mapping = firstBackingIndex.mapping().getSourceAsMap();
         Map<String, Object> timeStampFieldMapping = ObjectPath.eval(convertFieldPathToMappingPath(fieldName), mapping);
+        assert timeStampFieldMapping.containsKey("type") : "no type defined for mapping of timestamp_field";
+        assert ALLOWED_TIMESTAMPFIELD_TYPES.contains(timeStampFieldMapping.get("type")) :
+            "invalid type defined for mapping of timestamp_field";
 
         DataStream.TimestampField timestampField = new DataStream.TimestampField(
             fieldName,

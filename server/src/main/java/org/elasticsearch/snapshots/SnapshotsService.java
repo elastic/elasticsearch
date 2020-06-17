@@ -655,9 +655,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Finalizes the shard in repository and then removes it from cluster state
-     * <p>
-     * This is non-blocking method that runs on a thread from SNAPSHOT thread pool
+     * Finalizes the snapshot in the repository.
      *
      * @param entry snapshot
      */

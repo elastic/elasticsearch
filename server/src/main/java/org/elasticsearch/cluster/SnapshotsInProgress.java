@@ -335,6 +335,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static class ShardSnapshotStatus {
         private final ShardState state;
+
+        @Nullable
         private final String nodeId;
 
         @Nullable
@@ -347,11 +349,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(nodeId, ShardState.INIT, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String generation) {
             this(nodeId, state, null, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String reason, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String reason, @Nullable String generation) {
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
@@ -375,14 +377,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return state;
         }
 
+        @Nullable
         public String nodeId() {
             return nodeId;
         }
 
+        @Nullable
         public String generation() {
             return this.generation;
         }
 
+        @Nullable
         public String reason() {
             return reason;
         }
@@ -469,7 +474,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public SnapshotsInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+        this(Arrays.asList(entries));
     }
 
     public List<Entry> entries() {

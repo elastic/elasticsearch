@@ -635,9 +635,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
-                writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(),
-                    ActionListener.wrap(v -> writeUpdatedRepoDataStep.onResponse(updatedRepoData), listener::onFailure));
+                writeIndexGen(repositoryData.removeSnapshots(snapshotIds, builder.build()), repositoryStateId, repoMetaVersion,
+                        Function.identity(), writeUpdatedRepoDataStep);
             }, listener::onFailure);
             // Once we have updated the repository, run the clean-ups
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
@@ -650,18 +649,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure);
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
-            final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
-            writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(), ActionListener.wrap(v -> {
-                // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener =
-                    new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
-                asyncCleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
-                final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
-                writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);
-                writeMetaAndComputeDeletesStep.whenComplete(deleteResults ->
-                        asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, afterCleanupsListener),
-                    afterCleanupsListener::onFailure);
-            }, listener::onFailure));
+            writeIndexGen(repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY), repositoryStateId, repoMetaVersion,
+                    Function.identity(), ActionListener.wrap(updatedRepoData -> {
+                        // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                        final ActionListener<Void> afterCleanupsListener =
+                                new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+                        asyncCleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData,
+                                afterCleanupsListener);
+                        final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep =
+                                new StepListener<>();
+                        writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);
+                        writeMetaAndComputeDeletesStep.whenComplete(deleteResults -> asyncCleanupUnlinkedShardLevelBlobs(repositoryData,
+                                snapshotIds, deleteResults, afterCleanupsListener), afterCleanupsListener::onFailure);
+                    }, listener::onFailure));
         }
     }
 

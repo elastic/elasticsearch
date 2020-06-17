@@ -27,6 +27,13 @@ teardown:
   - match: { license.type: "platinum" }
   - match: { license.max_nodes: 50 }
 
+  ## Check the xpack info API as well
+  - do:
+      xpack.info: {}
+  - match: { license.type: "platinum" }
+  - match: { license.mode: "platinum" }
+ 
+  ## Check the opt-in v5 license type
   - do:
       license.get:
         accept_enterprise: true
@@ -39,6 +46,13 @@ teardown:
   - match: { license.max_resource_units: 50 }
   - match: { license.max_nodes: null }
 
+  ## Check the xpack info API as well
+  - do:
+      xpack.info: 
+        accept_enterprise: true
+  - match: { license.type: "enterprise" }
+  - match: { license.mode: "enterprise" }
+ 
   - do:
       license.get:
         accept_enterprise: false
@@ -49,3 +63,11 @@ teardown:
   ## opt-out of real enterprise type
   - match: { license.type: "platinum" }
   - match: { license.max_nodes: 50 }
+
+  ## Check the xpack info API as well
+  - do:
+      xpack.info: 
+        accept_enterprise: false
+  - match: { license.type: "platinum" }
+  - match: { license.mode: "platinum" }
+

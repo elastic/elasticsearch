@@ -19,6 +19,10 @@
       "categories":{
         "type":"list",
         "description":"Comma-separated list of info categories. Can be any of: build, license, features"
+      },
+      "accept_enterprise":{
+        "type":"boolean",
+        "description":"If an enterprise license is installed, return the type and mode as 'enterprise' (default: false)"
       }
     }
   }

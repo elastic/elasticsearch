@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rest.action;
 
+import org.elasticsearch.license.License;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -36,9 +37,12 @@ public class RestXPackInfoAction extends XPackRestHandler {
 
     @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-
         // we piggyback verbosity on "human" output
         boolean verbose = request.paramAsBoolean("human", true);
+
+        // Hide enterprise licenses by default, there is an opt-in flag to show them
+        final boolean acceptEnterprise = request.paramAsBoolean("accept_enterprise", false);
+        final int licenseVersion = acceptEnterprise ? License.VERSION_CURRENT : License.VERSION_CRYPTO_ALGORITHMS;
 
         EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
                 .toSet(request.paramAsStringArray("categories", new String[] { "_all" }));
@@ -46,6 +50,7 @@ public class RestXPackInfoAction extends XPackRestHandler {
                 client.prepareInfo()
                         .setVerbose(verbose)
                         .setCategories(categories)
+                        .setLicenseVersion(licenseVersion)
                         .execute(new RestToXContentListener<>(channel));
     }
 }

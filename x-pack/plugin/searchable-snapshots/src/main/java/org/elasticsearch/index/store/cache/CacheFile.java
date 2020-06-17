@@ -112,23 +112,20 @@ public class CacheFile {
         ensureOpen();
         boolean success = false;
         if (refCounter.tryIncRef()) {
+            evictionLock.lock();
             try {
-                evictionLock.lock();
-                try {
-                    ensureOpen();
-                    final Set<EvictionListener> newListeners = new HashSet<>(listeners);
-                    final boolean added = newListeners.add(listener);
-                    assert added : "listener already exists " + listener;
-                    maybeOpenFileChannel(newListeners);
-                    listeners = Collections.unmodifiableSet(newListeners);
-                    success = true;
-                } finally {
-                    evictionLock.unlock();
-                }
+                ensureOpen();
+                final Set<EvictionListener> newListeners = new HashSet<>(listeners);
+                final boolean added = newListeners.add(listener);
+                assert added : "listener already exists " + listener;
+                maybeOpenFileChannel(newListeners);
+                listeners = Collections.unmodifiableSet(newListeners);
+                success = true;
             } finally {
                 if (success == false) {
                     refCounter.decRef();
                 }
+                evictionLock.unlock();
             }
         }
         assert invariant();

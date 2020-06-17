@@ -130,11 +130,11 @@ enum BinaryRangeUtil {
         for (int i = 0; i < numRanges; i++) {
             int length = lengthType.readLength(bytes, offset);
             Object from = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
 
             length = lengthType.readLength(bytes, offset);
             Object to = decodeBytes.apply(bytes, offset, length);
-            offset += length;
+            offset += length + lengthType.advanceBy();
             // TODO: Support for exclusive ranges, pending resolution of #40601
             RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
             ranges.add(decodedRange);

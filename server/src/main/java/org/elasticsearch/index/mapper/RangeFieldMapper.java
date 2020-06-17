@@ -489,6 +489,7 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(includeFrom ? '[' : '(');
             Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
             Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
+            // TODO also handle new VERSION range type, maybe move "toString" to RangeType?
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)f) : f.toString());
             sb.append(" : ");
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());

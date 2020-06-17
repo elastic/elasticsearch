@@ -87,11 +87,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
                         int offset = in.getPosition();
                         for (int i = 0; i < numRanges; i++) {
                             int length = lengthType.readLength(bytes, offset);
+                            offset += lengthType.advanceBy();
                             otherFrom.offset = offset;
                             otherFrom.length = length;
                             offset += length;
 
                             length = lengthType.readLength(bytes, offset);
+                            offset += lengthType.advanceBy();
                             otherTo.offset = offset;
                             otherTo.length = length;
                             offset += length;

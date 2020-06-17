@@ -89,6 +89,9 @@ import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.VersionEncoder;
+import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
+import org.elasticsearch.index.mapper.VersionStringFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -158,7 +161,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
-        FieldAliasMapper.CONTENT_TYPE // TODO support alias
+        FieldAliasMapper.CONTENT_TYPE, // TODO support alias
+        VersionStringFieldMapper.CONTENT_TYPE // TODO support alias
     );
 
     /**
@@ -830,6 +834,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 start = randomNonNegativeLong();
                 end = RangeType.DATE.nextUp(start);
                 rangeType = RangeType.DATE;
+            } else if (typeName.equals(RangeType.VERSION.typeName())) {
+                // TODO test this
+                start = VersionEncoder.encodeVersion("1.0.0", SortMode.SEMVER);
+                end = VersionEncoder.encodeVersion("2.0.0", SortMode.SEMVER);
+                rangeType = RangeType.VERSION;
             } else {
                 throw new IllegalStateException("Unknown type of range [" + typeName + "]");
             }

@@ -140,7 +140,7 @@ setup:
           }
   - match: { aggregations.good.buckets.0.regression_agg.value: 2.0 }
 ---
-"Test pipeline regression":
+"Test pipeline agg referencing a single bucket":
 
   - do:
       search:

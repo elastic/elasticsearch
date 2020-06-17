@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
@@ -237,23 +238,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
-     * @param buckets the buckets to finish building
-     * @param bucketToOrd how to convert a bucket into an ordinal
-     * @param setAggs how to set the sub-aggregation results on a bucket
-     */
-    protected final <B> void buildSubAggsForBuckets(List<B> buckets,
-            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
-        InternalAggregations[] results = buildSubAggsForBuckets(buckets.stream().mapToLong(bucketToOrd).toArray());
-        for (int i = 0; i < buckets.size(); i++) {
-            setAggs.accept(buckets.get(i), results[i]);
-        }
-    }
-
-    /**
      * Build aggregation results for an aggregator that has a fixed number of buckets per owning ordinal.
      * @param <B> the type of the bucket
      * @param owningBucketOrds owning bucket ordinals for which to build the results
@@ -346,7 +330,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param bucketOrds hash of values to the bucket ordinal
      */
     protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongKeyedBucketOrds bucketOrds,
-            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+            BucketBuilderForVariable<B> bucketBuilder, ResultBuilderForVariable<B> resultBuilder) throws IOException {
         long totalOrdsToCollect = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
@@ -377,13 +361,17 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 }
                 buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }
-            results[ordIdx] = resultBuilder.apply(buckets);
+            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], buckets);
         }
         return results;
     }
     @FunctionalInterface
     protected interface BucketBuilderForVariable<B> {
         B build(long bucketValue, int docCount, InternalAggregations subAggregationResults);
+    }
+    @FunctionalInterface
+    protected interface ResultBuilderForVariable<B> {
+        InternalAggregation build(long owninigBucketOrd, List<B> buckets);
     }
 
     /**
@@ -424,4 +412,15 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
                 ".doc_count\") or \"key\".");
     }
+
+    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent.getClass() == GlobalAggregator.class) {
+                return true;
+            }
+            parent = parent.parent();
+        }
+        return false;
+    }
+
 }

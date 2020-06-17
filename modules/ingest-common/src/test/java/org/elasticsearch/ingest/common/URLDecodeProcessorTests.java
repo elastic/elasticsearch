@@ -30,7 +30,7 @@ public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<Str
 
     @Override
     protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new URLDecodeProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
+        return new URLDecodeProcessor(randomAlphaOfLength(10), null, field, ignoreMissing, targetField);
     }
 
     @Override

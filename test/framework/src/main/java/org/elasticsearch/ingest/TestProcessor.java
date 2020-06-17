@@ -32,32 +32,34 @@ public class TestProcessor implements Processor {
 
     private final String type;
     private final String tag;
+    private final String description;
     private final Function<IngestDocument, IngestDocument> ingestDocumentMapper;
     private final AtomicInteger invokedCounter = new AtomicInteger();
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
-        this(null, "test-processor", ingestDocumentConsumer);
+        this(null, "test-processor", null, ingestDocumentConsumer);
     }
 
     public TestProcessor(RuntimeException e) {
-        this(null, "test-processor", e);
+        this(null, "test-processor", null, e);
     }
 
-    public TestProcessor(String tag, String type, RuntimeException e) {
-        this(tag, type, (Consumer<IngestDocument>) i -> { throw e; });
+    public TestProcessor(String tag, String type, String description, RuntimeException e) {
+        this(tag, type, description, (Consumer<IngestDocument>) i -> { throw e; });
     }
 
-    public TestProcessor(String tag, String type, Consumer<IngestDocument> ingestDocumentConsumer) {
-        this(tag, type, id -> {
+    public TestProcessor(String tag, String type, String description, Consumer<IngestDocument> ingestDocumentConsumer) {
+        this(tag, type, description, id -> {
             ingestDocumentConsumer.accept(id);
             return id;
         });
     }
 
-    public TestProcessor(String tag, String type, Function<IngestDocument, IngestDocument> ingestDocumentMapper) {
+    public TestProcessor(String tag, String type, String description, Function<IngestDocument, IngestDocument> ingestDocumentMapper) {
         this.ingestDocumentMapper = ingestDocumentMapper;
         this.type = type;
         this.tag = tag;
+        this.description = description;
     }
 
     @Override
@@ -76,6 +78,11 @@ public class TestProcessor implements Processor {
         return tag;
     }
 
+    @Override
+    public String getDescription() {
+        return description;
+    }
+
     public int getInvokedCounter() {
         return invokedCounter.get();
     }
@@ -83,8 +90,8 @@ public class TestProcessor implements Processor {
     public static final class Factory implements Processor.Factory {
         @Override
         public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
-            return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
+                                    String description, Map<String, Object> config) throws Exception {
+            return new TestProcessor(processorTag, "test-processor", description, ingestDocument -> {});
         }
     }
 }

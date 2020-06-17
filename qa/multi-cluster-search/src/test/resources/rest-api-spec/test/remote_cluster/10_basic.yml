@@ -4,6 +4,47 @@
       features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp2':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp2'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream2"
+
+  - do:
       indices.create:
         index: single_doc_index
         body:
@@ -142,43 +183,3 @@
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "test_index" }
-
-
----
-"Set up data stream tests":
-  - skip:
-      version: "all"
-      reason: muting for now
-      features: allowed_warnings
-
-  - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
-        body:
-          index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
-  - do:
-      allowed_warnings:
-        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template2
-        body:
-          index_patterns: [simple-data-stream2]
-          data_stream:
-            timestamp_field: '@timestamp2'
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream2
-
-  - do:
-      indices.rollover:
-        alias: "simple-data-stream2"
-

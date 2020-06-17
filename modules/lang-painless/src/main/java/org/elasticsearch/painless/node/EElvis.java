@@ -35,14 +35,22 @@ import static java.util.Objects.requireNonNull;
  */
 public class EElvis extends AExpression {
 
-    protected AExpression lhs;
-    protected AExpression rhs;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
 
-    public EElvis(Location location, AExpression lhs, AExpression rhs) {
-        super(location);
+    public EElvis(int identifier, Location location, AExpression leftNode, AExpression rightNode) {
+        super(identifier, location);
 
-        this.lhs = requireNonNull(lhs);
-        this.rhs = requireNonNull(rhs);
+        this.leftNode = requireNonNull(leftNode);
+        this.rightNode = requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
     }
 
     @Override
@@ -65,30 +73,27 @@ public class EElvis extends AExpression {
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
 
         output.actual = input.expected;
 
-        if (lhs.getChildIf(ENull.class) != null) {
+        if (leftNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs.getChildIf(EBoolean.class) != null
-                || lhs.getChildIf(ENumeric.class) != null
-                || lhs.getChildIf(EDecimal.class) != null
-                || lhs.getChildIf(EString.class) != null
-                || lhs.getChildIf(EConstant.class) != null) {
+        if (leftNode instanceof EBoolean || leftNode instanceof ENumeric || leftNode instanceof EDecimal
+                || leftNode instanceof EString || leftNode instanceof EConstant) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftOutput.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs.getChildIf(ENull.class) != null) {
+        if (rightNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
@@ -100,9 +105,9 @@ public class EElvis extends AExpression {
             output.actual = promote;
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(lhs.location,
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
                 leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         ElvisNode elvisNode = new ElvisNode();
@@ -110,7 +115,7 @@ public class EElvis extends AExpression {
         elvisNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
         elvisNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        elvisNode.setLocation(location);
+        elvisNode.setLocation(getLocation());
         elvisNode.setExpressionType(output.actual);
 
         output.expressionNode = elvisNode;

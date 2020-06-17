@@ -161,6 +161,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // well if using mmap.
                 case "tip":
                 case "dim":
+                case "kdd":
+                case "kdi":
+                case "kdm":
                 // Compound files are tricky because they store all the information for the segment. Benchmarks
                 // suggested that not mapping them hurts performance.
                 case "cfs":

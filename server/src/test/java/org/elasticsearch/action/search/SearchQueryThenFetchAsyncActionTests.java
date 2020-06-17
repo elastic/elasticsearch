@@ -43,6 +43,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Collections;
@@ -124,7 +125,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder(), new TestThreadPool("SearchQueryThenFetchAsyncActionTests"));
         SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),

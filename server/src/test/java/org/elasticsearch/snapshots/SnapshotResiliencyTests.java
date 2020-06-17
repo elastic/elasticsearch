@@ -179,6 +179,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -1523,7 +1524,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
-                    writableRegistry(), searchService::aggReduceContextBuilder);
+                    writableRegistry(), searchService::aggReduceContextBuilder, new TestThreadPool("SnapshotResiliencyTests"));
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,

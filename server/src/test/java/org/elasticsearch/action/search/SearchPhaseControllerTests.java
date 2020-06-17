@@ -67,6 +67,8 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -96,6 +98,7 @@ import static org.hamcrest.Matchers.not;
 public class SearchPhaseControllerTests extends ESTestCase {
     private SearchPhaseController searchPhaseController;
     private List<Boolean> reductions;
+    private final ThreadPool threadPool = new TestThreadPool("SearchPhaseControllerTests");
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -118,7 +121,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 return InternalAggregation.ReduceContext.forFinalReduction(
                         BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY);
             };
-        });
+        }, threadPool);
     }
 
     public void testSortDocs() {
@@ -373,11 +376,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private void consumerTestCase(int numEmptyResponses) {
+        consumerTestCase(numEmptyResponses, false);
+        consumerTestCase(numEmptyResponses, true);
+    }
+
+    private void consumerTestCase(int numEmptyResponses, boolean parallel) {
         int numShards = 3 + numEmptyResponses;
         int bufferSize = randomIntBetween(2, 3);
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, 3+numEmptyResponses);
         if (numEmptyResponses == 0) {
@@ -463,12 +472,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerConcurrently() throws InterruptedException {
+        testConsumerConcurrently(false);
+        testConsumerConcurrently(true);
+    }
+
+    private void testConsumerConcurrently(boolean parallel) throws InterruptedException {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
 
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
@@ -511,11 +526,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerOnlyAggs() {
+        testConsumerOnlyAggs(false);
+        testConsumerOnlyAggs(true);
+    }
+
+    private void testConsumerOnlyAggs(boolean parallel) {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
@@ -547,6 +568,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerOnlyHits() {
+        testConsumerOnlyHits(false);
+        testConsumerOnlyHits(true);
+    }
+
+    private void testConsumerOnlyHits(boolean parallel) {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
@@ -554,6 +580,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
@@ -592,6 +619,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testNewSearchPhaseResults() {
+        testNewSearchPhaseResults(false);
+        testNewSearchPhaseResults(true);
+    }
+
+    private void testNewSearchPhaseResults(boolean parallel) {
         for (int i = 0; i < 10; i++) {
             int expectedNumResults = randomIntBetween(1, 10);
             int bufferSize = randomIntBetween(2, 10);
@@ -613,6 +645,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             }
             request.setBatchedReduceSize(bufferSize);
+            request.setParallelReduce(parallel);
             ArraySearchPhaseResults<SearchPhaseResult> consumer
                 = searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
             if ((hasAggs || hasTopDocs) && expectedNumResults > bufferSize) {
@@ -626,9 +659,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testReduceTopNWithFromOffset() {
+        testReduceTopNWithFromOffset(false);
+        testReduceTopNWithFromOffset(true);
+    }
+
+    private void testReduceTopNWithFromOffset(boolean parallel) {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, 4);
         int score = 100;
@@ -660,11 +699,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerSortByField() {
+        testConsumerSortByField(false);
+        testConsumerSortByField(true);
+    }
+
+    private void testConsumerSortByField(boolean parallel) {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
@@ -696,11 +741,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerFieldCollapsing() {
+        testConsumerFieldCollapsing(false);
+        testConsumerFieldCollapsing(true);
+    }
+
+    private void testConsumerFieldCollapsing(boolean parallel) {
         int expectedNumResults = randomIntBetween(30, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         SortField[] sortFields = {new SortField("field", SortField.Type.STRING)};
@@ -736,10 +787,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testConsumerSuggestions() {
+        testConsumerSuggestions(false);
+        testConsumerSuggestions(true);
+    }
+
+    public void testConsumerSuggestions(boolean parallel) {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
+        request.setParallelReduce(parallel);
         ArraySearchPhaseResults<SearchPhaseResult> consumer =
             searchPhaseController.newSearchPhaseResults(NOOP, request, expectedNumResults);
         int maxScoreTerm = -1;
@@ -828,11 +885,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     public void testProgressListener() throws InterruptedException {
+        testProgressListener(false);
+        testProgressListener(true);
+    }
+
+    private void testProgressListener(boolean parallel) throws InterruptedException {
         int expectedNumResults = randomIntBetween(10, 100);
         for (int bufferSize : new int[] {expectedNumResults, expectedNumResults/2, expectedNumResults/4, 2}) {
             SearchRequest request = randomSearchRequest();
             request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
             request.setBatchedReduceSize(bufferSize);
+            request.setParallelReduce(parallel);
             AtomicInteger numQueryResultListener = new AtomicInteger();
             AtomicInteger numQueryFailureListener = new AtomicInteger();
             AtomicInteger numReduceListener = new AtomicInteger();

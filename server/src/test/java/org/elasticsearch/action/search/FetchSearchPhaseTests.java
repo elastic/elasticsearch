@@ -39,6 +39,8 @@ import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.CountDownLatch;
@@ -48,9 +50,11 @@ import static org.elasticsearch.action.search.SearchProgressListener.NOOP;
 
 public class FetchSearchPhaseTests extends ESTestCase {
 
+    private final ThreadPool threadPool = new TestThreadPool("FetchSearchPhaseTests");
+
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 1);
         boolean hasHits = randomBoolean();
@@ -94,7 +98,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
         final SearchContextId ctx1 = new SearchContextId(UUIDs.randomBase64UUID(), 123);
@@ -154,7 +158,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
@@ -218,7 +222,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP,
             mockSearchPhaseContext.getRequest(), numHits);
@@ -276,7 +280,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
@@ -333,7 +337,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder(), threadPool);
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = 1;

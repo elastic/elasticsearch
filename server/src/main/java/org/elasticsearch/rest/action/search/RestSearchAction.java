@@ -132,6 +132,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
         }
 
+        if (request.hasParam("parallel_reduce")) {
+            searchRequest.setParallelReduce(request.paramAsBoolean("parallel_reduce", false));
+        }
+
         if (request.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
             // based on the number of nodes in the cluster

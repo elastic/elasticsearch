@@ -546,6 +546,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Sets if this should reduce in parallel instead of incremental batched reduce. If it is true, this will automatically disable incrementally batched reduce
+     */
+    public SearchRequestBuilder setParallelReduce(boolean parallelReduce) {
+        this.request.setParallelReduce(parallelReduce);
+        return this;
+    }
+
+
+    /**
      * Sets the number of shard requests that should be executed concurrently on a single node. This value should be used as a
      * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}.

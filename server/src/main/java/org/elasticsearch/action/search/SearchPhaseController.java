@@ -61,6 +61,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,6 +70,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -79,11 +86,14 @@ public final class SearchPhaseController {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final ThreadPool threadPool;
 
     public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
-            Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
+            Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+            ThreadPool threadPool) {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+        this.threadPool = threadPool;
     }
 
     public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
@@ -772,6 +782,222 @@ public final class SearchPhaseController {
     }
 
     /**
+     * A {@link ArraySearchPhaseResults} implementation
+     * that reduces aggregation results in parallel.
+     */
+    static final class QueryPhaseParallelResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+        private final NamedWriteableRegistry namedWriteableRegistry;
+        private final SearchShardTarget[] processedShards;
+        private final int numShards;
+        private final SearchPhaseController controller;
+        private final SearchProgressListener progressListener;
+        private final Executor reduceExecutor;
+        private final boolean hasAggs;
+        private final boolean hasTopDocs;
+        private final TopDocsStats topDocsStats;
+        private final int topNSize;
+        private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
+        private final boolean performFinalReduce;
+        private final AtomicLong aggsMaxSize;
+        private final AtomicInteger numReducePhases;
+        private final BlockingQueue<PartialReduceResult> intermediateReducedResultsQueue;
+        private final AtomicInteger runningParallelReduceCount;
+        private final AtomicInteger shardResultConsumeCount;
+        private final CountDownLatch finalReduce = new CountDownLatch(1);
+        private PartialReduceResult lastPartialResult;
+
+        /**
+         * Creates a new {@link QueryPhaseParallelResultConsumer}
+         * @param progressListener a progress listener to be notified when a successful response is received
+         *                         and when a partial or final reduce has completed.
+         * @param controller a controller instance to reduce the query response objects
+         */
+        private QueryPhaseParallelResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
+                                         SearchPhaseController controller,
+                                         int numShards, boolean hasTopDocs, boolean hasAggs,
+                                         int trackTotalHitsUpTo, int topNSize,
+                                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+                                         boolean performFinalReduce, ThreadPool threadPool) {
+            super(numShards);
+            this.namedWriteableRegistry = namedWriteableRegistry;
+            if (hasAggs == false && hasTopDocs == false) {
+                throw new IllegalArgumentException("either aggs or top docs must be present in parallel result consumer");
+            }
+            this.processedShards = new SearchShardTarget[numShards];
+            this.numShards = numShards;
+            this.controller = controller;
+            this.progressListener = progressListener;
+            this.hasTopDocs = hasTopDocs;
+            this.hasAggs = hasAggs;
+            this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
+            this.topNSize = topNSize;
+            this.aggReduceContextBuilder = aggReduceContextBuilder;
+            this.performFinalReduce = performFinalReduce;
+            this.aggsMaxSize = new AtomicLong(0);
+            this.numReducePhases = new AtomicInteger(0);
+            this.intermediateReducedResultsQueue = new ArrayBlockingQueue<>(numShards);
+            this.reduceExecutor = threadPool.executor(ThreadPool.Names.REDUCE_PARTIAL_PARALLEL);
+            this.runningParallelReduceCount = new AtomicInteger(0);
+            this.shardResultConsumeCount = new AtomicInteger(0);
+        }
+
+        @Override
+        void consumeResult(SearchPhaseResult result) {
+            super.consumeResult(result);
+            QuerySearchResult queryResult = result.queryResult();
+            consumeParallel(queryResult);
+            progressListener.notifyQueryResult(queryResult.getShardIndex());
+        }
+
+        private void consumeParallel(QuerySearchResult querySearchResult) {
+            if (querySearchResult.isNull() == false) {
+                DelayableWriteable.Serialized<InternalAggregations> partialResultAggs = null;
+                if (hasAggs) {
+                    partialResultAggs = querySearchResult.consumeAggs().asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                    aggsMaxSize.addAndGet(partialResultAggs.ramBytesUsed());
+                }
+                TopDocs partialResultTopDocs = null;
+                if (hasTopDocs) {
+                    final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
+                    topDocsStats.add(topDocs, querySearchResult.searchTimedOut(), querySearchResult.terminatedEarly());
+                    setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
+                    partialResultTopDocs = topDocs.topDocs;
+                }
+                // put in queue
+                PartialReduceResult partialReduceResult = new PartialReduceResult(partialResultAggs, partialResultTopDocs);
+                putInQueue(partialReduceResult);
+                // check to start parallel reduce task
+                if (intermediateReducedResultsQueue.size() > 1) {
+                    reduceExecutor.execute(new PartialReduceTask());
+                }
+            }
+            processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
+            shardResultConsumeCount.incrementAndGet();
+        }
+
+        private void putInQueue(PartialReduceResult partialReduceResult) {
+            try {
+                intermediateReducedResultsQueue.put(partialReduceResult);
+            } catch (InterruptedException e) {
+                throw new RuntimeException("interrupted partial reduce put in queue");
+            }
+        }
+
+        private boolean checkParitalReduceAggsDone() {
+            return runningParallelReduceCount.get() == 0 &&
+                   intermediateReducedResultsQueue.size() == 1 &&
+                   shardResultConsumeCount.get() == numShards;
+        }
+
+        private void waitForAllParallelsDone() {
+            try {
+                finalReduce.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("interrupted when final reduce wait all partial reduces done.");
+            }
+        }
+
+        private synchronized List<DelayableWriteable<InternalAggregations>> getRemainingAggs() {
+            return hasAggs ? Collections.singletonList((DelayableWriteable<InternalAggregations>) lastPartialResult.aggs) : null;
+        }
+
+        private synchronized List<TopDocs> getRemainingTopDocs() {
+            return hasTopDocs ? Collections.singletonList(lastPartialResult.topDocs) : null;
+        }
+
+        @Override
+        ReducedQueryPhase reduce() {
+            waitForAllParallelsDone();
+            lastPartialResult = intermediateReducedResultsQueue.remove();
+            logger.trace("aggs final reduction [{}] max [{}]", lastPartialResult.aggs.ramBytesUsed(), aggsMaxSize);
+            ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
+                topDocsStats, numReducePhases.get(), false, aggReduceContextBuilder, performFinalReduce);
+            progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
+                reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
+            return reducePhase;
+        }
+
+        public int getNumReducePhases() {
+            return numReducePhases.get();
+        }
+
+        static class PartialReduceResult {
+            private final DelayableWriteable.Serialized<InternalAggregations> aggs;
+            private final TopDocs topDocs;
+            public PartialReduceResult(DelayableWriteable.Serialized<InternalAggregations> aggs, TopDocs topDocs) {
+                this.aggs = aggs;
+                this.topDocs = topDocs;
+            }
+        }
+
+        class PartialReduceTask implements Runnable {
+            @Override
+            public void run() {
+                runningParallelReduceCount.incrementAndGet();
+                int fetches = 0;
+                List<DelayableWriteable.Serialized<InternalAggregations>> aggsFetches = new ArrayList<>(fetches);
+                List<TopDocs> topDocsFetches = new ArrayList<>(fetches);
+                synchronized (intermediateReducedResultsQueue) {
+                    /*
+                     * other tasks may fetch from queue to change the queue size when current task check queue size to
+                     * fetch results, this may cause to some tasks misread the queue size before starting to reduce,
+                     * so we synced this block for checking queue size to fetches
+                     */
+                    if (intermediateReducedResultsQueue.size() < 2) {
+                        runningParallelReduceCount.decrementAndGet();
+                        return; //  no sufficient results to reduce
+                    }
+                    if (intermediateReducedResultsQueue.size() == 2) {
+                        fetches = 2;
+                    } else {
+                        fetches = 3;
+                    }
+                    for (int i = 0; i < fetches; i++) {
+                        PartialReduceResult fetchOne = intermediateReducedResultsQueue.remove();
+                        aggsFetches.add(fetchOne.aggs);
+                        topDocsFetches.add(fetchOne.topDocs);
+                    }
+                }
+                numReducePhases.incrementAndGet();
+                DelayableWriteable.Serialized<InternalAggregations> reducedAggs = null;
+                if (hasAggs) {
+                    List<InternalAggregations> aggs = new ArrayList<>(fetches);
+                    long previousBufferSize = 0;
+                    for (DelayableWriteable.Serialized<InternalAggregations> aggFetch : aggsFetches) {
+                        aggs.add(aggFetch.expand());
+                        previousBufferSize += aggFetch.ramBytesUsed();
+                    }
+                    aggsFetches.clear();
+                    InternalAggregations reduced =
+                        InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forPartialReduction());
+                    reducedAggs = DelayableWriteable.referencing(reduced)
+                        .asSerialized(InternalAggregations::new, namedWriteableRegistry);
+                    logger.trace("aggs parallel partial reduction [{}->{}] max [{}]",
+                        previousBufferSize, reducedAggs.ramBytesUsed(), aggsMaxSize.get());
+                }
+                TopDocs reducedTopDocs = null;
+                if (hasTopDocs) {
+                    reducedTopDocs = mergeTopDocs(topDocsFetches, topNSize, 0);
+                    topDocsFetches.clear();
+                }
+                progressListener.notifyPartialReduce(SearchProgressListener.buildSearchShards(processedShards),
+                    topDocsStats.getTotalHits(), reducedAggs, numReducePhases.get());
+                // re-enqueue
+                PartialReduceResult reducedResult = new PartialReduceResult(reducedAggs, reducedTopDocs);
+                putInQueue(reducedResult);
+                if (intermediateReducedResultsQueue.size() > 1) {
+                    reduceExecutor.execute(new PartialReduceTask());
+                }
+                runningParallelReduceCount.decrementAndGet();
+                // check to notify final reduce to begin
+                if (checkParitalReduceAggsDone()) {
+                    finalReduce.countDown();
+                }
+            }
+        }
+    }
+
+    /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
     ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchProgressListener listener,
@@ -785,6 +1011,12 @@ public final class SearchPhaseController {
         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder = requestToAggReduceContextBuilder.apply(request);
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
+            if (request.getParallelReduce()) {
+                // execute parallel reduce instead of batched reduce
+                int topNSize = getTopDocsSize(request);
+                return new QueryPhaseParallelResultConsumer(namedWriteableRegistry, listener, this, numShards,
+                    hasTopDocs, hasAggs, trackTotalHitsUpTo, topNSize, aggReduceContextBuilder, request.isFinalReduce(), threadPool);
+            }
             if (request.getBatchedReduceSize() < numShards) {
                 int topNSize = getTopDocsSize(request);
                 // only use this if there are aggs and if there are more shards than we should reduce at once
@@ -851,7 +1083,7 @@ public final class SearchPhaseController {
             }
         }
 
-        void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
+        synchronized void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {

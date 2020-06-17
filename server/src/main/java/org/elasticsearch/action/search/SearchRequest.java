@@ -87,6 +87,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
+    private boolean parallelReduce = false;
+
     private int maxConcurrentShardRequests = 0;
 
     private Integer preFilterShardSize;
@@ -160,6 +162,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                           boolean finalReduce) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
+        this.parallelReduce = searchRequest.parallelReduce;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
         this.indices = indices;
         this.indicesOptions = searchRequest.indicesOptions;
@@ -201,6 +204,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
+        parallelReduce = in.readBoolean();
         maxConcurrentShardRequests = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             preFilterShardSize = in.readOptionalVInt();
@@ -235,6 +239,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
+        out.writeBoolean(parallelReduce);
         out.writeVInt(maxConcurrentShardRequests);
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalVInt(preFilterShardSize);
@@ -523,6 +528,20 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Sets if this should reduce in parallel instead of incremental batched reduce. If it is true, this will automatically disable incrementally batched reduce
+     */
+    public void setParallelReduce(boolean parallelReduce) {
+        this.parallelReduce = parallelReduce;
+    }
+
+    /**
+     * allow parallel reduce or not
+     */
+    public boolean getParallelReduce() {
+        return parallelReduce;
+    }
+
+    /**
      * Returns the number of shard requests that should be executed concurrently on a single node. This value should be used as a
      * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
@@ -646,6 +665,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(parallelReduce, that.parallelReduce) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
@@ -658,7 +678,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
+                scroll, indicesOptions, batchedReduceSize, parallelReduce, maxConcurrentShardRequests, preFilterShardSize,
                 allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
     }
 
@@ -674,6 +694,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 ", scroll=" + scroll +
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
+                ", parallelReduce=" + parallelReduce +
                 ", preFilterShardSize=" + preFilterShardSize +
                 ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", localClusterAlias=" + localClusterAlias +

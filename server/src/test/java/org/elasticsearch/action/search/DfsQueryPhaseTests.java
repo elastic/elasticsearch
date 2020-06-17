@@ -38,6 +38,7 @@ import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -213,6 +214,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
     }
 
     private SearchPhaseController searchPhaseController() {
-        return new SearchPhaseController(writableRegistry(), request -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        return new SearchPhaseController(writableRegistry(), request -> InternalAggregationTestCase.emptyReduceContextBuilder(), new TestThreadPool("DfsQueryPhaseTests"));
     }
  }

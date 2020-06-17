@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
@@ -26,7 +26,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -48,41 +49,34 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final String DEPRECATION_MESSAGE = "The [sparse_vector] field type is deprecated and will be removed in 8.0.";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new SparseVectorFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SparseVectorFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
-        public SparseVectorFieldType fieldType() {
-            return (SparseVectorFieldType) super.fieldType();
-        }
-
-        @Override
         public SparseVectorFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new SparseVectorFieldMapper(
-                    name, fieldType, defaultFieldType,
+                    name, fieldType, new SparseVectorFieldType(buildFullName(context), meta),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             deprecationLogger.deprecatedAndMaybeLog("sparse_vector", DEPRECATION_MESSAGE);
             SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder(name);
             return builder;
@@ -91,7 +85,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType() {}
+        public SparseVectorFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, meta);
+        }
 
         protected SparseVectorFieldType(SparseVectorFieldType ref) {
             super(ref);
@@ -119,7 +115,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder(false);
+            return new VectorIndexFieldData.Builder(false, CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -130,15 +126,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    private SparseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                     Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
     }
 
     @Override
     protected SparseVectorFieldMapper clone() {
         return (SparseVectorFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override
@@ -192,9 +193,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
         context.doc().addWithKey(fieldType().name(), field);
     }
 
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

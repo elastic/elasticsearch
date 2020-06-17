@@ -32,6 +32,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ParseField TYPE = new ParseField("category_definition");
 
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField TERMS = new ParseField("terms");
     public static final ParseField REGEX = new ParseField("regex");
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
@@ -52,6 +54,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
+        parser.declareString(CategoryDefinition::setPartitionFieldName, PARTITION_FIELD_NAME);
+        parser.declareString(CategoryDefinition::setPartitionFieldValue, PARTITION_FIELD_VALUE);
         parser.declareString(CategoryDefinition::setTerms, TERMS);
         parser.declareString(CategoryDefinition::setRegex, REGEX);
         parser.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
@@ -64,6 +68,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
 
     private final String jobId;
     private long categoryId = 0L;
+    private String partitionFieldName;
+    private String partitionFieldValue;
     private String terms = "";
     private String regex = "";
     private long maxMatchingLength = 0L;
@@ -80,6 +86,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public CategoryDefinition(StreamInput in) throws IOException {
         jobId = in.readString();
         categoryId = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            partitionFieldName = in.readOptionalString();
+            partitionFieldValue = in.readOptionalString();
+        }
         terms = in.readString();
         regex = in.readString();
         maxMatchingLength = in.readLong();
@@ -97,6 +107,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeLong(categoryId);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeOptionalString(partitionFieldName);
+            out.writeOptionalString(partitionFieldValue);
+        }
         out.writeString(terms);
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
@@ -124,6 +138,22 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
 
     public void setCategoryId(long categoryId) {
         this.categoryId = categoryId;
+    }
+
+    public String getPartitionFieldName() {
+        return partitionFieldName;
+    }
+
+    public void setPartitionFieldName(String partitionFieldName) {
+        this.partitionFieldName = partitionFieldName;
+    }
+
+    public String getPartitionFieldValue() {
+        return partitionFieldValue;
+    }
+
+    public void setPartitionFieldValue(String partitionFieldValue) {
+        this.partitionFieldValue = partitionFieldValue;
     }
 
     public String getTerms() {
@@ -204,6 +234,12 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(CATEGORY_ID.getPreferredName(), categoryId);
+        if (partitionFieldName != null) {
+            builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
+        }
+        if (partitionFieldValue != null) {
+            builder.field(PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
+        }
         builder.field(TERMS.getPreferredName(), terms);
         builder.field(REGEX.getPreferredName(), regex);
         builder.field(MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
@@ -217,6 +253,13 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (numMatches > 0) {
             builder.field(NUM_MATCHES.getPreferredName(), numMatches);
         }
+
+        // Copy the patten from AnomalyRecord that by/over/partition field values are added to results
+        // as key value pairs after all the fixed fields if they won't clash with reserved fields
+        if (partitionFieldName != null && partitionFieldValue != null && ReservedFieldNames.isValidFieldName(partitionFieldName)) {
+            builder.field(partitionFieldName, partitionFieldValue);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -232,6 +275,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
                 && Objects.equals(this.categoryId, that.categoryId)
+                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
                 && Objects.equals(this.terms, that.terms)
                 && Objects.equals(this.regex, that.regex)
                 && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
@@ -245,6 +290,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public int hashCode() {
         return Objects.hash(jobId,
             categoryId,
+            partitionFieldName,
+            partitionFieldValue,
             terms,
             regex,
             maxMatchingLength,

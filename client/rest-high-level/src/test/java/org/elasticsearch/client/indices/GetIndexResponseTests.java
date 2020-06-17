@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -76,6 +77,7 @@ public class GetIndexResponseTests extends ESTestCase {
         Map<String, List<AliasMetadata>> aliases = new HashMap<>();
         Map<String, Settings> settings = new HashMap<>();
         Map<String, Settings> defaultSettings = new HashMap<>();
+        Map<String, String> dataStreams = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
@@ -96,8 +98,12 @@ public class GetIndexResponseTests extends ESTestCase {
             if (includeDefaults) {
                 defaultSettings.put(index, indexScopedSettings.diff(settings.get(index), Settings.EMPTY));
             }
+
+            if (randomBoolean()) {
+                dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
+            }
         }
-        return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings);
+        return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
     }
 
     private static MappingMetadata createMappingsForIndex() {
@@ -186,7 +192,9 @@ public class GetIndexResponseTests extends ESTestCase {
                 allMappings.build(),
                 aliases.build(),
                 settings.build(),
-                defaultSettings.build());
+                defaultSettings.build(),
+                ImmutableOpenMap.<String, String>builder().build()
+            );
 
         // then we can call its toXContent method, forcing no output of types
         Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));

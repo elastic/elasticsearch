@@ -76,8 +76,8 @@ setup:
 ---
 "Max bucket":
   - skip:
-      version: " - 6.99.99"
-      reason:  search.max_buckets limit has been added in 7.0
+      version: " - 7.2.99"
+      reason:  search.max_buckets limit has been added in 7.0 but this fails spuriously without https://github.com/elastic/elasticsearch/pull/43095 which is in 7.3.0
 
   - do:
       cluster.put_settings:

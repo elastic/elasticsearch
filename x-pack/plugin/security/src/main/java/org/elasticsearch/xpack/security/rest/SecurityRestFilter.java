@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,6 +20,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -82,8 +84,14 @@ public class SecurityRestFilter implements RestHandler {
 
     private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
+        final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new BytesRestResponse(channel, e));
+            channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
+
+                @Override
+                protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
+
+            });
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error((Supplier<?>) () ->

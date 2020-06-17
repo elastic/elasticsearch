@@ -52,9 +52,9 @@ public final class DateProcessor extends AbstractProcessor {
     private final List<String> formats;
     private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
 
-    DateProcessor(String tag, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
+    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
                   String field, List<String> formats, String targetField) {
-        super(tag);
+        super(tag, description);
         this.timezone = timezone;
         this.locale = locale;
         this.field = field;
@@ -137,7 +137,7 @@ public final class DateProcessor extends AbstractProcessor {
         }
 
         public DateProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
@@ -153,7 +153,8 @@ public final class DateProcessor extends AbstractProcessor {
                     "locale", localeString, scriptService);
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
-            return new DateProcessor(processorTag, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats, targetField);
+            return new DateProcessor(processorTag, description, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats,
+                targetField);
         }
     }
 }

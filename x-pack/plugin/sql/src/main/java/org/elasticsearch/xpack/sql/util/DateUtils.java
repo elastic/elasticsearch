@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.TemporalAccessor;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -70,7 +72,7 @@ public final class DateUtils {
             .optionalEnd()
             .toFormatter().withZone(UTC);
 
-    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
+    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}
@@ -118,10 +120,14 @@ public final class DateUtils {
      * Parses the given string into a Date (SQL DATE type) using UTC as a default timezone.
      */
     public static ZonedDateTime asDateOnly(String dateFormat) {
-        int separatorIdx = dateFormat.indexOf('-');
-        if (separatorIdx == 0) { // negative year
-            separatorIdx = dateFormat.indexOf('-', 1);
+        int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
+        if (separatorIdx == 0) { // first char = `-` denotes a negative year
+            separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
         }
+        // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
+        // e.g. 2020-06-01T10:20:30....
+        //             ^
+        //           +3 = ^
         separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways
         if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
@@ -208,5 +214,33 @@ public final class DateUtils {
 
     public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
         return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
+    }
+
+    public static OffsetTime atTimeZone(OffsetTime ot, ZoneId zoneId) {
+        LocalDateTime ldt = ot.atDate(EPOCH).toLocalDateTime();
+        return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static OffsetTime atTimeZone(LocalTime lt, ZoneId zoneId) {
+        LocalDateTime ldt = lt.atDate(EPOCH);
+        return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static ZonedDateTime atTimeZone(ZonedDateTime zdt, ZoneId zoneId) {
+        return zdt.withZoneSameInstant(zoneId);
+    }
+
+    public static TemporalAccessor atTimeZone(TemporalAccessor ta, ZoneId zoneId) {
+        if (ta instanceof LocalDateTime) {
+            return atTimeZone((LocalDateTime) ta, zoneId);
+        } else if (ta instanceof ZonedDateTime){
+            return atTimeZone((ZonedDateTime)ta, zoneId);
+        } else if (ta instanceof OffsetTime) {
+            return atTimeZone((OffsetTime) ta, zoneId);
+        } else if (ta instanceof LocalTime) {
+            return atTimeZone((LocalTime) ta, zoneId);
+        } else {
+            return ta;
+        }
     }
 }

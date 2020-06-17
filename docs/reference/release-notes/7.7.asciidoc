@@ -1,3 +1,135 @@
+[[release-notes-7.7.1]]
+== {es} version 7.7.1
+
+Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
+
+[[enhancement-7.7.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Remove synthetic role names of API keys as they confuse users {pull}56005[#56005]
+
+Features/ILM+SLM::
+* ILM: Add cluster update timeout on step retry {pull}54878[#54878]
+
+SQL::
+* Change error message for comparison against fields in filtering {pull}57126[#57126] (issue: {issue}57005[#57005])
+
+[[bug-7.7.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Expose idp.metadata.http.refresh for SAML realm {pull}56354[#56354]
+* Fix concurrent refresh of tokens {pull}55114[#55114] (issue: {issue}54289[#54289])
+
+CCR::
+* Retry follow task when remote connection queue full {pull}55314[#55314]
+
+Cluster Coordination::
+* Fix the problem of recovering twice when perform a full cluster restart(#55564) {pull}55780[#55780] (issue: {issue}55564[#55564])
+
+Discovery-Plugins::
+* Hide c.a.a.p.i.BasicProfileConfigFileLoader noise {pull}56346[#56346] (issues: {issue}20313[#20313], {issue}56333[#56333])
+
+Engine::
+* Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
+* Update translog policy before the next safe commit {pull}54839[#54839] (issue: {issue}52223[#52223])
+
+Features/CAT APIs::
+* Handle exceptions when building _cat/indices response {pull}56993[#56993] (issue: {issue}56816[#56816])
+
+Features/Features::
+* 7.x only REST specification fixes {pull}56736[#56736] (issue: {issue}55984[#55984])
+
+Features/ILM+SLM::
+* Fix Missing IgnoredUnavailable Flag in 7.x SLM Retention Task {pull}56616[#56616]
+
+Features/Indices APIs::
+* Allow removing replicas setting on closed indices {pull}56680[#56680] (issues: {issue}56656[#56656], {issue}56675[#56675])
+* Allow removing index.number_of_replicas setting {pull}56656[#56656] (issue: {issue}56501[#56501])
+
+Features/Ingest::
+* Fix enrich coordinator to reject documents instead of deadlocking {pull}56247[#56247] (issue: {issue}55634[#55634])
+* EnrichProcessorFactory should not throw NPE if missing metadata {pull}55977[#55977]
+* Prevent stack overflow for numerous grok patterns. {pull}55899[#55899]
+* Fix empty_value handling in CsvProcessor {pull}55649[#55649] (issue: {issue}55643[#55643])
+
+Features/Java High Level REST Client::
+* Honor IndicesOptions in HLRC putMapping request {pull}57118[#57118] (issue: {issue}57045[#57045])
+
+Features/Monitoring::
+* Fix incorrect log warning when exporting monitoring via HTTP without authentication {pull}56958[#56958] (issue: {issue}56810[#56810])
+* Ensure that the monitoring export exceptions are logged. {pull}56237[#56237]
+
+Features/Watcher::
+* Ensure that .watcher-history-11* template is in installed prior to use {pull}56734[#56734] (issue: {issue}56732[#56732])
+* Fix smtp.ssl.trust setting for watcher email {pull}56090[#56090] (issues: {issue}45272[#45272], {issue}52153[#52153])
+
+Infra/Core::
+* Prevent unexpected native controller output hanging the process {pull}56491[#56491] (issue: {issue}56366[#56366])
+* Add method to check if object is generically writeable in stream {pull}54936[#54936] (issue: {issue}54708[#54708])
+
+Infra/Logging::
+* SlowLoggers using single logger {pull}56708[#56708] (issue: {issue}56171[#56171])
+
+Machine Learning::
+* Fix background persistence of categorizer state. {ml-pull}1137[#1137] (issue: {ml-issue}1136[#1136])
+* Fix classification job failures when number of classes in configuration differs from the number of classes present in the training data. {ml-pull}1144[#1144]
+* Fix underlying cause for "Failed to calculate splitting significance" log errors. {ml-pull}1157[#1157]
+* Fix possible root cause for "Bad variance scale nan" log errors. {ml-pull}1225[#1225]
+* Change data frame analytics instrumentation timestamp resolution to milliseconds. {ml-pull}1237[#1237]
+* Fix "autodetect process stopped unexpectedly: Fatal error: 'terminate called after throwing an instance of 'std::bad_function_call'". {ml-pull}1246[#1246] (issue: {ml-issue}1245[#1245])
+* Fix monitoring if orphaned anomaly detector persistent tasks exist {pull}57235[#57235] (issue: {issue}51888[#51888])
+* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {pull}57041[#57041] (issue: {issue}47103[#47103])
+* Ensure class is represented when its cardinality is low {pull}56783[#56783]
+* Use non-zero timeout when force stopping DF analytics {pull}56423[#56423]
+* Reduce InferenceProcessor.Factory log spam by not parsing pipelines {pull}56020[#56020] (issue: {issue}55985[#55985])
+* Audit when unassigned datafeeds are stopped {pull}55656[#55656] (issue: {issue}55521[#55521])
+
+Network::
+* Fix use of password protected PKCS#8 keys for SSL {pull}55457[#55457] (issue: {issue}8[#8])
+* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
+
+Recovery::
+* Fix trimUnsafeCommits for indices created before 6.2 {pull}57187[#57187] (issue: {issue}57091[#57091])
+
+SQL::
+* Fix unecessary evaluation for CASE/IIF {pull}57159[#57159] (issue: {issue}49672[#49672])
+* JDBC: fix access to the Manifest for non-entry JAR URLs {pull}56797[#56797] (issue: {issue}56759[#56759])
+* Fix JDBC url pattern in docs and error message {pull}56612[#56612] (issue: {issue}56476[#56476])
+* Fix serialization of JDBC prep statement date/time params {pull}56492[#56492] (issue: {issue}56084[#56084])
+* Fix issue with date range queries and timezone {pull}56115[#56115] (issue: {issue}56049[#56049])
+* SubSelect unresolved bugfix {pull}55956[#55956]
+
+Search::
+* Don't run sort optimization on size=0 {pull}57044[#57044] (issue: {issue}56923[#56923])
+* Fix `bool` query behaviour on null value {pull}56817[#56817] (issue: {issue}56812[#56812])
+* Fix validate query listener invocation bug {pull}56157[#56157]
+* Async Search: correct shards counting {pull}55758[#55758]
+* For constant_keyword, make sure exists query handles missing values. {pull}55757[#55757] (issue: {issue}53545[#53545])
+* Fix (de)serialization of async search failures {pull}55688[#55688]
+* Fix expiration time in async search response {pull}55435[#55435]
+* Return true for can_match on idle search shards {pull}55428[#55428] (issues: {issue}27500[#27500], {issue}50043[#50043])
+
+Snapshot/Restore::
+* Fix NPE in Partial Snapshot Without Global State {pull}55776[#55776] (issue: {issue}50234[#50234])
+* Fix Path Style Access Setting Priority {pull}55439[#55439] (issue: {issue}55407[#55407])
+
+[[upgrade-7.7.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to Jackson 2.10.4 {pull}56188[#56188] (issue: {issue}56071[#56071])
+
+Infra/Packaging::
+* Upgrade bundled jdk to 14.0.1 {pull}57233[#57233]
+
+SQL::
+* Update the JLine dependency to 3.14.1 {pull}57111[#57111] (issue: {issue}57076[#57076])
+
 [[release-notes-7.7.0]]
 == {es} version 7.7.0
 
@@ -131,6 +263,7 @@ Search::
 === Enhancements
 
 Aggregations::
+* Fixed rewrite of time zone without DST {pull}54398[#54398]
 * Try to save memory on aggregations {pull}53793[#53793]
 * Speed up partial reduce of terms aggregations {pull}53216[#53216] (issue: {issue}51857[#51857])
 * Simplify SiblingPipelineAggregator {pull}53144[#53144]
@@ -182,6 +315,8 @@ Features/Features::
 * Enable deprecation checks for removed settings {pull}53317[#53317]
 
 Features/ILM+SLM::
+* Use Priority.IMMEDIATE for stop ILM cluster update {pull}54909[#54909]
+* Add cluster update timeout on step retry {pull}54878[#54878]
 * Hide ILM & SLM history aliases {pull}53564[#53564]
 * Avoid race condition in ILMHistorySotre {pull}53039[#53039] (issues: {issue}50353[#50353], {issue}52853[#52853])
 * Make FreezeStep retryable {pull}52540[#52540]
@@ -213,9 +348,6 @@ Features/Monitoring::
 * Secure password for monitoring HTTP exporter {pull}50919[#50919] (issue: {issue}50197[#50197])
 * Validate SSL settings at parse time {pull}49196[#49196] (issue: {issue}47711[#47711])
 
-Features/Stats::
-* Add analysis components and mapping types to the usage API. {pull}51031[#51031]
-
 Features/Watcher::
 * Make watch history indices hidden {pull}52962[#52962] (issue: {issue}50251[#50251])
 * Upgrade to the latest OWASP HTML sanitizer {pull}50765[#50765] (issue: {issue}50395[#50395])
@@ -235,6 +367,7 @@ Infra/Logging::
 * Capture stdout and stderr to log4j log {pull}50259[#50259] (issue: {issue}50156[#50156])
 
 Infra/Packaging::
+* Use AdoptOpenJDK API to Download JDKs {pull}55127[#55127] (issue: {issue}55125[#55125])
 * Introduce aarch64 Docker image {pull}53936[#53936] (issue: {issue}53914[#53914])
 * Introduce jvm.options.d for customizing JVM options {pull}51882[#51882] (issue: {issue}51626[#51626])
 
@@ -414,6 +547,7 @@ Audit::
 * Logfile audit settings validation {pull}52537[#52537] (issues: {issue}47038[#47038], {issue}47711[#47711], {issue}52357[#52357])
 
 Authentication::
+* Fix responses for the token APIs {pull}54532[#54532] (issue: {issue}53323[#53323])
 * Fix potential bug in concurrent token refresh support {pull}53668[#53668]
 * Respect runas realm for ApiKey security operations {pull}52178[#52178] (issue: {issue}51975[#51975])
 * Preserve ApiKey credentials for async verification {pull}51244[#51244]
@@ -425,12 +559,14 @@ Authorization::
 * Allow _rollup_search with read privilege {pull}52043[#52043] (issue: {issue}50245[#50245])
 
 CCR::
+* Clear recent errors when auto-follow successfully {pull}54997[#54997]
 * Put CCR tasks on (data && remote cluster clients) {pull}54146[#54146] (issue: {issue}53924[#53924])
 * Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
 * Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
 
 CRUD::
 * Force execution of finish shard bulk request {pull}51957[#51957] (issue: {issue}51904[#51904])
+* Block too many concurrent mapping updates {pull}51038[#51038] (issue: {issue}50670[#50670])
 * Return 429 status code when there's a read_only cluster block {pull}50166[#50166] (issue: {issue}49393[#49393])
 
 Cluster Coordination::
@@ -444,20 +580,27 @@ Distributed::
 * Exclude nested documents in LuceneChangesSnapshot {pull}51279[#51279]
 
 Engine::
+* Update translog policy before the next safe commit {pull}54839[#54839] (issue: {issue}52223[#52223])
 * Fix doc_stats and segment_stats of ReadOnlyEngine {pull}53345[#53345] (issues: {issue}51303[#51303], {issue}51331[#51331])
 * Do not wrap soft-deletes reader for segment stats {pull}51331[#51331] (issues: {issue}51192[#51192], {issue}51303[#51303])
 * Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
 * Fixed an index corruption bug that would occur when applying deletes or updates on an index after it has been shrunk. More details can be found on the https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].
 
 Features/CAT APIs::
+* Cat tasks output should respect time display settings {pull}54536[#54536]
 * Fix NPE in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
 
 Features/ILM+SLM::
+* Ensure error handler is called during SLM retention callback failure {pull}55252[#55252] (issue: {issue}55217[#55217])
+* Ignore ILM indices in the TerminalPolicyStep {pull}55184[#55184] (issue: {issue}51631[#51631])
 * Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
 * Fix null config in SnapshotLifecyclePolicy.toRequest {pull}53328[#53328] (issues: {issue}44465[#44465], {issue}53171[#53171])
 * Freeze step retry when not acknowledged {pull}53287[#53287]
 * Make the set-single-node-allocation retryable {pull}52077[#52077] (issue: {issue}43401[#43401])
 * Fix the init step to actually be retryable {pull}52076[#52076]
+
+Features/Indices APIs::
+* Read the index.number_of_replicas from template so that wait_for_active_shards is interpreted correctly {pull}54231[#54231]
 
 Features/Ingest::
 * Fix ingest pipeline _simulate api with empty docs never returns a response {pull}52937[#52937] (issue: {issue}52833[#52833])
@@ -492,6 +635,8 @@ Highlighting::
 * Fix highlighter support in PinnedQuery and added test {pull}53716[#53716] (issue: {issue}53699[#53699])
 
 Infra/Core::
+* Make feature usage version aware {pull}55246[#55246] (issues: {issue}44589[#44589], {issue}55248[#55248])
+* Avoid StackOverflowError if write circular reference exception {pull}54147[#54147] (issue: {issue}53589[#53589])
 * Fix Joda compatibility in stream protocol {pull}53823[#53823] (issue: {issue}53586[#53586])
 * Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
 * Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
@@ -537,6 +682,7 @@ Mapping::
 * Throw better exception on wrong `dynamic_templates` syntax {pull}51783[#51783] (issue: {issue}51486[#51486])
 
 Network::
+* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
 * Allow proxy mode server name to be updated {pull}54107[#54107]
 * Invoke response handler on failure to send {pull}53631[#53631]
 * Do not log no-op reconnections at DEBUG {pull}53469[#53469]
@@ -553,6 +699,7 @@ Reindex::
 * Allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
 
 SQL::
+* Fix ODBC metadata for DATE & TIME data types {pull}55316[#55316] (issue: {issue}41086[#41086])
 * Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
 * Add support for index aliases for SYS COLUMNS command {pull}53525[#53525] (issue: {issue}31609[#31609])
 * Fix issue with LIKE/RLIKE as painless script {pull}53495[#53495] (issue: {issue}53486[#53486])
@@ -567,6 +714,7 @@ SQL::
 * Selecting a literal from grouped by query generates error {pull}41964[#41964] (issues: {issue}41413[#41413], {issue}41951[#41951])
 
 Search::
+* Improve robustness of Query Result serializations {pull}54692[#54692] (issue: {issue}54665[#54665])
 * Fix Term Vectors with artificial docs and keyword fields {pull}53504[#53504] (issue: {issue}53494[#53494])
 * Fix concurrent requests race over scroll context limit {pull}53449[#53449]
 * Fix pre-sorting of shards in the can_match phase {pull}53397[#53397]
@@ -576,6 +724,8 @@ Search::
 * Correct boost in `script_score` query and error on negative scores {pull}52478[#52478] (issue: {issue}48465[#48465])
 
 Snapshot/Restore::
+* Exclude Snapshot Shard Status Update Requests from Circuit Breaker {pull}55376[#55376] (issue: {issue}54714[#54714])
+* Fix Snapshot Completion Listener Lost on Master Failover {pull}54286[#54286]
 * Fix Non-Verbose Snapshot List Missing Empty Snapshots {pull}52433[#52433]
 * Fix Inconsistent Shard Failure Count in Failed Snapshots {pull}51416[#51416] (issue: {issue}47550[#47550])
 * Fix Overly Aggressive Request DeDuplication {pull}51270[#51270] (issue: {issue}51253[#51253])

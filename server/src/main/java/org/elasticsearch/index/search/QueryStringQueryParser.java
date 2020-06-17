@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -323,6 +325,10 @@ public class QueryStringQueryParser extends XQueryParser {
                     }
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
+                // if we are querying a single date field, we also create a range query that leverages the time zone setting
+                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                    return getRangeQuery(field, queryText, queryText, true, true);
+                }
             }
         }
 
@@ -516,8 +522,9 @@ public class QueryStringQueryParser extends XQueryParser {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
+            FieldType ft = context.getMapperService().getLuceneFieldType(field);
             Query query = null;
-            if (currentFieldType.tokenized() == false) {
+            if (ft.tokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
                 query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);

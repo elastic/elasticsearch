@@ -8,6 +8,7 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,7 +18,6 @@ import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -157,7 +157,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -170,7 +170,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
-                    null
+                    threadPool
                 )
             ) {
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
@@ -185,6 +185,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         throw new AssertionError("inner EOFException not thrown", exception);
                     }
                 }
+            } finally {
+                terminate(threadPool);
             }
         }
     }
@@ -208,7 +210,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
      * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the
      * total number of bytes read from them.
      */
-    private static class CountingBlobContainer extends BlobContainerWrapper {
+    private static class CountingBlobContainer extends FilterBlobContainer {
 
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
@@ -223,6 +225,11 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
             return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new CountingBlobContainer(child, this.rangeSize);
         }
 
         @Override

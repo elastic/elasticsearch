@@ -30,7 +30,7 @@ apply plugin: 'elasticsearch.rest-test'
 final int gceNumberOfNodes = 3
 
 dependencies {
-  testCompile project(path: ':plugins:discovery-gce', configuration: 'runtime')
+  testImplementation project(path: ':plugins:discovery-gce', configuration: 'runtime')
 }
 
 restResources {

@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   compile project(':x-pack:plugin:core')
   compile project(':server')
-  testCompile project(':test:framework')
+  testImplementation project(':test:framework')
 }
 
 project.forbiddenPatterns {

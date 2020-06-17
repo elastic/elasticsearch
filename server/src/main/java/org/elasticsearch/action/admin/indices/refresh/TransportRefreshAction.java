@@ -64,9 +64,4 @@ public class TransportRefreshAction
                                           List<DefaultShardOperationFailedException> shardFailures) {
         return new RefreshResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
-
-    @Override
-    protected boolean shouldIncludeDataStreams() {
-        return true;
-    }
 }

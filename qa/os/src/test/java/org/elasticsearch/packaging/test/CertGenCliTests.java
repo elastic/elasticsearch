@@ -25,7 +25,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -51,9 +50,6 @@ public class CertGenCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
-        Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"));
-
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }

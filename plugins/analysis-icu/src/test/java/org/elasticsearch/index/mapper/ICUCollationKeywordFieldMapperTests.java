@@ -37,21 +37,33 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
-public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
+import static org.hamcrest.Matchers.containsString;
+
+public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICUCollationKeywordFieldMapper.Builder> {
 
     private static final String FIELD_TYPE = "icu_collation_keyword";
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(AnalysisICUPlugin.class, InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected ICUCollationKeywordFieldMapper.Builder newBuilder() {
+        return new ICUCollationKeywordFieldMapper.Builder("icu");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
     }
 
     IndexService indexService;
@@ -61,6 +73,29 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("strength", false, (a, b) -> {
+            a.strength("primary");
+            b.strength("secondary");
+        });
+        addModifier("decomposition", false, (a, b) -> {
+            a.decomposition("no");
+            b.decomposition("canonical");
+        });
+        addModifier("alternate", false, (a, b) -> {
+            a.alternate("shifted");
+            b.alternate("non-ignorable");
+        });
+        addBooleanModifier("case_level", false, ICUCollationKeywordFieldMapper.Builder::caseLevel);
+        addModifier("case_first", false, (a, b) -> {
+            a.caseFirst("upper");
+            a.caseFirst("lower");
+        });
+        addBooleanModifier("numeric", false, ICUCollationKeywordFieldMapper.Builder::numeric);
+        addModifier("variable_top", false, (a, b) -> {
+            a.variableTop(";");
+            b.variableTop(":");
+        });
+        addBooleanModifier("hiragana_quaternary_mode", false, ICUCollationKeywordFieldMapper.Builder::hiraganaQuaternaryMode);
     }
 
     public void testDefaults() throws Exception {
@@ -400,8 +435,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("type",
                 new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
-            + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
+        assertThat(e.getMessage(), containsString("mapper [field] has different [collator]"));
     }
 
 

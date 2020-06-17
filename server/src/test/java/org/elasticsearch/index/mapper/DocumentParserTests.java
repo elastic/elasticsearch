@@ -738,7 +738,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-integer");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -767,7 +766,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-decimal");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -1146,17 +1144,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDocumentContainsMetadataField() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("_doc", new CompressedXContent(mapping));
 
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject());
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_field_names", 0).endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON)));
-        assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));
+            mapper.parse(new SourceToParse("test", "_doc", "1", bytes, XContentType.JSON)));
+        assertTrue(e.getMessage(),
+            e.getMessage().contains("Field [_field_names] is a metadata field and cannot be added inside a document."));
 
         BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-            .field("foo._ttl", 0).endObject());
-        mapper.parse(new SourceToParse("test", "type", "1", bytes2, XContentType.JSON)); // parses without error
+            .field("foo._field_names", 0).endObject());
+        mapper.parse(new SourceToParse("test", "_doc", "1", bytes2, XContentType.JSON)); // parses without error
     }
 
     public void testSimpleMapper() throws Exception {

@@ -106,6 +106,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
@@ -480,7 +481,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW}));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[]{DocValueFormat.RAW}));
 
 
         QueryPhase.executeInternal(context);
@@ -634,7 +635,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)),
-            new DocValueFormat[] { DocValueFormat.RAW }));
+            new DocValueFormat[]{DocValueFormat.RAW}));
         topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
         QueryPhase.executeInternal(context);
@@ -649,13 +650,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testNumericLongOrDateSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
-
-        final int numDocs = 7000;
+        // enough docs to have a tree with several leaf nodes
+        final int numDocs = 3500 * 20;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 1; i <= numDocs; ++i) {
@@ -711,6 +712,33 @@ public class QueryPhaseTests extends IndexShardTestCase {
         searchContext.sort(sortAndFormats);
         QueryPhase.executeInternal(searchContext);
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+
+        // 5. Test that sort optimization is run when from > 0 and size = 0
+        {
+            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext.sort(sortAndFormats);
+            searchContext.from(5);
+            searchContext.setSize(0);
+            QueryPhase.executeInternal(searchContext);
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+        }
+
+        // 6. Test that sort optimization is NOT run with from = 0 and size= 0
+        {
+            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext = spy(new TestSearchContext(null, indexShard, newContextSearcher(reader)));
+            when(searchContext.mapperService()).thenReturn(mapperService);
+            searchContext.sort(sortAndFormats);
+            searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            searchContext.setSize(0);
+
+            QueryPhase.executeInternal(searchContext);
+            TotalHits totalHits = searchContext.queryResult().topDocs().topDocs.totalHits;
+            assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+            assertEquals(numDocs, totalHits.value);
+        }
+
         reader.close();
         dir.close();
     }
@@ -729,14 +757,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 LongPoint.encodeDimension(value, longBytes, 0);
                 w.add(longBytes, docId);
             }
-            long indexFP;
-            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
+            try (IndexOutput metaout = dir.createOutput("bkdmeta", IOContext.DEFAULT);
+                 IndexOutput indexout = dir.createOutput("bkdindex", IOContext.DEFAULT);
+                 IndexOutput dataout = dir.createOutput("bkddata", IOContext.DEFAULT)) {
+                w.finish(metaout, indexout, dataout).run();
             }
-            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
-                in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                assertTrue(pointsHaveDuplicateData(r, r.getDocCount()/2));
+            try (IndexInput metain = dir.openInput("bkdmeta", IOContext.DEFAULT);
+                 IndexInput indexin = dir.openInput("bkdindex", IOContext.DEFAULT);
+                 IndexInput datain = dir.openInput("bkddata", IOContext.DEFAULT)) {
+                BKDReader r = new BKDReader(metain, indexin, datain);
+                assertTrue(pointsHaveDuplicateData(r, r.getDocCount() / 2));
             }
         }
     }
@@ -757,12 +787,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
             long indexFP;
             try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
+                Runnable finalizer = w.finish(out, out, out);
+                indexFP = out.getFilePointer();
+                finalizer.run();;
             }
             try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
                 in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                assertFalse(pointsHaveDuplicateData(r, r.getDocCount()/2));
+                BKDReader r = new BKDReader(in, in, in);
+                assertFalse(pointsHaveDuplicateData(r, r.getDocCount() / 2));
             }
         }
     }
@@ -820,7 +852,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     // assert score docs are in order and their number is as expected
     private void assertSortResults(TopDocs topDocs, long expectedNumDocs, boolean isDoubleSort) {
-        assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        if (topDocs.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            assertThat(topDocs.totalHits.value, lessThanOrEqualTo(expectedNumDocs));
+        } else {
+            assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        }
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;
@@ -888,7 +924,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(
-                        null, indexShard, newContextSearcher(reader));
+                    null, indexShard, newContextSearcher(reader));
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
@@ -947,7 +983,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
-                    QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
+                               QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
@@ -955,7 +991,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
                 assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
                 if (queryType == 0) {
-                    assertTrue (clauses.get(1).getQuery().getClass() ==
+                    assertTrue(clauses.get(1).getQuery().getClass() ==
                         LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
                     );
                 }
@@ -965,7 +1001,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
-                assert(false);  // should not be there, expected to search with CollectorManager
+                assert (false);  // should not be there, expected to search with CollectorManager
             }
         };
     }
@@ -987,7 +1023,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 @Override
                 public void collect(int doc) throws IOException {
                     assert collected <= size : "should not collect more than " + size + " doc per segment, got " + collected;
-                    ++ collected;
+                    ++collected;
                     super.collect(doc);
                 }
             };

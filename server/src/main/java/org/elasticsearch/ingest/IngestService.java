@@ -525,6 +525,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
                 }
+                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
+                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                }
+                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
+                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                }
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 handler.accept(null);
             }
@@ -688,7 +694,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
         String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
-        Processor failureProcessor = new AbstractProcessor(tag) {
+        Processor failureProcessor = new AbstractProcessor(tag, "this is a placeholder processor") {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) {
                 throw new IllegalStateException(errorMessage);

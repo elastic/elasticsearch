@@ -42,7 +42,7 @@ GET /_template/template_1
 [[get-template-v1-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
 +
 To return all index templates, omit this parameter
 or use a value of `_all` or `*`.
@@ -51,13 +51,13 @@ or use a value of `_all` or `*`.
 [[get-template-v1-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[get-template-v1-api-example]]

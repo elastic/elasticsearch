@@ -9,8 +9,7 @@ your application to {es} 7.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.8.0]
-
+* <<breaking_78_aggregation_changes>>
 * <<breaking_78_mappings_changes>>
 * <<breaking_78_settings_changes>>
 
@@ -18,6 +17,28 @@ coming[7.8.0]
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_78_aggregation_changes]]
+=== Aggregation changes
+
+.Privilege `indices:admin/create` will no longer allow the auto creation of indices
+[%collapsible]
+====
+*Details*
+The privilege named `indices:admin/create` will no longer allow the auto
+creation of indices. Use `create_index` instead. {pull}55858[#55858]
+====
+
+.`value_count` aggregation optimization
+[%collapsible]
+====
+*Details*
+Scripts used in `value_count` will now receive a number if they are
+counting a numeric field and a `GeoPoint` if they are counting a
+`geo_point` fields.  They used to always receive the `String`
+representation of those values.  {pull}54854[#54854]
+====
 
 [discrete]
 [[breaking_78_mappings_changes]]
@@ -92,18 +113,49 @@ To avoid deprecation warnings, discontinue use of the `node.local_storage`
 setting.
 ====
 
-[float]
+[[deprecate-basic-license-feature-enabled]]
+
+.Several {xpack} settings no longer have any effect and are deprecated.
+
+[%collapsible]
+====
+*Details* +
+Basic {xpack} license features are always enabled for the {default-dist}
+and the following settings no longer have any effect:
+
+* `xpack.enrich.enabled`
+* `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
+* `xpack.monitoring.enabled`
+* `xpack.rollup.enabled`
+* `xpack.slm.enabled`
+* `xpack.sql.enabled`
+* `xpack.transform.enabled`
+* `xpack.vectors.enabled`
+
+Previously, they could be set to `false` to disable the feature's APIs in a cluster.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of these settings.
+If you have disabled ILM so that you can use another tool to manage Watcher
+indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting
+may be set to false.
+====
+
+[discrete]
 [[builtin-users-changes]]
 ==== Changes to built-in users
 
-[float]
-===== The `kibana` user has been deprecated in favor of the `kibana_system` user
-
+.The `kibana` user has been deprecated in favor of the `kibana_system` user.
+[%collapsible]
+====
+*Details* +
 The `kibana` user was historically used to authenticate {kib} to {es}.
 The name of this user was confusing, and was often mistakenly used to login to {kib}.
 This has been renamed to `kibana_system` in order to reduce confusion, and to better
 align with other built-in system accounts.
 
+*Impact* +
 If your `kibana.yml` used to contain:
 [source,yaml]
 --------------------------------------------------
@@ -115,17 +167,24 @@ then you should update to use the new `kibana_system` user instead:
 --------------------------------------------------
 elasticsearch.username: kibana_system
 --------------------------------------------------
+====
 
 
-[float]
+[discrete]
 [[builtin-roles-changes]]
 ==== Changes to built-in roles
 
-[float]
-===== The `kibana_user` role has been deprecated in favor of the `kibana_admin` role
-
+.The `kibana_user` role has been deprecated in favor of the `kibana_admin` role.
+[%collapsible]
+====
+*Details* +
 Users who were previously assigned the `kibana_user` role should instead be assigned
 the `kibana_admin` role. This role grants the same set of privileges as `kibana_user`, but has been
 renamed to better reflect its intended use.
+
+*Impact* +
+Assign users with the `kibana_user` role to the `kibana_admin` role.
+Discontinue use of the `kibana_user` role.
+====
 
 //end::notable-breaking-changes[]

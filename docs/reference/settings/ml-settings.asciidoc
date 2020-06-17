@@ -56,6 +56,7 @@ The maximum inference cache size allowed. The inference cache exists in the JVM
 heap on each ingest node. The cache affords faster processing times for the
 `inference` processor. The value can be a static byte sized value (i.e. "2gb")
 or a percentage of total allocated heap. The default is "40%".
+See also <<model-inference-circuit-breaker>>.
 
 `xpack.ml.inference_model.time_to_live`::
 The time to live (TTL) for models in the inference model cache. The TTL is
@@ -137,3 +138,24 @@ to the {es} JVM. When such processes are started they must connect to the {es}
 JVM. If such a process does not connect within the time period specified by this
 setting then the process is assumed to have failed. Defaults to `10s`. The minimum
 value for this setting is `5s`.
+
+[[model-inference-circuit-breaker]]
+==== {ml-cap} circuit breaker settings
+
+`breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)
+Limit for model inference breaker, defaults to 50% of JVM heap.
+If the parent circuit breaker is less than 50% of JVM heap, it is bound
+to that limit instead.
+See <<circuit-breaker>>.
+
+`breaker.model_inference.overhead` (<<cluster-update-settings,Dynamic>>)
+A constant that all accounting estimations are multiplied with to determine
+a final estimation. Defaults to 1.
+See <<circuit-breaker>>.
+
+`breaker.model_inference.type`
+The underlying type of the circuit breaker. There are two valid options:
+`noop`, meaning the circuit breaker does nothing to prevent too much memory usage,
+`memory`, meaning the circuit breaker tracks the memory used by inference models and
+could potentially break and prevent OutOfMemory errors.
+The default is `memory`.

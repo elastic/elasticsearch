@@ -21,12 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -59,39 +59,34 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
         public static final boolean ENABLED = true;
-        public static final MappedFieldType FIELD_TYPE = new FieldNamesFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
 
-    private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    static class Builder extends MetadataFieldMapper.Builder<Builder> {
         private boolean enabled = Defaults.ENABLED;
 
-        private Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+        Builder() {
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
-        private Builder enabled(boolean enabled) {
+        Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
 
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            fieldType.setHasDocValues(false);
-            FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldType)fieldType;
+            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType();
             fieldNamesFieldType.setEnabled(enabled);
-            return new FieldNamesFieldMapper(fieldType, context.indexSettings());
+            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType, context.indexSettings());
         }
     }
 
@@ -102,9 +97,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 + "will be removed in a future major version. Please remove it from your mappings and templates.";
 
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
+            Builder builder = new Builder();
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -124,7 +119,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new FieldNamesFieldMapper(indexSettings, fieldType);
+                return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, fieldType, indexSettings);
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -137,6 +132,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
+            super(Defaults.NAME, true, false, Collections.emptyMap());
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
@@ -167,7 +163,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         public void setEnabled(boolean enabled) {
-            checkIfFrozen();
             this.enabled = enabled;
         }
 
@@ -192,12 +187,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing.clone(), indexSettings);
-    }
-
-    private FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings) {
+        super(fieldType, mappedFieldType, indexSettings);
     }
 
     @Override
@@ -259,7 +250,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().isEnabled() == false) {
             return;
         }
@@ -280,8 +271,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             }
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
-                    if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                        document.add(new Field(fieldType().name(), fieldName, fieldType()));
+                    if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+                        document.add(new Field(fieldType().name(), fieldName, fieldType));
                     }
                 }
             }

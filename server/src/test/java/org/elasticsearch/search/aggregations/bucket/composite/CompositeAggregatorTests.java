@@ -51,16 +51,19 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -101,6 +104,8 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
@@ -110,17 +115,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void setUp() throws Exception {
         super.setUp();
         FIELD_TYPES = new MappedFieldType[8];
-        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType();
-        FIELD_TYPES[0].setName("keyword");
-        FIELD_TYPES[0].setHasDocValues(true);
-
-        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        FIELD_TYPES[1].setName("long");
-        FIELD_TYPES[1].setHasDocValues(true);
-
-        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        FIELD_TYPES[2].setName("double");
-        FIELD_TYPES[2].setHasDocValues(true);
+        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
+        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
+        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
 
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder("date");
         builder.docValues(true);
@@ -129,21 +126,10 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
         FIELD_TYPES[3] = fieldMapper.fieldType();
 
-        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        FIELD_TYPES[4].setName("price");
-        FIELD_TYPES[4].setHasDocValues(true);
-
-        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType();
-        FIELD_TYPES[5].setName("terms");
-        FIELD_TYPES[5].setHasDocValues(true);
-
-        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType();
-        FIELD_TYPES[6].setName("ip");
-        FIELD_TYPES[6].setHasDocValues(true);
-
-        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType();
-        FIELD_TYPES[7].setName("geo_point");
-        FIELD_TYPES[7].setHasDocValues(true);
+        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
+        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
+        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
+        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
     }
 
     @Override
@@ -151,6 +137,16 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         FIELD_TYPES = null;
+    }
+
+    @Override
+    protected MapperService mapperServiceMock() {
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper mapper = mock(DocumentMapper.class);
+        when(mapper.typeText()).thenReturn(new Text("_doc"));
+        when(mapper.type()).thenReturn("_doc");
+        when(mapperService.documentMapper()).thenReturn(mapper);
+        return mapperService;
     }
 
     public void testUnmappedField() throws Exception {
@@ -1948,6 +1944,69 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
     }
 
+    public void testIndexSortWithDuplicate() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("date", asLong("2020-06-03T00:53:10"), "keyword", "37640"),
+                createDocument("date", asLong("2020-06-03T00:55:10"), "keyword", "90640"),
+                createDocument("date", asLong("2020-06-03T01:10:10"), "keyword", "22640"),
+                createDocument("date", asLong("2020-06-03T01:15:10"), "keyword", "91640"),
+                createDocument("date", asLong("2020-06-03T01:21:10"), "keyword", "11640"),
+                createDocument("date", asLong("2020-06-03T01:22:10"), "keyword", "90640"),
+                createDocument("date", asLong("2020-06-03T01:54:10"), "keyword", "31640")
+            )
+        );
+
+        for (SortOrder order : SortOrder.values()) {
+            executeTestCase(true, false, new MatchAllDocsQuery(),
+                dataset,
+                () ->
+                    new CompositeAggregationBuilder("name",
+                        Arrays.asList(
+                            new DateHistogramValuesSourceBuilder("date")
+                                .field("date")
+                                .order(order)
+                                .calendarInterval(DateHistogramInterval.days(1)),
+                            new TermsValuesSourceBuilder("keyword").field("keyword")
+                        )).size(3),
+                (result) -> {
+                    assertEquals(3, result.getBuckets().size());
+                    assertEquals("{date=1591142400000, keyword=31640}", result.afterKey().toString());
+                    assertEquals("{date=1591142400000, keyword=11640}", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("{date=1591142400000, keyword=22640}", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                    assertEquals("{date=1591142400000, keyword=31640}", result.getBuckets().get(2).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                }
+            );
+
+            executeTestCase(true, false, new MatchAllDocsQuery(),
+                dataset,
+                () ->
+                    new CompositeAggregationBuilder("name",
+                        Arrays.asList(
+                            new DateHistogramValuesSourceBuilder("date")
+                                .field("date")
+                                .order(order)
+                                .calendarInterval(DateHistogramInterval.days(1)),
+                            new TermsValuesSourceBuilder("keyword").field("keyword")
+                        )).aggregateAfter(createAfterKey("date", 1591142400000L, "keyword", "31640")).size(3),
+                (result) -> {
+                    assertEquals(3, result.getBuckets().size());
+                    assertEquals("{date=1591142400000, keyword=91640}", result.afterKey().toString());
+                    assertEquals("{date=1591142400000, keyword=37640}", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("{date=1591142400000, keyword=90640}", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                    assertEquals("{date=1591142400000, keyword=91640}", result.getBuckets().get(2).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                }
+            );
+        }
+    }
+
     private void testSearchCase(List<Query> queries,
                                 List<Map<String, List<Object>>> dataset,
                                 Supplier<CompositeAggregationBuilder> create,
@@ -2086,9 +2145,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 break;
             }
             sortFields.add(sortField);
-            if (sortField instanceof SortedNumericSortField && ((SortedNumericSortField) sortField).getType() == SortField.Type.LONG) {
-                break;
-            }
         }
         while (remainingFieldTypes.size() > 0 && randomBoolean()) {
             // Add extra unused sorts
@@ -2102,7 +2158,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         }
         return sortFields.size() > 0 ? new Sort(sortFields.toArray(new SortField[0])) : null;
     }
-    
+
     private static SortField sortFieldFrom(MappedFieldType type) {
         if (type instanceof KeywordFieldMapper.KeywordFieldType) {
             return new SortedSetSortField(type.name(), false);

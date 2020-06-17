@@ -39,9 +39,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -56,8 +59,21 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
+
+    @Override
+    protected MapperService mapperServiceMock() {
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper mapper = mock(DocumentMapper.class);
+        when(mapper.typeText()).thenReturn(new Text("type"));
+        when(mapper.type()).thenReturn("type");
+        when(mapperService.documentMapper()).thenReturn(mapper);
+        return mapperService;
+    }
+
     public void testTopLevel() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
@@ -130,11 +146,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
-    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType();
-    static {
-        STRING_FIELD_TYPE.setName("string");
-        STRING_FIELD_TYPE.setHasDocValues(true);
-    }
+    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");
 
     private Aggregation testCase(Query query, AggregationBuilder builder) throws IOException {
         Directory directory = newDirectory();
@@ -158,7 +170,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         for (String stringValue : stringValues) {
-            document.add(new Field("string", stringValue, STRING_FIELD_TYPE));
+            document.add(new Field("string", stringValue, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));
         }
         return document;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -43,14 +44,15 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
 
     private final String jobId;
-    private final CppLogMessageHandler cppLogHandler;
-    private final OutputStream processInStream;
+    private final ProcessPipes processPipes;
+    private final SetOnce<CppLogMessageHandler> cppLogHandler = new SetOnce<>();
     // We need this as in Java 8 closing {@link FilterOutputStream} is not idempotent (i.e. cannot be performed twice).
     // For more details regarding the underlying issue see https://bugs.openjdk.java.net/browse/JDK-8054565
     private final AtomicBoolean processInStreamClosed = new AtomicBoolean();
-    private final InputStream processOutStream;
-    private final OutputStream processRestoreStream;
-    private final LengthEncodedWriter recordWriter;
+    private final SetOnce<OutputStream> processInStream = new SetOnce<>();
+    private final SetOnce<InputStream> processOutStream = new SetOnce<>();
+    private final SetOnce<OutputStream> processRestoreStream = new SetOnce<>();
+    private final SetOnce<LengthEncodedWriter> recordWriter = new SetOnce<>();
     private final ZonedDateTime startTime;
     private final int numberOfFields;
     private final List<Path> filesToDelete;
@@ -62,15 +64,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
-    protected AbstractNativeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                    OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                    Consumer<String> onProcessCrash, Duration processConnectTimeout) {
+    protected AbstractNativeProcess(String jobId, ProcessPipes processPipes,
+                                    int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
+                                    Duration processConnectTimeout) {
         this.jobId = jobId;
-        this.cppLogHandler = new CppLogMessageHandler(jobId, logStream);
-        this.processInStream = processInStream != null ? new BufferedOutputStream(processInStream) : null;
-        this.processOutStream = processOutStream;
-        this.processRestoreStream = processRestoreStream;
-        this.recordWriter = new LengthEncodedWriter(this.processInStream);
+        this.processPipes = processPipes;
         this.startTime = ZonedDateTime.now();
         this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
@@ -81,12 +79,18 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     public abstract String getName();
 
     /**
-     * Starts a process that does not persist any state
+     * Connects the Java side of an ML process to the named pipes that connect it to the C++ side,
+     * and starts tailing the C++ logs.  Stores references to all the streams except the state
+     * persistence stream.
      * @param executorService the executor service to run on
      */
-    public void start(ExecutorService executorService) {
+    public void start(ExecutorService executorService) throws IOException {
+
+        processPipes.connectLogStream(processConnectTimeout);
+        cppLogHandler.set(processPipes.getLogStreamHandler());
+
         logTailFuture = executorService.submit(() -> {
-            try (CppLogMessageHandler h = cppLogHandler) {
+            try (CppLogMessageHandler h = cppLogHandler.get()) {
                 h.tailStream();
             } catch (IOException e) {
                 if (processKilled == false) {
@@ -96,6 +100,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 detectCrash();
             }
         });
+
+        processPipes.connectOtherStreams(processConnectTimeout);
+        if (processPipes.getProcessInStream().isPresent()) {
+            processInStream.set(new BufferedOutputStream(processPipes.getProcessInStream().get()));
+            this.recordWriter.set(new LengthEncodedWriter(processInStream.get()));
+        }
+        processOutStream.set(processPipes.getProcessOutStream().orElse(null));
+        processRestoreStream.set(processPipes.getRestoreStream().orElse(null));
     }
 
     /**
@@ -106,14 +118,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             // Do not detect crash when the process is being closed or killed.
             return;
         }
-        if (processInStream == null) {
+        if (processInStream() == null) {
             // Do not detect crash when the process has been closed automatically.
             // This is possible when the process does not have input pipe to hang on and closes right after writing its output.
             return;
         }
         // The log message doesn't say "crashed", as the process could have been killed
         // by a user or other process (e.g. the Linux OOM killer)
-        String errors = cppLogHandler.getErrors();
+        String errors = cppLogHandler().getErrors();
         String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
         LOGGER.error(fullError);
         onProcessCrash.accept(fullError);
@@ -123,13 +135,13 @@ public abstract class AbstractNativeProcess implements NativeProcess {
      * Starts a process that may persist its state
      * @param executorService the executor service to run on
      * @param stateProcessor the state processor
-     * @param persistStream the stream where the state is persisted
      */
-    public void start(ExecutorService executorService, StateProcessor stateProcessor, InputStream persistStream) {
+    public void start(ExecutorService executorService, StateProcessor stateProcessor) throws IOException {
         start(executorService);
 
+        assert processPipes.getPersistStream().isPresent();
         stateProcessorFuture = executorService.submit(() -> {
-            try (InputStream in = persistStream) {
+            try (InputStream in = processPipes.getPersistStream().get()) {
                 stateProcessor.process(in);
                 if (processKilled == false) {
                     LOGGER.info("[{}] State output finished", jobId);
@@ -153,12 +165,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     @Override
     public void writeRecord(String[] record) throws IOException {
-        recordWriter.writeRecord(record);
+        recordWriter().writeRecord(record);
     }
 
     @Override
     public void flushStream() throws IOException {
-        recordWriter.flush();
+        recordWriter().flush();
     }
 
     @Override
@@ -166,10 +178,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             processCloseInitiated = true;
             // closing its input causes the process to exit
-            if (processInStream != null) {
+            if (processInStream() != null) {
                 // Make sure {@code processInStream.close()} is called at most once.
                 if (processInStreamClosed.compareAndSet(false, true)) {
-                    processInStream.close();
+                    processInStream().close();
                 }
             }
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
@@ -185,8 +197,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 logTailFuture.get(5, TimeUnit.SECONDS);
             }
 
-            if (cppLogHandler.seenFatalError()) {
-                throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
+            if (cppLogHandler().seenFatalError()) {
+                throw ExceptionsHelper.serverError(cppLogHandler().getErrors());
             }
             LOGGER.debug("[{}] {} process exited", jobId, getName());
         } catch (ExecutionException | TimeoutException e) {
@@ -206,19 +218,19 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             // The PID comes via the processes log stream. We do wait here to give the process the time to start up and report its PID.
             // Without the PID we cannot kill the process.
-            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(processConnectTimeout));
+            NativeControllerHolder.getNativeController().killProcess(cppLogHandler().getPid(processConnectTimeout));
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state
-            cppLogHandler.waitForLogStreamClose(WAIT_FOR_KILL_TIMEOUT);
+            cppLogHandler().waitForLogStreamClose(WAIT_FOR_KILL_TIMEOUT);
         } catch (TimeoutException e) {
             LOGGER.warn("[{}] Failed to get PID of {} process to kill", jobId, getName());
         } finally {
             try {
-                if (processInStream != null) {
+                if (processInStream() != null) {
                     // Make sure {@code processInStream.close()} is called at most once.
                     if (processInStreamClosed.compareAndSet(false, true)) {
-                        processInStream.close();
+                        processInStream().close();
                     }
                 }
             } catch (IOException e) {
@@ -256,18 +268,18 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     @Override
     public boolean isProcessAlive() {
         // Sanity check: make sure the process hasn't terminated already
-        return !cppLogHandler.hasLogStreamEnded();
+        return cppLogHandler().hasLogStreamEnded() == false;
     }
 
     @Override
     public boolean isProcessAliveAfterWaiting() {
-        cppLogHandler.waitForLogStreamClose(Duration.ofMillis(45));
+        cppLogHandler().waitForLogStreamClose(Duration.ofMillis(45));
         return isProcessAlive();
     }
 
     @Override
     public String readError() {
-        return cppLogHandler.getErrors();
+        return cppLogHandler().getErrors();
     }
 
     protected String jobId() {
@@ -275,12 +287,17 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     protected InputStream processOutStream() {
-        return processOutStream;
+        return processOutStream.get();
+    }
+
+    @Nullable
+    private OutputStream processInStream() {
+        return processInStream.get();
     }
 
     @Nullable
     protected OutputStream processRestoreStream() {
-        return processRestoreStream;
+        return processRestoreStream.get();
     }
 
     protected int numberOfFields() {
@@ -288,7 +305,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     protected LengthEncodedWriter recordWriter() {
-        return recordWriter;
+        return recordWriter.get();
+    }
+
+    protected CppLogMessageHandler cppLogHandler() {
+        return cppLogHandler.get();
     }
 
     protected boolean isProcessKilled() {

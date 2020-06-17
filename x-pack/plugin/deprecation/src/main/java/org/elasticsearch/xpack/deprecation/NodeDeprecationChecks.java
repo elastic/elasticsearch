@@ -137,6 +137,14 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkNodeBasicLicenseFeatureEnabledSetting(final Settings settings, Setting<?> setting) {
+        return checkRemovedSetting(
+            settings,
+            setting,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-basic-license-feature-enabled"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,

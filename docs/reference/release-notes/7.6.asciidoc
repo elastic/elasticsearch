@@ -168,6 +168,23 @@ that are incompatible with java.time patterns will cause parsing errors, incorre
 https://github.com/elastic/elasticsearch/pull/52555
 This is fixed in {es} 7.7 and later versions.
 
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created,
+ a new Log4j logger is associated with it. However, when an index is deleted,
+  Log4j keeps an internal reference to its loggers that results in a memory leak (issue: {issue}56171[#56171])
++
+This issue is fixed in {es} 6.8.10 and 7.7.1.
+
+* Week-based date patterns are not working correctly with `Y`. Using `Y` with `w` will result in
+a failed request and an exception in the logs (issue: {issue}57128[#57128]). Using `y` with `w` results in
+incorrect date calculations. A workaround is to add the following line to the `jvm.options` file.
++
+[source,shell]
+--------------------------------------------
+9-:-Djava.locale.providers=SPI,COMPAT
+--------------------------------------------
++
+This issue is fixed in {es} 7.7.0 and later versions (issue: {issue}50916[#50916]).
+
 [[breaking-7.6.0]]
 [float]
 === Breaking changes

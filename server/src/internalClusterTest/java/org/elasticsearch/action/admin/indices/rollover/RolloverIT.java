@@ -187,6 +187,41 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    public void testRolloverWithIndexSettingsWithoutPrefix() throws Exception {
+        Alias testAlias = new Alias("test_alias");
+        boolean explicitWriteIndex = randomBoolean();
+        if (explicitWriteIndex) {
+            testAlias.writeIndex(true);
+        }
+        assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
+        indexDoc("test_index-2", "1", "field", "value");
+        flush("test_index-2");
+        final Settings settings = Settings.builder()
+            .put("number_of_shards", 1) 
+            .put("number_of_replicas", 0)
+            .build();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+            .settings(settings).alias(new Alias("extra_alias")).get();
+        assertThat(response.getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetadata oldIndex = state.metadata().index("test_index-2");
+        final IndexMetadata newIndex = state.metadata().index("test_index-000003");
+        assertThat(newIndex.getNumberOfShards(), equalTo(1));
+        assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
+        assertTrue(newIndex.getAliases().containsKey("test_alias"));
+        assertTrue(newIndex.getAliases().containsKey("extra_alias"));
+        if (explicitWriteIndex) {
+            assertFalse(oldIndex.getAliases().get("test_alias").writeIndex());
+            assertTrue(newIndex.getAliases().get("test_alias").writeIndex());
+        } else {
+            assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        }
+    }
+
     public void testRolloverDryRun() throws Exception {
         if (randomBoolean()) {
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()

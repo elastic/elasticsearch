@@ -17,13 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
-
-public class RankFeatureMetaFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
-    }
-
-}
+/**
+ * {@link org.elasticsearch.rest.RestHandler}s for managing dangling indices.
+ *
+ * @see org.elasticsearch.action.admin.indices.dangling
+ */
+package org.elasticsearch.rest.action.admin.cluster.dangling;

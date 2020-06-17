@@ -641,8 +641,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testNumericLongOrDateSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);

@@ -52,8 +52,10 @@ We recommend using data streams if you:
 * <<data-streams-overview>>
 * <<set-up-a-data-stream>>
 * <<use-a-data-stream>>
+* <<data-streams-change-mappings-and-settings>>
 
 
 include::data-streams-overview.asciidoc[]
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]
+include::change-mappings-and-settings.asciidoc[]

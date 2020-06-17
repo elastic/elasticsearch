@@ -1288,6 +1288,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
+     * Returns the data streams that are currently being snapshotted (with partial == false) and that are contained in the
+     * indices-to-check set.
+     */
+    public static Set<String> snapshottingDataStreams(final ClusterState currentState, final Set<String> dataStreamsToCheck) {
+        final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+        if (snapshots == null) {
+            return emptySet();
+        }
+
+        Map<String, DataStream> dataStreams = currentState.metadata().dataStreams();
+        return snapshots.entries().stream()
+            .filter(e -> e.partial() == false)
+            .flatMap(e -> e.dataStreams().stream())
+            .filter(ds -> dataStreams.containsKey(ds) && dataStreamsToCheck.contains(ds))
+            .collect(Collectors.toSet());
+    }
+
+    /**
      * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
      */
     public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {

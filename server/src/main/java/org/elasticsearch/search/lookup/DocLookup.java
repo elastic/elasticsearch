@@ -30,7 +30,7 @@ public class DocLookup {
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+    public DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
     }

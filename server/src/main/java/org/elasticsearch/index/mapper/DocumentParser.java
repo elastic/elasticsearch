@@ -51,8 +51,8 @@ final class DocumentParser {
 
     DocumentParser(IndexSettings indexSettings,
                    DocumentMapperParser docMapperParser,
-                   DataStream dataStream,
-                   DocumentMapper docMapper) {
+                   DocumentMapper docMapper,
+                   DataStream dataStream) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;

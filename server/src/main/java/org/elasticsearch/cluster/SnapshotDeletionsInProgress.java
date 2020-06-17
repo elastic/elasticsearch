@@ -59,7 +59,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(Collections.unmodifiableList(in.readList(Entry::new)));
+        this(in.readList(Entry::new));
     }
 
     private static boolean assertConsistency(List<Entry> entries) {

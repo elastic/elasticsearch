@@ -505,11 +505,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static boolean assertConsistentEntries(List<Entry> entries) {
-        final Map<String, Set<ShardId>> startedShardsByRepo = new HashMap<>();
+        final Map<String, Set<ShardId>> assignedShardsByRepo = new HashMap<>();
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                 if (shard.value.isAssigned()) {
-                    assert startedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
+                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
                             "Found duplicate shard assignments in " + entries;
                 }
             }

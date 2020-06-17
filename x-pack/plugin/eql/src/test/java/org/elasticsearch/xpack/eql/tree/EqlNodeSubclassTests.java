@@ -57,4 +57,5 @@ public class EqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSu
     protected boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
+
 }

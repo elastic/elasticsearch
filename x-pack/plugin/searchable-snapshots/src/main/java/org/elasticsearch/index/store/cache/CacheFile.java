@@ -122,10 +122,13 @@ public class CacheFile {
                 listeners = Collections.unmodifiableSet(newListeners);
                 success = true;
             } finally {
-                if (success == false) {
-                    refCounter.decRef();
+                try {
+                    if (success == false) {
+                        refCounter.decRef();
+                    }
+                } finally {
+                    evictionLock.unlock();
                 }
-                evictionLock.unlock();
             }
         }
         assert invariant();

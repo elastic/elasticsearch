@@ -577,8 +577,8 @@ public class ApiKeyService {
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
+            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);

@@ -7,7 +7,7 @@
 Creates a new data stream.
 
 A data stream can only be created if the namespace it targets has a composable
-index template that exists with a `data_stream` definition.
+index template with a `data_stream` definition.
 
 [source,console]
 -----------------------------------

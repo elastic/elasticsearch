@@ -41,6 +41,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
+[[docs-index-api-op_type]]
 `op_type`::
 (Optional, enum) Set to `create` to only index the document
 if it does not already exist (_put if absent_). If a document with the specified

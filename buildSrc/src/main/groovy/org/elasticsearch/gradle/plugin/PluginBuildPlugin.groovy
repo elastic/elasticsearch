@@ -150,10 +150,10 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.dependencies {
             if (BuildParams.internal) {
                 compileOnly project.project(':server')
-                testCompile project.project(':test:framework')
+                testImplementation project.project(':test:framework')
             } else {
                 compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-                testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+                testImplementation "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps

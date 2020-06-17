@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
         if (randomBoolean()) {

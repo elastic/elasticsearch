@@ -255,8 +255,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Map.of(
                 "default",
-                (factories, tag, config) ->
-                    new AbstractProcessor(tag) {
+                    (factories, tag, description, config) ->
+                    new AbstractProcessor(tag, description) {
 
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
@@ -270,9 +270,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         }
                     },
                 "final",
-                (processorFactories, tag, config) -> {
+                    (processorFactories, tag, description, config) -> {
                     final String exists = (String) config.remove("exists");
-                    return new AbstractProcessor(tag) {
+                    return new AbstractProcessor(tag, description) {
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                             // this asserts that this pipeline is the final pipeline executed
@@ -293,8 +293,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     };
                 },
                 "request",
-                (processorFactories, tag, config) ->
-                    new AbstractProcessor(tag) {
+                    (processorFactories, tag, description, config) ->
+                    new AbstractProcessor(tag, description) {
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                             ingestDocument.setFieldValue("request", true);

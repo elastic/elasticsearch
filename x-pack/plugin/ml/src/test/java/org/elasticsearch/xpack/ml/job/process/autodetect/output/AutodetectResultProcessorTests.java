@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -56,6 +57,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -138,7 +140,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testProcess() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -147,6 +149,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).waitUntilIdle();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
     }
 
@@ -243,6 +246,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(bulkResultsPersister).executeRequest();
     }
 
@@ -264,6 +268,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
         inOrder.verify(bulkResultsPersister).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
+        inOrder.verify(persister).commitAnnotationWrites();
         inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
@@ -344,17 +349,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         // First one with ok
         ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.OK).build();
+            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.OK).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
         // Now one with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
         // Another with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
@@ -370,7 +375,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         // First one with warn - this works because a default constructed ModelSizeStats has CategorizationStatus.OK
         ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
@@ -453,7 +458,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testAwaitCompletion() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -462,6 +467,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer).waitUntilIdle();
     }
@@ -503,7 +509,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testKill() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.setProcessKilled();
         processorUnderTest.process();
@@ -513,6 +519,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
         verify(renormalizer).shutdown();

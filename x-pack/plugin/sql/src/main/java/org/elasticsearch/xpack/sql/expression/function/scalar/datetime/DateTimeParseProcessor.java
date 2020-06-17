@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -31,22 +34,18 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public enum Parser {
-        DATE_TIME("datetime", ZonedDateTime::from, LocalDateTime::from), 
-        TIME("time", OffsetTime::from, LocalTime::from),
-        DATE("date", LocalDate::from);
+        DATE_TIME(DataTypes.DATETIME, ZonedDateTime::from, LocalDateTime::from), 
+        TIME(SqlDataTypes.TIME, OffsetTime::from, LocalTime::from),
+        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> {throw new DateTimeException("InvalidDate");});
         
         private final BiFunction<String, String, TemporalAccessor> parser;
         
-        private final String parseType;
+        private final DataType parseType;
 
-        Parser(String parseType,  TemporalQuery<?>... queries) {
+        Parser(DataType parseType, TemporalQuery<?>... queries) {
             this.parseType = parseType;
-            if (queries.length == 1){
-                queries = new TemporalQuery<?>[]{queries[0], (ta) -> {throw new RuntimeException();}};
-            }
-            final TemporalQuery<?>[] finalQueries = queries;
             this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                    .parseBest(timestampStr, finalQueries);
+                    .parseBest(timestampStr, queries);
         }
 
         public Object parse(Object timestamp, Object pattern, ZoneId zoneId) {

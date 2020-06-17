@@ -11,8 +11,8 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -83,10 +83,9 @@ public class CacheFile {
         return file;
     }
 
-    ReleasableLock fileLock() {
+    Releasable fileLock() {
         boolean success = false;
-        final ReleasableLock fileLock = new ReleasableLock(readLock);
-        fileLock.acquire();
+        readLock.lock();
         try {
             ensureOpen();
             // check if we have a channel while holding the read lock
@@ -94,10 +93,10 @@ public class CacheFile {
                 throw new AlreadyClosedException("Cache file channel has been released and closed");
             }
             success = true;
-            return fileLock;
+            return readLock::unlock;
         } finally {
             if (success == false) {
-                fileLock.close();
+                readLock.unlock();
             }
         }
     }

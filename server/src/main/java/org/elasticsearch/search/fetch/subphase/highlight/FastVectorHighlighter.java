@@ -213,6 +213,9 @@ public class FastVectorHighlighter implements Highlighter {
 
     @Override
     public boolean canHighlight(MappedFieldType ft) {
+        if (ft.getTextSearchInfo() == null) {
+            return false;
+        }
         FieldType fieldType = ft.getTextSearchInfo().getLuceneFieldType();
         return fieldType.storeTermVectors()
             && fieldType.storeTermVectorOffsets()

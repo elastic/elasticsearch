@@ -22,18 +22,33 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 
+/**
+ * Encapsulates information about how to perform text searches over a field
+ */
 public interface TextSearchInfo {
 
+    /**
+     * @return the lucene {@link FieldType} that this field was indexed with
+     */
     FieldType getLuceneFieldType();
 
+    /**
+     * @return whether or not this field supports positional queries
+     */
     default boolean hasPositions() {
         return getLuceneFieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
     }
 
+    /**
+     * Build a TextSearchInfo from a lucene FieldType
+     */
     static TextSearchInfo fromFieldType(FieldType ft) {
         return () -> ft;
     }
 
+    /**
+     * The field type used by numeric fields
+     */
     TextSearchInfo NUMERIC = () -> {
         FieldType ft = new FieldType();
         ft.setIndexOptions(IndexOptions.NONE);
@@ -42,6 +57,9 @@ public interface TextSearchInfo {
         return ft;
     };
 
+    /**
+     * The field type used by geometry fields
+     */
     TextSearchInfo GEOMETRY = () -> {
         FieldType ft = new FieldType();
         ft.setIndexOptions(IndexOptions.NONE);
@@ -50,6 +68,9 @@ public interface TextSearchInfo {
         return ft;
     };
 
+    /**
+     * The field type used by un-analyzed text fields
+     */
     TextSearchInfo KEYWORD = () -> {
         FieldType ft = new FieldType();
         ft.setIndexOptions(IndexOptions.DOCS);

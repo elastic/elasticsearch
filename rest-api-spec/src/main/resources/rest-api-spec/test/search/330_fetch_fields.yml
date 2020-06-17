@@ -169,3 +169,48 @@ setup:
 
   - match: { hits.hits.0.fields.integer.0: 42 }
   - is_false: hits.hits.1.fields.integer
+
+---
+"Test disable _source loading":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+                store: true
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        refresh: true
+        body:
+          keyword: "x"
+          integer: 42
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ keyword ]
+          _source: false
+
+  - match: { hits.hits.0.fields.keyword.0: "x" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ keyword ]
+          stored_fields: [ integer ]
+          _source: false
+
+  - match: { hits.hits.0.fields.keyword.0: "x" }
+  - match: { hits.hits.0.fields.integer.0: 42 }

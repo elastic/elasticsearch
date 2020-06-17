@@ -472,9 +472,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * objects, they are used with "keyed" aggregations and contain
              * named bucket objects. Any new named object on this level should
              * also be a bucket and be parsed as such.
+             *
+             * we also exclude top_hits that contain SearchHits, as all unknown fields
+             * on a root level of SearchHit are interpreted as meta-fields and will be kept.
              */
             Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName());
+                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName()) || path.contains("top_hits");
             Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {

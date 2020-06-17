@@ -11,7 +11,7 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   compile project(path: ':modules:geo', configuration: 'default')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }

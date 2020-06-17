@@ -11,17 +11,11 @@ esplugin {
 }
 archivesBaseName = 'x-pack-searchbusinessrules'
 
-
 integTest.enabled = false
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(":test:framework")
-}
-
-// copied from CCR
-tasks.named("dependencyLicenses").configure {
-  ignoreSha 'x-pack-core'
 }
 

@@ -35,18 +35,11 @@ dependencies {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /sql-action.*/, to: 'elasticsearch'
   mapping from: /sql-client.*/, to: 'elasticsearch'
   mapping from: /jline-.*/, to: 'jline'
-  ignoreSha 'elasticsearch-cli'
-  ignoreSha 'elasticsearch-core'
-  ignoreSha 'elasticsearch'
-  ignoreSha 'sql-action'
-  ignoreSha 'sql-client'
 }
 
 shadowJar {

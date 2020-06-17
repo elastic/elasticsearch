@@ -30,9 +30,5 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
 }
 
-tasks.named("dependencyLicenses").configure {
-  ignoreSha 'x-pack-core'
-}
-
 integTest.enabled = false
 

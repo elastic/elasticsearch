@@ -15,10 +15,6 @@ dependencies {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /sql-proto.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-cli.*/, to: 'elasticsearch'
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-  ignoreSha 'elasticsearch-core'
 }
 
 tasks.named('forbiddenApisMain').configure {

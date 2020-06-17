@@ -61,6 +61,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
@@ -74,6 +75,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
+        CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNoWriteIndex,
+            waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, generateSnapshotNameKey,
             client);
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
@@ -105,9 +108,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
-        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotBranchingStep,
-            mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep, isDataStreamBranchingStep,
-            replaceDataStreamBackingIndex, deleteSourceIndexStep, swapAliasesAndDeleteSourceIndexStep);
+        return Arrays.asList(checkNoWriteIndexStep, waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep,
+            createSnapshotBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep,
+            isDataStreamBranchingStep, replaceDataStreamBackingIndex, deleteSourceIndexStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
     @Override

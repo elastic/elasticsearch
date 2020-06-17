@@ -118,6 +118,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
+    public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+
     private final ClusterService clusterService;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.CancellableTask;
@@ -32,6 +34,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -40,6 +45,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
     private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
 
@@ -47,7 +54,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
-    private final AsyncSearchIndexService store;
+    private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
     public TransportSubmitAsyncSearchAction(ClusterService clusterService,
@@ -63,7 +70,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.store = new AsyncSearchIndexService(clusterService, threadContext, client, registry);
+        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
+            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
     @Override
@@ -84,13 +92,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 // the user cancelled the submit so we don't store anything
                                 // and propagate the failure
                                 Exception cause = new TaskCancelledException(submitTask.getReasonCancelled());
-                                onFatalFailure(searchTask, cause, searchResponse.isRunning(), submitListener);
+                                onFatalFailure(searchTask, cause, searchResponse.isRunning(),
+                                    "submit task is cancelled", submitListener);
                             } else {
-                                final String docId = searchTask.getSearchId().getDocId();
+                                final String docId = searchTask.getExecutionId().getDocId();
                                 // creates the fallback response if the node crashes/restarts in the middle of the request
                                 // TODO: store intermediate results ?
                                 AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -110,12 +119,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                                         @Override
                                         public void onFailure(Exception exc) {
-                                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), submitListener);
+                                            onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                                "unable to store initial response", submitListener);
                                         }
                                     });
                             }
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), submitListener);
+                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "generic error", submitListener);
                         }
                     } else {
                         // the task completed within the timeout so the response is sent back to the user
@@ -138,7 +148,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
-                AsyncSearchId searchId = new AsyncSearchId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
+                AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId,
@@ -150,7 +160,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         return searchRequest;
     }
 
-    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, ActionListener<AsyncSearchResponse> listener) {
+    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, String cancelReason,
+                                ActionListener<AsyncSearchResponse> listener) {
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
@@ -158,7 +169,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 } finally {
                     listener.onFailure(error);
                 }
-            });
+            }, "fatal failure: " + cancelReason);
         } else {
             try {
                 task.addCompletionListener(finalResponse -> taskManager.unregister(task));
@@ -174,27 +185,30 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  Runnable nextAction) {
         if (submitTask.isCancelled() || searchTask.isCancelled()) {
             // the task was cancelled so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getSearchId(), ActionListener.wrap(
+            store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
                 resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
-                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchTask.getSearchId()), exc);
+                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchTask.getExecutionId()), exc);
                     unregisterTaskAndMoveOn(searchTask, nextAction);
                 }));
             return;
         }
 
         try {
-            store.storeFinalResponse(searchTask.getSearchId().getDocId(), threadContext.getResponseHeaders(),response,
+            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                                     exc -> {
-                                        if (exc.getCause() instanceof DocumentMissingException == false) {
+                                        Throwable cause = ExceptionsHelper.unwrapCause(exc);
+                                        if (cause instanceof DocumentMissingException == false &&
+                                                cause instanceof VersionConflictEngineException == false) {
                                             logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                                                searchTask.getSearchId().getEncoded()), exc);
+                                                searchTask.getExecutionId().getEncoded()), exc);
                                         }
                                         unregisterTaskAndMoveOn(searchTask, nextAction);
                                     }));
         } catch (Exception exc) {
-            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getSearchId().getEncoded()), exc);
+            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getExecutionId().getEncoded()),
+                exc);
             unregisterTaskAndMoveOn(searchTask, nextAction);
         }
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,17 +42,22 @@ import java.util.Map;
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  */
-class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource valuesSource;
 
     // a count per bucket
     LongArray counts;
 
-    ValueCountAggregator(String name, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public ValueCountAggregator(
+            String name,
+            ValuesSourceConfig valuesSourceConfig,
+            SearchContext aggregationContext,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
         }

@@ -61,9 +61,7 @@ public interface BlobContainer {
      * @throws NoSuchFileException if the blob does not exist
      * @throws IOException         if the blob can not be read.
      */
-    default InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
-        throw new UnsupportedOperationException(); // NORELEASE
-    }
+    InputStream readBlob(String blobName, long position, long length) throws IOException;
 
     /**
      * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.

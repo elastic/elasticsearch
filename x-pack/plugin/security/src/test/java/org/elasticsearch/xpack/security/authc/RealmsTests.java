@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -80,18 +81,18 @@ public class RealmsTests extends ESTestCase {
     }
 
     private void allowAllRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyStandardRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyNativeRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(false);
     }
 
     public void testWithSettings() throws Exception {

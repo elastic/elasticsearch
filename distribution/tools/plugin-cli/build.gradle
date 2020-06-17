@@ -26,8 +26,8 @@ dependencies {
   compileOnly project(":libs:elasticsearch-cli")
   compile "org.bouncycastle:bcpg-fips:1.0.3"
   compile "org.bouncycastle:bc-fips:1.0.1"
-  testCompile project(":test:framework")
-  testCompile 'com.google.jimfs:jimfs:1.1'
+  testImplementation project(":test:framework")
+  testImplementation 'com.google.jimfs:jimfs:1.1'
   testRuntimeOnly 'com.google.guava:guava:18.0'
 }
 

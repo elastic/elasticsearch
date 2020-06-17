@@ -73,7 +73,9 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> implements
+    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
@@ -315,6 +317,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
     }
 
+    int getNumberOfFields() {
+        return this.constructorArgInfos.size();
+    }
+
     /**
      * Constructor arguments are detected by this "marker" consumer. It
      * keeps the API looking clean even if it is a bit sleezy.
@@ -335,7 +341,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         constructorArgInfos.add(new ConstructorArgInfo(parseField, required));
         return position;
     }
-    
+
     @Override
     public String getName() {
         return objectParser.getName();

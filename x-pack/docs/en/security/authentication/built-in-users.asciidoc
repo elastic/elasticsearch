@@ -12,9 +12,9 @@ used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 `logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
 `beats_system`:: The user the Beats use when storing monitoring information in {es}.
 `apm_system`:: The user the APM server uses when storing monitoring information in {es}.
-`remote_monitoring_user`:: The user {metricbeat} uses when collecting and 
-storing monitoring information in {es}. It has the `remote_monitoring_agent` and 
-`remote_monitoring_collector` built-in roles. 
+`remote_monitoring_user`:: The user {metricbeat} uses when collecting and
+storing monitoring information in {es}. It has the `remote_monitoring_agent` and
+`remote_monitoring_collector` built-in roles.
 
 TIP: The built-in users serve specific purposes and are not intended for general
 use. In particular, do not use the `elastic` superuser unless full access to
@@ -65,7 +65,7 @@ The +elasticsearch-setup-passwords+ tool is the simplest method to set the
 built-in users' passwords for the first time. It uses the `elastic` user's
 bootstrap password to run user management API requests. For example, you can run
 the command in an "interactive" mode, which prompts you to enter new passwords
-for the `elastic`, `kibana`, `logstash_system`, `beats_system`, `apm_system`, 
+for the `elastic`, `kibana_system`, `logstash_system`, `beats_system`, `apm_system`,
 and `remote_monitoring_user` users:
 
 [source,shell]
@@ -107,7 +107,7 @@ since at that point the bootstrap password is no longer required.
 [[add-built-in-user-kibana]]
 ==== Adding built-in user passwords to {kib}
 
-After the `kibana` user password is set, you need to update the {kib} server
+After the `kibana_system` user password is set, you need to update the {kib} server
 with the new password by setting `elasticsearch.password` in the `kibana.yml`
 configuration file:
 
@@ -120,7 +120,7 @@ See {kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
 
 [float]
 [[add-built-in-user-logstash]]
-==== Adding built-in user passwords to {ls} 
+==== Adding built-in user passwords to {ls}
 
 The `logstash_system` user is used internally within Logstash when
 monitoring is enabled for Logstash.
@@ -143,7 +143,7 @@ been changed, you can enable the user via the following API call:
 PUT _security/user/logstash_system/_enable
 ---------------------------------------------------------------------
 
-See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring]. 
+See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring].
 
 [float]
 [[add-built-in-user-beats]]
@@ -161,13 +161,13 @@ xpack.monitoring.elasticsearch.username: beats_system
 xpack.monitoring.elasticsearch.password: beatspassword
 ----------------------------------------------------------
 
-For example, see {metricbeat-ref}/monitoring.html[Monitoring {metricbeat}]. 
+For example, see {metricbeat-ref}/monitoring.html[Monitoring {metricbeat}].
 
-The `remote_monitoring_user` is used when {metricbeat} collects and stores 
-monitoring data for the {stack}. See <<monitoring-production>>. 
+The `remote_monitoring_user` is used when {metricbeat} collects and stores
+monitoring data for the {stack}. See <<monitoring-production>>.
 
 If you have upgraded from an older version of {es}, then you may not have set a
-password for the `beats_system` or `remote_monitoring_user` users. If this is 
+password for the `beats_system` or `remote_monitoring_user` users. If this is
 the case, then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
@@ -178,8 +178,8 @@ for these users.
 
 The `apm_system` user is used internally within APM when monitoring is enabled.
 
-To enable this feature in APM, you need to update the 
-{apm-server-ref}/configuring-howto-apm-server.html[APM configuration file] to 
+To enable this feature in APM, you need to update the
+{apm-server-ref}/configuring-howto-apm-server.html[APM configuration file] to
 reference the correct username and password. For example:
 
 [source,yaml]
@@ -188,10 +188,10 @@ xpack.monitoring.elasticsearch.username: apm_system
 xpack.monitoring.elasticsearch.password: apmserverpassword
 ----------------------------------------------------------
 
-See {apm-server-ref}/monitoring.html[Monitoring APM Server]. 
+See {apm-server-ref}/monitoring.html[Monitoring APM Server].
 
 If you have upgraded from an older version of {es}, then you may not have set a
-password for the `apm_system` user. If this is the case, 
+password for the `apm_system` user. If this is the case,
 then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.

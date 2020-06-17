@@ -32,28 +32,48 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase {
+public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<GeoShapeWithDocValuesFieldMapper.Builder> {
+
+    @Override
+    protected GeoShapeWithDocValuesFieldMapper.Builder newBuilder() {
+        return new GeoShapeWithDocValuesFieldMapper.Builder("geoshape");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("orientation", true, (a, b) -> {
+            a.orientation(ShapeBuilder.Orientation.RIGHT);
+            b.orientation(ShapeBuilder.Orientation.LEFT);
+        });
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -62,7 +82,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, LocalStateCompositeXPackPlugin.class, LocalStateSpatialPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -80,27 +100,23 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(org.elasticsearch.index.mapper.GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertFalse(geoShapeFieldMapper.docValues().explicit());
-        assertTrue(geoShapeFieldMapper.docValues().value());
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
-    public void testDefaultDocValueConfigurationOnPre8() throws IOException {
+    public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .endObject().endObject()
             .endObject().endObject());
 
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
         DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
-        assertFalse(geoShapeFieldMapper.docValues().explicit());
-        assertFalse(geoShapeFieldMapper.docValues().value());
         assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
@@ -271,8 +287,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
         boolean hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
 
@@ -289,8 +303,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
-        assertFalse(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
         hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
     }
@@ -362,7 +374,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
             assertTrue(serialized, serialized.contains("\"doc_values\":true"));
         }
     }
@@ -379,7 +391,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
         DocumentMapper mapper = parser.parse("type1", new CompressedXContent(mapping));
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper("location"));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
 
@@ -398,5 +410,4 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
     }
-
 }

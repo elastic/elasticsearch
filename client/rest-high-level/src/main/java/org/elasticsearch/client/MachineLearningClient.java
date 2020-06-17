@@ -108,6 +108,7 @@ import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
@@ -2138,12 +2139,12 @@ public final class MachineLearningClient {
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
-                                                        RequestOptions options) throws IOException {
+    public StartDataFrameAnalyticsResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
+                                                                   RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::startDataFrameAnalytics,
             options,
-            AcknowledgedResponse::fromXContent,
+            StartDataFrameAnalyticsResponse::fromXContent,
             Collections.emptySet());
     }
 
@@ -2160,11 +2161,11 @@ public final class MachineLearningClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable startDataFrameAnalyticsAsync(StartDataFrameAnalyticsRequest request, RequestOptions options,
-                                                    ActionListener<AcknowledgedResponse> listener) {
+                                                    ActionListener<StartDataFrameAnalyticsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::startDataFrameAnalytics,
             options,
-            AcknowledgedResponse::fromXContent,
+            StartDataFrameAnalyticsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

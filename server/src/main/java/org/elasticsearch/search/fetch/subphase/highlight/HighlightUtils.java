@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
@@ -52,7 +53,8 @@ public final class HighlightUtils {
                                                boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         List<Object> textsToHighlight;
-        if (forceSource == false && fieldType.stored()) {
+        FieldType luceneFieldType = context.getMapperService().getLuceneFieldType(fieldType.name());
+        if (forceSource == false && luceneFieldType.stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
             textsToHighlight = fieldVisitor.fields().get(fieldType.name());
@@ -73,5 +75,5 @@ public final class HighlightUtils {
         public static final Encoder DEFAULT = new DefaultEncoder();
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
-    
+
 }

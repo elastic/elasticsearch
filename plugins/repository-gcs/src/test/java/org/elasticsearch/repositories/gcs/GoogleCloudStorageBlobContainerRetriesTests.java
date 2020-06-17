@@ -93,13 +93,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
-    // Google's SDK ignores Content-Length header when no bytes are sent, see SizeValidatingInputStream
-    // TODO: fix this in the SDK
-    @Override
-    protected int minIncompleteContentToSend() {
-        return 1;
-    }
-
     @Override
     protected String downloadStorageEndpoint(String blob) {
         return "/download/storage/v1/b/bucket/o/" + blob;
@@ -147,7 +140,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
                     .setMaxRpcTimeout(Duration.ofSeconds(1));
                 if (maxRetries != null) {
-                    retrySettingsBuilder.setMaxAttempts(maxRetries);
+                    retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
                     .setHost(options.getHost())
@@ -170,7 +163,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }))
         );
 
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, service);
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service);
         httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
@@ -185,10 +178,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/download/storage/v1/b/bucket/o/large_blob_retries", exchange -> {
             Streams.readFully(exchange.getRequestBody());
             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-            final String[] range = exchange.getRequestHeaders().get("Range").get(0).substring("bytes=".length()).split("-");
-            final int offset = Integer.parseInt(range[0]);
-            final int end = Integer.parseInt(range[1]);
-            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(end + 1, bytes.length));
+            final Tuple<Long, Long> range = getRange(exchange);
+            final int offset = Math.toIntExact(range.v1());
+            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.toIntExact(Math.min(range.v2() + 1, bytes.length)));
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
             if (randomBoolean() && countDown.decrementAndGet() >= 0) {
                 exchange.getResponseBody().write(chunk, 0, chunk.length - 1);

@@ -66,6 +66,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
         } else {
             nodesUsageRequest.clear();
             nodesUsageRequest.restActions(metrics.contains("rest_actions"));
+            nodesUsageRequest.aggregations(metrics.contains("aggregations"));
         }
 
         return channel -> client.admin().cluster().nodesUsage(nodesUsageRequest, new RestBuilderListener<NodesUsageResponse>(channel) {

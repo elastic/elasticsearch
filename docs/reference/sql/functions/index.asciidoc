@@ -56,6 +56,7 @@
 ** <<sql-functions-datetime-datetimeformat>>
 ** <<sql-functions-datetime-datetimeparse>>
 ** <<sql-functions-datetime-format>>
+** <<sql-functions-datetime-timeparse>>
 ** <<sql-functions-datetime-part>>
 ** <<sql-functions-datetime-trunc>>
 ** <<sql-functions-datetime-day>>
@@ -92,7 +93,7 @@
 ** <<sql-functions-math-log10>>
 ** <<sql-functions-math-pi>>
 ** <<sql-functions-math-power>>
-** <<sql-functions-math-random>> 
+** <<sql-functions-math-random>>
 ** <<sql-functions-math-round>>
 ** <<sql-functions-math-sign>>
 ** <<sql-functions-math-sqrt>>
@@ -129,6 +130,7 @@
 ** <<sql-functions-string-rtrim>>
 ** <<sql-functions-string-space>>
 ** <<sql-functions-string-substring>>
+** <<sql-functions-string-trim>>
 ** <<sql-functions-string-ucase>>
 * <<sql-functions-type-conversion>>
 ** <<sql-functions-type-conversion-cast>>

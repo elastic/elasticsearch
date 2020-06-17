@@ -33,6 +33,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -88,7 +89,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(parser, clock, triggerService);
+        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -137,6 +138,29 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 verify(triggerService).remove(eq("_id"));
             }
         }
+    }
+
+    public void testPostIndexWhenStopped() throws Exception {
+        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED);
+        Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
+        map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
+        listener.setConfiguration(new Configuration(Watch.INDEX, map));
+        when(operation.id()).thenReturn(randomAlphaOfLength(10));
+        when(operation.source()).thenReturn(BytesArray.EMPTY);
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        types.remove(Engine.Result.Type.FAILURE);
+        when(result.getResultType()).thenReturn(randomFrom(types));
+
+        boolean watchActive = randomBoolean();
+        boolean isNewWatch = randomBoolean();
+        Watch watch = mockWatch("_id", watchActive, isNewWatch);
+        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
+
+        listener.postIndex(shardId, operation, result);
+        ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
+        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
+        verifyZeroInteractions(triggerService);
     }
 
     // this test emulates an index with 10 shards, and ensures that triggering only happens on a

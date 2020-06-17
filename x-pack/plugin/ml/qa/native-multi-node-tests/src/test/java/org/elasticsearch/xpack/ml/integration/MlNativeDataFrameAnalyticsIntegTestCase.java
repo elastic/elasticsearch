@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
@@ -65,6 +67,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -75,7 +78,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
+    private final List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
 
     @Override
     protected void cleanUpResources() {
@@ -90,7 +93,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                 assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
                 assertThat(searchStoredProgress(config.getId()).getHits().getTotalHits().value, equalTo(0L));
             } catch (Exception e) {
-                // ignore
+                // just log and ignore
+                logger.error(new ParameterizedMessage("[{}] Could not clean up analytics job config", config.getId()), e);
             }
         }
     }
@@ -109,13 +113,10 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
     }
 
-    protected void registerAnalytics(DataFrameAnalyticsConfig config) {
+    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         if (analytics.add(config) == false) {
             throw new IllegalArgumentException("analytics config [" + config.getId() + "] is already registered");
         }
-    }
-
-    protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -125,7 +126,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
-    protected AcknowledgedResponse startAnalytics(String id) {
+    protected NodeAcknowledgedResponse startAnalytics(String id) {
         StartDataFrameAnalyticsAction.Request request = new StartDataFrameAnalyticsAction.Request(id);
         return client().execute(StartDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -199,19 +200,28 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
-    protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
+    protected void assertProgressIsZero(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is not all zero: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 0), is(true));
+    }
+
+    protected void assertProgressComplete(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is complete: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 100), is(true));
+    }
+
+    private List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();
-        assertThat(progress, hasSize(4));
+        // We should have at least 4 phases: reindexing, loading_data, writing_results, plus at least one for the analysis
+        assertThat(progress.size(), greaterThanOrEqualTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
-        assertThat(progress.get(2).getPhase(), equalTo("analyzing"));
-        assertThat(progress.get(3).getPhase(), equalTo("writing_results"));
-        assertThat(progress.get(0).getProgressPercent(), equalTo(reindexing));
-        assertThat(progress.get(1).getProgressPercent(), equalTo(loadingData));
-        assertThat(progress.get(2).getProgressPercent(), equalTo(analyzing));
-        assertThat(progress.get(3).getProgressPercent(), equalTo(writingResults));
+        assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        return progress;
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {

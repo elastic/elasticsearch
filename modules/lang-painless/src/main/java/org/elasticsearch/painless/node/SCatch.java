@@ -35,41 +35,52 @@ import java.util.Objects;
  */
 public class SCatch extends AStatement {
 
-    protected final DType baseException;
-    protected final SDeclaration declaration;
-    protected final SBlock block;
+    private final Class<?> baseException;
+    private final SDeclaration declarationNode;
+    private final SBlock blockNode;
 
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
+    public SCatch(int identifier, Location location, Class<?> baseException, SDeclaration declarationNode, SBlock blockNode) {
+        super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
+        this.declarationNode = Objects.requireNonNull(declarationNode);
+        this.blockNode = blockNode;
+    }
+
+    public Class<?> getBaseException() {
+        return baseException;
+    }
+
+    public SDeclaration getDeclarationNode() {
+        return declarationNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
-        Output declarationOutput = declaration.analyze(classNode, scriptRoot, scope, new Input());
+        Output declarationOutput = declarationNode.analyze(classNode, scriptRoot, scope, new Input());
 
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = scope.getVariable(location, declaration.name).getType();
+        Class<?> type = scope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
 
-        if (baseType.isAssignableFrom(type) == false) {
+        if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
                     "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
         }
 
         Output blockOutput = null;
 
-        if (block != null) {
+        if (blockNode != null) {
             Input blockInput = new Input();
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
+            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;
@@ -82,7 +93,7 @@ public class SCatch extends AStatement {
         CatchNode catchNode = new CatchNode();
         catchNode.setDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        catchNode.setLocation(location);
+        catchNode.setLocation(getLocation());
 
         output.statementNode = catchNode;
 

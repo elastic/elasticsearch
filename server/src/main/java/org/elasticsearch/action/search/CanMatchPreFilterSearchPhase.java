@@ -160,7 +160,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
         @Override
         void consumeResult(CanMatchResponse result) {
-            consumeResult(result.getShardIndex(), result.canMatch(), result.minAndMax());
+            consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
         }
 
         @Override

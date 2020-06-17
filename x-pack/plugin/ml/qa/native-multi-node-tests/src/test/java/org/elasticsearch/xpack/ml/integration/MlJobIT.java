@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -125,7 +125,7 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
         Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
         usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
@@ -689,21 +689,17 @@ public class MlJobIT extends ESRestTestCase {
 
         refreshAllIndices();
 
-        // check that the indices still exist but are empty
+        // check that the default shared index still exists but is empty
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(indicesAfterDelete, containsString(indexName));
-        assertThat(indicesAfterDelete, containsString(indexName + "-001"));
-        assertThat(indicesAfterDelete, containsString(indexName + "-002"));
+
+        // other results indices should be deleted as this test job ID is the only job in those indices
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-001")));
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-002")));
 
         assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "/_count")).getEntity()),
                 containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-001/_count")).getEntity()),
-                containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-002/_count")).getEntity()),
-                containsString("\"count\":0"));
-
-
         expectThrows(ResponseException.class, () ->
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }
@@ -828,6 +824,7 @@ public class MlJobIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        ESRestTestCase.waitForPendingTasks(adminClient());
+        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
+        waitForPendingTasks(adminClient(), taskName -> taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
     }
 }

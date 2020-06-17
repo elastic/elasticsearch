@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -86,13 +85,6 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
      */
     public List<Object> getValues() {
         return values;
-    }
-
-    /**
-     * @return The field is a metadata field
-     */
-    public boolean isMetadataField() {
-        return MapperService.isMetadataField(name);
     }
 
     @Override

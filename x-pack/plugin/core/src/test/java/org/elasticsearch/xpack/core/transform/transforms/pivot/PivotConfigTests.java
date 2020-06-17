@@ -23,11 +23,19 @@ import static org.hamcrest.Matchers.empty;
 
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
+    public static PivotConfig randomPivotConfigWithDeprecatedFields() {
+        return new PivotConfig(
+            GroupConfigTests.randomGroupConfig(),
+            AggregationConfigTests.randomAggregationConfig(),
+            randomIntBetween(10, 10_000) // deprecated
+        );
+    }
+
     public static PivotConfig randomPivotConfig() {
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(),
             AggregationConfigTests.randomAggregationConfig(),
-            randomBoolean() ? null : randomIntBetween(10, 10_000)
+            null // deprecated
         );
     }
 
@@ -35,7 +43,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
         return new PivotConfig(
             GroupConfigTests.randomGroupConfig(),
             AggregationConfigTests.randomInvalidAggregationConfig(),
-            randomBoolean() ? null : randomIntBetween(10, 10_000)
+            null // deprecated
         );
     }
 
@@ -217,6 +225,11 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
                 "field [.start_and_end.] must not end with '.'"
             )
         );
+    }
+
+    public void testDeprecation() {
+        PivotConfig pivotConfig = randomPivotConfigWithDeprecatedFields();
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     private static String dotJoin(String... fields) {

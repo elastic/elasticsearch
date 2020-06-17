@@ -16,6 +16,7 @@ public class ClientReservedRealm {
         assert username != null;
         switch (username) {
             case UsernamesField.ELASTIC_NAME:
+            case UsernamesField.DEPRECATED_KIBANA_NAME:
             case UsernamesField.KIBANA_NAME:
             case UsernamesField.LOGSTASH_NAME:
             case UsernamesField.BEATS_NAME:

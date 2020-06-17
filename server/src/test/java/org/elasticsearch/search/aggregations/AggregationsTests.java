@@ -49,10 +49,10 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalDateRangeTests
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistanceTests;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTermsTests;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
@@ -223,6 +223,9 @@ public class AggregationsTests extends ESTestCase {
              *
              * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
              *
+             * - we cannot insert random values in top_hits, as all unknown fields
+             * on a root level of SearchHit are interpreted as meta-fields and will be kept
+             *
              * - exclude "key", it can be an array of objects and we need strict values
              */
             Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
@@ -230,7 +233,8 @@ public class AggregationsTests extends ESTestCase {
                     || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
                     || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
                     || path.contains(CommonFields.VALUE.getPreferredName())
-                    || path.endsWith(CommonFields.KEY.getPreferredName()));
+                    || path.endsWith(CommonFields.KEY.getPreferredName()))
+                    || path.contains("top_hits");
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;

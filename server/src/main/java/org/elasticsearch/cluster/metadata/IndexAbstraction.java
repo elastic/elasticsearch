@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 
 /**
@@ -66,6 +66,12 @@ public interface IndexAbstraction {
      */
     @Nullable
     IndexMetadata getWriteIndex();
+
+    /**
+     * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
+     * if it is a concrete index that does not belong to a data stream.
+     */
+    @Nullable DataStream getParentDataStream();
 
     /**
      * @return whether this index abstraction is hidden or not
@@ -114,9 +120,15 @@ public interface IndexAbstraction {
     class Index implements IndexAbstraction {
 
         private final IndexMetadata concreteIndex;
+        private final DataStream dataStream;
+
+        public Index(IndexMetadata indexMetadata, DataStream dataStream) {
+            this.concreteIndex = indexMetadata;
+            this.dataStream = dataStream;
+        }
 
         public Index(IndexMetadata indexMetadata) {
-            this.concreteIndex = indexMetadata;
+            this(indexMetadata, null);
         }
 
         @Override
@@ -137,6 +149,11 @@ public interface IndexAbstraction {
         @Override
         public IndexMetadata getWriteIndex() {
             return concreteIndex;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            return dataStream;
         }
 
         @Override
@@ -180,6 +197,12 @@ public interface IndexAbstraction {
         @Nullable
         public IndexMetadata getWriteIndex() {
             return writeIndex.get();
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            // aliases may not be part of a data stream
+            return null;
         }
 
         @Override
@@ -269,7 +292,7 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
-            assert writeIndex.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
+            assert writeIndex.getIndex().getName().equals(getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override
@@ -292,8 +315,18 @@ public interface IndexAbstraction {
         }
 
         @Override
+        public DataStream getParentDataStream() {
+            // a data stream cannot have a parent data stream
+            return null;
+        }
+
+        @Override
         public boolean isHidden() {
             return false;
+        }
+
+        public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
+            return dataStream;
         }
     }
 }

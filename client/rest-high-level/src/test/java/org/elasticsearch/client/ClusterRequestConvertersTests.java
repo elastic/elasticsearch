@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -142,7 +143,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         Assert.assertThat(request, CoreMatchers.notNullValue());
         Assert.assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         Assert.assertThat(request.getEntity(), nullValue());
-        if (indices != null && indices.length > 0) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
         } else {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health"));

@@ -201,7 +201,7 @@
  * <h2>Deleting a Snapshot</h2>
  *
  * <p>Deleting a snapshot is an operation that is exclusively executed on the master node that runs through the following sequence of
- * action when {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#deleteSnapshot} is invoked:</p>
+ * action when {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#deleteSnapshots} is invoked:</p>
  *
  * <ol>
  * <li>Get the current {@code RepositoryData} from the latest {@code index-N} blob at the repository root.</li>

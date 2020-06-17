@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -207,7 +208,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
                 Long maxQueueSize = null;
-                String keepAlive = null;
+                TimeValue keepAlive = null;
                 Integer core = null;
                 Integer max = null;
                 Integer size = null;
@@ -217,7 +218,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         maxQueueSize = poolInfo.getQueueSize().singles();
                     }
                     if (poolInfo.getKeepAlive() != null) {
-                        keepAlive = poolInfo.getKeepAlive().toString();
+                        keepAlive = poolInfo.getKeepAlive();
                     }
 
                     if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {

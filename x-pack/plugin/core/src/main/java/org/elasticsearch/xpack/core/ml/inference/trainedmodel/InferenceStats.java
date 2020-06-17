@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class InferenceStats implements ToXContentObject, Writeable {
 
@@ -204,6 +206,12 @@ public class InferenceStats implements ToXContentObject, Writeable {
         private final LongAdder failureCountAccumulator = new LongAdder();
         private final String modelId;
         private final String nodeId;
+        // curious reader
+        // you may be wondering why the lock set to the fair.
+        // When `currentStatsAndReset` is called, we want it guaranteed that it will eventually execute.
+        // If a ReadWriteLock is unfair, there are no such guarantees.
+        // A call for the `writelock::lock` could pause indefinitely.
+        private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
 
         public Accumulator(String modelId, String nodeId) {
             this.modelId = modelId;
@@ -226,22 +234,52 @@ public class InferenceStats implements ToXContentObject, Writeable {
         }
 
         public Accumulator incMissingFields() {
-            this.missingFieldsAccumulator.increment();
-            return this;
+            readWriteLock.readLock().lock();
+            try {
+                this.missingFieldsAccumulator.increment();
+                return this;
+            } finally {
+                readWriteLock.readLock().unlock();
+            }
         }
 
         public Accumulator incInference() {
-            this.inferenceAccumulator.increment();
-            return this;
+            readWriteLock.readLock().lock();
+            try {
+                this.inferenceAccumulator.increment();
+                return this;
+            } finally {
+                readWriteLock.readLock().unlock();
+            }
         }
 
         public Accumulator incFailure() {
-            this.failureCountAccumulator.increment();
-            return this;
+            readWriteLock.readLock().lock();
+            try {
+                this.failureCountAccumulator.increment();
+                return this;
+            } finally {
+                readWriteLock.readLock().unlock();
+            }
         }
 
-        public InferenceStats currentStats() {
-            return currentStats(Instant.now());
+        /**
+         * Thread safe.
+         *
+         * Returns the current stats and resets the values of all the counters.
+         * @return The current stats
+         */
+        public InferenceStats currentStatsAndReset() {
+            readWriteLock.writeLock().lock();
+            try {
+                InferenceStats stats = currentStats(Instant.now());
+                this.missingFieldsAccumulator.reset();
+                this.inferenceAccumulator.reset();
+                this.failureCountAccumulator.reset();
+                return stats;
+            } finally {
+                readWriteLock.writeLock().unlock();
+            }
         }
 
         public InferenceStats currentStats(Instant timeStamp) {

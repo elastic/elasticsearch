@@ -42,6 +42,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
      * Parameter that controls whether certain REST apis should include type names in their requests.
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     @Override
     public String getName() {

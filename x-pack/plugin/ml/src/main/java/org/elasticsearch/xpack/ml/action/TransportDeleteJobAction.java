@@ -453,7 +453,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private void deleteQuantiles(ParentTaskAssigningClient parentTaskClient, String jobId, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
-        // The quantiles type and doc ID changed in v5.5 so delete both the old and new format
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
@@ -481,7 +480,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                         ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
-        // The categorizer state type and doc ID changed in v5.5 so delete both the old and new format
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))

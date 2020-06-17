@@ -655,7 +655,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshotShards) {
             ShardSnapshotStatus shardStatus = shardEntry.value;
             ShardId shardId = shardEntry.key;
-            if (shardStatus.state() == ShardState.WAITING) {
+            if (shardStatus.state() == ShardState.WAITING && shardStatus.nodeId() != null) {
                 IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
                 if (indexShardRoutingTable != null) {
                     IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
@@ -1730,6 +1730,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Compute all shard ids that currently have an actively executing snapshot for the given repository.
+     * A shard is defined as actively executing if it either is in a state that may write to the repository
+     * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or is in state {@link ShardState#WAITING} with a concrete non-null
+     * node id assignment (i.e. waiting for a shard relocation/initialization to finish).
      *
      * @param repoName     repository name
      * @param clusterState current cluster state
@@ -1745,7 +1748,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : runningSnapshot.shards()) {
                 final ShardState shardState = shard.value.state();
-                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
+                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED ||
+                        (shardState == ShardState.WAITING && shard.value.nodeId() != null)) {
                     inProgressShards.add(shard.key);
                 }
             }

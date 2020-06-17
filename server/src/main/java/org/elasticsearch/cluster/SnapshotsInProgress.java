@@ -499,7 +499,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                 final ShardState shardState = shard.value.state();
-                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
+                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED ||
+                        (shardState == ShardState.WAITING && shard.value.nodeId() != null)) {
                     assert startedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
                             "Found duplicate shard assignments in " + entries;
                 }

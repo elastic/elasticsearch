@@ -13,7 +13,7 @@ project.forbiddenPatterns {
 dependencyLicenses.enabled = false
 
 task buildZip(type: Zip, dependsOn: jar) {
-  String parentDir = "license-tools-${version}"
+  String parentDir = "license-tools-${archiveVersion}"
   into(parentDir + '/lib') {
     from jar
     from configurations.runtime

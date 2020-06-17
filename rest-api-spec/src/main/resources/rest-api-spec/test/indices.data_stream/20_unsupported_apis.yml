@@ -46,22 +46,6 @@
         index: logs-foobar
 
   - do:
-      catch: bad_request
-      indices.put_settings:
-        index: logs-foobar
-        body:
-          number_of_replicas: 1
-
-  - do:
-      catch: bad_request
-      indices.put_mapping:
-        index: logs-foobar
-        body:
-          properties:
-            baz:
-              type: keyword
-
-  - do:
       indices.create:
         index: logs-foobarbaz
 

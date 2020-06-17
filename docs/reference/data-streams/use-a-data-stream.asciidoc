@@ -364,6 +364,7 @@ information for any documents matching the search.
     "hits": [
       {
         "_index": ".ds-logs-000002",                <1>
+        "_type": "_doc",
         "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
         "_seq_no": 4,                               <3>
         "_primary_term": 1,                         <4>

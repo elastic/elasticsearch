@@ -916,9 +916,6 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        if (includeDefaults) {
-            System.out.println("include_defaults");
-        }
         super.doXContentBody(builder, includeDefaults, params);
         if ((includeDefaults && fieldType.indexOptions() != IndexOptions.NONE)
             || (mappedFieldType.isSearchable() && fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {

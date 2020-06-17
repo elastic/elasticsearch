@@ -61,8 +61,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         } else {
             includeUnmapped = false;
         }
-        indexFilter = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalLong() : null;
+        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
+        nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
     }
 
     public FieldCapabilitiesRequest() {
@@ -97,7 +97,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeBoolean(includeUnmapped);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeOptionalLong(nowInMillis);
         }

@@ -2,9 +2,9 @@
 == Run a search
 
 You can use the <<search-search,search API>> to search data stored in
-one or more {es} indices.
+{es} data streams or indices.
 
-The API can runs two types of searches, depending on how you provide
+The API can run two types of searches, depending on how you provide
 <<search-query,queries>>:
 
 <<run-uri-search,URI searches>>::
@@ -197,10 +197,10 @@ score>> that measures how well each document matches the query.
 
 [discrete]
 [[search-multiple-indices]]
-=== Search multiple indices
+=== Search multiple data streams and indices
 
-To search multiple indices, add them as comma-separated values in the search API
-request path.
+To search multiple data streams and indices, add them as comma-separated values
+in the search API request path.
 
 .*Example*
 [%collapsible]
@@ -223,14 +223,14 @@ GET /user_logs_000001,user_logs_000002/_search
 // TEST[s/^/PUT user_logs_000002\n/]
 ====
 
-You can also search multiple indices using an index pattern.
+You can also search multiple data streams and indices using a wildcard (`*`)
+pattern.
 
 .*Example*
 [%collapsible]
 ====
-The following request uses the index pattern `user_logs*` in place of the index
-name. The request searches any indices in the cluster that start with
-`user_logs`.
+The following request targets the wildcard pattern `user_logs*`. The request
+searches any data streams or indices in the cluster that start with `user_logs`.
 
 [source,console]
 ----
@@ -246,13 +246,13 @@ GET /user_logs*/_search
 // TEST[continued]
 ====
 
-To search all indices in a cluster, omit the index name from the request path.
-Alternatively, you can use `_all` or `*` in place of the index name.
+To search all data streams and indices in a cluster, omit the target from the
+request path. Alternatively, you can use `_all` or `*`.
 
 .*Example*
 [%collapsible]
 ====
-The following requests are equivalent and search all indices in the cluster.
+The following requests are equivalent and search all data streams and indices in the cluster.
 
 [source,console]
 ----

@@ -30,10 +30,9 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteActionV7 extends RestDeleteAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
+        + "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
     public List<Route> routes() {
@@ -50,7 +49,7 @@ public class RestDeleteActionV7 extends RestDeleteAction {
         if (request.hasParam("type")) {
             request.param("type");
             deprecationLogger.deprecate("delete_with_types", TYPES_DEPRECATION_MESSAGE);
-            //todo compatible log
+            // todo compatible log
         }
 
         return super.prepareRequest(request, client);

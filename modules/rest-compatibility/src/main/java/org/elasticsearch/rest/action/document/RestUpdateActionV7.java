@@ -30,10 +30,9 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateActionV7 extends RestUpdateAction {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpdateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestUpdateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
+        + "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
     @Override
     public List<Route> routes() {
@@ -50,7 +49,7 @@ public class RestUpdateActionV7 extends RestUpdateAction {
         if (request.hasParam("type")) {
             request.param("type");
             deprecationLogger.deprecate("update_with_types", TYPES_DEPRECATION_MESSAGE);
-            //todo compatible log
+            // todo compatible log
         }
 
         return super.prepareRequest(request, client);

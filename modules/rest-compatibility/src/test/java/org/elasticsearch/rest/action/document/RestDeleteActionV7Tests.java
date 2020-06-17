@@ -24,7 +24,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-
 public class RestDeleteActionV7Tests extends RestActionTestCase {
     @Before
     public void setUpAction() {
@@ -33,15 +32,13 @@ public class RestDeleteActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.DELETE)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestDeleteActionV7.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.DELETE)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/some_index/_doc/some_id")
             .build();
         dispatchRequest(validRequest);

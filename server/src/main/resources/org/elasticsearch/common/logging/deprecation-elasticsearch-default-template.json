@@ -1,0 +1,33 @@
+{
+  "index_patterns": [
+    "deprecation-elasticsearch-default"
+  ],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "key": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "message": {
+          "norms": false,
+          "type": "text"
+        },
+        "x-opaque-id": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "params": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}

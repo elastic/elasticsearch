@@ -31,19 +31,19 @@ package org.elasticsearch.common.util;
  *
  * NOTE: this class is not thread safe
  */
-abstract public class BinarySearcher{
+public abstract class BinarySearcher{
 
     /**
      * @return a negative integer, zero, or a positive integer if the array's value at <code>index</code> is less than,
      * equal to, or greater than the value being searched for.
      */
-    abstract protected int compare(int index);
+    protected abstract int compare(int index);
 
     /**
      * @return the magnitude of the distance between the element at <code>index</code> and the value being searched for.
      * It will usually be <code>Math.abs(array[index] - searchValue)</code>.
      */
-    abstract protected double distance(int index);
+    protected abstract double distance(int index);
 
     /**
      * @return the index who's underlying value is closest to the value being searched for.

@@ -61,7 +61,8 @@ public class BinarySearcherTests extends ESTestCase {
             if (randomBoolean()) {
                 // Pick a number above array.get(index)
                 if (index < size - 1) {
-                    searchFor += (bigArray.get(index + 1) - bigArray.get(index)) / 3; // Divide by 3 so that it's closer to array.get(index) than to array.get(index + 1)
+                    // Divide by 3 so that it's closer to array.get(index) than to array.get(index + 1)
+                    searchFor += (bigArray.get(index + 1) - bigArray.get(index)) / 3;
                 } else {
                     // There is nothing about index
                     searchFor += 0.1;

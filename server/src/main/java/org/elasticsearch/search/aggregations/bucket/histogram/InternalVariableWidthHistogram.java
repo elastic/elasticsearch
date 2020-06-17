@@ -19,28 +19,33 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<InternalVariableWidthHistogram, InternalVariableWidthHistogram.Bucket>
+public class InternalVariableWidthHistogram
+    extends InternalMultiBucketAggregation<InternalVariableWidthHistogram, InternalVariableWidthHistogram.Bucket>
     implements Histogram, HistogramFactory{
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+        implements Histogram.Bucket, KeyComparable<Bucket> {
 
         public static class BucketBounds {
             public double min;

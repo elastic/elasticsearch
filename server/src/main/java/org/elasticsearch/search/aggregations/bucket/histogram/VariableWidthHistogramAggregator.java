@@ -163,7 +163,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         public DoubleArray clusterMaxes;
         public DoubleArray clusterMins;
         public DoubleArray clusterCentroids;
-        public DoubleArray clusterSizes; // clusterSizes.get(i) is usually equal to bucketDocCount(i), but it's different when clusters are being merged
+        public DoubleArray clusterSizes; // clusterSizes != bucketDocCounts when clusters are in the middle of a merge
         public int numClusters;
 
         private int avgBucketDistance;

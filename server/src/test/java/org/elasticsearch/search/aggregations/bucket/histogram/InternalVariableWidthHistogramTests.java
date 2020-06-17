@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -30,14 +29,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -140,7 +137,8 @@ public class InternalVariableWidthHistogramTests extends
         InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (long value : new long[]{1, 2, 5, 10, 12, 200}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 3, format, InternalAggregations.EMPTY
             );
@@ -151,14 +149,16 @@ public class InternalVariableWidthHistogramTests extends
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer =
+            new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets =
+            ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
 
         // Final clusters should be [ (1,2,5), (10,12), 200) ]
         // Final centroids should be [ 3, 11, 200 ]
@@ -179,7 +179,8 @@ public class InternalVariableWidthHistogramTests extends
         InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (double value : new double[]{-1.3, -1.3, 12.0, 13.0, 20.0, 21.5, 23.0, 24.5}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value - 0.7, value + 1);
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value - 0.7, value + 1);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 1, format, InternalAggregations.EMPTY
             );
@@ -187,17 +188,20 @@ public class InternalVariableWidthHistogramTests extends
         }
         InternalVariableWidthHistogram histogram = dummy_histogram.create(buckets);
 
-        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        MockBigArrays bigArrays =
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer =
+            new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets =
+            ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
 
         // Final clusters should be [ (-1.3,-1.3), (12.0,13.0), (20.0, 21.5, 23.0, 24.5) ]
         // Final centroids should be [ -1.3, 12.5, 22.25 ]
@@ -219,7 +223,8 @@ public class InternalVariableWidthHistogramTests extends
 
         List<InternalVariableWidthHistogram.Bucket> buckets1 = new ArrayList<>();
         for (long value : new long[]{1, 5, 6, 10}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 1, format, InternalAggregations.EMPTY
             );
@@ -228,7 +233,8 @@ public class InternalVariableWidthHistogramTests extends
 
         List<InternalVariableWidthHistogram.Bucket> buckets2 = new ArrayList<>();
         for (long value : new long[]{2, 3, 6, 7}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 1, format, InternalAggregations.EMPTY
             );
@@ -237,9 +243,8 @@ public class InternalVariableWidthHistogramTests extends
 
         List<InternalVariableWidthHistogram.Bucket> buckets3 = new ArrayList<>();
         for (long value : new long[]{0, 2, 12}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(
-                value, value + 1
-            );
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 1, format, InternalAggregations.EMPTY
             );
@@ -250,11 +255,13 @@ public class InternalVariableWidthHistogramTests extends
         InternalVariableWidthHistogram histogram2 = dummy_histogram.create(buckets2);
         InternalVariableWidthHistogram histogram3 = dummy_histogram.create(buckets3);
 
-        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        MockBigArrays bigArrays =
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer =
+            new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
 
@@ -262,7 +269,8 @@ public class InternalVariableWidthHistogramTests extends
         aggs.add(histogram1);
         aggs.add(histogram2);
         aggs.add(histogram3);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram1.reduce(aggs, context)).getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets =
+            ((InternalVariableWidthHistogram) histogram1.reduce(aggs, context)).getBuckets();
 
         // Final clusters should be [ (0, 1, 2, 2, 3), (5, 6, 6, 7), (10, 12) ]
         // Final centroids should be [ 2, 6, 11 ]
@@ -283,9 +291,8 @@ public class InternalVariableWidthHistogramTests extends
         InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (long value : new long[]{1, 2, 4, 10}) {
-            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(
-                value, value + 3
-            );
+            InternalVariableWidthHistogram.Bucket.BucketBounds bounds =
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 3);
             InternalVariableWidthHistogram.Bucket bucket = new InternalVariableWidthHistogram.Bucket(
                 value, bounds, 4, format, InternalAggregations.EMPTY
             );
@@ -293,17 +300,20 @@ public class InternalVariableWidthHistogramTests extends
         }
         InternalVariableWidthHistogram histogram = dummy_histogram.create(buckets);
 
-        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        MockBigArrays bigArrays =
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer =
+            new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets =
+            ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
 
         // Expected clusters: [ (1, 2), (4), 10) ]
         // Expected centroids: [ 1.5, 4, 10 ]
@@ -346,17 +356,20 @@ public class InternalVariableWidthHistogramTests extends
         }
         InternalVariableWidthHistogram histogram = dummy_histogram.create(buckets);
 
-        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        MockBigArrays bigArrays =
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService mockScriptService = mockScriptService();
 
-        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer =
+            new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
             bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets =
+            ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
 
         // Expected clusters: [ (1), (100), (700) ]
         // Expected clusters after same min merge: [ (1, 100), (700) ]

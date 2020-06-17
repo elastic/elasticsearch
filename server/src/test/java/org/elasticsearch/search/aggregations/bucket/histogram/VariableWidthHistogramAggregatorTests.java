@@ -199,9 +199,12 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
             assertEquals(expectedDocCountSearchReduce.size(), buckets.size());
                 buckets.forEach(bucket -> {
-                    assertEquals(expectedDocCountSearchReduce.getOrDefault(bucket.min(), 0).longValue(), bucket.getDocCount(), doubleError);
-                    assertEquals(expectedCentroidsSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.centroid(), doubleError);
-                    assertEquals(expectedMaxesSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.max(), doubleError);
+                    long expectedDocCount = expectedDocCountSearchReduce.getOrDefault(bucket.min(), 0).longValue();
+                    double expectedCentroid = expectedCentroidsSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue();
+                    double expectedMax = expectedMaxesSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue();
+                    assertEquals(expectedDocCount, bucket.getDocCount(), doubleError);
+                    assertEquals(expectedCentroid, bucket.centroid(), doubleError);
+                    assertEquals(expectedMax, bucket.max(), doubleError);
                 });
             });
     }
@@ -239,9 +242,12 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCountOnlySearch.size(), buckets.size());
                 buckets.forEach(bucket -> {
-                    assertEquals(expectedDocCountOnlySearch.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount());
-                    assertEquals(expectedMinsOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.min(), doubleError);
-                    assertEquals(expectedMaxesOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.max(), doubleError);
+                    long expectedDocCount = expectedDocCountOnlySearch.getOrDefault(bucket.getKey(), 0).longValue();
+                    double expectedCentroid = expectedMinsOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    double expectedMax = expectedMaxesOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    assertEquals(expectedDocCount, bucket.getDocCount());
+                    assertEquals(expectedCentroid, bucket.min(), doubleError);
+                    assertEquals(expectedMax, bucket.max(), doubleError);
                 });
             });
     }
@@ -444,7 +450,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         final Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 25000).build();
         return new IndexSettings(
-            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -465,7 +472,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                final VariableWidthHistogramAggregationBuilder aggregationBuilder = new VariableWidthHistogramAggregationBuilder("_name");
+                final VariableWidthHistogramAggregationBuilder aggregationBuilder =
+                    new VariableWidthHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }

@@ -115,7 +115,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
-import static org.hamcrest.io.FileMatchers.anExistingFile;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends ESTestCase {

@@ -251,6 +251,7 @@ public class CentroidCalculatorTests extends ESTestCase {
         assertThat(calculator.getDimensionalShapeType(), equalTo(LINE));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58245")
     public void testPolygonAsPoint() {
         Point point = GeometryTestUtils.randomPoint(false);
         Polygon polygon = new Polygon(new LinearRing(new double[] { point.getX(), point.getX(), point.getX(), point.getX() },

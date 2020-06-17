@@ -381,6 +381,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock(indexName, block);
         }
+        refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
     }
 

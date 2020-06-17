@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockClusterState
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
+import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -659,7 +660,7 @@ public class MetadataIndexStateService {
         }
 
         private void sendVerifyShardBlockRequest(final IndexShardRoutingTable shardRoutingTable,
-                                                 final ClusterBlock closingBlock,
+                                                 final ClusterBlock block,
                                                  final ActionListener<ReplicationResponse> listener) {
             final ShardId shardId = shardRoutingTable.shardId();
             if (shardRoutingTable.primaryShard().unassigned()) {
@@ -670,27 +671,12 @@ public class MetadataIndexStateService {
                 return;
             }
             final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
-            final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, true, parentTaskId);
+            final TransportVerifyShardIndexBlockAction.ShardRequest shardRequest =
+                new TransportVerifyShardIndexBlockAction.ShardRequest(shardId, block, parentTaskId);
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ReplicationResponse replicationResponse) {
-                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
-                    if (request.ackTimeout() != null) {
-                        shardRequest.timeout(request.ackTimeout());
-                    }
-                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, shardRequest, listener);
         }
     }
 
@@ -956,7 +942,7 @@ public class MetadataIndexStateService {
     // Create UUID based block based on non-UUID one
     public static ClusterBlock createUUIDBasedBlock(ClusterBlock clusterBlock) {
         assert clusterBlock.uuid() == null : "no UUID expected on source block";
-        return new ClusterBlock(clusterBlock.id(), UUIDs.randomBase64UUID(), "moving to " + clusterBlock.description(),
+        return new ClusterBlock(clusterBlock.id(), UUIDs.randomBase64UUID(), "moving to block " + clusterBlock.description(),
             clusterBlock.retryable(), clusterBlock.disableStatePersistence(), clusterBlock.isAllowReleaseResources(), clusterBlock.status(),
             clusterBlock.levels());
     }

@@ -148,8 +148,7 @@ level settings.
 integer or an object in the rest search response. Defaults to `false`.
 
 `routing`::
-(Optional, <<time-units, time units>>) Specifies how long a consistent view of
-the index should be maintained for scrolled search.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::

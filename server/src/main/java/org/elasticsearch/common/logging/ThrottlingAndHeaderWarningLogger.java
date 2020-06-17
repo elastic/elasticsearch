@@ -20,16 +20,32 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
- * This class wraps both <code>HeaderWarningLogger</code> and <code>ThrottlingLogger</code>
- * which is a common use case across Elasticsearch
+ * This class composes {@link HeaderWarning}, {@link DeprecationIndexingService} and {@link Logger},
+ * in order to apply a single message to multiple destination.
+ * <p>
+ * Logging and indexing are throttled in order to avoid filling the destination with duplicates.
+ * Throttling is implemented using a mandatory per-message key combined with any <code>X-Opaque-Id</code>
+ * HTTP header value. This header allows throttling per user. This value is set in {@link ThreadContext}.
+ * <p>
+ * TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
  */
 class ThrottlingAndHeaderWarningLogger {
-    private final ThrottlingLogger throttlingLogger;
+    private final Logger logger;
+    private final RateLimiter rateLimiter;
+    private final DeprecationIndexingService indexingService;
 
-    ThrottlingAndHeaderWarningLogger(Logger logger) {
-        this.throttlingLogger = new ThrottlingLogger(logger);
+    ThrottlingAndHeaderWarningLogger(Logger logger, DeprecationIndexingService indexingService) {
+        this.logger = logger;
+        this.rateLimiter = new RateLimiter();
+        this.indexingService = indexingService;
     }
 
     /**
@@ -43,7 +59,24 @@ class ThrottlingAndHeaderWarningLogger {
         String messagePattern = message.getMessagePattern();
         Object[] arguments = message.getArguments();
         HeaderWarning.addWarning(messagePattern, arguments);
-        throttlingLogger.throttleLog(key, message);
+
+        String xOpaqueId = HeaderWarning.getXOpaqueId();
+        this.rateLimiter.limit(xOpaqueId + key, () -> {
+            log(message);
+            if (indexingService != null) {
+                indexingService.writeMessage(key, messagePattern, xOpaqueId, arguments);
+            }
+        });
     }
 
+    private void log(Message message) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressLoggerChecks(reason = "safely delegates to logger")
+            @Override
+            public Void run() {
+                logger.warn(message);
+                return null;
+            }
+        });
+    }
 }

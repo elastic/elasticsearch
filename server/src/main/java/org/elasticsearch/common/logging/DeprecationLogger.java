@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  * @see ThrottlingAndHeaderWarningLogger for throttling and header warnings implementation details
  */
 public class DeprecationLogger {
+    private static DeprecationIndexingService indexingService;
     private final ThrottlingAndHeaderWarningLogger deprecationLogger;
 
     /**
@@ -45,8 +46,8 @@ public class DeprecationLogger {
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    private DeprecationLogger(Logger parentLogger) {
-        deprecationLogger = new ThrottlingAndHeaderWarningLogger(parentLogger);
+    public DeprecationLogger(Logger parentLogger) {
+        deprecationLogger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger), indexingService);
     }
 
     public static DeprecationLogger getLogger(Class<?> aClass) {
@@ -77,6 +78,14 @@ public class DeprecationLogger {
 
     public static void removeThreadContext(ThreadContext threadContext) {
         HeaderWarning.removeThreadContext(threadContext);
+    }
+
+    public static void setIndexingService(DeprecationIndexingService indexingService) {
+        DeprecationLogger.indexingService = indexingService;
+    }
+
+    public static void removeIndexingService() {
+        DeprecationLogger.indexingService = null;
     }
 
     /**

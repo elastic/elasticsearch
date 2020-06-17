@@ -50,6 +50,7 @@ import org.elasticsearch.client.core.BroadcastResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -127,7 +128,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                 GetSettingsRequest followerSettingsRequest = new GetSettingsRequest().indices("follower");
                 GetSettingsResponse followerSettingsResponse =
                     highLevelClient().indices().getSettings(followerSettingsRequest, RequestOptions.DEFAULT);
-                assertThat(followerSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo(0));
+                assertThat(
+                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(followerSettingsResponse.getIndexToSettings().get("follower")),
+                    equalTo(0));
             });
         } catch (Exception e) {
             IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).getIndicesFollowStats();
@@ -274,7 +277,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
-        assertThat(getIndexSettingsAsMap("copy-logs-20200101"), hasEntry("index.number_of_replicas", followerNumberOfReplicas));
+        assertThat(getIndexSettingsAsMap("copy-logs-20200101"), hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();

@@ -99,7 +99,42 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertNull(after.metadata().getIndicesLookup().get("test"));
         assertNull(after.metadata().getIndicesLookup().get("test_2"));
         assertAliasesVersionIncreased(index, before, after);
+    }
 
+    public void testMustExist() {
+        // Create a state with a single index
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+
+        // Add an alias to it
+        ClusterState after = service.applyAliasActions(before, singletonList(new AliasAction.Add(index, "test", null, null, null, null,
+            null)));
+        IndexAbstraction alias = after.metadata().getIndicesLookup().get("test");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Remove the alias from it with mustExist == true while adding another one
+        before = after;
+        after = service.applyAliasActions(before, Arrays.asList(
+            new AliasAction.Remove(index, "test", true),
+            new AliasAction.Add(index, "test_2", null, null, null, null, null)));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        alias = after.metadata().getIndicesLookup().get("test_2");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(alias.getIndices(), contains(after.metadata().index(index)));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Now just remove on its own
+        before = after;
+        after = service.applyAliasActions(before, singletonList(new AliasAction.Remove(index, "test_2", randomBoolean())));
+        assertNull(after.metadata().getIndicesLookup().get("test"));
+        assertNull(after.metadata().getIndicesLookup().get("test_2"));
+        assertAliasesVersionIncreased(index, before, after);
+
+        // Show that removing non-existing alias with mustExist == true fails
         final ClusterState finalCS = after;
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
             () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true))));

@@ -67,7 +67,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         for (Entry entry : entries) {
             if (entry.state() == State.META_DATA) {
                 final boolean added = activeRepositories.add(entry.repository());
-                assert added : "Found multiple running deletes for for a single repository in " + entries;
+                assert added : "Found multiple running deletes for a single repository in " + entries;
             }
         }
         return true;
@@ -363,7 +363,16 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public enum State {
+
+        /**
+         * Delete is waiting to execute because there are snapshots and or a delete operation that has to complete before this delete may
+         * run.
+         */
         WAITING((byte) 0),
+
+        /**
+         * Delete is physically executing on the repository.
+         */
         META_DATA((byte) 1);
 
         private final byte value;

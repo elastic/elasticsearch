@@ -50,7 +50,7 @@ NOTE: The `op_type` parameter defaults to `create` when adding new documents.
 .*Example: Index API request*
 [%collapsible]
 ====
-The following <<docs-index_,index API>> adds a new document to the `logs` data
+The following index API request adds a new document to the `logs` data
 stream.
 
 [source,console]
@@ -77,7 +77,7 @@ NOTE: Data streams do not support other bulk actions, such as `index`.
 .*Example: Bulk API request*
 [%collapsible]
 ====
-The following <<docs-bulk,bulk API>> index request adds several new documents to
+The following bulk API request adds several new documents to
 the `logs` data stream. Note that only the `create` action is used.
 
 [source,console]

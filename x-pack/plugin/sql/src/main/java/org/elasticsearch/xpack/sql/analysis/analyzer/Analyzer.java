@@ -846,7 +846,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             named.forEach(n -> {
                 if (n instanceof Alias) {
                     Alias a = (Alias) n;
-                    if ((a.child() instanceof UnresolvedAttribute && Objects.equals(((UnresolvedAttribute) a.child()).name(),a.name())) == false) {
+                    if ((a.child() instanceof UnresolvedAttribute &&
+                        Objects.equals(((UnresolvedAttribute) a.child()).name(),a.name())) == false) {
                         aliases.add(a);
                     }
                 }

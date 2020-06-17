@@ -118,6 +118,11 @@ public abstract class PackagingTestCase extends Assert {
     public static void init() throws Exception {
         assumeTrue("only compatible distributions", distribution.packaging.compatible);
 
+        // make sure temp dir exists
+        if (Files.exists(getRootTempDir()) == false) {
+            Files.createDirectories(getRootTempDir());
+        }
+
         // cleanup from previous test
         cleanup();
 

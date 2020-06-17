@@ -242,8 +242,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeMap(fieldMapping);
+            // TODO: remove bwc logic when backporting:
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeString(fieldName);
+            } else {
+                out.writeString(fieldName);
+                out.writeMap(fieldMapping);
+            }
         }
 
         @Override

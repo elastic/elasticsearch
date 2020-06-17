@@ -40,6 +40,9 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
     public static final EnrichCoordinatorStatsAction INSTANCE = new EnrichCoordinatorStatsAction();
     public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
+    /**
+     * The BWC_NAME was used up to 7.8.x
+     */
     public static final String BWC_NAME = "cluster:admin/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {

@@ -97,11 +97,11 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testBasicScenario() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        putComposableIndexTemplate("id1", "metrics-foo*", "@timestamp1");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
+        putComposableIndexTemplate("id2", "metrics-bar*", "@timestamp2");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
@@ -195,7 +195,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        putComposableIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -361,7 +361,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
-        createIndexTemplate("id", "logs-*", "ts");
+        putComposableIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(request).actionGet();
@@ -422,7 +422,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        putComposableIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar-baz";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -445,7 +445,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testChangeTimestampFieldInComposableTemplatePriorToRollOver() throws Exception {
-        createIndexTemplate("id1", "logs-foo*", "@timestamp");
+        putComposableIndexTemplate("id1", "logs-foo*", "@timestamp");
 
         // Index doc that triggers creation of a data stream
         IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
@@ -465,7 +465,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
 
         // Change the template to have a different timestamp field
-        createIndexTemplate("id1", "logs-foo*", "@timestamp2");
+        putComposableIndexTemplate("id1", "logs-foo*", "@timestamp2");
 
         // Rollover again, eventhough there is no mapping in the template, the timestamp field mapping in data stream
         // should be applied in the new backing index
@@ -495,7 +495,7 @@ public class DataStreamIT extends ESIntegTestCase {
             "        }\n" +
             "      }\n" +
             "    }";;
-        createIndexTemplate("id1", "logs-foo*", "event.@timestamp", mapping);
+        putComposableIndexTemplate("id1", "logs-foo*", "event.@timestamp", mapping);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -599,12 +599,12 @@ public class DataStreamIT extends ESIntegTestCase {
             "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
-    static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
+    static void putComposableIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
         String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
-        createIndexTemplate(id, pattern, timestampFieldName, mapping);
+        putComposableIndexTemplate(id, pattern, timestampFieldName, mapping);
     }
 
-    static void createIndexTemplate(String id, String pattern, String timestampFieldName, String mapping) throws IOException {
+    static void putComposableIndexTemplate(String id, String pattern, String timestampFieldName, String mapping) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(

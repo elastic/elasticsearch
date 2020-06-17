@@ -49,7 +49,7 @@ public class RestGetActionV7 extends RestGetAction {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
-        deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate("get_with_types", TYPES_DEPRECATION_MESSAGE);
         request.param("type");
         return super.prepareRequest(request, client);
     }

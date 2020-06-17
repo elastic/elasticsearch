@@ -8,13 +8,10 @@ package org.elasticsearch.xpack.vectors;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.junit.Before;
@@ -34,13 +31,13 @@ public class VectorsInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isVectorsAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new VectorsUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
+            mock(ActionFilters.class), null, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -52,37 +49,22 @@ public class VectorsInfoTransportActionTests extends ESTestCase {
         assertThat(serializedUsage.available(), is(available));
     }
 
-    public void testEnabled() throws Exception {
-        boolean enabled = randomBoolean();
-        boolean isExplicitlySet = false;
-        Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.vectors.enabled", enabled);
-                isExplicitlySet = true;
-            }
-        } else {
-            settings.put("xpack.vectors.enabled", enabled);
-            isExplicitlySet = true;
-        }
+    public void testAlwaysEnabled() throws Exception {
         VectorsInfoTransportAction featureSet = new VectorsInfoTransportAction(
-mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
+mock(TransportService.class), mock(ActionFilters.class), licenseState);
+        assertThat(featureSet.enabled(), is(true));
 
         VectorsUsageTransportAction usageAction = new VectorsUsageTransportAction(mock(TransportService.class),
-            null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
+            null, null, mock(ActionFilters.class), null, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
-        assertThat(usage.enabled(), is(enabled));
+        assertThat(usage.enabled(), is(true));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
-        if (isExplicitlySet) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.VECTORS_ENABLED} );
-        }
+        assertThat(serializedUsage.enabled(), is(true));
     }
 
 }

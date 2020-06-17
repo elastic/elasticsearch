@@ -273,27 +273,8 @@ public class ESLoggerUsageChecker {
 
                         int lengthWithoutMarker = argumentTypes.length - markerOffset;
 
-                        if (lengthWithoutMarker == 2 &&
-                            argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
-                            (argumentTypes[markerOffset + 1].equals(OBJECT_ARRAY_CLASS) ||
-                                argumentTypes[markerOffset + 1].equals(SUPPLIER_ARRAY_CLASS))) {
-                            // VARARGS METHOD: debug(Marker?, String, (Object...|Supplier...))
-                            checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, markerOffset + 0,
-                                markerOffset + 1);
-                        } else if (lengthWithoutMarker >= 2 &&
-                            argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
-                            argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
-                            // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0,
-                                lengthWithoutMarker - 1);
-                        } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) &&
-                            lengthWithoutMarker == 2 ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS) : true) {
-                            // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
-                            checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
-                        } else {
-                            throw new IllegalStateException("Method invoked on " + LOGGER_CLASS.getClassName() +
-                                " that is not supported by logger usage checker");
-                        }
+                        verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
+                            methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
                     }
                 } else if (insn.getOpcode() == Opcodes.INVOKESPECIAL) { // constructor invocation
                     MethodInsnNode methodInsn = (MethodInsnNode) insn;
@@ -338,7 +319,48 @@ public class ESLoggerUsageChecker {
                                 "Constructor: "+ Arrays.toString(argumentTypes)));
                         }
                     }
+                } else if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                    //using strings because this test do not depend on server
+
+                    MethodInsnNode methodInsn = (MethodInsnNode) insn;
+                    if (methodInsn.owner.equals("org/elasticsearch/common/logging/DeprecationLogger")) {
+                        if (methodInsn.name.equals("deprecate")) {
+                            Type[] argumentTypes = Type.getArgumentTypes(methodInsn.desc);
+                            int markerOffset = 1; // skip key
+
+                            int lengthWithoutMarker = argumentTypes.length - markerOffset;
+
+                            verifyLoggerUsage(methodNode, logMessageFrames, arraySizeFrames, lineNumber, i,
+                                methodInsn, argumentTypes, markerOffset, lengthWithoutMarker);
+                        }
+                    }
                 }
+            }
+        }
+
+        private void verifyLoggerUsage(MethodNode methodNode, Frame<BasicValue>[] logMessageFrames, Frame<BasicValue>[] arraySizeFrames,
+                                       int lineNumber, int i, MethodInsnNode methodInsn, Type[] argumentTypes,
+                                       int markerOffset, int lengthWithoutMarker) {
+            if (lengthWithoutMarker == 2 &&
+                argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
+                (argumentTypes[markerOffset + 1].equals(OBJECT_ARRAY_CLASS) ||
+                    argumentTypes[markerOffset + 1].equals(SUPPLIER_ARRAY_CLASS))) {
+                // VARARGS METHOD: debug(Marker?, String, (Object...|Supplier...))
+                checkArrayArgs(methodNode, logMessageFrames[i], arraySizeFrames[i], lineNumber, methodInsn, markerOffset + 0,
+                    markerOffset + 1);
+            } else if (lengthWithoutMarker >= 2 &&
+                argumentTypes[markerOffset + 0].equals(STRING_CLASS) &&
+                argumentTypes[markerOffset + 1].equals(OBJECT_CLASS)) {
+                // MULTI-PARAM METHOD: debug(Marker?, String, Object p0, ...)
+                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0,
+                    lengthWithoutMarker - 1);
+            } else if ((lengthWithoutMarker == 1 || lengthWithoutMarker == 2) &&
+                lengthWithoutMarker == 2 ? argumentTypes[markerOffset + 1].equals(THROWABLE_CLASS) : true) {
+                // all the rest: debug(Marker?, (Message|MessageSupplier|CharSequence|Object|String|Supplier), Throwable?)
+                checkFixedArityArgs(methodNode, logMessageFrames[i], lineNumber, methodInsn, markerOffset + 0, 0);
+            } else {
+                throw new IllegalStateException("Method invoked on " + LOGGER_CLASS.getClassName() +
+                    " that is not supported by logger usage checker");
             }
         }
 

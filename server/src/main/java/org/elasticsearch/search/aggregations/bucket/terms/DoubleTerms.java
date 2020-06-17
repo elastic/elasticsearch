@@ -39,7 +39,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     public static final String NAME = "dterms";
 
     static class Bucket extends InternalTerms.Bucket<Bucket> {
-        private final double term;
+        double term;
 
         Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {

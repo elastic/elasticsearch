@@ -89,6 +89,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         receiveFileInfoFuture.actionGet();
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
+        long seqNo = 0;
         for (StoreFileMetadata md : mdFiles) {
             try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
                 int pos = 0;
@@ -96,7 +97,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     int length = between(1, Math.toIntExact(md.length() - pos));
                     byte[] buffer = new byte[length];
                     in.readBytes(buffer, 0, length);
-                    requests.add(new RecoveryFileChunkRequest(0, sourceShard.shardId(), md, pos, new BytesArray(buffer),
+                    requests.add(new RecoveryFileChunkRequest(0, seqNo++, sourceShard.shardId(), md, pos, new BytesArray(buffer),
                         pos + length == md.length(), 1, 1));
                     pos += length;
                 }
@@ -215,9 +216,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         // copy with truncated translog
         shard = newStartedShard(false);
-        globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
+        SeqNoStats seqNoStats = populateRandomData(shard);
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
             RecoverySource.PeerRecoverySource.INSTANCE));
+        globalCheckpoint =  randomFrom(UNASSIGNED_SEQ_NO, seqNoStats.getMaxSeqNo());
         String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), globalCheckpoint,
             replica.shardId(), replica.getPendingPrimaryTerm());
         replica.store().associateIndexWithNewTranslog(translogUUID);
@@ -231,6 +233,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         }
+        assertThat(replica.recoveryState().getStage(), equalTo(RecoveryState.Stage.TRANSLOG));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
         closeShards(replica);

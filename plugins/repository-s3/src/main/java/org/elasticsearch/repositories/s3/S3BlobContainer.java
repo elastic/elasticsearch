@@ -340,6 +340,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
         putRequest.setStorageClass(blobStore.getStorageClass());
         putRequest.setCannedAcl(blobStore.getCannedACL());
+        putRequest.setRequestMetricCollector(blobStore.putMetricCollector);
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> {
@@ -377,6 +378,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucketName, blobName);
         initRequest.setStorageClass(blobStore.getStorageClass());
         initRequest.setCannedACL(blobStore.getCannedACL());
+        initRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
         if (blobStore.serverSideEncryption()) {
             final ObjectMetadata md = new ObjectMetadata();
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
@@ -399,6 +401,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 uploadRequest.setUploadId(uploadId.get());
                 uploadRequest.setPartNumber(i);
                 uploadRequest.setInputStream(input);
+                uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
 
                 if (i < nbParts) {
                     uploadRequest.setPartSize(partSize);
@@ -420,6 +423,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             final CompleteMultipartUploadRequest complRequest = new CompleteMultipartUploadRequest(bucketName, blobName, uploadId.get(),
                     parts);
+            complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             success = true;
 

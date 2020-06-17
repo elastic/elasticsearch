@@ -25,11 +25,9 @@ public abstract class AbstractEqlIntegTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SQL_ENABLED.getKey(), false);
         settings.put(EqlPlugin.EQL_ENABLED_SETTING.getKey(), true);
         settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return settings.build();

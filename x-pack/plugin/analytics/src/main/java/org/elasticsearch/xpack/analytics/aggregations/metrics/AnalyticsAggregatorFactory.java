@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesAggregatorSuppli
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
@@ -65,6 +66,21 @@ public class AnalyticsAggregatorFactory {
     public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(SumAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) HistoBackedSumAggregator::new);
+            (MetricAggregatorSupplier) HistoBackedSumAggregator::new
+        );
+    }
+
+    public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(ValueCountAggregationBuilder.NAME,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            (MetricAggregatorSupplier) HistoBackedValueCountAggregator::new
+        );
+    }
+
+    public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(AvgAggregationBuilder.NAME,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            (MetricAggregatorSupplier) HistoBackedAvgAggregator::new
+        );
     }
 }

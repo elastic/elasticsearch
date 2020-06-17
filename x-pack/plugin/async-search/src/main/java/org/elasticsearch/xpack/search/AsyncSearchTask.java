@@ -134,9 +134,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     /**
      * Cancels the running task and its children.
      */
-    public void cancelTask(Runnable runnable) {
+    public void cancelTask(Runnable runnable, String reason) {
         if (isCancelled() == false && isCancelling.compareAndSet(false, true)) {
-            CancelTasksRequest req = new CancelTasksRequest().setTaskId(searchId.getTaskId());
+            CancelTasksRequest req = new CancelTasksRequest().setTaskId(searchId.getTaskId()).setReason(reason);
             client.admin().cluster().cancelTasks(req, new ActionListener<>() {
                 @Override
                 public void onResponse(CancelTasksResponse cancelTasksResponse) {
@@ -316,8 +316,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         return searchResponse.get().toAsyncSearchResponseWithHeaders(this, expirationTimeMillis);
     }
 
-
-
     // checks if the search task should be cancelled
     private synchronized void checkCancellation() {
         long now = System.currentTimeMillis();
@@ -326,7 +324,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // we cancel the search task if the initial submit task was cancelled,
             // this is needed because the task cancellation mechanism doesn't
             // handle the cancellation of grand-children.
-            cancelTask(() -> {});
+            cancelTask(() -> {}, checkSubmitCancellation.getAsBoolean() ? "submit was cancelled" : "async search has expired");
         }
     }
 
@@ -379,18 +377,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 reducedAggs = () -> null;
             } else {
                 /*
-                 * Keep a reference to the serialiazed form of the partially
+                 * Keep a reference to the serialized form of the partially
                  * reduced aggs and reduce it on the fly when someone asks
-                 * for it. This will produce right-ish aggs. Much more right
-                 * than if you don't do the final reduce. Its important that
-                 * we wait until someone needs the result so we don't perform
-                 * the final reduce only to throw it away. And it is important
-                 * that we kep the reference to the serialized aggrgations
-                 * because the SearchPhaseController *already* has that
-                 * reference so we're not creating more garbage. 
+                 * for it. It's important that we wait until someone needs
+                 * the result so we don't perform the final reduce only to
+                 * throw it away. And it is important that we keep the reference
+                 * to the serialized aggregations because SearchPhaseController
+                 * *already* has that reference so we're not creating more garbage.
                  */
                 reducedAggs = () ->
-                    InternalAggregations.topLevelReduce(singletonList(aggregations.get()), aggReduceContextSupplier.get()); 
+                    InternalAggregations.topLevelReduce(singletonList(aggregations.expand()), aggReduceContextSupplier.get());
             }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }

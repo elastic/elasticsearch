@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
@@ -73,9 +72,63 @@ public class ProgressTrackerTests extends ESTestCase {
     public void testUpdatePhase_GivenUnknownPhase() {
         ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> progressTracker.updatePhase(new PhaseProgress("bar", 42)));
+        progressTracker.updatePhase(new PhaseProgress("unknown", 42));
+        List<PhaseProgress> phases = progressTracker.report();
 
-        assertThat(e.getMessage(), equalTo("unknown progress phase [bar]"));
+        assertThat(phases.size(), equalTo(4));
+        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results"));
+    }
+
+    public void testUpdateReindexingProgress_GivenLowerValueThanCurrentProgress() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
+
+        progressTracker.updateReindexingProgress(10);
+
+        progressTracker.updateReindexingProgress(11);
+        assertThat(progressTracker.getReindexingProgressPercent(), equalTo(11));
+
+        progressTracker.updateReindexingProgress(10);
+        assertThat(progressTracker.getReindexingProgressPercent(), equalTo(11));
+    }
+
+    public void testUpdateLoadingDataProgress_GivenLowerValueThanCurrentProgress() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
+
+        progressTracker.updateLoadingDataProgress(20);
+
+        progressTracker.updateLoadingDataProgress(21);
+        assertThat(progressTracker.getLoadingDataProgressPercent(), equalTo(21));
+
+        progressTracker.updateLoadingDataProgress(20);
+        assertThat(progressTracker.getLoadingDataProgressPercent(), equalTo(21));
+    }
+
+    public void testUpdateWritingResultsProgress_GivenLowerValueThanCurrentProgress() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
+
+        progressTracker.updateWritingResultsProgress(30);
+
+        progressTracker.updateWritingResultsProgress(31);
+        assertThat(progressTracker.getWritingResultsProgressPercent(), equalTo(31));
+
+        progressTracker.updateWritingResultsProgress(30);
+        assertThat(progressTracker.getWritingResultsProgressPercent(), equalTo(31));
+    }
+
+    public void testUpdatePhase_GivenLowerValueThanCurrentProgress() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"));
+
+        progressTracker.updatePhase(new PhaseProgress("foo", 40));
+
+        progressTracker.updatePhase(new PhaseProgress("foo", 41));
+        assertThat(getProgressForPhase(progressTracker, "foo"), equalTo(41));
+
+        progressTracker.updatePhase(new PhaseProgress("foo", 40));
+        assertThat(getProgressForPhase(progressTracker, "foo"), equalTo(41));
+    }
+
+    private static int getProgressForPhase(ProgressTracker progressTracker, String phase) {
+        return progressTracker.report().stream().filter(p -> p.getPhase().equals(phase)).findFirst().get().getProgressPercent();
     }
 }

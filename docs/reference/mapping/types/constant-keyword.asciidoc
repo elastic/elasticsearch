@@ -65,6 +65,10 @@ While this behavior can be convenient, note that it means that a single
 poisonous document can cause all other documents to be rejected if it had a
 wrong value.
 
+Before a value has been provided (either through the mappings or from a
+document), queries on the field will not match any documents. This includes
+ <<query-dsl-exists-query,`exists`>> queries.
+
 The `value` of the field cannot be changed after it has been set.
 
 [[constant-keyword-params]]

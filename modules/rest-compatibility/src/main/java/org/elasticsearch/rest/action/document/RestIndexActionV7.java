@@ -41,7 +41,7 @@ public class RestIndexActionV7 {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestIndexAction.class));
 
     private static void logDeprecationMessage() {
-        deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
     }
 
     public static class CompatibleRestIndexAction extends RestIndexAction {

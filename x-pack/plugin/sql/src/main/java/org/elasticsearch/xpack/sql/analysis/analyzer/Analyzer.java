@@ -311,17 +311,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveRefs extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveRefs extends BaseAnalyzeRule {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            // if the children are not resolved, there's no way the node can be resolved
-            if (!plan.childrenResolved()) {
-                return plan;
-            }
-
-            // okay, there's a chance so let's get started
-
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 if (hasStar(p.projections())) {
@@ -491,7 +484,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     // Allow ordinal positioning in order/sort by (quite useful when dealing with aggs)
     // Note that ordering starts at 1
-    private static class ResolveOrdinalInOrderByAndGroupBy extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveOrdinalInOrderByAndGroupBy extends BaseAnalyzeRule {
 
         @Override
         protected boolean skipResolved() {
@@ -499,10 +492,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (!plan.childrenResolved()) {
-                return plan;
-            }
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof OrderBy) {
                 OrderBy orderBy = (OrderBy) plan;
                 boolean changed = false;
@@ -599,7 +589,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // It is valid to filter (including HAVING) or sort by attributes not present in the SELECT clause.
     // This rule pushed down the attributes for them to be resolved then projects them away.
     // As such this rule is an extended version of ResolveRefs
-    private static class ResolveMissingRefs extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveMissingRefs extends BaseAnalyzeRule {
 
         private static class AggGroupingFailure {
             final List<String> expectedGrouping;
@@ -610,9 +600,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-
-            if (plan instanceof OrderBy && !plan.resolved() && plan.childrenResolved()) {
+        protected LogicalPlan doRule(LogicalPlan plan) {
+            if (plan instanceof OrderBy) {
                 OrderBy o = (OrderBy) plan;
                 LogicalPlan child = o.child();
                 List<Order> maybeResolved = new ArrayList<>();
@@ -689,7 +678,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            if (plan instanceof Filter && !plan.resolved() && plan.childrenResolved()) {
+            if (plan instanceof Filter) {
                 Filter f = (Filter) plan;
                 Expression maybeResolved = tryResolveExpression(f.condition(), f.child());
 
@@ -911,33 +900,31 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ResolveAliases extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveAliases extends BaseAnalyzeRule {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan doRule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                if (p.childrenResolved() && hasUnresolvedAliases(p.projections())) {
+                if (hasUnresolvedAliases(p.projections())) {
                     return new Project(p.source(), p.child(), assignAliases(p.projections()));
                 }
                 return p;
             }
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
-                if (a.childrenResolved() && hasUnresolvedAliases(a.aggregates())) {
+                if (hasUnresolvedAliases(a.aggregates())) {
                     return new Aggregate(a.source(), a.child(), a.groupings(), assignAliases(a.aggregates()));
                 }
                 return a;
             }
             if (plan instanceof Pivot) {
                 Pivot p = (Pivot) plan;
-                if (p.childrenResolved()) {
-                    if (hasUnresolvedAliases(p.values())) {
-                        p = new Pivot(p.source(), p.child(), p.column(), assignAliases(p.values()), p.aggregates());
-                    }
-                    if (hasUnresolvedAliases(p.aggregates())) {
-                        p = new Pivot(p.source(), p.child(), p.column(), p.values(), assignAliases(p.aggregates()));
-                    }
+                if (hasUnresolvedAliases(p.values())) {
+                    p = new Pivot(p.source(), p.child(), p.column(), assignAliases(p.values()), p.aggregates());
+                }
+                if (hasUnresolvedAliases(p.aggregates())) {
+                    p = new Pivot(p.source(), p.child(), p.column(), p.values(), assignAliases(p.aggregates()));
                 }
                 return p;
             }
@@ -1311,5 +1298,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected boolean skipResolved() {
             return true;
         }
+    }
+    
+    abstract static class BaseAnalyzeRule extends AnalyzeRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            return doRule(plan);
+        }
+
+        protected abstract LogicalPlan doRule(LogicalPlan plan);
     }
 }

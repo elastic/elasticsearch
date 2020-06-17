@@ -37,7 +37,6 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)

@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -24,6 +26,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     public interface UpdateAction {
         boolean isMinNodeVersionSupported(Version minNodeVersion);
+        boolean isAbleToRun(ClusterState latestState);
         String getName();
         void runUpdate();
     }
@@ -42,6 +45,9 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
         if (event.localNodeMaster() == false) {
             return;
         }
@@ -50,6 +56,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
         final List<UpdateAction> toRun = updateActions.stream()
             .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
+            .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .collect(Collectors.toList());
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(

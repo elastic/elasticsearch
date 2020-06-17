@@ -41,6 +41,10 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
         if (element instanceof MultiBucketAggregatorWrapper) {
             return ((MultiBucketAggregatorWrapper) element).getWrappedClass().getSimpleName();
         }
+        Class<?> enclosing = element.getClass().getEnclosingClass();
+        if (enclosing != null) {
+            return enclosing.getSimpleName() + "." + element.getClass().getSimpleName();
+        }
         return element.getClass().getSimpleName();
     }
 

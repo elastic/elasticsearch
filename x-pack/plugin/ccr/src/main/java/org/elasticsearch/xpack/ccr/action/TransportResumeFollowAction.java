@@ -365,7 +365,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexMetadata.INDEX_PRIORITY_SETTING,
             IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
             IndexMetadata.INDEX_HIDDEN_SETTING,
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
@@ -403,7 +402,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_GC_DELETES_SETTING,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
-            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
             IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
@@ -414,12 +412,10 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -444,6 +440,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_UUID);
+        settings.remove(IndexMetadata.SETTING_HISTORY_UUID);
         settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetadata.SETTING_CREATION_DATE);
 

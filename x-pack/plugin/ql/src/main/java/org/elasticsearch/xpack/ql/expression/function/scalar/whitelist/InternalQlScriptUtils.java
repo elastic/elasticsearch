@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
@@ -142,5 +143,12 @@ public class InternalQlScriptUtils {
 
     public static Number sub(Number left, Number right) {
         return (Number) DefaultBinaryArithmeticOperation.SUB.apply(left, right);
+    }
+
+    //
+    // String
+    //
+    public static Boolean startsWith(String s, String pattern, Boolean isCaseSensitive) {
+        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
     }
 }

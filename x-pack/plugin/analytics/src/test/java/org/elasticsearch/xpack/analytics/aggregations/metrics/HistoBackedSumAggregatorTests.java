@@ -10,15 +10,11 @@ import com.tdunning.math.stats.TDigest;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,6 +34,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -110,27 +107,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalSum> verify) throws IOException {
-        testCase(query, sum("_name").field(FIELD_NAME), indexer, verify, singleton(defaultFieldType(FIELD_NAME)));
-    }
-
-    private void testCase(Query query,
-                          SumAggregationBuilder aggregationBuilder,
-                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<InternalSum> verify,
-                          Collection<MappedFieldType> fieldTypes) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexer.accept(indexWriter);
-            }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalSum internalSum = search(indexSearcher, query, aggregationBuilder, fieldTypesArray);
-                verify.accept(internalSum);
-            }
-        }
+        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
@@ -160,8 +137,8 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         // Note: this is the same list as Core, plus Analytics
         return List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }
@@ -171,9 +148,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         return new SumAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType(String fieldName) {
-        MappedFieldType fieldType = new HistogramFieldMapper.Builder("field").fieldType();
-        fieldType.setName("field");
-        return fieldType;
+    private MappedFieldType defaultFieldType() {
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedSumAggregatorTests.FIELD_NAME, true, Collections.emptyMap());
     }
 }

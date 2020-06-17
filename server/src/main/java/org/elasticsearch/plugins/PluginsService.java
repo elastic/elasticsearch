@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -59,9 +60,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceConfigurationError;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -426,7 +429,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Plugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
-
         for (Bundle bundle : sortedBundles) {
             checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
@@ -434,7 +436,57 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
+        loadExtensions(plugins);
         return Collections.unmodifiableList(plugins);
+    }
+
+    // package-private for test visibility
+    static void loadExtensions(List<Tuple<PluginInfo, Plugin>> plugins) {
+        Map<String, List<Plugin>> extendingPlugins = plugins.stream()
+            .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
+            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+        plugins.stream().filter(t -> t.v2() instanceof ExtensiblePlugin).forEach(t -> loadExtensionsForPlugin((ExtensiblePlugin) t.v2(),
+            extendingPlugins.getOrDefault(t.v1().getName(), List.of())));
+    }
+
+    private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {
+        ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> Stream<T> loadExtensions(Class<T> extensionPointType) {
+                return extendingPlugins.stream().flatMap(plugin -> createExtensions(extensionPointType, plugin));
+            }
+        };
+
+        extensiblePlugin.loadExtensions(extensionLoader);
+    }
+
+    private static <T> Stream<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        List<T> extensions = new ArrayList<>();
+        while (classIterator.hasNext()) {
+            Class<? extends T> extensionClass = classIterator.next();
+            extensions.add(createExtension(extensionClass, plugin, extensionPointType));
+        }
+        return extensions.stream();
+    }
+
+    private static <T> T createExtension(Class<? extends T> extensionClass, Plugin plugin, Class<T> extensionPointType) {
+        try {
+            try {
+                return extensionClass.getConstructor(plugin.getClass()).newInstance(plugin);
+            } catch (NoSuchMethodException e) {
+                try {
+                    return extensionClass.getConstructor().newInstance();
+                } catch (NoSuchMethodException ex) {
+                    ex.addSuppressed(e);
+                    throw ex;
+                }
+            }
+        } catch (Exception e) {
+            throw new ServiceConfigurationError(
+                "failed to load [" + extensionPointType.getName() + "] extension [" + extensionClass.getName() + "]", e
+            );
+        }
     }
 
     // jar-hell check the bundle against the parent classloader and extended plugins
@@ -509,12 +561,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
-        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            // note: already asserted above that extended plugins are loaded and extensible
-            ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).reloadSPI(loader);
-        }
 
         Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
+        if (loader != pluginClass.getClassLoader()) {
+            throw new IllegalStateException("Plugin [" + name + "] must reference a class loader local Plugin class ["
+                + bundle.plugin.getClassname()
+                + "] (class loader [" + pluginClass.getClassLoader() + "])");
+        }
         Plugin plugin = loadPlugin(pluginClass, settings, configPath);
         loaded.put(name, plugin);
         return plugin;

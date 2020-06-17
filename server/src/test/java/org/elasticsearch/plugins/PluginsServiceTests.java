@@ -24,6 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -48,14 +49,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
@@ -689,5 +694,55 @@ public class PluginsServiceTests extends ESTestCase {
                         .put("plugin.mandatory", "fake")
                         .build();
         newPluginsService(settings);
+    }
+
+    public void testExtensiblePlugin() {
+        TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
+        PluginsService.loadExtensions(List.of(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin)
+        ));
+
+        assertThat(extensiblePlugin.extensions, notNullValue());
+        assertThat(extensiblePlugin.extensions, hasSize(0));
+
+        extensiblePlugin = new TestExtensiblePlugin();
+        TestPlugin testPlugin = new TestPlugin();
+        PluginsService.loadExtensions(List.of(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin),
+            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false), testPlugin)
+        ));
+
+        assertThat(extensiblePlugin.extensions, notNullValue());
+        assertThat(extensiblePlugin.extensions, hasSize(2));
+        assertThat(extensiblePlugin.extensions.get(0), instanceOf(TestExtension1.class));
+        assertThat(extensiblePlugin.extensions.get(1), instanceOf(TestExtension2.class));
+        assertThat(((TestExtension2) extensiblePlugin.extensions.get(1)).plugin, sameInstance(testPlugin));
+    }
+
+    private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
+        private List<TestExtensionPoint> extensions;
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            assert extensions == null;
+            extensions = loader.loadExtensions(TestExtensionPoint.class).collect(Collectors.toList());
+        }
+    }
+
+    public static class TestPlugin extends Plugin {
+    }
+
+    public interface TestExtensionPoint {
+    }
+
+    public static class TestExtension1 implements TestExtensionPoint {
+    }
+
+    public static class TestExtension2 implements TestExtensionPoint {
+        public Plugin plugin;
+
+        public TestExtension2(TestPlugin plugin) {
+            this.plugin = plugin;
+        }
     }
 }

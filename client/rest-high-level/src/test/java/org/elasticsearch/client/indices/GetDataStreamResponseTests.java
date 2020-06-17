@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -52,12 +53,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
-    }
-
-    private static GetDataStreamResponse fromXContent(XContentParser parser) throws IOException {
-        parser.nextToken();
-        return GetDataStreamResponse.fromXContent(parser);
+        return new DataStream(dataStreamName, new DataStream.TimestampField(randomAlphaOfLength(10), Map.of()), indices, generation);
     }
 
     @Override

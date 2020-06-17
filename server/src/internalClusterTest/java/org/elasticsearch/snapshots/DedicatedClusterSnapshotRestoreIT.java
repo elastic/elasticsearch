@@ -1388,9 +1388,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             public void clusterChanged(ClusterChangedEvent event) {
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
                 if (snapshotsInProgress != null && snapshotsInProgress.entries().stream()
-                        .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED))
-                abortVisibleFuture.onResponse(null);
-                clusterService.removeListener(this);
+                        .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)) {
+                    abortVisibleFuture.onResponse(null);
+                    clusterService.removeListener(this);
+                }
             }
         });
 

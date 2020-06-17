@@ -516,13 +516,55 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
+    public void testTimestampFieldCustomAttributes() throws Exception {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\",\n" +
+            "          \"format\": \"yyyy-MM\",\n" +
+            "          \"meta\": {\n" +
+            "            \"x\": \"y\"\n" +
+            "          },\n" +
+            "          \"store\": true\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        putComposableIndexTemplate("id1", "logs-foo*", "@timestamp", mapping);
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
+
+        // Change the template to have a different timestamp field
+        putComposableIndexTemplate("id1", "logs-foo*", "@timestamp2");
+
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).actionGet();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
+        assertTrue(rolloverResponse.isRolledOver());
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp", expectedTimestampMapping);
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {
+        assertBackingIndex(backingIndex, timestampFieldPathInMapping, Map.of("type", "date"));
+    }
+
+    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
         GetIndexResponse getIndexResponse =
             client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
-        assertThat(ObjectPath.eval(timestampFieldPathInMapping + ".type", mappings), is("date"));
+        assertThat(ObjectPath.eval(timestampFieldPathInMapping, mappings), is(expectedMapping));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

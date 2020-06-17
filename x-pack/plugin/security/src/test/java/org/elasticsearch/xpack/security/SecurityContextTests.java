@@ -136,24 +136,39 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(original, securityContext.getAuthentication());
     }
 
-    public void testExecuteAfterRewritingAuthenticationForApiKeyBwc() throws IOException {
+    public void testExecuteAfterRewritingAuthenticationShouldRewriteApiKeyMetadataForBwc() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
-            AuthenticationType.API_KEY, Map.of(
+        final Map<String, Object> metadata = Map.of(
             API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
-        ));
+        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
+            AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
-        final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(Map.of("a role", Map.of("cluster", List.of("all"))),
                 authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY));
             assertEquals(Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
                 authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
-            contextAtomicReference.set(originalCtx);
         }, Version.V_7_8_0);
+    }
+
+    public void testExecuteAfterRewritingAuthenticationShouldNotRewriteApiKeyMetadataForOldAuthenticationObject() throws IOException {
+        User user = new User("test", null, new User("authUser"));
+        RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
+        final Map<String, Object> metadata = Map.of(
+            API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
+        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
+        original.writeToContext(threadContext);
+
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertSame(metadata, authentication.getMetadata());
+        }, randomFrom(Version.V_8_0_0, Version.V_7_8_0));
     }
 }

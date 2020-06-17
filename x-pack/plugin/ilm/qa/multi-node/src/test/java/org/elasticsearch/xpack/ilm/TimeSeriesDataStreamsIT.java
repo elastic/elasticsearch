@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -183,6 +184,27 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertThat(settings.get(IndexMetadata.SETTING_BLOCKS_WRITE), equalTo("true"));
         assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
         assertThat(settings.get("index.frozen"), equalTo("true"));
+    }
+
+    public void testForceMergeAction() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(
+            "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
     }
 
     private static Template getTemplate(String policyName) throws IOException {

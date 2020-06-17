@@ -74,7 +74,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).put(new DataStream(dataStreamName, "timestamp",
-                List.of(indexMetadata.getIndex()))).build()
+                org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()))).build()
         ).build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
@@ -100,7 +100,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder()
                 .put(indexMetadata, true)

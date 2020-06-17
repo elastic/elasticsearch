@@ -450,19 +450,19 @@ public class DataStreamIT extends ESIntegTestCase {
         // Index doc that triggers creation of a data stream
         IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo(".ds-logs-foobar-000001"));
-        assertBackingIndex(".ds-logs-foobar-000001", "properties.@timestamp");
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp");
 
         // Rollover data stream
         RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(".ds-logs-foobar-000002"));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
         assertTrue(rolloverResponse.isRolledOver());
-        assertBackingIndex(".ds-logs-foobar-000002", "properties.@timestamp");
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp");
 
         // Index another doc into a data stream
         indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
         indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo(".ds-logs-foobar-000002"));
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
 
         // Change the template to have a different timestamp field
         createIndexTemplate("id1", "logs-foo*", "@timestamp2");
@@ -470,14 +470,14 @@ public class DataStreamIT extends ESIntegTestCase {
         // Rollover again, eventhough there is no mapping in the template, the timestamp field mapping in data stream
         // should be applied in the new backing index
         rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(".ds-logs-foobar-000003"));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
         assertTrue(rolloverResponse.isRolledOver());
-        assertBackingIndex(".ds-logs-foobar-000003", "properties.@timestamp");
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 3), "properties.@timestamp");
 
         // Index another doc into a data stream
         indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
         indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo(".ds-logs-foobar-000003"));
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
@@ -505,12 +505,12 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("event.@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
-        assertBackingIndex(".ds-logs-foobar-000001", "properties.event.properties.@timestamp");
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.event.properties.@timestamp");
 
         RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(".ds-logs-foobar-000002"));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
         assertTrue(rolloverResponse.isRolledOver());
-        assertBackingIndex(".ds-logs-foobar-000002", "properties.event.properties.@timestamp");
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.event.properties.@timestamp");
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();

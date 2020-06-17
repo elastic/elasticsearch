@@ -198,7 +198,7 @@ public class MetadataMappingService {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping",
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",  
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,

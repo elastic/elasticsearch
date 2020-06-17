@@ -23,8 +23,8 @@ addressed directly, data streams are integrated with the
 <<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
 the management of the time series data contained in their backing indices.
 
-A data stream can only be created if the namespace it targets has a component
-template exists with a `data_stream` definition.
+A data stream can only be created if the namespace it targets has a composable
+index template with a `data_stream` definition.
 
 [source,console]
 -----------------------------------

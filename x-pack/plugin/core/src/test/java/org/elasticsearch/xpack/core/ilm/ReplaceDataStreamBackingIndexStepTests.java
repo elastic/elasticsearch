@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
 
@@ -79,7 +80,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("timestamp", Map.of()),
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
                     List.of(sourceIndexMetadata.getIndex()))).build()
         ).build();
 
@@ -107,7 +108,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("timestamp", Map.of()), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .build()
         ).build();
 
@@ -149,7 +150,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("timestamp", Map.of()), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .put(targetIndexMetadata, true)
                 .build()
         ).build();

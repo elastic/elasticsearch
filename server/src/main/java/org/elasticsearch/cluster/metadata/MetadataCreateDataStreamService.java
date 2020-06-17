@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
-    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
+    public static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
         new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
@@ -155,9 +155,6 @@ public class MetadataCreateDataStreamService {
         String fieldName = template.getDataStreamTemplate().getTimestampField();
         Map<String, Object> mapping = firstBackingIndex.mapping().getSourceAsMap();
         Map<String, Object> timeStampFieldMapping = ObjectPath.eval(convertFieldPathToMappingPath(fieldName), mapping);
-        assert timeStampFieldMapping.containsKey("type") : "no type defined for mapping of timestamp_field";
-        assert ALLOWED_TIMESTAMPFIELD_TYPES.contains(timeStampFieldMapping.get("type")) :
-            "invalid type defined for mapping of timestamp_field";
 
         DataStream.TimestampField timestampField = new DataStream.TimestampField(
             fieldName,

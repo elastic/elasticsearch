@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
@@ -101,8 +102,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
                 .put(idx1, false)
                 .put(idx2, false)
-                .put(new DataStream("data-stream1", new DataStream.TimestampField("@timestamp", Map.of()), List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", new DataStream.TimestampField("@timestamp2", Map.of()), List.of(idx2.getIndex())))
+                .put(new DataStream("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
+                .put(new DataStream("data-stream2", createTimestampField("@timestamp2"), List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

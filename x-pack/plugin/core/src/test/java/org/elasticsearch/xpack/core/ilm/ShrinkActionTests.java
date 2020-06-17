@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.ilm.ShrinkAction.getSkipShrinkStepPredicate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -139,7 +140,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("timestamp", Map.of()), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .build()
         ).build();
 
@@ -161,7 +162,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
-                .put(new DataStream(dataStreamName, new DataStream.TimestampField("timestamp", Map.of()), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .build()
         ).build();
 

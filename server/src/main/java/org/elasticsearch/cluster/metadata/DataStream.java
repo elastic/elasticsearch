@@ -38,6 +38,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.ALLOWED_TIMESTAMPFIELD_TYPES;
+
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
@@ -225,6 +227,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         private final Map<String, Object> fieldMapping;
 
         public TimestampField(String name, Map<String, Object> fieldMapping) {
+            assert fieldMapping.containsKey("type") : "no type defined for mapping of timestamp_field";
+            assert ALLOWED_TIMESTAMPFIELD_TYPES.contains(fieldMapping.get("type")) :
+                "invalid type defined for mapping of timestamp_field";
+
             this.name = name;
             this.fieldMapping = fieldMapping;
         }

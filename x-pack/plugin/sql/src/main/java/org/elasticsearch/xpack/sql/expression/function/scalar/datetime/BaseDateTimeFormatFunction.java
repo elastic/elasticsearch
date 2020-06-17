@@ -56,7 +56,7 @@ public abstract class BaseDateTimeFormatFunction extends BinaryDateTimeFunction 
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeFormatPipe(source(), this, timestamp, pattern, zoneId,formatter());
+        return new DateTimeFormatPipe(source(), this, timestamp, pattern, zoneId, formatter());
     }
 
     protected abstract Formatter formatter();

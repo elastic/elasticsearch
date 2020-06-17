@@ -43,7 +43,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
         public String getJavaPattern(final Object pattern) {
             String javaDateFormat = (String) pattern;
-            if (this==FORMAT) {
+            if (this == FORMAT) {
 
                 for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
                     if (javaDateFormat.contains(replacement[0])) {
@@ -89,14 +89,14 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         }
     }
 
-    public DateTimeFormatProcessor(Processor source1, Processor source2, ZoneId zoneId,Formatter formatter) {
+    public DateTimeFormatProcessor(Processor source1, Processor source2, ZoneId zoneId, Formatter formatter) {
         super(source1, source2, zoneId);
-        this.formatter=formatter;
+        this.formatter = formatter;
     }
 
     public DateTimeFormatProcessor(StreamInput in) throws IOException {
         super(in);
-        this.formatter=in.readEnum(Formatter.class);
+        this.formatter = in.readEnum(Formatter.class);
     }
 
     @Override
@@ -113,6 +113,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
     protected Object doProcess(Object timestamp, Object pattern) {
         return this.formatter.format(timestamp, pattern, zoneId());
     }
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), formatter);
@@ -131,7 +132,8 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         DateTimeFormatProcessor other = (DateTimeFormatProcessor) obj;
         return super.equals(other) && Objects.equals(formatter, other.formatter);
     }
-    public Formatter formatter(){
+
+    public Formatter formatter() {
         return formatter;
     }
 }

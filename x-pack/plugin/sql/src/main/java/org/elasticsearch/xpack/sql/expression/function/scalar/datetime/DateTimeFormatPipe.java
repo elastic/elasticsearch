@@ -20,24 +20,24 @@ public class DateTimeFormatPipe extends BinaryDateTimePipe {
 
     private final Formatter formatter;
 
-    public DateTimeFormatPipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId,Formatter formatter) {
+    public DateTimeFormatPipe(Source source, Expression expression, Pipe left, Pipe right, ZoneId zoneId, Formatter formatter) {
         super(source, expression, left, right, zoneId);
-        this.formatter=formatter;
+        this.formatter = formatter;
     }
 
     @Override
     protected NodeInfo<DateTimeFormatPipe> info() {
-        return NodeInfo.create(this, DateTimeFormatPipe::new, expression(), left(), right(), zoneId(),formatter);
+        return NodeInfo.create(this, DateTimeFormatPipe::new, expression(), left(), right(), zoneId(), formatter);
     }
 
     @Override
     protected DateTimeFormatPipe replaceChildren(Pipe left, Pipe right) {
-        return new DateTimeFormatPipe(source(), expression(), left, right, zoneId(),formatter);
+        return new DateTimeFormatPipe(source(), expression(), left, right, zoneId(), formatter);
     }
 
     @Override
     protected Processor makeProcessor(Processor left, Processor right, ZoneId zoneId) {
-        return new DateTimeFormatProcessor(left, right, zoneId,formatter);
+        return new DateTimeFormatProcessor(left, right, zoneId, formatter);
     }
 
     @Override

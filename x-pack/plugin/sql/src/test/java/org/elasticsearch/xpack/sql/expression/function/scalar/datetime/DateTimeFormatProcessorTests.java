@@ -20,9 +20,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.*;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.time;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
@@ -187,10 +185,8 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
 
 
-
-
-         zoneId = ZoneId.of("Etc/GMT-10");
-         dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
+        zoneId = ZoneId.of("Etc/GMT-10");
+        dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
 
         assertEquals("AD : 3", new Format(Source.EMPTY, dateTime, l("G : Q"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("AD", new Format(Source.EMPTY, dateTime, l("g"), zoneId).makePipe().asProcessor().process(null));

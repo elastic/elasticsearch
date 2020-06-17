@@ -31,9 +31,9 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
 
     public static DateTimeFormatPipe randomDateTimeFormatPipe() {
         List<Pipe> functions = new ArrayList<>();
-        functions.add( new DateTimeFormat(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
+        functions.add(new DateTimeFormat(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
             .makePipe());
-        functions.add( new Format(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
+        functions.add(new Format(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
             .makePipe());
         return (DateTimeFormatPipe) randomFrom(functions);
     }
@@ -54,22 +54,22 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
         DateTimeFormatPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateTimeFormatPipeExpression);
-        DateTimeFormatPipe newB = new DateTimeFormatPipe(b1.source(), newExpression, b1.left(), b1.right(), b1.zoneId(),b1.formatter());
+        DateTimeFormatPipe newB = new DateTimeFormatPipe(b1.source(), newExpression, b1.left(), b1.right(), b1.zoneId(), b1.formatter());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
 
         DateTimeFormatPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
-        newB = new DateTimeFormatPipe(newLoc, b2.expression(), b2.left(), b2.right(), b2.zoneId(),b2.formatter());
+        newB = new DateTimeFormatPipe(newLoc, b2.expression(), b2.left(), b2.right(), b2.zoneId(), b2.formatter());
         assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
 
         DateTimeFormatPipe b3 = randomInstance();
         Formatter newFormatter = randomValueOtherThan(b3.formatter(), () -> randomFrom(Formatter.values()));
-        newB = new DateTimeFormatPipe(b3.source(), b3.expression(), b3.left(), b3.right(), b3.zoneId(),newFormatter);
+        newB = new DateTimeFormatPipe(b3.source(), b3.expression(), b3.left(), b3.right(), b3.zoneId(), newFormatter);
         assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.formatter()) ? newFormatter : v, Formatter.class));
 
         DateTimeFormatPipe b4 = randomInstance();
         ZoneId newZI = randomValueOtherThan(b4.zoneId(), ESTestCase::randomZone);
-        newB = new DateTimeFormatPipe(b4.source(), b4.expression(), b4.left(), b4.right(), newZI,b4.formatter());
+        newB = new DateTimeFormatPipe(b4.source(), b4.expression(), b4.left(), b4.right(), newZI, b4.formatter());
         assertEquals(newB, b4.transformPropertiesOnly(v -> Objects.equals(v, b4.zoneId()) ? newZI : v, ZoneId.class));
     }
 
@@ -79,7 +79,7 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), FunctionTestUtils::randomDatetimeLiteral)));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), FunctionTestUtils::randomStringLiteral)));
         ZoneId newZoneId = randomValueOtherThan(b.zoneId(), ESTestCase::randomZone);
-        DateTimeFormatPipe newB = new DateTimeFormatPipe(b.source(), b.expression(), b.left(), b.right(), newZoneId,b.formatter());
+        DateTimeFormatPipe newB = new DateTimeFormatPipe(b.source(), b.expression(), b.left(), b.right(), newZoneId, b.formatter());
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
 
         assertEquals(transformed.left(), newLeft);
@@ -140,7 +140,7 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
                 f.left(),
                 f.right(),
                 f.zoneId(),
-                randomValueOtherThan(f.formatter(), ()-> randomFrom(Formatter.values()))
+                randomValueOtherThan(f.formatter(), () -> randomFrom(Formatter.values()))
             )
         );
 

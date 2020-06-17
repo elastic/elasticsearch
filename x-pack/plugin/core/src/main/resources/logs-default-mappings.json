@@ -1,8 +1,6 @@
 {
   "template": {
     "mappings": {
-      "_meta": {
-      },
       "dynamic_templates": [
         {
           "strings_as_keyword": {
@@ -33,34 +31,6 @@
             }
           }
         },
-        "agent": {
-          "properties": {
-            "hostname": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "name": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "ephemeral_id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "type": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "version": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            }
-          }
-        },
         "ecs": {
           "properties": {
             "version": {
@@ -83,7 +53,8 @@
     }
   },
   "_meta": {
-    "description": "default mappings for the logs index template installed by x-pack"
+    "description": "default mappings for the logs index template installed by x-pack",
+    "managed": true
   },
   "version": ${xpack.stack.template.version}
 }

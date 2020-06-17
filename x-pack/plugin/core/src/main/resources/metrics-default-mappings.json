@@ -1,8 +1,6 @@
 {
   "template": {
     "mappings": {
-      "_meta": {
-      },
       "dynamic_templates": [
         {
           "strings_as_keyword": {
@@ -19,45 +17,17 @@
         "@timestamp": {
           "type": "date"
         },
-        "stream": {
+        "dataset": {
           "properties": {
             "type": {
               "type": "constant_keyword",
               "value": "metrics"
             },
-            "dataset": {
+            "name": {
               "type": "constant_keyword"
             },
             "namespace": {
               "type": "constant_keyword"
-            }
-          }
-        },
-        "agent": {
-          "properties": {
-            "hostname": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "name": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "ephemeral_id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "type": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "version": {
-              "ignore_above": 1024,
-              "type": "keyword"
             }
           }
         },
@@ -71,71 +41,8 @@
         },
         "host": {
           "properties": {
-            "hostname": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "os": {
-              "properties": {
-                "build": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "kernel": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "codename": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "name": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "family": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "version": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "platform": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "full": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            },
             "ip": {
               "type": "ip"
-            },
-            "containerized": {
-              "type": "boolean"
-            },
-            "name": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "type": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "mac": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "architecture": {
-              "ignore_above": 1024,
-              "type": "keyword"
             }
           }
         }
@@ -143,7 +50,8 @@
     }
   },
   "_meta": {
-    "description": "default mappings for the metrics index template installed by x-pack"
+    "description": "default mappings for the metrics index template installed by x-pack",
+    "managed": true
   },
   "version": ${xpack.stack.template.version}
 }

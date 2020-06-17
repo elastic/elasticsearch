@@ -110,13 +110,13 @@ public class DataStreamIT extends ESIntegTestCase {
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("metrics-bar"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("@timestamp2"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp2"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(),
             equalTo(DataStream.getDefaultBackingIndexName("metrics-bar", 1)));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getName(), equalTo("metrics-foo"));
-        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldName(), equalTo("@timestamp1"));
+        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getName(), equalTo("@timestamp1"));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().get(0).getName(),
@@ -281,7 +281,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo(dataStreamName));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(), equalTo(backingIndex));
 
@@ -503,7 +503,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldName(), equalTo("event.@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("event.@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.event.properties.@timestamp");
 

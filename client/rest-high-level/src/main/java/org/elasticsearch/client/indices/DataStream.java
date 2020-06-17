@@ -66,7 +66,7 @@ public final class DataStream {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> {
-            String timeStampField = (String) ((Map<?, ?>) args[1]).get("field_name");
+            String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
             List<String> indices =
                 ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
             return new DataStream((String) args[0], timeStampField, indices, (Long) args[3]);

@@ -207,8 +207,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final class TimestampField implements Writeable, ToXContentObject {
 
-        static ParseField FIELD_NAME_FIELD = new ParseField("field_name");
-        static ParseField FIELD_MAPPING_FIELD = new ParseField("field_mapping");
+        static ParseField NAME_FIELD = new ParseField("name");
+        static ParseField FIELD_MAPPING_FIELD = new ParseField("mapping");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
@@ -217,25 +217,25 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_NAME_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), FIELD_MAPPING_FIELD);
         }
 
-        private final String fieldName;
+        private final String name;
         private final Map<String, Object> fieldMapping;
 
-        public TimestampField(String fieldName, Map<String, Object> fieldMapping) {
-            this.fieldName = fieldName;
+        public TimestampField(String name, Map<String, Object> fieldMapping) {
+            this.name = name;
             this.fieldMapping = fieldMapping;
         }
 
         public TimestampField(StreamInput in) throws IOException {
             // TODO: remove bwc logic when backporting:
             if (in.getVersion().before(Version.V_8_0_0)) {
-                this.fieldName = in.readString();
+                this.name = in.readString();
                 this.fieldMapping = null;
             } else {
-                this.fieldName = in.readString();
+                this.name = in.readString();
                 this.fieldMapping = in.readMap();
             }
         }
@@ -244,9 +244,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         public void writeTo(StreamOutput out) throws IOException {
             // TODO: remove bwc logic when backporting:
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeString(fieldName);
+                out.writeString(name);
             } else {
-                out.writeString(fieldName);
+                out.writeString(name);
                 out.writeMap(fieldMapping);
             }
         }
@@ -254,14 +254,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(FIELD_NAME_FIELD.getPreferredName(), fieldName);
+            builder.field(NAME_FIELD.getPreferredName(), name);
             builder.field(FIELD_MAPPING_FIELD.getPreferredName(), fieldMapping);
             builder.endObject();
             return builder;
         }
 
-        public String getFieldName() {
-            return fieldName;
+        public String getName() {
+            return name;
         }
 
         public Map<String, Object> getFieldMapping() {
@@ -273,13 +273,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TimestampField that = (TimestampField) o;
-            return fieldName.equals(that.fieldName) &&
+            return name.equals(that.name) &&
                 fieldMapping.equals(that.fieldMapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldName, fieldMapping);
+            return Objects.hash(name, fieldMapping);
         }
     }
 }

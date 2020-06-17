@@ -82,7 +82,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
             DataStream server = serverIt.next();
             assertEquals(server.getName(), client.getName());
             assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
-            assertEquals(server.getTimeStampField().getFieldName(), client.getTimeStampField());
+            assertEquals(server.getTimeStampField().getName(), client.getTimeStampField());
             assertEquals(server.getGeneration(), client.getGeneration());
         }
     }

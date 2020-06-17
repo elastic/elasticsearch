@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -69,7 +70,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadContext, client,
+        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
             ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
@@ -98,7 +99,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 // creates the fallback response if the node crashes/restarts in the middle of the request
                                 // TODO: store intermediate results ?
                                 AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -194,7 +195,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
 
         try {
-            store.storeFinalResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                                     exc -> {
                                         Throwable cause = ExceptionsHelper.unwrapCause(exc);

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -52,10 +51,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUpTest() throws Exception {
         super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setName("field");
+        fieldType = new KeywordFieldMapper.KeywordFieldType("field");
     }
 
     public void testEmpty() throws Exception {
@@ -88,7 +84,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), fieldType));
+            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
             indexWriter.addDocument(document);
             document.clear();
         }
@@ -126,7 +122,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
     public void testBucketComparator() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexWriter.addDocument(singleton(new Field("field", "1", fieldType)));
+                indexWriter.addDocument(singleton(new Field("field", "1", KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);

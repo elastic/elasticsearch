@@ -66,6 +66,9 @@ public class FileUtils {
 
     public static List<Path> lsGlob(Path directory, String glob) {
         List<Path> paths = new ArrayList<>();
+        if (Files.exists(directory) == false) {
+            return List.of();
+        }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
 
             for (Path path : stream) {

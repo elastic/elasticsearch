@@ -66,6 +66,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -185,7 +186,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             // re-sort final hits to original order
-            List originalOrder = Arrays.asList(docIds);
+            List originalOrder = Arrays.stream(docIds).boxed().collect(Collectors.toList());
             Comparator<SearchHit> hitsComparator = Comparator.comparing(o -> originalOrder.indexOf(o.docId()));
             Arrays.sort(hits, hitsComparator);
 

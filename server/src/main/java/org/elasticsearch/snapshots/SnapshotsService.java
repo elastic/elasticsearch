@@ -366,21 +366,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
 
-            if (snapshot.userMetadata() != null && snapshot.userMetadata().containsKey(DataStream.DATA_STREAMS_METADATA_FIELD)) {
-                @SuppressWarnings("unchecked")
-                List<String> dataStreamNames = (List<String>) snapshot.userMetadata().get(DataStream.DATA_STREAMS_METADATA_FIELD);
-                Map<String, DataStream> dataStreams = new HashMap<>();
-                for (String dataStreamName : dataStreamNames) {
-                    DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-                    if (dataStream == null) {
-                        assert snapshot.partial() : "Data stream [" + dataStreamName +
-                            "] was deleted during a snapshot but snapshot was not partial.";
-                    } else {
-                        dataStreams.put(dataStreamName, dataStream);
-                    }
+            Map<String, DataStream> dataStreams = new HashMap<>();
+            for (String dataStreamName : snapshot.dataStreams()) {
+                DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+                if (dataStream == null) {
+                    assert snapshot.partial() : "Data stream [" + dataStreamName +
+                        "] was deleted during a snapshot but snapshot was not partial.";
+                } else {
+                    dataStreams.put(dataStreamName, dataStream);
                 }
-                builder.dataStreams(dataStreams);
             }
+            builder.dataStreams(dataStreams);
             metadata = builder.build();
         }
         return metadata;

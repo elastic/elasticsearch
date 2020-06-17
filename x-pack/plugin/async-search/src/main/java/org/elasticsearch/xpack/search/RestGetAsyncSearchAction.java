@@ -9,6 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.util.List;
@@ -33,7 +34,7 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        GetAsyncSearchAction.Request get = new GetAsyncSearchAction.Request(request.param("id"));
+        GetAsyncResultRequest get = new GetAsyncResultRequest(request.param("id"));
         if (request.hasParam("wait_for_completion_timeout")) {
             get.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", get.getWaitForCompletionTimeout()));
         }

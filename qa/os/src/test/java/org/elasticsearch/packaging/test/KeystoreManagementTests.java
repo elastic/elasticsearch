@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -121,7 +120,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     public void test20CreateKeystoreManually() throws Exception {
         rmKeystoreIfExists();
-        createKeystore();
+        createKeystore(null);
 
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
@@ -153,28 +152,27 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchStandardInputPassword(password, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    public void test41WrongKeystorePasswordOnStandardInput() {
+    public void test41WrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchStandardInputPassword("wrong", false);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, false);
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test42KeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
@@ -182,25 +180,24 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchTtyPassword(password, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test43WrongKeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchTtyPassword("wrong", false);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
@@ -215,8 +212,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
@@ -229,8 +225,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
@@ -265,7 +260,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of("wrongpassword"));
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
-            Shell.Result result = runElasticsearchStartCommand(false);
+            Shell.Result result = runElasticsearchStartCommand(null, false, false);
             assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
@@ -388,7 +383,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         return tempDirectory.resolve("elasticsearch.keystore");
     }
 
-    private void createKeystore() throws Exception {
+    /** Create a keystore. Provide a password to password-protect it, otherwise use null */
+    private void createKeystore(String password) throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
@@ -405,6 +401,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        if (password != null) {
+            setKeystorePassword(password);
         }
     }
 

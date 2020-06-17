@@ -33,7 +33,7 @@ dependencies {
   testImplementation 'com.google.guava:guava:18.0'
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 

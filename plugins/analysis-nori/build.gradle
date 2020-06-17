@@ -31,7 +31,6 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search'
   }
 }
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-

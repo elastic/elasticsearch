@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -35,7 +34,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
@@ -70,8 +68,15 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -549,8 +554,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
 
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
-        // Second snapshot runs after the primary node restarted so it should complete successfully
-        assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        assertThat(secondSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
     }
 
     public void testQueuedDeletesWithFailures() throws Exception {
@@ -819,35 +823,36 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "fs", randomRepoPath());
 
+        final String testIndex = "test-idx";
         // Create index on two nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate("test-idx", 2, Settings.builder()
+        assertAcked(prepareCreate(testIndex, 2, Settings.builder()
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_NUMBER_OF_SHARDS, between(2, 10))));
 
-        ensureGreen("test-idx");
+        ensureGreen(testIndex);
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
+            indexDoc(testIndex, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(client().prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> start relocations");
-        allowNodes("test-idx", 1);
+        allowNodes(testIndex, 1);
 
         logger.info("--> wait for relocations to start");
         assertBusy(() -> assertThat(
-                client().admin().cluster().prepareHealth("test-idx").execute().actionGet().getRelocatingShards(), greaterThan(0)),
+                client().admin().cluster().prepareHealth(testIndex).execute().actionGet().getRelocatingShards(), greaterThan(0)),
                 1L, TimeUnit.MINUTES);
 
         logger.info("--> start two snapshots");
         final String snapshotOne = "snap-1";
         final String snapshotTwo = "snap-2";
         final ActionFuture<CreateSnapshotResponse> snapOneResponse = client().admin().cluster()
-                .prepareCreateSnapshot(repoName, snapshotOne).setWaitForCompletion(false).setIndices("test-idx").execute();
+                .prepareCreateSnapshot(repoName, snapshotOne).setWaitForCompletion(false).setIndices(testIndex).execute();
         final ActionFuture<CreateSnapshotResponse> snapTwoResponse = client().admin().cluster()
-                .prepareCreateSnapshot(repoName, snapshotTwo).setWaitForCompletion(false).setIndices("test-idx").execute();
+                .prepareCreateSnapshot(repoName, snapshotTwo).setWaitForCompletion(false).setIndices(testIndex).execute();
 
         snapOneResponse.get();
         snapTwoResponse.get();

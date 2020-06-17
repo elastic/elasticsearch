@@ -578,10 +578,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     statesToUpdate = EnumSet.of(State.STARTED);
                 }
                 ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+
+                // We keep a cache of shards that failed in this map. If we fail a shardId for a given repository because of
+                // a node leaving or shard becoming unassigned for one snapshot, we will also fail it for all subsequent enqueued snapshots
+                // for the same repository
+                final Map<String, Map<ShardId, ShardSnapshotStatus>> knownFailures = new HashMap<>();
+
                 for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                     if (statesToUpdate.contains(snapshot.state())) {
-                        ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
-                                processWaitingShardsAndRemovedNodes(snapshot.shards(), routingTable, nodes);
+                        ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = processWaitingShardsAndRemovedNodes(snapshot.shards(),
+                                routingTable, nodes, knownFailures.computeIfAbsent(snapshot.repository(), k -> new HashMap<>()));
                         if (shards != null) {
                             final SnapshotsInProgress.Entry updatedSnapshot;
                             changed = true;
@@ -649,36 +655,53 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
-            ImmutableOpenMap<ShardId, ShardSnapshotStatus> snapshotShards, RoutingTable routingTable, DiscoveryNodes nodes) {
+            ImmutableOpenMap<ShardId, ShardSnapshotStatus> snapshotShards, RoutingTable routingTable, DiscoveryNodes nodes,
+            Map<ShardId, ShardSnapshotStatus> knownFailures) {
         boolean snapshotChanged = false;
         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshotShards) {
             ShardSnapshotStatus shardStatus = shardEntry.value;
             ShardId shardId = shardEntry.key;
-            if (shardStatus.state() == ShardState.WAITING && shardStatus.nodeId() != null) {
-                IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
-                if (indexShardRoutingTable != null) {
-                    IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
-                    if (shardRouting != null && shardRouting.primaryShard() != null) {
-                        if (shardRouting.primaryShard().started()) {
-                            // Shard that we were waiting for has started on a node, let's process it
-                            snapshotChanged = true;
-                            logger.trace("starting shard that we were waiting for [{}] on node [{}]", shardId, shardStatus.nodeId());
-                            shards.put(shardId,
-                                new ShardSnapshotStatus(shardRouting.primaryShard().currentNodeId(), shardStatus.generation()));
-                            continue;
-                        } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
-                            // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait
-                            shards.put(shardId, shardStatus);
-                            continue;
+            if (shardStatus.state() == ShardState.WAITING) {
+                if (shardStatus.nodeId() == null) {
+                    // this shard snapshot is waiting for a previous snapshot to finish execution for this shard
+                    final ShardSnapshotStatus knownFailure = knownFailures.get(shardId);
+                    if (knownFailure == null) {
+                        // if no failure is known for the shard we keep waiting
+                        shards.put(shardId, shardStatus);
+                    } else {
+                        // If a failure is known for an execution we waited on for this shard then we fail with the same exception here
+                        // as well
+                        snapshotChanged = true;
+                        shards.put(shardId, knownFailure);
+                    }
+                } else {
+                    IndexRoutingTable indexShardRoutingTable = routingTable.index(shardId.getIndex());
+                    if (indexShardRoutingTable != null) {
+                        IndexShardRoutingTable shardRouting = indexShardRoutingTable.shard(shardId.id());
+                        if (shardRouting != null && shardRouting.primaryShard() != null) {
+                            if (shardRouting.primaryShard().started()) {
+                                // Shard that we were waiting for has started on a node, let's process it
+                                snapshotChanged = true;
+                                logger.trace("starting shard that we were waiting for [{}] on node [{}]", shardId, shardStatus.nodeId());
+                                shards.put(shardId,
+                                        new ShardSnapshotStatus(shardRouting.primaryShard().currentNodeId(), shardStatus.generation()));
+                                continue;
+                            } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
+                                // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait
+                                shards.put(shardId, shardStatus);
+                                continue;
+                            }
                         }
                     }
+                    // Shard that we were waiting for went into unassigned state or disappeared - giving up
+                    snapshotChanged = true;
+                    logger.warn("failing snapshot of shard [{}] on unassigned shard [{}]", shardId, shardStatus.nodeId());
+                    final ShardSnapshotStatus failedState = new ShardSnapshotStatus(shardStatus.nodeId(), ShardState.FAILED,
+                            "shard is unassigned", shardStatus.generation());
+                    shards.put(shardId, failedState);
+                    knownFailures.put(shardId, failedState);
                 }
-                // Shard that we were waiting for went into unassigned state or disappeared - giving up
-                snapshotChanged = true;
-                logger.warn("failing snapshot of shard [{}] on unassigned shard [{}]", shardId, shardStatus.nodeId());
-                shards.put(shardId, new ShardSnapshotStatus(
-                    shardStatus.nodeId(), ShardState.FAILED, "shard is unassigned", shardStatus.generation()));
             } else if (shardStatus.state().completed() == false && shardStatus.nodeId() != null) {
                 if (nodes.nodeExists(shardStatus.nodeId())) {
                     shards.put(shardId, shardStatus);
@@ -687,8 +710,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotChanged = true;
                     logger.warn("failing snapshot of shard [{}] on closed node [{}]",
                             shardId, shardStatus.nodeId());
-                    shards.put(shardId,
-                            new ShardSnapshotStatus(shardStatus.nodeId(), ShardState.FAILED, "node shutdown", shardStatus.generation()));
+                    final ShardSnapshotStatus failedState = new ShardSnapshotStatus(shardStatus.nodeId(), ShardState.FAILED,
+                            "node shutdown", shardStatus.generation());
+                    shards.put(shardId, failedState);
+                    knownFailures.put(shardId, failedState);
                 }
             } else {
                 shards.put(shardId, shardStatus);
@@ -1350,9 +1375,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return true;
         }
         for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
-            final ShardState shardState = value.value.state();
-            if (shardState == ShardState.INIT || shardState == ShardState.ABORTED) {
-                // Entry is writing to the repo because it's writing to a shard on a data node
+            if (value.value.isAssigned()) {
+                // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
         }
@@ -1730,9 +1754,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Compute all shard ids that currently have an actively executing snapshot for the given repository.
-     * A shard is defined as actively executing if it either is in a state that may write to the repository
-     * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or is in state {@link ShardState#WAITING} with a concrete non-null
-     * node id assignment (i.e. waiting for a shard relocation/initialization to finish).
      *
      * @param repoName     repository name
      * @param clusterState current cluster state
@@ -1747,9 +1768,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 continue;
             }
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                final ShardState shardState = shard.value.state();
-                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED ||
-                        (shardState == ShardState.WAITING && shard.value.nodeId() != null)) {
+                if (shard.value.isAssigned()) {
                     inProgressShards.add(shard.key);
                 }
             }

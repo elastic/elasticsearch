@@ -408,6 +408,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return reason;
         }
 
+        /**
+         * Checks if this shard snapshot is actively executing.
+         * A shard is defined as actively executing if it either is in a state that may write to the repository
+         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or is in state {@link ShardState#WAITING} with a concrete non-null
+         * node id assignment (i.e. waiting for a shard relocation/initialization to finish).
+         */
+        public boolean isAssigned() {
+            return state == ShardState.INIT || state == ShardState.ABORTED || (state == ShardState.WAITING && nodeId != null);
+        }
+
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
@@ -498,9 +508,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         final Map<String, Set<ShardId>> startedShardsByRepo = new HashMap<>();
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-                final ShardState shardState = shard.value.state();
-                if (shardState == ShardState.INIT || shardState == ShardState.ABORTED ||
-                        (shardState == ShardState.WAITING && shard.value.nodeId() != null)) {
+                if (shard.value.isAssigned()) {
                     assert startedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
                             "Found duplicate shard assignments in " + entries;
                 }

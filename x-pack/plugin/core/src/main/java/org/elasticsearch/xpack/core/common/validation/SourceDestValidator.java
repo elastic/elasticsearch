@@ -65,6 +65,7 @@ public final class SourceDestValidator {
     private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
     private final String nodeName;
     private final String license;
+    private final boolean includeDatastreams;
 
     /*
      * Internal shared context between validators.
@@ -78,6 +79,7 @@ public final class SourceDestValidator {
         private final String dest;
         private final String nodeName;
         private final String license;
+        private final boolean includeDatastreams;
 
         private ValidationException validationException = null;
         private SortedSet<String> resolvedSource = null;
@@ -92,7 +94,8 @@ public final class SourceDestValidator {
             final String[] source,
             final String dest,
             final String nodeName,
-            final String license
+            final String license,
+            final boolean includeDatastreams
         ) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -102,6 +105,7 @@ public final class SourceDestValidator {
             this.dest = dest;
             this.nodeName = nodeName;
             this.license = license;
+            this.includeDatastreams = includeDatastreams;
         }
 
         public ClusterState getState() {
@@ -208,6 +212,7 @@ public final class SourceDestValidator {
                         indexNameExpressionResolver.concreteIndexNames(
                             state,
                             DEFAULT_INDICES_OPTIONS_FOR_VALIDATION,
+                            includeDatastreams,
                             resolvedSource.toArray(new String[0])
                         )
                     )
@@ -244,13 +249,15 @@ public final class SourceDestValidator {
         RemoteClusterService remoteClusterService,
         RemoteClusterLicenseChecker remoteClusterLicenseChecker,
         String nodeName,
-        String license
+        String license,
+        boolean includeDataStreams
     ) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.remoteClusterService = remoteClusterService;
         this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
         this.nodeName = nodeName;
         this.license = license;
+        this.includeDatastreams = includeDataStreams;
     }
 
     /**
@@ -277,7 +284,8 @@ public final class SourceDestValidator {
             source,
             dest,
             nodeName,
-            license
+            license,
+            includeDatastreams
         );
 
         ActionListener<Context> validationListener = ActionListener.wrap(c -> {

@@ -131,7 +131,8 @@ public class TransportStartDataFrameAnalyticsAction
             transportService.getRemoteClusterService(),
             null,
             clusterService.getNodeName(),
-            License.OperationMode.PLATINUM.description()
+            License.OperationMode.PLATINUM.description(),
+            true
         );
     }
 
@@ -572,7 +573,7 @@ public class TransportStartDataFrameAnalyticsAction
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
                                                             IndexNameExpressionResolver resolver,
                                                             String... indexNames) {
-        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
+        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), true, indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
             // This is OK as indices are created on demand

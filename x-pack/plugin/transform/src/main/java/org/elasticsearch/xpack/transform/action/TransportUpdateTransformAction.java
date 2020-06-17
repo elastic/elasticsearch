@@ -148,7 +148,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
-            License.OperationMode.BASIC.description()
+            License.OperationMode.BASIC.description(),
+            true
         );
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -367,6 +368,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             String[] src = indexNameExpressionResolver.concreteIndexNames(
                 clusterState,
                 IndicesOptions.lenientExpandOpen(),
+                true,
                 config.getSource().getIndex()
             );
             // If we are running, we should verify that the destination index exists and create it if it does not

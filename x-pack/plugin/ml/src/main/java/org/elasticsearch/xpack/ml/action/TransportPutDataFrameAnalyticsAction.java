@@ -96,7 +96,8 @@ public class TransportPutDataFrameAnalyticsAction
             transportService.getRemoteClusterService(),
             null,
             clusterService.getNodeName(),
-            License.OperationMode.PLATINUM.description()
+            License.OperationMode.PLATINUM.description(),
+            true
         );
     }
 

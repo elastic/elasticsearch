@@ -6,10 +6,9 @@
 
 package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation;
@@ -33,9 +32,7 @@ public class InternalQlScriptUtils {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
             if (!docValues.isEmpty()) {
-                T value = docValues.get(0);
-                // FIXME temporary workaround until https://github.com/elastic/elasticsearch/issues/58044 gets fixed
-                return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
+                return docValues.get(0);
             }
         }
         return null;

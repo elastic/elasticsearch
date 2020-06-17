@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;

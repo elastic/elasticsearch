@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;

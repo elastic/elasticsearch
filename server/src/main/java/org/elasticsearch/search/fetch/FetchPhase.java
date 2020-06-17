@@ -57,10 +57,10 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -142,21 +142,11 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
-            int[] sortedDocIds = Arrays.copyOfRange(context.docIdsToLoad(), context.docIdsToLoadFrom(), context.docIdsToLoadSize());
+            int[] docIds = Arrays.copyOfRange(context.docIdsToLoad(), context.docIdsToLoadFrom(), context.docIdsToLoadSize());
+            int[] sortedDocIds = docIds.clone();
             Arrays.sort(sortedDocIds);
 
-            // preserve the original order of hits in inverted index
-            Map<Integer, ArrayList<Integer>> docIdToIndex = new HashMap<>();
-            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
-                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-                if (docIdToIndex.get(docId) == null) {
-                    docIdToIndex.put(docId, new ArrayList<>());
-                }
-                docIdToIndex.get(docId).add(index);
-            }
-
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
-            SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
@@ -177,10 +167,7 @@ public class FetchPhase implements SearchPhase {
                         storedToRequestedFields, subReaderContext);
                 }
 
-                sortedHits[index] = searchHit;
-                for (int i = 0; i < docIdToIndex.get(docId).size(); i++) {
-                    hits[docIdToIndex.get(docId).get(i)] = searchHit;
-                }
+                hits[index] = searchHit;
                 hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
                 for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                     fetchSubPhase.hitExecute(context, hitContext);
@@ -191,11 +178,16 @@ public class FetchPhase implements SearchPhase {
             }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, sortedHits);
+                fetchSubPhase.hitsExecute(context, hits);
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
             }
+
+            // re-sort final hits to original order
+            List originalOrder = Arrays.asList(docIds);
+            Comparator<SearchHit> hitsComparator = Comparator.comparing(o -> originalOrder.indexOf(o.docId()));
+            Arrays.sort(hits, hitsComparator);
 
             TotalHits totalHits = context.queryResult().getTotalHits();
             context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));

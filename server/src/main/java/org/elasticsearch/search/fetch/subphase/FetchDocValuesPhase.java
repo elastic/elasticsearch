@@ -39,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;

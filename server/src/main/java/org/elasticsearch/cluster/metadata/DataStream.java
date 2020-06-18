@@ -28,17 +28,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.ALLOWED_TIMESTAMPFIELD_TYPES;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.convertFieldPathToMappingPath;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
@@ -244,6 +247,31 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 this.name = in.readString();
                 this.fieldMapping = in.readMap();
             }
+        }
+
+        /**
+         * Force fully inserts the timestamp field mapping into the provided mapping.
+         * Existing mapping definitions for the timestamp field will be completely overwritten.
+         * Takes into account if the name of the timestamp field is nested.
+         *
+         * @param mappings The mapping to update
+         */
+        public void insertTimestampFieldMapping(Map<String, Object> mappings) {
+            assert mappings.containsKey("_doc");
+
+            String mappingPath = convertFieldPathToMappingPath(name);
+            String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
+            String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
+
+            Map<String, Object> changes = new HashMap<>();
+            Map<String, Object> current = changes;
+            for (String key : parentObjectFieldPath.split("\\.")) {
+                Map<String, Object> map = new HashMap<>();
+                current.put(key, map);
+                current = map;
+            }
+            current.put(leafFieldName, fieldMapping);
+            XContentHelper.update(mappings, changes, false);
         }
 
         @Override

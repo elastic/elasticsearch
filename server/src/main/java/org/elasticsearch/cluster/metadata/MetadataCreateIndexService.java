@@ -498,10 +498,7 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
-                String mappingPath = convertFieldPathToMappingPath(dataStream.getTimeStampField().getName());
-                String parentObjectFieldPath = mappingPath.substring(0, mappingPath.lastIndexOf('.'));
-                Map<String, Object> parentObjectMapper = ObjectPath.eval("_doc." + parentObjectFieldPath, mappings);
-                parentObjectMapper.put(dataStream.getTimeStampField().getName(), dataStream.getTimeStampField().getFieldMapping());
+                dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
             }
         }
 

@@ -419,7 +419,7 @@ ID of the shard associated with the failed operation.
 (string)
 Name of the index associated with the failed operation. If the operation
 targeted a data stream, this is the backing index into which the document was
-written.
+attempted to be written.
 ======
 =====
 ====

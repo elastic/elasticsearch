@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
@@ -42,6 +43,11 @@ public class RestUpdateActionV7 extends RestUpdateAction {
     @Override
     public String getName() {
         return "document_update_action_v7";
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 
     @Override

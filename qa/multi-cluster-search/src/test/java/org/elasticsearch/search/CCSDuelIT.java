@@ -161,6 +161,11 @@ public class CCSDuelIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
     private static void indexDocuments(String idPrefix) throws IOException, InterruptedException {
         //this index with a single document is used to test partial failures
         IndexRequest indexRequest = new IndexRequest(INDEX_NAME + "_err");

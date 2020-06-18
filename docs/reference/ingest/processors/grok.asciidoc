@@ -321,3 +321,23 @@ settings:
 | `ingest.grok.watchdog.interval`           | 1s      | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time.
 | `ingest.grok.watchdog.max_execution_time` | 1s      | The maximum allowed execution of a grok expression evaluation.
 |======
+
+[[grok-debugging]]
+==== Grok debugging
+
+It is advised to use the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] to debug grok patterns. From there you can test one or more
+patterns in the UI against sample data. Under the covers it uses the same engine as ingest node processor.
+
+Additionally, it is recommended to enable debug logging for Grok so that any additional messages may also be seen in the Elasticsearch
+server log.
+
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "logger.org.elasticsearch.ingest.common.GrokProcessor": "debug"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

@@ -26,32 +26,19 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            MissingAggregationBuilder.NAME,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.BYTES,
-                CoreValuesSourceType.GEOPOINT,
-                CoreValuesSourceType.RANGE,
-                CoreValuesSourceType.IP,
-                CoreValuesSourceType.BOOLEAN,
-                CoreValuesSourceType.DATE
-            ),
-            (MissingAggregatorSupplier) MissingAggregator::new
-        );
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MissingAggregatorSupplier) MissingAggregator::new);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -64,24 +51,22 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                                    SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    boolean collectsFromSingleBucket,
-                                                    Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
+            .getAggregator(config, MissingAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((MissingAggregatorSupplier) aggregatorSupplier)
-            .build(name, factories, valuesSource, searchContext, parent, metadata);
+        return ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent, metadata);
     }
 
 }

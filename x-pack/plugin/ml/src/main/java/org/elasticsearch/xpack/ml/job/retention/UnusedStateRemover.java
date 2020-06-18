@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
@@ -58,14 +57,14 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         try {
             List<String> unusedStateDocIds = findUnusedStateDocIds();
             if (isTimedOutSupplier.get()) {
                 listener.onResponse(false);
             } else {
                 if (unusedStateDocIds.size() > 0) {
-                    executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
+                    executeDeleteUnusedStateDocs(unusedStateDocIds, requestsPerSec, listener);
                 } else {
                     listener.onResponse(true);
                 }
@@ -98,22 +97,23 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getJobIds() {
         Set<String> jobIds = new HashSet<>();
-        jobIds.addAll(getAnamalyDetectionJobIds());
+        jobIds.addAll(getAnomalyDetectionJobIds());
         jobIds.addAll(getDataFrameAnalyticsJobIds());
         return jobIds;
     }
 
-    private Set<String> getAnamalyDetectionJobIds() {
+    private Set<String> getAnomalyDetectionJobIds() {
         Set<String> jobIds = new HashSet<>();
 
         // TODO Once at 8.0, we can stop searching for jobs in cluster state
         // and remove cluster service as a member all together.
         jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
 
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        while (jobsIterator.hasNext()) {
-            Deque<Job.Builder> jobs = jobsIterator.next();
-            jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, AnomalyDetectorsIndex.configIndexName(),
+            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        while (iterator.hasNext()) {
+            Deque<String> docIds = iterator.next();
+            docIds.stream().map(Job::extractJobIdFromDocumentId).filter(Objects::nonNull).forEach(jobIds::add);
         }
         return jobIds;
     }
@@ -130,11 +130,13 @@ public class UnusedStateRemover implements MlDataRemover {
         return jobIds;
     }
 
-    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, ActionListener<Boolean> listener) {
+    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete",
                 unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setAbortOnVersionConflict(false)
+            .setRequestsPerSecond(requestsPerSec)
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
 
         // _doc is the most efficient sort order and will also disable scoring

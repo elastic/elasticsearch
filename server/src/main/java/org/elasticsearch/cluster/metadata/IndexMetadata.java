@@ -227,6 +227,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.intSetting("index.priority", 1, 0, Property.Dynamic, Property.IndexScope);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
+    public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
         new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);
@@ -246,11 +247,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-        // this is only setable internally not a registered setting!!
-    public static final String PREFER_V2_TEMPLATES_FLAG = "prefer_v2_templates";
-    public static final String SETTING_PREFER_V2_TEMPLATES = "index." + PREFER_V2_TEMPLATES_FLAG;
-    public static final Setting<Boolean> PREFER_V2_TEMPLATES_SETTING = Setting.boolSetting(SETTING_PREFER_V2_TEMPLATES, true,
-        Property.Dynamic, Property.IndexScope);
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -1085,29 +1081,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
-            Integer maybeNumberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
-            if (maybeNumberOfShards == null) {
-                throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
+            /*
+             * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
+             * on the default values here. Those must have been set upstream.
+             */
+            if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(settings) == false) {
+                throw new IllegalArgumentException("must specify number of shards for index [" + index + "]");
             }
-            int numberOfShards = maybeNumberOfShards;
-            if (numberOfShards <= 0) {
-                throw new IllegalArgumentException("must specify positive number of shards for index [" + index + "]");
-            }
+            final int numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
 
-            Integer maybeNumberOfReplicas = settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null);
-            if (maybeNumberOfReplicas == null) {
-                throw new IllegalArgumentException("must specify numberOfReplicas for index [" + index + "]");
+            if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings) == false) {
+                throw new IllegalArgumentException("must specify number of replicas for index [" + index + "]");
             }
-            int numberOfReplicas = maybeNumberOfReplicas;
-            if (numberOfReplicas < 0) {
-                throw new IllegalArgumentException("must specify non-negative number of replicas for index [" + index + "]");
-            }
+            final int numberOfReplicas = INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {
                 throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
                         + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }
+
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
@@ -1625,5 +1618,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             factor = 1;
         }
         return factor;
+    }
+
+    /**
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
+     * E.g.
+     * - For ".ds-logs-000002" it will return 2
+     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
+     * number
+     */
+    public static int parseIndexNameCounter(String indexName) {
+        int numberIndex = indexName.lastIndexOf("-");
+        if (numberIndex == -1) {
+            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
+        }
+        try {
+            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+                indexName.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
     }
 }

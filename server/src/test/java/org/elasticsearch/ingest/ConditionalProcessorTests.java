@@ -70,6 +70,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
+            "description",
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService,
@@ -90,6 +91,11 @@ public class ConditionalProcessorTests extends ESTestCase {
 
                 @Override
                 public String getTag() {
+                    return null;
+                }
+
+                @Override
+                public String getDescription() {
                     return null;
                 }
             }, relativeTimeProvider);
@@ -158,6 +164,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
                 randomAlphaOfLength(10),
+                "description",
                 new Script(
                         ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                         scriptName, Collections.emptyMap()), scriptService,
@@ -174,6 +181,11 @@ public class ConditionalProcessorTests extends ESTestCase {
 
                     @Override
                     public String getTag() {
+                        return null;
+                    }
+
+                    @Override
+                    public String getDescription() {
                         return null;
                     }
                 }, relativeTimeProvider);
@@ -209,6 +221,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
+            "desription",
             new Script(
                 ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                 scriptName, Collections.emptyMap()), scriptService, null

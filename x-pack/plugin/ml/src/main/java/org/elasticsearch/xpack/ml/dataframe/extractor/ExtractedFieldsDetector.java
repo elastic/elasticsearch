@@ -95,12 +95,6 @@ public class ExtractedFieldsDetector {
         }
         includeAndExcludeFields(fields, fieldSelection);
 
-        if (fields.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
-                Arrays.toString(index),
-                getSupportedTypes());
-        }
-
         return fields;
     }
 

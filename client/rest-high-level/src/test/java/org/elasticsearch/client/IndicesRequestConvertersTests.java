@@ -43,8 +43,11 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
@@ -166,6 +169,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomIndicesOptions(putMappingRequest::indicesOptions,
+            putMappingRequest::indicesOptions, expectedParams);
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
 
@@ -254,6 +259,33 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
+    public void testPutDataStream() {
+        String name = randomAlphaOfLength(10);
+        CreateDataStreamRequest createDataStreamRequest = new CreateDataStreamRequest(name);
+        Request request = IndicesRequestConverters.putDataStream(createDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
+    }
+
+    public void testGetDataStream() {
+        String name = randomAlphaOfLength(10);
+        GetDataStreamRequest getDataStreamRequest = new GetDataStreamRequest(name);
+        Request request = IndicesRequestConverters.getDataStreams(getDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
+    }
+
+    public void testDeleteDataStream() {
+        String name = randomAlphaOfLength(10);
+        DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(name);
+        Request request = IndicesRequestConverters.deleteDataStream(deleteDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
+    }
+
     public void testDeleteIndex() {
         String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indices);
@@ -294,7 +326,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
 
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+        if (CollectionUtils.isEmpty(indicesUnderTest) == false) {
             endpoint.add(String.join(",", indicesUnderTest));
         }
         endpoint.add("_settings");
@@ -307,7 +339,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 }
             }
             getSettingsRequest.names(names);
-            if (names != null && names.length > 0) {
+            if (CollectionUtils.isEmpty(names) == false) {
                 endpoint.add(String.join(",", names));
             }
         }
@@ -873,7 +905,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     public void testReloadAnalyzers() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices != null && indices.length > 0) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             endpoint.add(String.join(",", indices));
         }
         ReloadAnalyzersRequest reloadRequest = new ReloadAnalyzersRequest(indices);

@@ -141,7 +141,6 @@ public class EBrace extends AExpression {
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
                 indexOutput = analyze(indexNode, classNode, semanticScope);
                 indexCast = indexNode.cast(semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
@@ -184,7 +183,6 @@ public class EBrace extends AExpression {
                 semanticScope.putDecoration(indexNode, new TargetType(int.class));
                 indexOutput = analyze(indexNode, classNode, semanticScope);
                 indexCast = indexNode.cast(semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));

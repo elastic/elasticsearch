@@ -1,0 +1,33 @@
+{
+  "indices.get_data_stream":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Returns data streams."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_data_stream/{name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name or wildcard expression of the requested data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    }
+  }
+}

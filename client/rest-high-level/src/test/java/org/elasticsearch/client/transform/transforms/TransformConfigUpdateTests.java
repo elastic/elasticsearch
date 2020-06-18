@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.client.transform.transforms.DestConfigTests.randomDestConfig;
+import static org.elasticsearch.client.transform.transforms.SettingsConfigTests.randomSettingsConfig;
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
 
 public class TransformConfigUpdateTests extends AbstractXContentTestCase<TransformConfigUpdate> {
@@ -42,7 +43,9 @@ public class TransformConfigUpdateTests extends AbstractXContentTestCase<Transfo
             randomBoolean() ? null : randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : randomSettingsConfig()
+        );
     }
 
     public static SyncConfig randomSyncConfig() {

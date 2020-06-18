@@ -39,22 +39,26 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
-import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ResizeRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,6 +70,28 @@ import java.util.Locale;
 final class IndicesRequestConverters {
 
     private IndicesRequestConverters() {}
+
+    static Request putDataStream(CreateDataStreamRequest createDataStreamRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream")
+            .addPathPart(createDataStreamRequest.getName()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request deleteDataStream(DeleteDataStreamRequest deleteDataStreamRequest) {
+        String name = deleteDataStreamRequest.getName();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_data_stream").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        return request;
+    }
+
+    static Request getDataStreams(GetDataStreamRequest dataStreamRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_stream")
+            .addPathPart(dataStreamRequest.getName())
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
         String endpoint = RequestConverters.endpoint(deleteIndexRequest.indices());
@@ -113,9 +139,6 @@ final class IndicesRequestConverters {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
-        if (createIndexRequest.preferV2Templates() != null) {
-            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(createIndexRequest.preferV2Templates()));
-        }
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(createIndexRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -139,6 +162,7 @@ final class IndicesRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(putMappingRequest.indicesOptions());
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -409,7 +433,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request putIndexTemplate(PutIndexTemplateV2Request putIndexTemplateRequest) throws IOException {
+    static Request putIndexTemplate(PutComposableIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_index_template")
             .addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -423,6 +447,27 @@ final class IndicesRequestConverters {
         }
         request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_index_template", "_simulate_index")
+            .addPathPart(simulateIndexTemplateRequest.indexName()).build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(simulateIndexTemplateRequest.masterNodeTimeout());
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest = simulateIndexTemplateRequest.indexTemplateV2Request();
+        if (putComposableIndexTemplateRequest != null) {
+            if (putComposableIndexTemplateRequest.create()) {
+                params.putParam("create", Boolean.TRUE.toString());
+            }
+            if (Strings.hasText(putComposableIndexTemplateRequest.cause())) {
+                params.putParam("cause", putComposableIndexTemplateRequest.cause());
+            }
+            request.setEntity(RequestConverters.createEntity(putComposableIndexTemplateRequest,
+                RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -465,7 +510,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request getIndexTemplates(GetIndexTemplateV2Request getIndexTemplatesRequest) {
+    static Request getIndexTemplates(GetComposableIndexTemplateRequest getIndexTemplatesRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_index_template")
             .addPathPart(getIndexTemplatesRequest.name())
@@ -491,7 +536,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request templatesExist(IndexTemplateV2ExistRequest indexTemplatesExistRequest) {
+    static Request templatesExist(ComposableIndexTemplateExistRequest indexTemplatesExistRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_index_template")
             .addPathPart(indexTemplatesExistRequest.name())
@@ -550,7 +595,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request deleteIndexTemplate(DeleteIndexTemplateV2Request deleteIndexTemplateRequest) {
+    static Request deleteIndexTemplate(DeleteComposableIndexTemplateRequest deleteIndexTemplateRequest) {
         String name = deleteIndexTemplateRequest.getName();
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_index_template").addPathPart(name).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);

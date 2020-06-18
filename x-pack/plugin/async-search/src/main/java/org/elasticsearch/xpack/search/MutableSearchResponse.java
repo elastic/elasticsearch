@@ -9,13 +9,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -25,9 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
-import static org.elasticsearch.search.aggregations.InternalAggregations.topLevelReduce;
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreResponseHeadersContext;
 
 /**
@@ -41,13 +36,25 @@ class MutableSearchResponse {
     private final int skippedShards;
     private final Clusters clusters;
     private final AtomicArray<ShardSearchFailure> shardFailures;
-    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
-    private boolean isFinalReduce;
     private int successfulShards;
-    private SearchResponseSections sections;
+    private TotalHits totalHits;
+    /**
+     * How we get the reduced aggs when {@link #finalResponse} isn't populated.
+     * We default to returning no aggs, this {@code -> null}. We'll replace
+     * this as we receive updates on the search progress listener.
+     */
+    private Supplier<InternalAggregations> reducedAggsSource = () -> null;
+    private int reducePhase;
+    /**
+     * The response produced by the search API. Once we receive it we stop
+     * building our own {@linkplain SearchResponse}s when get async search
+     * is called, and instead return this.
+     * @see #findOrBuildResponse(AsyncSearchTask)
+     */
+    private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
@@ -59,56 +66,56 @@ class MutableSearchResponse {
      * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
      * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
      * @param clusters The remote clusters statistics.
-     * @param aggReduceContextSupplier A supplier to run final reduce on partial aggregations.
      * @param threadContext The thread context to retrieve the final response headers.
      */
     MutableSearchResponse(int totalShards,
                           int skippedShards,
                           Clusters clusters,
-                          Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier,
                           ThreadContext threadContext) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
         this.clusters = clusters;
-        this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
-        this.sections = totalShards == -1 ? null : new InternalSearchResponse(
-            new SearchHits(SearchHits.EMPTY, new TotalHits(0, GREATER_THAN_OR_EQUAL_TO), Float.NaN),
-            null, null, null, false, null, 0);
+        this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     }
 
     /**
-     * Updates the response with the partial {@link SearchResponseSections} merged from #<code>successfulShards</code>
-     * shards.
+     * Updates the response with the result of a partial reduction.
+     * @param reducedAggs is a strategy for producing the reduced aggs
      */
-    synchronized void updatePartialResponse(int successfulShards, SearchResponseSections newSections, boolean isFinalReduce) {
+    synchronized void updatePartialResponse(int successfulShards, TotalHits totalHits,
+            Supplier<InternalAggregations> reducedAggs, int reducePhase) {
         failIfFrozen();
-        if (newSections.getNumReducePhases() < sections.getNumReducePhases()) {
+        if (reducePhase < this.reducePhase) {
             // should never happen since partial response are updated under a lock
             // in the search phase controller
             throw new IllegalStateException("received partial response out of order: "
-                + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
+                + reducePhase + " < " + this.reducePhase);
         }
-        this.successfulShards = successfulShards;
-        this.sections = newSections;
-        this.isPartial = true;
-        this.isFinalReduce = isFinalReduce;
+        //when we get partial results skipped shards are not included in the provided number of successful shards
+        this.successfulShards = successfulShards + skippedShards;
+        this.totalHits = totalHits;
+        this.reducedAggsSource = reducedAggs;
+        this.reducePhase = reducePhase;
     }
 
     /**
-     * Updates the response with the final {@link SearchResponseSections} merged from #<code>successfulShards</code>
-     * shards.
+     * Updates the response with the final {@link SearchResponse} once the
+     * search is complete.
      */
-    synchronized void updateFinalResponse(int successfulShards, SearchResponseSections newSections) {
+    synchronized void updateFinalResponse(SearchResponse response) {
         failIfFrozen();
+        assert response.getTotalShards() == totalShards : "received number of total shards differs from the one " +
+            "notified through onListShards";
+        assert response.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
+            "notified through onListShards";
+        assert response.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
-        this.successfulShards = successfulShards;
-        this.sections = newSections;
+        this.finalResponse = response;
         this.isPartial = false;
-        this.isFinalReduce = true;
         this.frozen = true;
     }
 
@@ -120,8 +127,20 @@ class MutableSearchResponse {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
+        //note that when search fails, we may have gotten partial results before the failure. In that case async
+        // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
-        this.failure = ElasticsearchException.guessRootCauses(exc)[0];
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(exc);
+        if (rootCauses == null || rootCauses.length == 0) {
+            this.failure = new ElasticsearchException(exc.getMessage(), exc) {
+                @Override
+                protected String getExceptionName() {
+                    return getExceptionName(getCause());
+                }
+            };
+        } else {
+            this.failure = rootCauses[0];
+        }
         this.frozen = true;
     }
 
@@ -141,23 +160,33 @@ class MutableSearchResponse {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      */
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
-        final SearchResponse resp;
-        if (totalShards != -1) {
-            if (sections.aggregations() != null && isFinalReduce == false) {
-                InternalAggregations oldAggs = (InternalAggregations) sections.aggregations();
-                InternalAggregations newAggs = topLevelReduce(singletonList(oldAggs), aggReduceContextSupplier.get());
-                sections = new InternalSearchResponse(sections.hits(), newAggs, sections.suggest(),
-                    null, sections.timedOut(), sections.terminatedEarly(), sections.getNumReducePhases());
-                isFinalReduce = true;
-            }
-            long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
-            resp = new SearchResponse(sections, null, totalShards, successfulShards,
-                skippedShards, tookInMillis, buildShardFailures(), clusters);
-        } else {
-            resp = null;
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), findOrBuildResponse(task),
+                failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
+    }
+
+    private SearchResponse findOrBuildResponse(AsyncSearchTask task) {
+        if (finalResponse != null) {
+            // We have a final response, use it.
+            return finalResponse;
         }
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), resp, failure, isPartial,
-            frozen == false, task.getStartTime(), expirationTime);
+        if (clusters == null) {
+            // An error occurred before we got the shard list
+            return null;
+        }
+        /*
+         * Build the response, reducing aggs if we haven't already and
+         * storing the result of the reduction so we won't have to reduce
+         * the same aggregation results a second time if nothing has changed.
+         * This does cost memory because we have a reference to the finally
+         * reduced aggs sitting around which can't be GCed until we get an update.
+         */
+        InternalAggregations reducedAggs = reducedAggsSource.get();
+        reducedAggsSource = () -> reducedAggs;
+        InternalSearchResponse internal = new InternalSearchResponse(
+            new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
+        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
+        return new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
+                tookInMillis, buildShardFailures(), clusters);
     }
 
     /**
@@ -171,8 +200,6 @@ class MutableSearchResponse {
         }
         return resp;
     }
-
-
 
     private void failIfFrozen() {
         if (frozen) {

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.document.FieldType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 
@@ -33,7 +34,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
-        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                ParserContext parserContext) throws MapperParsingException;
 
         /**
@@ -45,14 +46,24 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @SuppressWarnings("rawtypes")
-    public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
-            super(name, fieldType, defaultFieldType);
+    public abstract static class Builder<T extends Builder<T>> extends FieldMapper.Builder<T> {
+        public Builder(String name, FieldType fieldType) {
+            super(name, fieldType);
         }
+
+        @Override
+        public T index(boolean index) {
+            if (index == false) {
+                throw new IllegalArgumentException("Metadata fields must be indexed");
+            }
+            return builder;
+        }
+
+        public abstract MetadataFieldMapper build(BuilderContext context);
     }
 
-    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+    protected MetadataFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
     /**
@@ -68,7 +79,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public MetadataFieldMapper merge(Mapper mergeWith) {
-        return (MetadataFieldMapper) super.merge(mergeWith);
-    }
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) { }
+
 }

@@ -68,7 +68,6 @@
   - do:
       cat.thread_pool:
           thread_pool_patterns: write,search
-          size: ""
 
   - match:
       $body: |

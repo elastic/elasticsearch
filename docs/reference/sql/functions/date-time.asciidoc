@@ -469,9 +469,6 @@ format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
 If any of the two arguments is `null` or an empty string `null` is returned.
 
-[NOTE]
-If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will
-be in `UTC` timezone.
 
 [NOTE]
 If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
@@ -486,6 +483,68 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse1]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
 --------------------------------------------------
+
+[NOTE]
+====
+If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
+time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse3]
+--------------------------------------------------
+====
+
+[[sql-functions-datetime-timeparse]]
+==== `TIME_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TIME_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> time expression as a string
+<2> parsing pattern
+
+*Output*: time
+
+*Description*: Returns a time by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string `null` is returned.
+
+[NOTE]
+If the parsing pattern contains only date units (e.g. 'dd/MM/uuuu') an error is returned
+as the function needs to return a value of `time` type which will contain only time.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse1]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
+--------------------------------------------------
+
+[NOTE]
+====
+If timezone is not specified in the time string expression and the parsing pattern, 
+the resulting `time` will have the offset of the time zone specified by the user through the
+ <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver 
+parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse3]
+--------------------------------------------------
+====
 
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`

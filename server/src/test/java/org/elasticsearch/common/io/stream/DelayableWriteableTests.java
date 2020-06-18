@@ -159,7 +159,7 @@ public class DelayableWriteableTests extends ESTestCase {
     public void testSerializesWithRemoteVersion() throws IOException {
         Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
-        assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).get().version, equalTo(remoteVersion));
+        assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
     }
 
     public void testAsSerializedIsNoopOnSerialized() throws IOException {
@@ -172,7 +172,7 @@ public class DelayableWriteableTests extends ESTestCase {
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
         DelayableWriteable<T> roundTripped = roundTrip(original, reader, Version.CURRENT);
         assertTrue(roundTripped.isSerialized());
-        assertThat(roundTripped.get(), equalTo(original.get()));
+        assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
     private <T extends Writeable> DelayableWriteable<T> roundTrip(DelayableWriteable<T> original,

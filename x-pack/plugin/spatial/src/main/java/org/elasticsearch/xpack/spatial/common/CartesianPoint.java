@@ -25,19 +25,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
 /**
  * Represents a point in the cartesian space.
  */
-public final class CartesianPoint implements ToXContentFragment {
+public class CartesianPoint implements ToXContentFragment {
 
     private static final ParseField X_FIELD = new ParseField("x");
     private static final ParseField Y_FIELD = new ParseField("y");
     private static final ParseField Z_FIELD = new ParseField("z");
 
-    private float x;
-    private float y;
+    protected float x;
+    protected float y;
 
     public CartesianPoint() {
     }
@@ -267,12 +267,16 @@ public final class CartesianPoint implements ToXContentFragment {
     }
 
     public static CartesianPoint parsePoint(Object value, boolean ignoreZValue) throws ElasticsearchParseException {
+        return parsePoint(value, new CartesianPoint(), ignoreZValue);
+    }
+
+    public static CartesianPoint parsePoint(Object value, CartesianPoint point, boolean ignoreZValue) throws ElasticsearchParseException {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
             Collections.singletonMap("null_value", value), null)) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return parsePoint(parser, new CartesianPoint(), ignoreZValue);
+            return parsePoint(parser, point, ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing point", ex);
         }

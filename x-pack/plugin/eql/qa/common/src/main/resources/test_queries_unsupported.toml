@@ -12,14 +12,18 @@
 # query = 'process where serial_event_id = 1'
 # expected_event_ids  = [1]
 
+
+# fails because of string check - msbuild does not match MSBuild
+[[queries]]
+query = '''
+sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
+expected_event_ids  = [75273, 75304]
+description = "test that process sequences are working correctly"
+
+
 [[queries]]
 query = 'process where true | head 6'
 expected_event_ids  = [1, 2, 3, 4, 5, 6]
-
-# presently not supported, throwing: org.elasticsearch.xpack.ql.rule.RuleExecutionException: Does not know how to handle a local relation
-[[queries]]
-query = 'process where false'
-expected_event_ids = []
 
 [[queries]]
 expected_event_ids = []
@@ -237,37 +241,6 @@ process where true
 [[queries]]
 query = '''
 sequence
-  [process where serial_event_id = 1]
-  [process where serial_event_id = 2]
-'''
-expected_event_ids  = [1, 2]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id = 5]
-'''
-expected_event_ids  = [4, 5]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id=1] by unique_pid
-  [process where true] by unique_ppid'''
-expected_event_ids  = [1, 2]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid
-  [process where true] by unique_ppid
-'''
-expected_event_ids  = [1, 2, 2, 3]
-
-[[queries]]
-query = '''
-sequence
   [process where serial_event_id<3] by unique_pid * 2
   [process where true] by unique_ppid * 2
 '''
@@ -348,22 +321,6 @@ sequence with maxspan=0.5s
 | head 4
 | tail 2'''
 expected_event_ids = []
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id < 5]
-'''
-expected_event_ids  = [1, 2, 2, 3, 3, 4]
-
-[[queries]]
-query = '''
-sequence
-  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
-  [process where opcode == 1] by unique_ppid
-'''
-expected_event_ids  = [55, 56]
 
 [[queries]]
 query = '''
@@ -581,30 +538,6 @@ expected_event_ids  = [55, 95]
 [[queries]]
 query = 'process where event of [process where process_name = "python.exe" ]'
 expected_event_ids  = [48, 50, 51, 54, 93]
-
-[[queries]]
-query = '''
-sequence
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by user_name
-  [file where file_name="lsass.exe"] by file_path, process_path
-  [process where true] by process_path, parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by pid
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids = []
 
 [[queries]]
 query = '''
@@ -826,47 +759,19 @@ expected_event_ids = []
 description = "check built-in string functions"
 
 [[queries]]
-query = '''
-process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82]
+query = "file where serial_event_id / 2 == 41"
 
 [[queries]]
-query = '''
-process where subtract(serial_event_id, -5) == 6'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
-
-[[queries]]
-query = '''
-process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5'''
-expected_event_ids  = [5]
-description = "test built-in math functions"
-
-[[queries]]
+# Error: Line 1:42: Comparisons against fields are not (currently) supported; offender [serial_event_id] in [==]
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]
 description = "test built-in math functions"
 
-[[queries]]
-query = '''
-process where serial_event_id == number('5')'''
-expected_event_ids  = [5]
-description = "test string/number conversions"
 
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('0x32', 16)'''
-
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('32', 16)'''
-
+# this should be removed and the number function should be updated to take only strings
 [[queries]]
 query = '''
 process where number(serial_event_id) == number(5)'''
@@ -886,12 +791,6 @@ process where process_name != original_file_name
 | filter length(original_file_name) > 0'''
 expected_event_ids = []
 description = "check that case insensitive comparisons are performed for fields."
-
-[[queries]]
-query = '''
-sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
-expected_event_ids  = [75273, 75304]
-description = "test that process sequences are working correctly"
 
 [[queries]]
 expected_event_ids  = [57]
@@ -1001,26 +900,6 @@ expected_event_ids  = [57]
 query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id - 1 == 81"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id + 1 == 83"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id * 2 == 164"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id / 2 == 41"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id % 40 == 2"
 
 # The following two "between" queries behave slightly different with elasticsearch
 # due to comparison on keyword field would be case-sensitive and would need to be

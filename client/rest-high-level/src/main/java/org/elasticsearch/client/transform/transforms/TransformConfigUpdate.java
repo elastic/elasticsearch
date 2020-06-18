@@ -39,18 +39,21 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class TransformConfigUpdate implements ToXContentObject {
 
     public static final String NAME = "transform_config_update";
-    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
         false,
         (args) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
-            TimeValue frequency = args[2] == null ?
-                null :
-                TimeValue.parseTimeValue((String) args[2], TransformConfig.FREQUENCY.getPreferredName());
+            TimeValue frequency = args[2] == null
+                ? null
+                : TimeValue.parseTimeValue((String) args[2], TransformConfig.FREQUENCY.getPreferredName());
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description);
-        });
+            SettingsConfig settings = (SettingsConfig) args[5];
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
+        }
+    );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.PARSER.apply(p, null), TransformConfig.SOURCE);
@@ -58,6 +61,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), TransformConfig.FREQUENCY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), TransformConfig.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformConfig.DESCRIPTION);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), TransformConfig.SETTINGS);
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
@@ -73,17 +77,22 @@ public class TransformConfigUpdate implements ToXContentObject {
     private final TimeValue frequency;
     private final SyncConfig syncConfig;
     private final String description;
+    private final SettingsConfig settings;
 
-    public TransformConfigUpdate(final SourceConfig source,
-                                 final DestConfig dest,
-                                 final TimeValue frequency,
-                                 final SyncConfig syncConfig,
-                                 final String description) {
+    public TransformConfigUpdate(
+        final SourceConfig source,
+        final DestConfig dest,
+        final TimeValue frequency,
+        final SyncConfig syncConfig,
+        final String description,
+        final SettingsConfig settings
+    ) {
         this.source = source;
         this.dest = dest;
         this.frequency = frequency;
         this.syncConfig = syncConfig;
         this.description = description;
+        this.settings = settings;
     }
 
     public SourceConfig getSource() {
@@ -107,6 +116,11 @@ public class TransformConfigUpdate implements ToXContentObject {
         return description;
     }
 
+    @Nullable
+    public SettingsConfig getSettings() {
+        return settings;
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
@@ -127,6 +141,10 @@ public class TransformConfigUpdate implements ToXContentObject {
         if (description != null) {
             builder.field(TransformConfig.DESCRIPTION.getPreferredName(), description);
         }
+        if (settings != null) {
+            builder.field(TransformConfig.SETTINGS.getPreferredName(), settings);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -147,12 +165,13 @@ public class TransformConfigUpdate implements ToXContentObject {
             && Objects.equals(this.dest, that.dest)
             && Objects.equals(this.frequency, that.frequency)
             && Objects.equals(this.syncConfig, that.syncConfig)
-            && Objects.equals(this.description, that.description);
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.settings, that.settings);
     }
 
     @Override
-    public int hashCode(){
-        return Objects.hash(source, dest, frequency, syncConfig, description);
+    public int hashCode() {
+        return Objects.hash(source, dest, frequency, syncConfig, description, settings);
     }
 
     @Override
@@ -175,6 +194,7 @@ public class TransformConfigUpdate implements ToXContentObject {
         private TimeValue frequency;
         private SyncConfig syncConfig;
         private String description;
+        private SettingsConfig settings;
 
         public Builder setSource(SourceConfig source) {
             this.source = source;
@@ -201,8 +221,13 @@ public class TransformConfigUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setSettings(SettingsConfig settings) {
+            this.settings = settings;
+            return this;
+        }
+
         public TransformConfigUpdate build() {
-            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description);
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description, settings);
         }
     }
 }

@@ -28,12 +28,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 
 `xpack.monitoring.enabled`::
 deprecated:[7.8.0,Basic License features should always be enabled] +
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
-+
---
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled`
-to `true`. Its default value is `false`.
---
+This deprecated setting has no effect.
 
 [float]
 [[monitoring-collection-settings]]
@@ -248,7 +243,7 @@ anything defined here.
 `index.name.time_format`::
 
 A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
-The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+The default value is `yyyy.MM.dd`, which is why the indices are created daily.
 
 `use_ingest`::
 
@@ -266,10 +261,10 @@ cluster alerts are not displayed.
 `cluster_alerts.management.blacklist`::
 
 Prevents the creation of specific cluster alerts. It also removes any applicable
-watches that already exist in the current cluster. +
+watches that already exist in the current cluster.
 +
 --
-You can add any of the following watch identifiers to the blacklist:
+You can add any of the following watch identifiers to the list of blocked alerts:
 
 * `elasticsearch_cluster_status`
 * `elasticsearch_version_mismatch`

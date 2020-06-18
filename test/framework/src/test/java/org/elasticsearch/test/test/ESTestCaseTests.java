@@ -188,7 +188,7 @@ public class ESTestCaseTests extends ESTestCase {
 
         assertThat(ESTestCase.TEST_WORKER_VM_ID, not(equals(ESTestCase.DEFAULT_TEST_WORKER_ID)));
     }
-    
+
     public void testBasePortGradle() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
         // Gradle worker IDs are 1 based

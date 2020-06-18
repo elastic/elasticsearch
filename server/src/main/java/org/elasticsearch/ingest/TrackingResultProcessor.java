@@ -118,6 +118,11 @@ public final class TrackingResultProcessor implements Processor {
         return actualProcessor.getTag();
     }
 
+    @Override
+    public String getDescription() {
+        return actualProcessor.getDescription();
+    }
+
     public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, ConditionalProcessor parentCondition,
                                              List<SimulateProcessorResult> processorResultList) {
         List<Processor> processors = new ArrayList<>();

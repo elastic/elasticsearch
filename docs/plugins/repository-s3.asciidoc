@@ -438,7 +438,7 @@ create the bucket then the repository registration will fail.
 [float]
 ==== AWS VPC Bandwidth Settings
 
-AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
+AWS instances typically resolve S3 endpoints to a public IP. If the Elasticsearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will
 go through that VPC's NAT instance. If your VPC's NAT instance is a smaller
 instance size (e.g. a t1.micro) or is handling a high volume of network traffic
@@ -447,3 +447,9 @@ limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
+Note that Amazon has published instructions at 
+https://docs.aws.amazon.com/cli/latest/reference/ec2/create-vpc-endpoint.html
+that permit you to create a gateway endpoint that will expose access to S3 to 
+endpoints within subnets within your VPC, which will ameliorate the network 
+costs of backing up and restoring to Amazon S3.

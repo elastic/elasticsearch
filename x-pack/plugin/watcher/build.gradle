@@ -17,9 +17,8 @@ ext.compactProfile = 'full'
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
-  ignoreSha 'x-pack-core'
 }
 
 dependencies {

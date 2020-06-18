@@ -72,7 +72,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /google-cloud-.*/, to: 'google-cloud'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'

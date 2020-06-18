@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -60,13 +61,17 @@ import java.util.Map;
  */
 public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     public static final String CONTENT_TYPE = "geo_shape";
+    public static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+    }
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeWithDocValuesFieldType> {
 
         private boolean docValuesSet = false;
 
         public Builder(String name) {
-            super (name, new FieldType());
+            super (name, FIELD_TYPE);
             this.hasDocValues = true;
         }
 

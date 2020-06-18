@@ -144,11 +144,17 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             // TODO Avoid the blocking wait
             latch.await();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException("Inference aggregation interrupted loading model", e);
         }
 
-        if (error.get() != null) {
-            throw new RuntimeException(error.get());
+        Exception e = error.get();
+        if (e != null) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException)e;
+            } else {
+                throw new RuntimeException(error.get());
+            }
         }
 
         InferenceConfigUpdate update;

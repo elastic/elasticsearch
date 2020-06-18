@@ -37,7 +37,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
     private Model model;
 
     public InferencePipelineAggregator(String name, Map<String,
-                                       String> bucketPathMap, Map<String, Object> metaData,
+                                       String> bucketPathMap,
+                                       Map<String, Object> metaData,
                                        InferenceConfigUpdate configUpdate,
                                        Model model) {
         super(name, bucketPathMap.values().toArray(new String[] {}), metaData);

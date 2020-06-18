@@ -50,10 +50,9 @@ public class LocalModel implements Model {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
-        this.statsAccumulator = new InferenceStats.Accumulator(modelId, nodeId);
         // the ctor being called means a new instance was created.
         // Consequently, it was not loaded from cache and on stats persist we should increment accordingly.
-        this.statsAccumulator.incCacheMiss();
+        this.statsAccumulator = new InferenceStats.Accumulator(modelId, nodeId, 1L);
         this.trainedModelStatsService = trainedModelStatsService;
         this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
         this.currentInferenceCount = new LongAdder();

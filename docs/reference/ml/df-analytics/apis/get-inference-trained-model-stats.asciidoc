@@ -67,14 +67,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
-
-[[ml-get-inference-stats-response-codes]]
-==== {api-response-codes-title}
-
-`404` (Missing resources)::
-  If `allow_no_match` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request.
-
 [role="child_attributes"]
 [[ml-get-inference-stats-results]]
 ==== {api-response-body-title}
@@ -82,7 +74,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 `count`::
 (integer)
 The total number of trained model statistics that matched the requested ID patterns.
-Could be higher than the number of items in the `trained_model_stats` array.
+Could be higher than the number of items in the `trained_model_stats` array as they
+size of the array is restricted by the supplied `size` parameter.
 
 `trained_model_stats`::
 (array)
@@ -98,7 +91,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `pipeline_count`:::
 (integer)
-How many ingest pipelines currently refer to the model.
+The number of ingest pipelines that currently refer to the model.
 
 `inference_stats`:::
 (object)
@@ -110,32 +103,45 @@ A collection of inference stats fields.
 
 `missing_all_fields_count`:::
 (integer)
-How many inference calls were missing all their features
+The number of inference calls where all the training features for the model
+were missing.
 
 `inference_count`:::
 (integer)
-How many times inference were called
+The total number of times the model has been called for inference.
+This is accross all inference contexts, including all pipelines.
 
 `cache_miss_count`:::
 (integer)
-How many times the model was loaded for inference and NOT from
-cache.
+The number of times the model was loaded for inference and was not retrieved from the
+cache. If this number is close to the `inference_count`, then the cache
+is not being appropriately used. This can be remedied by increasing the cache's size
+or its time-to-live (TTL). See <<ML Settings, general-ml-settings>> for the
+appropriate settings.
 
 `failure_count`:::
 (integer)
-The count of failures when the using the model for inference
+The number of failures when the using the model for inference
 
 `timestamp`:::
 (<<time-units,time units>>)
-When these stats were last gathered.
+The time when the statistics were last updated.
 =====
 
 `ingest`:::
 (object)
-A collection of ingest stats for the model. See the `ingest` section in
-<<cluster-nodes-stats,Nodes Stats>> for definition.
+A collection of ingest stats for the model accross all nodes. The values are
+summations of the individual node statistics. The format matches the `ingest`
+section in <<cluster-nodes-stats,Nodes Stats>>.
 
 ====
+
+[[ml-get-inference-stats-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-inference-stats-example]]
 ==== {api-examples-title}

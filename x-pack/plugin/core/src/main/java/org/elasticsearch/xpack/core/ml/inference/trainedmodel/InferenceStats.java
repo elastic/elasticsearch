@@ -21,9 +21,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class InferenceStats implements ToXContentObject, Writeable {
 
@@ -221,105 +218,71 @@ public class InferenceStats implements ToXContentObject, Writeable {
 
     public static class Accumulator {
 
-        private final LongAdder missingFieldsAccumulator = new LongAdder();
-        private final LongAdder inferenceAccumulator = new LongAdder();
-        private final LongAdder failureCountAccumulator = new LongAdder();
-        private final LongAdder cacheMissAccumulator = new LongAdder();
+        private long missingFieldsAccumulator = 0L;
+        private long inferenceAccumulator = 0L;
+        private long failureCountAccumulator = 0L;
+        private long cacheMissAccumulator = 0L;
         private final String modelId;
         private final String nodeId;
-        // curious reader
-        // you may be wondering why the lock set to the fair.
-        // When `currentStatsAndReset` is called, we want it guaranteed that it will eventually execute.
-        // If a ReadWriteLock is unfair, there are no such guarantees.
-        // A call for the `writelock::lock` could pause indefinitely.
-        private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
 
-        public Accumulator(String modelId, String nodeId) {
+        public Accumulator(String modelId, String nodeId, long cacheMisses) {
             this.modelId = modelId;
             this.nodeId = nodeId;
+            this.cacheMissAccumulator = cacheMisses;
         }
 
-        public Accumulator(InferenceStats previousStats) {
+        Accumulator(InferenceStats previousStats) {
             this.modelId = previousStats.modelId;
             this.nodeId = previousStats.nodeId;
-            this.missingFieldsAccumulator.add(previousStats.missingAllFieldsCount);
-            this.inferenceAccumulator.add(previousStats.inferenceCount);
-            this.failureCountAccumulator.add(previousStats.failureCount);
-            this.cacheMissAccumulator.add(previousStats.cacheMissCount);
+            this.missingFieldsAccumulator += previousStats.missingAllFieldsCount;
+            this.inferenceAccumulator += previousStats.inferenceCount;
+            this.failureCountAccumulator += previousStats.failureCount;
+            this.cacheMissAccumulator += previousStats.cacheMissCount;
         }
 
         public Accumulator merge(InferenceStats otherStats) {
-            this.missingFieldsAccumulator.add(otherStats.missingAllFieldsCount);
-            this.inferenceAccumulator.add(otherStats.inferenceCount);
-            this.failureCountAccumulator.add(otherStats.failureCount);
-            this.cacheMissAccumulator.add(otherStats.cacheMissCount);
+            this.missingFieldsAccumulator += otherStats.missingAllFieldsCount;
+            this.inferenceAccumulator += otherStats.inferenceCount;
+            this.failureCountAccumulator += otherStats.failureCount;
+            this.cacheMissAccumulator += otherStats.cacheMissCount;
             return this;
         }
 
-        public Accumulator incMissingFields() {
-            readWriteLock.readLock().lock();
-            try {
-                this.missingFieldsAccumulator.increment();
-                return this;
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
+        public synchronized Accumulator incMissingFields() {
+            this.missingFieldsAccumulator++;
+            return this;
         }
 
-        public Accumulator incInference() {
-            readWriteLock.readLock().lock();
-            try {
-                this.inferenceAccumulator.increment();
-                return this;
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
+        public synchronized Accumulator incInference() {
+            this.inferenceAccumulator++;
+            return this;
         }
 
-        public Accumulator incFailure() {
-            readWriteLock.readLock().lock();
-            try {
-                this.failureCountAccumulator.increment();
-                return this;
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
+        public synchronized Accumulator incFailure() {
+            this.failureCountAccumulator++;
+            return this;
         }
 
-        public Accumulator incCacheMiss() {
-            readWriteLock.readLock().lock();
-            try {
-                this.cacheMissAccumulator.increment();
-                return this;
-            } finally {
-                readWriteLock.readLock().unlock();
-            }
-        }
         /**
          * Thread safe.
          *
          * Returns the current stats and resets the values of all the counters.
          * @return The current stats
          */
-        public InferenceStats currentStatsAndReset() {
-            readWriteLock.writeLock().lock();
-            try {
-                InferenceStats stats = currentStats(Instant.now());
-                this.missingFieldsAccumulator.reset();
-                this.inferenceAccumulator.reset();
-                this.failureCountAccumulator.reset();
-                this.cacheMissAccumulator.reset();
-                return stats;
-            } finally {
-                readWriteLock.writeLock().unlock();
-            }
+        public synchronized InferenceStats currentStatsAndReset() {
+            InferenceStats stats = currentStats(Instant.now());
+            this.missingFieldsAccumulator = 0L;
+            this.inferenceAccumulator = 0L;
+            this.failureCountAccumulator = 0L;
+            this.cacheMissAccumulator = 0L;
+            return stats;
         }
 
         public InferenceStats currentStats(Instant timeStamp) {
-            return new InferenceStats(missingFieldsAccumulator.longValue(),
-                inferenceAccumulator.longValue(),
-                failureCountAccumulator.longValue(),
-                cacheMissAccumulator.longValue(),
+            return new InferenceStats(missingFieldsAccumulator,
+                inferenceAccumulator,
+                failureCountAccumulator,
+                cacheMissAccumulator,
                 modelId,
                 nodeId,
                 timeStamp);

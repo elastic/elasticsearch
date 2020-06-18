@@ -47,9 +47,12 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
 
@@ -112,18 +115,18 @@ public abstract class PackagingTestCase extends Assert {
     public final TestName testNameRule = new TestName();
 
     @BeforeClass
-    public static void filterCompatible() {
+    public static void init() throws Exception {
         assumeTrue("only compatible distributions", distribution.packaging.compatible);
-    }
 
-    @BeforeClass
-    public static void cleanup() throws Exception {
-        installation = null;
-        cleanEverything();
-    }
+        // make sure temp dir exists
+        if (Files.exists(getRootTempDir()) == false) {
+            Files.createDirectories(getRootTempDir());
+        }
 
-    @BeforeClass
-    public static void createShell() throws Exception {
+        // cleanup from previous test
+        cleanup();
+
+        // create shell
         if (distribution().isDocker()) {
             ensureImageIsLoaded(distribution);
             sh = new Docker.DockerShell();
@@ -199,6 +202,11 @@ public abstract class PackagingTestCase extends Assert {
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
+    }
+
+    protected static void cleanup() throws Exception {
+        installation = null;
+        cleanEverything();
     }
 
     /**
@@ -354,6 +362,31 @@ public abstract class PackagingTestCase extends Assert {
             // Otherwise, error should be on shell stderr
             assertThat(result.stderr, anyOf(stringMatchers));
         }
+    }
+
+    public static Path getRootTempDir() {
+        if (distribution().isPackage()) {
+            // The custom config directory is not under /tmp or /var/tmp because
+            // systemd's private temp directory functionally means different
+            // processes can have different views of what's in these directories
+            return Paths.get("/var/test-tmp").toAbsolutePath();
+        } else {
+            // vagrant creates /tmp for us in windows so we use that to avoid long paths
+            return Paths.get("/tmp").toAbsolutePath();
+        }
+    }
+
+    private static final FileAttribute<?>[] NEW_DIR_PERMS;
+    static {
+        if (Platforms.WINDOWS) {
+            NEW_DIR_PERMS = new FileAttribute<?>[0];
+        } else {
+            NEW_DIR_PERMS = new FileAttribute<?>[] { PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")) };
+        }
+    }
+
+    public static Path createTempDir(String prefix) throws IOException {
+        return Files.createTempDirectory(getRootTempDir(), prefix, NEW_DIR_PERMS);
     }
 
 }

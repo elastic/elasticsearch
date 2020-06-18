@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
@@ -239,8 +240,9 @@ public class JoinHelper {
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
-        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
-            logger.debug("Blocking join request due to [{}]", nodeHealthService.getHealth().getInfo());
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);

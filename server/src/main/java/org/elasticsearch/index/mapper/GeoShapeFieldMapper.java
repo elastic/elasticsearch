@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -54,6 +55,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setDimensions(7, 4, Integer.BYTES);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         FIELD_TYPE.setOmitNorms(true);
         FIELD_TYPE.freeze();
     }

@@ -6,8 +6,8 @@
 
 Creates a new <<data-streams,data stream>>.
 
-Data streams require an associated <<<<indices-templates,composable index
-template>>. See <<set-up-a-data-stream>>.
+Data streams require an associated <<indices-templates,composable template>>.
+See <<set-up-a-data-stream>>.
 
 ////
 [source,console]

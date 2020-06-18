@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -110,8 +111,9 @@ public class PreVoteCollector {
         final DiscoveryNode leader = state.v1();
         final PreVoteResponse response = state.v2();
 
-        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
-            String message = "Rejecting health check request " + request + " due to " + nodeHealthService.getHealth().getInfo();
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            String message = "rejecting " + request + " on unhealthy node: [" + statusInfo.getInfo() + "]";
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
         }

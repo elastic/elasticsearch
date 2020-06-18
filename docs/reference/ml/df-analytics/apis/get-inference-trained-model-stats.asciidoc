@@ -109,7 +109,7 @@ were missing.
 `inference_count`:::
 (integer)
 The total number of times the model has been called for inference.
-This is accross all inference contexts, including all pipelines.
+This is across all inference contexts, including all pipelines.
 
 `cache_miss_count`:::
 (integer)

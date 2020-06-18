@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
-    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
@@ -48,6 +48,8 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         super(params, source, fieldData, ctx);
         this.sync = sync;
     }
+
+
 
     public static class Value {
         private final StringScriptFieldScript script;

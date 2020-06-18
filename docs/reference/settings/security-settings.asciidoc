@@ -1280,35 +1280,46 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-value
 [float]
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
-
+// tag::kerberos-description-tag[]
 For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
+// end::kerberos-description-tag[]
 
-`keytab.path`:: Specifies the path to the Kerberos keytab file that contains the
+// tag::kerberos-keytab-path-tag[]
+`keytab.path` {ess-icon}:: Specifies the path to the Kerberos keytab file that contains the
 service principal used by this {es} node. This must be a location within the
 {es} configuration directory and the file must have read permissions. Required.
+// end::kerberos-keytab-path-tag[]
 
-`remove_realm_name`:: Set to `true` to remove the realm part of principal names.
+// tag::kerberos-remove-realm-name-tag[]
+`remove_realm_name` {ess-icon}:: Set to `true` to remove the realm part of principal names.
 Principal names in Kerberos have the form `user/instance@REALM`. If this option
 is `true`, the realm part (`@REALM`) will not be included in the username.
 Defaults to `false`.
+// end::kerberos-remove-realm-name-tag[]
 
 `krb.debug`:: Set to `true` to enable debug logs for the Java login module that
 provides support for Kerberos authentication. Defaults to `false`.
 
-`cache.ttl`:: The time-to-live for cached user entries. A user is cached for
+// tag::kerberos-cache-ttl-tag[]
+`cache.ttl` {ess-icon}:: The time-to-live for cached user entries. A user is cached for
 this period of time. Specify the time period using the standard {es}
 <<time-units,time units>>. Defaults to `20m`.
+// end::kerberos-cache-ttl-tag[]
 
-`cache.max_users`:: The maximum number of user entries that can live in the
+// tag::kerberos-cache-max-users-tag[]
+`cache.max_users` {ess-icon}:: The maximum number of user entries that can live in the
 cache at any given time. Defaults to 100,000.
+// end::kerberos-cache-max-users-tag[]
 
-`authorization_realms`::
+// tag::kerberos-authorization-realms-tag[]
+`authorization_realms` {ess-icon}::
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the Kerberos realm does not perform role mapping and
 instead loads the user from the listed realms.
 See <<authorization_realms>>.
+// end::kerberos-authorization-realms-tag[]
 
 [[ref-oidc-settings]]
 [float]

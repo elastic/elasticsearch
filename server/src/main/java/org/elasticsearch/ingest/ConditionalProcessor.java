@@ -47,7 +47,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("conditional-processor__type",
+                deprecationLogger.deprecate("conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });
@@ -62,12 +62,13 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
-        super(tag);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
+                         LongSupplier relativeTimeProvider) {
+        super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;

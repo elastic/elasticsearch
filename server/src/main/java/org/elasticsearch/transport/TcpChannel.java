@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -59,13 +58,11 @@ public interface TcpChannel extends CloseableChannel {
     InetSocketAddress getRemoteAddress();
 
     /**
-     * Sends a tcp message to the channel. The listener will be executed once the send process has been
-     * completed.
+     * Sends a tcp message to the channel.
      *
-     * @param reference to send to channel
-     * @param listener to execute upon send completion
+     * @param sendContext Send Context
      */
-    void sendMessage(BytesReference reference, ActionListener<Void> listener);
+    void sendMessage(OutboundHandler.SendContext sendContext);
 
     /**
      * Adds a listener that will be executed when the channel is connected. If the channel is still

@@ -1688,6 +1688,40 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
+    public void testIndicesAliasesRequestTargetDataStreams() {
+        final String dataStreamName = "my-data-stream";
+        IndexMetadata backingIndex = createBackingIndex(dataStreamName, 1).build();
+
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(backingIndex, false)
+            .put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex()), 1));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName);
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions, false));
+            assertEquals("The provided expression [" + dataStreamName + "] matches a data stream, specify the corresponding " +
+                "concrete indices instead.", iae.getMessage());
+        }
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions, false));
+            assertEquals("The provided expression [my-data-*] matches a data stream, specify the corresponding concrete indices instead.",
+                iae.getMessage());
+        }
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
+                .alias("my-data");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions, true);
+            assertEquals(1, indices.length);
+            assertEquals(backingIndex.getIndex().getName(), indices[0]);
+        }
+    }
+
     public void testInvalidIndex() {
         Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("test"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
@@ -1777,8 +1811,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(dataStreamName + "-000001"));
-            assertThat(result[1].getName(), equalTo(dataStreamName + "-000002"));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
         }
         {
             // Ignore data streams
@@ -1809,7 +1843,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
-            assertThat(result.getName(), equalTo(dataStreamName + "-000002"));
+            assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
         }
         {
             // Ignore data streams
@@ -1861,18 +1895,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(4));
-            assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
-            assertThat(result[1].getName(), equalTo(dataStream1 + "-000002"));
-            assertThat(result[2].getName(), equalTo(dataStream2 + "-000001"));
-            assertThat(result[3].getName(), equalTo(dataStream2 + "-000002"));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[2].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 1)));
+            assertThat(result[3].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));;
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-m*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
-            assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
-            assertThat(result[1].getName(), equalTo(dataStream1 + "-000002"));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN; // without include data streams
@@ -1905,8 +1939,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
         Arrays.sort(result, Comparator.comparing(Index::getName));
         assertThat(result.length, equalTo(3));
-        assertThat(result[0].getName(), equalTo("logs-foobar-000001"));
-        assertThat(result[1].getName(), equalTo("logs-foobar-000002"));
+        assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
+        assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
         assertThat(result[2].getName(), equalTo("logs-foobarbaz-0"));
     }
 }

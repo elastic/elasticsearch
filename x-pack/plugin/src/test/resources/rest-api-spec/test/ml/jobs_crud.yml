@@ -393,6 +393,7 @@
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
+  - match: { model_plot_config.annotations_enabled: false }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
   - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }

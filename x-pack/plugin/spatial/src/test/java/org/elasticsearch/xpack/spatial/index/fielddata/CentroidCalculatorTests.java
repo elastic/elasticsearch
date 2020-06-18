@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeTy
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class CentroidCalculatorTests extends ESTestCase {
     private static final double DELTA = 0.000000001;
@@ -190,6 +191,13 @@ public class CentroidCalculatorTests extends ESTestCase {
         }
     }
 
+    public void testRectangle() {
+        for (int i = 0; i < 100; i++) {
+            CentroidCalculator calculator = new CentroidCalculator(GeometryTestUtils.randomRectangle());
+            assertThat(calculator.sumWeight(), greaterThan(0.0));
+        }
+    }
+
     public void testLineAsClosedPoint() {
         double lon = GeometryTestUtils.randomLon();
         double lat = GeometryTestUtils.randomLat();
@@ -243,6 +251,7 @@ public class CentroidCalculatorTests extends ESTestCase {
         assertThat(calculator.getDimensionalShapeType(), equalTo(LINE));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58245")
     public void testPolygonAsPoint() {
         Point point = GeometryTestUtils.randomPoint(false);
         Polygon polygon = new Polygon(new LinearRing(new double[] { point.getX(), point.getX(), point.getX(), point.getX() },
@@ -250,7 +259,7 @@ public class CentroidCalculatorTests extends ESTestCase {
         CentroidCalculator calculator = new CentroidCalculator(polygon);
         assertThat(calculator.getX(), equalTo(GeoUtils.normalizeLon(point.getX())));
         assertThat(calculator.getY(), equalTo(GeoUtils.normalizeLat(point.getY())));
-        assertThat(calculator.sumWeight(), equalTo(1.0));
+        assertThat(calculator.sumWeight(), equalTo(3.0));
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
     }
 

@@ -636,7 +636,10 @@
                     language: dutch
                   my_stemmer_override:
                     type: stemmer_override
-                    rules: ["zoeken => override"]
+                    rules: [
+                      "zoeken => override",
+                      "foo, bar => baz"
+                    ]
     - do:
         indices.analyze:
           index: test
@@ -646,6 +649,18 @@
             filter:    [my_stemmer_override, my_stemmer]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: override }
+
+    # Test rule with multiple tokens on LHS:
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo bar
+            tokenizer: whitespace
+            filter:    [my_stemmer_override]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: baz }
+    - match:  { tokens.1.token: baz }
 
 ---
 "decompounder":

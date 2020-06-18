@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -69,7 +70,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadContext, client,
+        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
             ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
@@ -91,13 +92,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 // the user cancelled the submit so we don't store anything
                                 // and propagate the failure
                                 Exception cause = new TaskCancelledException(submitTask.getReasonCancelled());
-                                onFatalFailure(searchTask, cause, searchResponse.isRunning(), submitListener);
+                                onFatalFailure(searchTask, cause, searchResponse.isRunning(),
+                                    "submit task is cancelled", submitListener);
                             } else {
                                 final String docId = searchTask.getExecutionId().getDocId();
                                 // creates the fallback response if the node crashes/restarts in the middle of the request
                                 // TODO: store intermediate results ?
                                 AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(IndexResponse r) {
@@ -117,12 +119,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                                         @Override
                                         public void onFailure(Exception exc) {
-                                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), submitListener);
+                                            onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                                "unable to store initial response", submitListener);
                                         }
                                     });
                             }
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), submitListener);
+                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "generic error", submitListener);
                         }
                     } else {
                         // the task completed within the timeout so the response is sent back to the user
@@ -157,7 +160,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         return searchRequest;
     }
 
-    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, ActionListener<AsyncSearchResponse> listener) {
+    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, String cancelReason,
+                                ActionListener<AsyncSearchResponse> listener) {
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
@@ -165,7 +169,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 } finally {
                     listener.onFailure(error);
                 }
-            });
+            }, "fatal failure: " + cancelReason);
         } else {
             try {
                 task.addCompletionListener(finalResponse -> taskManager.unregister(task));
@@ -191,7 +195,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
 
         try {
-            store.storeFinalResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                                     exc -> {
                                         Throwable cause = ExceptionsHelper.unwrapCause(exc);

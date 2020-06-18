@@ -172,9 +172,8 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                longFieldType.setName(LONG_FIELD);
-                longFieldType.setHasDocValues(true);
+                MappedFieldType longFieldType
+                    = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 InternalMappedTerms rareTerms;
                 if (reduced) {

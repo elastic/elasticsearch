@@ -304,7 +304,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     /**
      * Create the rounding for this date histogram
      */
-    public Rounding createRounding() {
+    public Rounding.Prepared createRounding() {
         return createRounding(interval.toString(), timeZone);
     }
 
@@ -363,7 +363,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    private static Rounding createRounding(final String expr, final String timeZone) {
+    private static Rounding.Prepared createRounding(final String expr, final String timeZone) {
         Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
         final Rounding.Builder rounding;
         if (timeUnit != null) {
@@ -372,6 +372,6 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
             rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
         rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
-        return rounding.build();
+        return rounding.build().prepareForUnknown();
     }
 }

@@ -20,14 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Objects;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.
@@ -73,17 +71,24 @@ public abstract class AExpression extends ANode {
         /**
          * Set to the actual type this node is.  Note this variable is always
          * set by the node as output and should only be read from outside of the
-         * node itself.  <b>Also, actual can always be read after a cast is
-         * called on this node to get the type of the node after the cast.</b>
+         * node itself. Also, actual can always be read after a cast is
+         * called on this node to get the type of the node after the cast.
          */
         Class<?> actual = null;
 
         /**
-         * The {@link PainlessCast} to convert this expression's actual type
-         * to the parent expression's expected type. {@code null} if no cast
-         * is required.
+         * Set to {@code true} when actual represents a static type and
+         * this expression does not generate a value. Set to {@code false}
+         * when actual is the type of value this expression generates.
          */
-        PainlessCast painlessCast = null;
+        boolean isStaticType = false;
+
+        /**
+         * Used to build a fully-qualified type name when the name comes
+         * in as pieces since x.y.z may get broken down into multiples nodes
+         * with the dot as a delimiter.
+         */
+        String partialCanonicalTypeName = null;
 
         /**
          * {@code true} if this node or a sub-node of this node can be optimized with
@@ -98,37 +103,36 @@ public abstract class AExpression extends ANode {
     }
 
     /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(Location location) {
-        super(location);
-
-        prefix = null;
-    }
-
-    /**
-     * This constructor is used by variable/method chains when postfixes are specified.
-     */
-    AExpression(Location location, AExpression prefix) {
-        super(location);
-
-        this.prefix = Objects.requireNonNull(prefix);
+    AExpression(int indentifier, Location location) {
+        super(indentifier, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Checks for errors and collects data for the writing phase. Adds additional, common
+     * error checking for conditions related to static types and partially constructed static types.
+     */
+    static Output analyze(AExpression expression, ClassNode classNode, SemanticScope semanticScope, Input input) {
+        Output output = expression.analyze(classNode, semanticScope, input);
+
+        if (output.partialCanonicalTypeName != null) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+        }
+
+        if (output.isStaticType) {
+            throw expression.createError(new IllegalArgumentException("value required: " +
+                    "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+        }
+
+        return output;
     }
 
     static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {

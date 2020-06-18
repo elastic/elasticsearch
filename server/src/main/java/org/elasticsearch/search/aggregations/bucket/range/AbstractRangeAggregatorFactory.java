@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -51,23 +49,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                            String aggregationName) {
         builder.register(aggregationName,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new RangeAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        AggregatorFactories factories,
-                                        Numeric valuesSource,
-                                        DocValueFormat format,
-                                        InternalRange.Factory rangeFactory,
-                                        Range[] ranges,
-                                        boolean keyed,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new RangeAggregator(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent,
-                        metadata);
-                }
-            });
+            (RangeAggregatorSupplier) RangeAggregator::new);
     }
+
     public AbstractRangeAggregatorFactory(String name,
                                           String aggregationTypeName,
                                           ValuesSourceConfig config,
@@ -93,19 +77,28 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             aggregationTypeName);
         if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
-            ranges, keyed, searchContext, parent, metadata);
+        return ((RangeAggregatorSupplier) aggregatorSupplier).build(
+            name,
+            factories,
+            (Numeric) config.getValuesSource(),
+            config.format(),
+            rangeFactory,
+            ranges,
+            keyed,
+            searchContext,
+            parent,
+            metadata
+        );
     }
 }

@@ -177,10 +177,13 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
 
         // We can assert we're plus/minus 1 from rounding error
 
-        double expectedTotalTrainingCount = ROWS_COUNT * trainingFraction;
+        long expectedTotalTrainingCount = 0;
+        for (long classCardinality : classCardinalities.values()) {
+            expectedTotalTrainingCount += trainingFraction * classCardinality;
+        }
         assertThat(trainingDocsCount + testDocsCount, equalTo((long) ROWS_COUNT));
-        assertThat(trainingDocsCount, greaterThanOrEqualTo((long) (expectedTotalTrainingCount - 2)));
-        assertThat(trainingDocsCount, lessThanOrEqualTo((long) Math.ceil(expectedTotalTrainingCount) + 2));
+        assertThat(trainingDocsCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
+        assertThat(trainingDocsCount, lessThanOrEqualTo(expectedTotalTrainingCount));
 
         for (String classValue : classCardinalities.keySet()) {
             double expectedClassTrainingCount = totalRowsPerClass.get(classValue) * trainingFraction;
@@ -221,8 +224,37 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         // should be close to the training percent, which is set to 0.5
         for (int rowTrainingCount : trainingCountPerRow) {
             double meanCount = rowTrainingCount / (double) runCount;
-            assertThat(meanCount, is(closeTo(0.5, 0.12)));
+            assertThat(meanCount, is(closeTo(0.5, 0.13)));
         }
+    }
+
+    public void testProcess_GivenTwoClassesWithCardinalityEqualToOne_ShouldUseForTraining() {
+        dependentVariable = "dep_var";
+        fields = Arrays.asList(dependentVariable, "feature");
+        classCardinalities = new HashMap<>();
+        classCardinalities.put("class_a", 1L);
+        classCardinalities.put("class_b", 1L);
+        CrossValidationSplitter splitter = createSplitter(80.0);
+
+        {
+            String[] row = new String[]{"class_a", "42.0"};
+
+            String[] processedRow = Arrays.copyOf(row, row.length);
+            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+
+            assertThat(Arrays.equals(processedRow, row), is(true));
+        }
+        {
+            String[] row = new String[]{"class_b", "42.0"};
+
+            String[] processedRow = Arrays.copyOf(row, row.length);
+            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+
+            assertThat(Arrays.equals(processedRow, row), is(true));
+        }
+
+        assertThat(trainingDocsCount, equalTo(2L));
+        assertThat(testDocsCount, equalTo(0L));
     }
 
     private CrossValidationSplitter createSplitter(double trainingPercent) {

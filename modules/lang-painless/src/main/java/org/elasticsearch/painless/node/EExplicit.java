@@ -21,10 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -33,41 +32,50 @@ import java.util.Objects;
  */
 public class EExplicit extends AExpression {
 
-    protected final String type;
-    protected final AExpression child;
+    private final String canonicalTypeName;
+    private final AExpression childNode;
 
-    public EExplicit(Location location, String type, AExpression child) {
-        super(location);
+    public EExplicit(int identifier, Location location, String canonicalTypeName, AExpression childNode) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.child = Objects.requireNonNull(child);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.childNode = Objects.requireNonNull(childNode);
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + type + "]"));
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from explicit cast with target type [" + type + "]"));
+                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
+        }
+
+        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
         Output output = new Output();
-
-        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
-
-        if (output.actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
-        }
+        output.actual = type;
 
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-        PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
+        Output childOutput = analyze(childNode, classNode, semanticScope, childInput);
+        PainlessCast childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                 childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
         output.expressionNode = cast(childOutput.expressionNode, childCast);

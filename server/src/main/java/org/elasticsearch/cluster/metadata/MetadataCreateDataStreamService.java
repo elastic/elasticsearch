@@ -33,15 +33,22 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
+    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
+        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -101,14 +108,11 @@ public class MetadataCreateDataStreamService {
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
-        private final String timestampFieldName;
 
         public CreateDataStreamClusterStateUpdateRequest(String name,
-                                                         String timestampFieldName,
                                                          TimeValue masterNodeTimeout,
                                                          TimeValue timeout) {
             this.name = name;
-            this.timestampFieldName = timestampFieldName;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
@@ -131,18 +135,46 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
         }
 
-        String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
+        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+
+        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                .dataStreamName(request.name)
                 .settings(Settings.builder().put("index.hidden", true).build());
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
+            new DataStream(request.name, template.getDataStreamTemplate().getTimestampField(), List.of(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
+    }
+
+    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
+        final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
+        if (v2Template == null) {
+            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+        }
+        ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+        if (composableIndexTemplate.getDataStreamTemplate() == null) {
+            throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
+                "] has no data stream template");
+        }
+        return composableIndexTemplate;
+    }
+
+    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
+        MappedFieldType timestampFieldMapper = mapperService.fieldType(timestampFieldName);
+        if (timestampFieldMapper == null) {
+            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "], but found no timestamp field");
+        }
+        String type = timestampFieldMapper.typeName();
+        if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
+            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
+                ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
+        }
     }
 
 }

@@ -34,14 +34,14 @@ of syncing a replica shard from a primary shard.
 Upon completion,
 the replica shard is available for search.
 
-include::{docdir}/glossary.asciidoc[tag=recovery-triggers]
+include::{es-repo-dir}/glossary.asciidoc[tag=recovery-triggers]
 
 // end::shard-recovery-desc[]
 
 [[index-recovery-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 Use a value of `_all` to retrieve information for all indices in the cluster.
 
@@ -49,11 +49,11 @@ Use a value of `_all` to retrieve information for all indices in the cluster.
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]

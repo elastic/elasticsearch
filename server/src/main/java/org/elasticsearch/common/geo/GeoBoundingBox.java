@@ -31,7 +31,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -55,7 +54,6 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     public static final ParseField LON_FIELD = new ParseField("lon");
     public static final ParseField TOP_LEFT_FIELD = new ParseField("top_left");
     public static final ParseField BOTTOM_RIGHT_FIELD = new ParseField("bottom_right");
-//    private AbstractGeometryFieldType abstractGeometryFieldType;
 
     private final GeoPoint topLeft;
     private final GeoPoint bottomRight;

@@ -17,13 +17,13 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 
-public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
-    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
+public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript {
+    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("double_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
+        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "double_whitelist.txt"));
     }
 
     public static final String[] PARAMETERS = {};
@@ -33,30 +33,30 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
+        DoubleScriptFieldScript newInstance(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
     }
 
-    private final Consumer<String> sync;
+    private final DoubleConsumer sync;
 
-    public StringScriptFieldScript(
+    public DoubleScriptFieldScript(
         Map<String, Object> params,
         SourceLookup source,
         DocLookup fieldData,
         LeafReaderContext ctx,
-        Consumer<String> sync
+        DoubleConsumer sync
     ) {
         super(params, source, fieldData, ctx);
         this.sync = sync;
     }
 
     public static class Value {
-        private final StringScriptFieldScript script;
+        private final DoubleScriptFieldScript script;
 
-        public Value(StringScriptFieldScript script) {
+        public Value(DoubleScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(String v) {
+        public void value(double v) {
             script.sync.accept(v);
         }
     }

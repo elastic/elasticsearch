@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongConsumer;
 
-public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
+public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
     static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
     }
@@ -30,7 +31,8 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
     }
-    public static interface LeafFactory {
+
+    public interface LeafFactory {
         LongScriptFieldScript newInstance(LeafReaderContext ctx, LongConsumer sync) throws IOException;
     }
 

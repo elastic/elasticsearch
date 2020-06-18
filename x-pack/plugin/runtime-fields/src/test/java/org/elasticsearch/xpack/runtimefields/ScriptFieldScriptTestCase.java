@@ -35,6 +35,8 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +46,7 @@ import java.util.function.Function;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsScript, F, LF, R> extends ESTestCase {
+public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScript, F, LF, R> extends ESTestCase {
     protected abstract ScriptContext<F> scriptContext();
 
     protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
@@ -67,7 +69,9 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsSc
             .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
         DocLookup fieldData = new DocLookup(mapperService, fieldDataLookup);
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            F factory = scriptService.compile(new Script(script), scriptContext());
+            F factory = AccessController.doPrivileged(
+                (PrivilegedAction<F>) () -> scriptService.compile(new Script(script), scriptContext())
+            );
 
             try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexBuilder.accept(indexWriter);

@@ -16,9 +16,10 @@ import java.util.Map;
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Map.of(
-            LongScriptFieldScript.CONTEXT, LongScriptFieldScript.whitelist(),
-            StringScriptFieldScript.CONTEXT, StringScriptFieldScript.whitelist()
+        return Map.ofEntries(
+            Map.entry(DoubleScriptFieldScript.CONTEXT, DoubleScriptFieldScript.whitelist()),
+            Map.entry(LongScriptFieldScript.CONTEXT, LongScriptFieldScript.whitelist()),
+            Map.entry(StringScriptFieldScript.CONTEXT, StringScriptFieldScript.whitelist())
         );
     }
 }

@@ -19,13 +19,13 @@ import java.util.Map;
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
  */
-public abstract class AbstractScriptFieldsScript {
+public abstract class AbstractScriptFieldScript {
     private final Map<String, Object> params;
     private final LeafReaderContext ctx;
     private final SourceLookup source;
     private final LeafDocLookup fieldData;
 
-    public AbstractScriptFieldsScript(Map<String, Object> params, SourceLookup source, DocLookup fieldData, LeafReaderContext ctx) {
+    public AbstractScriptFieldScript(Map<String, Object> params, SourceLookup source, DocLookup fieldData, LeafReaderContext ctx) {
         this.params = params;
         this.source = source;
         this.fieldData = fieldData.getLeafDocLookup(ctx);

@@ -420,8 +420,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
-            nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
-
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");
             System.getProperties().entrySet().forEach(entry -> {

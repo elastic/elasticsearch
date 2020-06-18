@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -36,8 +35,8 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     static final String FIELD_NAME = "_is_external";
     static final String FIELD_VALUE = "true";
 
-    protected ExternalMetadataMapper(Settings indexSettings) {
-        super(new FieldType(), new BooleanFieldMapper.BooleanFieldType(FIELD_NAME), indexSettings);
+    protected ExternalMetadataMapper() {
+        super(new FieldType(), new BooleanFieldMapper.BooleanFieldType(FIELD_NAME));
     }
 
     @Override
@@ -77,7 +76,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
         @Override
         public ExternalMetadataMapper build(BuilderContext context) {
-            return new ExternalMetadataMapper(context.indexSettings());
+            return new ExternalMetadataMapper();
         }
 
     }
@@ -92,8 +91,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new ExternalMetadataMapper(indexSettings);
+            return new ExternalMetadataMapper();
         }
 
     }

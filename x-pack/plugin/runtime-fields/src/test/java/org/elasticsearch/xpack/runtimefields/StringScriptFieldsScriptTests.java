@@ -34,7 +34,15 @@ public class StringScriptFieldsScriptTests extends ScriptFieldScriptTestCase<
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
         };
-        assertThat(execute(indexBuilder, "\"cat\""), equalTo(List.of("cat", "cat")));
+        assertThat(execute(indexBuilder, "sync.accept(\"cat\")"), equalTo(List.of("cat", "cat")));
+    }
+
+    public void testTwoConstants() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
+        };
+        assertThat(execute(indexBuilder, "sync.accept(\"cat\"); sync.accept(\"dog\")"), equalTo(List.of("cat", "dog", "cat", "dog")));
     }
 
     public void testSource() throws IOException {
@@ -42,7 +50,18 @@ public class StringScriptFieldsScriptTests extends ScriptFieldScriptTestCase<
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
         };
-        assertThat(execute(indexBuilder, "source['foo']"), equalTo(List.of("cat", "dog")));
+        assertThat(execute(indexBuilder, "sync.accept(source['foo'])"), equalTo(List.of("cat", "dog")));
+    }
+
+    public void testTwoSourceFields() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\", \"bar\": \"chicken\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\", \"bar\": \"pig\"}"))));
+        };
+        assertThat(
+            execute(indexBuilder, "sync.accept(source['foo']); sync.accept(source['bar'])"),
+            equalTo(List.of("cat", "chicken", "dog", "pig"))
+        );
     }
 
     public void testDocValues() throws IOException {
@@ -50,7 +69,25 @@ public class StringScriptFieldsScriptTests extends ScriptFieldScriptTestCase<
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("cat"))));
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("dog"))));
         };
-        assertThat(execute(indexBuilder, "doc['foo'].value", new KeywordFieldType("foo")), equalTo(List.of("cat", "dog")));
+        assertThat(execute(indexBuilder, "sync.accept(doc['foo'].value)", new KeywordFieldType("foo")), equalTo(List.of("cat", "dog")));
+    }
+
+    public void testTwoDocValuesValues() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("foo", new BytesRef("cat")),
+                    new SortedSetDocValuesField("foo", new BytesRef("chicken"))
+                )
+            );
+            iw.addDocument(
+                List.of(new SortedSetDocValuesField("foo", new BytesRef("dog")), new SortedSetDocValuesField("foo", new BytesRef("pig")))
+            );
+        };
+        assertThat(
+            execute(indexBuilder, "def foo = doc['foo']; sync.accept(foo.get(0)); sync.accept(foo.get(1))", new KeywordFieldType("foo")),
+            equalTo(List.of("cat", "chicken", "dog", "pig"))
+        );
     }
 
     @Override
@@ -69,12 +106,11 @@ public class StringScriptFieldsScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected StringScriptFieldsScript newInstance(StringScriptFieldsScript.LeafFactory leafFactory, LeafReaderContext context) throws IOException {
-        return leafFactory.newInstance(context);
-    }
-
-    @Override
-    protected void collect(StringScriptFieldsScript script, List<String> result) {
-        result.add(script.execute());
+    protected StringScriptFieldsScript newInstance(
+        StringScriptFieldsScript.LeafFactory leafFactory,
+        LeafReaderContext context,
+        List<String> result
+    ) throws IOException {
+        return leafFactory.newInstance(context, result::add);
     }
 }

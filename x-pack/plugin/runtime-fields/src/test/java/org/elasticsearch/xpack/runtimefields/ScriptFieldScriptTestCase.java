@@ -49,9 +49,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsSc
 
     protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
 
-    protected abstract S newInstance(LF leafFactory, LeafReaderContext context) throws IOException;
-
-    protected abstract void collect(S script, List<R> result);
+    protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
 
     protected final List<R> execute(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder, String script, MappedFieldType... types)
         throws IOException {
@@ -84,7 +82,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsSc
 
                         @Override
                         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                            S compiled = newInstance(leafFactory, context);
+                            S compiled = newInstance(leafFactory, context, result);
                             return new LeafCollector() {
                                 @Override
                                 public void setScorer(Scorable scorer) throws IOException {}
@@ -92,7 +90,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsSc
                                 @Override
                                 public void collect(int doc) throws IOException {
                                     compiled.setDocument(doc);
-                                    ScriptFieldScriptTestCase.this.collect(compiled, result);
+                                    compiled.execute();
                                 }
                             };
                         }

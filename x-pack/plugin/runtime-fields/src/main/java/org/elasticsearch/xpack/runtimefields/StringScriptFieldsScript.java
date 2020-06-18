@@ -14,6 +14,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class StringScriptFieldsScript extends AbstractScriptFieldsScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
@@ -22,13 +23,30 @@ public abstract class StringScriptFieldsScript extends AbstractScriptFieldsScrip
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
     }
+
     public static interface LeafFactory {
-        StringScriptFieldsScript newInstance(LeafReaderContext ctx) throws IOException;
+        StringScriptFieldsScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
     }
 
-    public StringScriptFieldsScript(Map<String, Object> params, SourceLookup source, DocLookup fieldData, LeafReaderContext ctx) {
+    private final Consumer<String> sync;
+
+    public StringScriptFieldsScript(
+        Map<String, Object> params,
+        SourceLookup source,
+        DocLookup fieldData,
+        LeafReaderContext ctx,
+        Consumer<String> sync
+    ) {
         super(params, source, fieldData, ctx);
+        this.sync = sync;
     }
 
-    public abstract String execute();
+    /**
+     * Expose the consumer to the script.
+     * <p>
+     * This is temporary and I'll remove it in the next PR when I figure out class methods.
+     */
+    public Consumer<String> getSync() {
+        return sync;
+    }
 }

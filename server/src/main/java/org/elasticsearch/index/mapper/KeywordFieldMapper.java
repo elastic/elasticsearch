@@ -223,7 +223,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
                                 SimilarityProvider similarity, Map<String, String> meta, float boost) {
             super(name, fieldType.indexOptions() != IndexOptions.NONE,
-                hasDocValues, TextSearchInfo.fromFieldType(fieldType), meta);
+                hasDocValues, new TextSearchInfo(fieldType), meta);
             this.hasNorms = fieldType.omitNorms() == false;
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);

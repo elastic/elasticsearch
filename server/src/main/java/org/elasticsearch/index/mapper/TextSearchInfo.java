@@ -25,58 +25,81 @@ import org.apache.lucene.index.IndexOptions;
 /**
  * Encapsulates information about how to perform text searches over a field
  */
-public interface TextSearchInfo {
+public class TextSearchInfo {
 
-    /**
-     * @return the lucene {@link FieldType} that this field was indexed with
-     */
-    FieldType getLuceneFieldType();
+    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+
+    private final FieldType luceneFieldType;
+
+    public TextSearchInfo(FieldType luceneFieldType) {
+        this.luceneFieldType = luceneFieldType;
+    }
 
     /**
      * @return whether or not this field supports positional queries
      */
-    default boolean hasPositions() {
-        return getLuceneFieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+    public boolean hasPositions() {
+        return luceneFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+    }
+
+    public boolean hasOffsets() {
+        return luceneFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
     }
 
     /**
-     * Build a TextSearchInfo from a lucene FieldType
+     * @return whether or not this field has indexed norms
      */
-    static TextSearchInfo fromFieldType(FieldType ft) {
-        return () -> ft;
+    public boolean hasNorms() {
+        return luceneFieldType.omitNorms() == false;
+    }
+
+    public boolean isTokenized() {
+        return luceneFieldType.tokenized();
+    }
+
+    public boolean isStored() {
+        return luceneFieldType.stored();    // TODO move this directly to MappedFieldType? It's not text specific...
+    }
+
+    public TermVector termVectors() {
+        if (luceneFieldType.storeTermVectors() == false) {
+            return TermVector.NONE;
+        }
+        if (luceneFieldType.storeTermVectorOffsets()) {
+            return TermVector.OFFSETS;
+        }
+        if (luceneFieldType.storeTermVectorPositions()) {
+            return TermVector.POSITIONS;
+        }
+        return TermVector.DOCS;
+    }
+
+    private static final FieldType NON_TEXT_FIELD_TYPE = new FieldType();
+    static {
+        NON_TEXT_FIELD_TYPE.setOmitNorms(true);
+        NON_TEXT_FIELD_TYPE.freeze();
     }
 
     /**
      * The field type used by numeric fields
      */
-    TextSearchInfo NUMERIC = () -> {
-        FieldType ft = new FieldType();
-        ft.setIndexOptions(IndexOptions.NONE);
-        ft.setOmitNorms(true);
-        ft.freeze();
-        return ft;
-    };
+    public static TextSearchInfo NUMERIC = new TextSearchInfo(NON_TEXT_FIELD_TYPE);
 
     /**
      * The field type used by geometry fields
      */
-    TextSearchInfo GEOMETRY = () -> {
-        FieldType ft = new FieldType();
-        ft.setIndexOptions(IndexOptions.NONE);
-        ft.setOmitNorms(true);
-        ft.freeze();
-        return ft;
-    };
+    public static TextSearchInfo GEOMETRY = new TextSearchInfo(NON_TEXT_FIELD_TYPE);
+
+    private static final FieldType KEYWORD_FIELD_TYPE = new FieldType();
+    static {
+        KEYWORD_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        KEYWORD_FIELD_TYPE.setTokenized(false);
+        KEYWORD_FIELD_TYPE.freeze();
+    }
 
     /**
      * The field type used by un-analyzed text fields
      */
-    TextSearchInfo KEYWORD = () -> {
-        FieldType ft = new FieldType();
-        ft.setIndexOptions(IndexOptions.DOCS);
-        ft.setTokenized(false);
-        ft.freeze();
-        return ft;
-    };
+    public static TextSearchInfo KEYWORD = new TextSearchInfo(KEYWORD_FIELD_TYPE);
 
 }

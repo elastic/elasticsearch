@@ -236,7 +236,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
         SearchAsYouTypeFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, TextSearchInfo.fromFieldType(fieldType), meta);
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, new TextSearchInfo(fieldType), meta);
         }
 
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {
@@ -280,7 +280,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().getLuceneFieldType().omitNorms()) {
+            if (getTextSearchInfo().hasNorms() == false) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());
@@ -382,7 +382,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, FieldType fieldType, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, TextSearchInfo.fromFieldType(fieldType), Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, new TextSearchInfo(fieldType), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -535,7 +535,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, FieldType fieldType) {
-            super(name, true, false, TextSearchInfo.fromFieldType(fieldType), Collections.emptyMap());
+            super(name, true, false, new TextSearchInfo(fieldType), Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 
@@ -563,7 +563,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            if (getTextSearchInfo().getLuceneFieldType().omitNorms()) {
+            if (getTextSearchInfo().hasNorms() == false) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());

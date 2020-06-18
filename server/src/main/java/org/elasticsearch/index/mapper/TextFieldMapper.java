@@ -556,7 +556,7 @@ public class TextFieldMapper extends FieldMapper {
 
         public TextFieldType(String name, FieldType indexedFieldType, Map<String, String> meta) {
             super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
-                TextSearchInfo.fromFieldType(indexedFieldType), meta);
+                new TextSearchInfo(indexedFieldType), meta);
             this.indexedFieldType = indexedFieldType;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
@@ -565,7 +565,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false, TextSearchInfo.fromFieldType(Defaults.FIELD_TYPE), meta);
+            super(name, indexed, false, new TextSearchInfo(Defaults.FIELD_TYPE), meta);
             this.indexedFieldType = Defaults.FIELD_TYPE;
             fielddata = false;
         }

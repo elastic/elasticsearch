@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -51,22 +50,19 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        FieldType fieldType = mapperService.fieldType("name").getTextSearchInfo().getLuceneFieldType();
-        assertThat(fieldType.stored(), equalTo(false));
+        assertThat(mapperService.fieldType("name").getTextSearchInfo().isStored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        fieldType = mapperService.fieldType("obj1.name").getTextSearchInfo().getLuceneFieldType();
-        assertThat(fieldType.stored(), equalTo(true));
+        assertThat(mapperService.fieldType("obj1.name").getTextSearchInfo().isStored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        fieldType = mapperService.fieldType("obj1.obj2.name").getTextSearchInfo().getLuceneFieldType();
-        assertThat(fieldType.stored(), equalTo(false));
+        assertThat(mapperService.fieldType("obj1.obj2.name").getTextSearchInfo().isStored(), equalTo(false));
 
         // verify more complex path_match expressions
         assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());

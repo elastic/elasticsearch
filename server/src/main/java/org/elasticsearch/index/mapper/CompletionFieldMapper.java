@@ -195,7 +195,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, FieldType luceneFieldType, Map<String, String> meta) {
-            super(name, true, false, TextSearchInfo.fromFieldType(luceneFieldType), meta);
+            super(name, true, false, new TextSearchInfo(luceneFieldType), meta);
         }
 
         public CompletionFieldType(String name) {

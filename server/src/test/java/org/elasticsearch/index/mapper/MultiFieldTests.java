@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -94,40 +93,40 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        FieldType ft = mapperService.fieldType("name").getTextSearchInfo().getLuceneFieldType();
-        assertNotSame(IndexOptions.NONE, ft.indexOptions());
-        assertThat(ft.stored(), equalTo(true));
-        assertThat(ft.tokenized(), equalTo(true));
+        assertTrue(mapperService.fieldType("name").isSearchable());
+        assertNotNull(mapperService.fieldType("name").getTextSearchInfo());
+        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        ft = mapperService.fieldType("name.indexed").getTextSearchInfo().getLuceneFieldType();
-        assertNotSame(IndexOptions.NONE, ft.indexOptions());
-        assertThat(ft.stored(), equalTo(false));
-        assertThat(ft.tokenized(), equalTo(true));
+        assertTrue(mapperService.fieldType("name.indexed").isSearchable());
+        assertNotNull(mapperService.fieldType("name.indexed").getTextSearchInfo());
+        assertFalse(mapperService.fieldType("name.indexed").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        ft = mapperService.fieldType("name.not_indexed").getTextSearchInfo().getLuceneFieldType();
-        assertEquals(IndexOptions.NONE, ft.indexOptions());
-        assertThat(ft.stored(), equalTo(true));
-        assertThat(ft.tokenized(), equalTo(true));
+        assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
+        assertNotNull(mapperService.fieldType("name.not_indexed").getTextSearchInfo());
+        assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        ft = mapperService.fieldType("name.test1").getTextSearchInfo().getLuceneFieldType();
-        assertNotSame(IndexOptions.NONE, ft.indexOptions());
-        assertThat(ft.stored(), equalTo(true));
-        assertThat(ft.tokenized(), equalTo(true));
+        assertTrue(mapperService.fieldType("name.test1").isSearchable());
+        assertNotNull(mapperService.fieldType("name.test1").getTextSearchInfo());
+        assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isStored());
+        assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
         assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
         assertThat(mapperService.fieldType("object1.multi1"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        ft = mapperService.fieldType("object1.multi1.string").getTextSearchInfo().getLuceneFieldType();
-        assertNotSame(IndexOptions.NONE, ft.indexOptions());
-        assertThat(ft.tokenized(), equalTo(false));
+        assertTrue(mapperService.fieldType("object1.multi1.string").isSearchable());
+        assertNotNull(mapperService.fieldType("object1.multi1.string").getTextSearchInfo());
+        assertFalse(mapperService.fieldType("object1.multi1.string").getTextSearchInfo().isTokenized());
     }
 
     public void testBuildThenParse() throws Exception {

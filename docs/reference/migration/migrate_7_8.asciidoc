@@ -27,7 +27,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 ====
 *Details*
 The privilege named `indices:admin/create` will no longer allow the auto
-creation of indices. Use `create_index` instead. {pull}55858[#55858]
+creation of indices. Use `create_index` instead. {es-pull}55858[#55858]
 ====
 
 .`value_count` aggregation optimization
@@ -37,7 +37,7 @@ creation of indices. Use `create_index` instead. {pull}55858[#55858]
 Scripts used in `value_count` will now receive a number if they are
 counting a numeric field and a `GeoPoint` if they are counting a
 `geo_point` fields.  They used to always receive the `String`
-representation of those values.  {pull}54854[#54854]
+representation of those values.  {es-pull}54854[#54854]
 ====
 
 [discrete]

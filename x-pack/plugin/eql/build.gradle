@@ -34,6 +34,7 @@ dependencies {
   }
   compile "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'), configuration: 'default')
+
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
@@ -41,6 +42,8 @@ dependencies {
   testImplementation project(path: ':modules:reindex', configuration: 'runtime')
   testImplementation project(path: ':modules:parent-join', configuration: 'runtime')
   testImplementation project(path: ':modules:analysis-common', configuration: 'runtime')
+  testImplementation project(path: ':modules:transport-netty4', configuration: 'runtime') // for http in RestEqlCancellationIT
+  testImplementation project(path: ':plugins:transport-nio', configuration: 'runtime') // for http in RestEqlCancellationIT
 }
 
 

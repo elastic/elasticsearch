@@ -1400,9 +1400,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDataStreams() throws Exception{
-        assumeTrue("no data streams in versions before " + Version.V_8_0_0, getOldClusterVersion().onOrAfter(Version.V_8_0_0));
-        if(isRunningAgainstOldCluster()){
+    public void testDataStreams() throws Exception {
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
+        if (isRunningAgainstOldCluster()) {
             String mapping = "{\n" +
                 "      \"properties\": {\n" +
                 "        \"@timestamp\": {\n" +
@@ -1418,6 +1418,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(indexRequest));
         }
 
+        ensureGreen(DataStream.getDefaultBackingIndexName("ds", 1));
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
         assertOK(response);
@@ -1430,7 +1431,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(1, indices.size());
         assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
-
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)

@@ -15,12 +15,10 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 
-public class RandomCrossValidationSplitterTests extends ESTestCase {
+public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase {
 
     private List<String> fields;
     private int dependentVariableIndex;
@@ -42,7 +40,7 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithoutDependentVariableValue() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(50.0);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(50.0, 0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -62,7 +60,7 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(100.0);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(100.0, 100L);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -83,14 +81,14 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         double trainingPercent = randomDoubleBetween(1.0, 100.0, true);
         double trainingFraction = trainingPercent / 100;
-        CrossValidationSplitter crossValidationSplitter = createSplitter(trainingPercent);
+        long rowCount = 1000;
 
         int runCount = 20;
-        int rowsCount = 1000;
         int[] trainingRowsPerRun = new int[runCount];
         for (int testIndex = 0; testIndex < runCount; testIndex++) {
+            CrossValidationSplitter crossValidationSplitter = createSplitter(trainingPercent, rowCount);
             int trainingRows = 0;
-            for (int i = 0; i < rowsCount; i++) {
+            for (int i = 0; i < rowCount; i++) {
                 String[] row = new String[fields.size()];
                 for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
                     row[fieldIndex] = randomAlphaOfLength(10);
@@ -113,23 +111,11 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
         }
 
         double meanTrainingRows = IntStream.of(trainingRowsPerRun).average().getAsDouble();
-
-        // Now we need to calculate sensible bounds to assert against.
-        // We'll use 5 variances which should mean the test only fails once in 7M
-        // And, because we're doing multiple runs, we'll divide the variance with the number of runs to narrow the bounds
-        double expectedTrainingRows = trainingFraction * rowsCount;
-        double variance = rowsCount * (Math.pow(1 - trainingFraction, 2) * trainingFraction
-            + Math.pow(trainingFraction, 2) * (1 - trainingFraction));
-        double lowerBound = expectedTrainingRows - 5 * Math.sqrt(variance / runCount);
-        double upperBound = expectedTrainingRows + 5 * Math.sqrt(variance / runCount);
-
-        assertThat("Mean training rows [" + meanTrainingRows + "] was not within expected bounds of [" + lowerBound + ", "
-            + upperBound + "] given training fraction was [" + trainingFraction + "]",
-            meanTrainingRows, is(both(greaterThan(lowerBound)).and(lessThan(upperBound))));
+        assertThat(meanTrainingRows, closeTo(trainingFraction * rowCount, 1.0));
     }
 
     public void testProcess_ShouldHaveAtLeastOneTrainingRow() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(1.0);
+        CrossValidationSplitter crossValidationSplitter = createSplitter(1.0, 1);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row
@@ -152,8 +138,8 @@ public class RandomCrossValidationSplitterTests extends ESTestCase {
         assertThat(testDocsCount, equalTo(9L));
     }
 
-    private RandomCrossValidationSplitter createSplitter(double trainingPercent) {
-        return new RandomCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed);
+    private CrossValidationSplitter createSplitter(double trainingPercent, long cardinality) {
+        return new SingleClassReservoirCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, cardinality);
     }
 
     private void incrementTrainingDocsCount() {

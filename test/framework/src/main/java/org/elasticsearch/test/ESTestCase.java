@@ -1410,7 +1410,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
         final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
+        // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
+        // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
+        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId) - 1, 223) + 1;
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
     }

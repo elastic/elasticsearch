@@ -132,7 +132,7 @@ The time when the statistics were last updated.
 (object)
 A collection of ingest stats for the model across all nodes. The values are
 summations of the individual node statistics. The format matches the `ingest`
-section in <<cluster-nodes-stats,Nodes Stats>>.
+section in <<cluster-nodes-stats>>.
 
 ====
 

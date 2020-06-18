@@ -110,7 +110,7 @@ public class FsHealthServiceTests extends ESTestCase {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "All paths have passed writabililty checks");
+            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
 
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);
@@ -152,10 +152,10 @@ public class FsHealthServiceTests extends ESTestCase {
             for(Path path : env.nodeDataPaths()){
                 mockAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
-                        "test"+ ++counter,
+                        "test" + ++counter,
                         FsHealthService.class.getCanonicalName(),
                         Level.WARN,
-                        "checking writability of [" + path.toString() + "]"));
+                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
             }
 
             //disrupt file system
@@ -184,7 +184,7 @@ public class FsHealthServiceTests extends ESTestCase {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "All paths have passed writabililty checks");
+            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
 
             //disrupt file system fsync on single path
             disruptFsyncFileSystemProvider.injectIOException.set(true);
@@ -193,8 +193,7 @@ public class FsHealthServiceTests extends ESTestCase {
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth().getStatus(), UNHEALTHY);
-            assertThat(fsHealthService.getHealth().getInfo(), is("Path(s) "+ String.join(",", disruptedPath)
-                + " have failed writability checks"));
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(disruptFsyncFileSystemProvider.getInjectedPathCount(), 1);
         } finally {
             disruptFsyncFileSystemProvider.injectIOException.set(false);
@@ -216,7 +215,7 @@ public class FsHealthServiceTests extends ESTestCase {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "All paths have passed writabililty checks");
+            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
 
             //disrupt file system writes on single path
             disruptWritesFileSystemProvider.injectIOException.set(true);
@@ -225,8 +224,7 @@ public class FsHealthServiceTests extends ESTestCase {
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(fsHealthService.getHealth().getStatus(), UNHEALTHY);
-            assertThat(fsHealthService.getHealth().getInfo(), is("Path(s) "+ String.join(",", disruptedPath)
-                + " have failed writability checks"));
+            assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(disruptWritesFileSystemProvider.getInjectedPathCount(), 1);
         } finally {
             disruptWritesFileSystemProvider.injectIOException.set(false);

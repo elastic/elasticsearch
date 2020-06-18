@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -17,6 +21,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
 
@@ -161,6 +166,60 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public AggregationBuilder aggregateChanges() {
             return null;
+        }
+    }
+
+    public static class GeoTileFieldCollector implements FieldCollector {
+
+        private final String sourceFieldName;
+        private final String targetFieldName;
+        private final Set<String> changedBuckets;
+
+        public GeoTileFieldCollector(final String sourceFieldName, final String targetFieldName) {
+            this.sourceFieldName = sourceFieldName;
+            this.targetFieldName = targetFieldName;
+            this.changedBuckets = new HashSet<>();
+        }
+
+        @Override
+        public boolean collectChanges(Collection<? extends Bucket> buckets) {
+            changedBuckets.clear();
+
+            for (Bucket b : buckets) {
+                Object bucket = b.getKey().get(targetFieldName);
+                if (bucket != null) {
+                    changedBuckets.add(bucket.toString());
+                }
+            }
+
+            return true;
+        }
+
+        @Override
+        public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+            // todo: this limited by indices.query.bool.max_clause_count, default 1024 which is lower than the maximum page size
+            if (changedBuckets != null && changedBuckets.isEmpty() == false) {
+                BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+                changedBuckets.stream().map(GeoTileUtils::toBoundingBox).map(this::toGeoQuery).forEach(boolQueryBuilder::should);
+                return boolQueryBuilder;
+            }
+            return null;
+        }
+
+        @Override
+        public void clear() {}
+
+        @Override
+        public AggregationBuilder aggregateChanges() {
+            return null;
+        }
+
+        private GeoBoundingBoxQueryBuilder toGeoQuery(Rectangle rectangle) {
+            return QueryBuilders.geoBoundingBoxQuery(sourceFieldName)
+                .setCorners(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
         }
     }
 

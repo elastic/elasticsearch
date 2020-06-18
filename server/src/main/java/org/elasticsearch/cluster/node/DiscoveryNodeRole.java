@@ -58,13 +58,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     private final boolean isKnownRole;
 
-    /**
-     * Whether this role is known by this node, or is an {@link DiscoveryNodeRole.UnknownRole}.
-     */
-    public final boolean isKnownRole() {
-        return isKnownRole;
-    }
-
     public boolean isEnabledByDefault(final Settings settings) {
         return legacySetting() != null && legacySetting().get(settings);
     }
@@ -162,11 +155,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * The built-in node roles.
      */
-    public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
+    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
         Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
-
-    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
-        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 
@@ -95,7 +97,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrail auditTrail = mock(AuditTrail.class);
@@ -133,7 +135,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, times(3)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }
@@ -150,7 +152,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             listener.validateSearchContext(testSearchContext, request);
-            verify(licenseState, times(4)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
             verifyNoMoreInteractions(auditTrail);
         }
 
@@ -169,7 +171,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
             assertEquals(testSearchContext.id(), expected.contextId());
-            verify(licenseState, times(5)).isSecurityEnabled();
+            verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
             verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }
@@ -184,7 +186,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         TransportRequest request = Empty.INSTANCE;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 

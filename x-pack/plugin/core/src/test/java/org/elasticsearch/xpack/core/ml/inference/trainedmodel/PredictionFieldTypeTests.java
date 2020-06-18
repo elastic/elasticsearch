@@ -38,6 +38,9 @@ public class PredictionFieldTypeTests extends ESTestCase {
             is(nullValue()));
         assertThat(PredictionFieldType.NUMBER.transformPredictedValue(1.0, "foo"), equalTo(1.0));
         assertThat(PredictionFieldType.NUMBER.transformPredictedValue(1.0, null), equalTo(1.0));
+        assertThat(PredictionFieldType.NUMBER.transformPredictedValue(1.0, ""), equalTo(1.0));
+        long expected = randomLong();
+        assertThat(PredictionFieldType.NUMBER.transformPredictedValue(1.0, String.valueOf(expected)), equalTo(expected));
     }
 
 }

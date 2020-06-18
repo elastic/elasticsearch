@@ -89,7 +89,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
-        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTest");
+        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
         project.getConfigurations().create("restTests");
         project.getConfigurations().create("restXpackTests");
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
@@ -108,10 +108,6 @@ public class RestResourcesPlugin implements Plugin<Project> {
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXPackTestdependency);
                     task.dependsOn(task.xpackConfig);
-                    // watcher
-                    Dependency restWatcherTests = project.getDependencies()
-                        .project(Map.of("path", ":x-pack:plugin:watcher:qa:rest", "configuration", "restXpackTests"));
-                    project.getDependencies().add(task.xpackConfig.getName(), restWatcherTests);
                 } else {
                     Dependency dependency = project.getDependencies()
                         .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());

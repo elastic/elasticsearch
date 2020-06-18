@@ -36,12 +36,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
-
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
-    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-            loadMapping("mapping-multi-field-with-nested.json")));
+    private final SqlParser parser = new SqlParser();
+    private final IndexResolution indexResolution = IndexResolution.valid(
+        new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
+    );
 
     private String error(String sql) {
         return error(indexResolution, sql);
@@ -654,7 +654,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithFieldInListOfValues() {
-        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+        assertEquals("1:26: Comparisons against fields are not (currently) supported; offender [int] in [int IN (1, int)]",
             error("SELECT * FROM test WHERE int IN (1, int)"));
     }
 
@@ -1097,5 +1097,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testPivotValuesWithMultipleDifferencesThanColumn() {
         assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        assertEquals("1:17: [KURTOSIS()] cannot be used on top of operators or scalars",
+                error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
+        assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
+                error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
     }
 }

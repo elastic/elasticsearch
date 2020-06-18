@@ -28,22 +28,18 @@ public class IndexLifecycleFeatureSetUsageTests extends AbstractWireSerializingT
                 policyStats.add(PolicyStatsTests.createRandomInstance());
             }
         }
-        return new IndexLifecycleFeatureSetUsage(available, enabled, policyStats);
+        return new IndexLifecycleFeatureSetUsage(available, policyStats);
     }
 
     @Override
     protected IndexLifecycleFeatureSetUsage mutateInstance(IndexLifecycleFeatureSetUsage instance) throws IOException {
         boolean available = instance.available();
-        boolean enabled = instance.enabled();
         List<PolicyStats> policyStats = instance.getPolicyStats();
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
         case 0:
             available = available == false;
             break;
         case 1:
-            enabled = enabled == false;
-            break;
-        case 2:
             if (policyStats == null) {
                 policyStats = new ArrayList<>();
                 policyStats.add(PolicyStatsTests.createRandomInstance());
@@ -57,7 +53,7 @@ public class IndexLifecycleFeatureSetUsageTests extends AbstractWireSerializingT
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new IndexLifecycleFeatureSetUsage(available, enabled, policyStats);
+        return new IndexLifecycleFeatureSetUsage(available, policyStats);
     }
 
     @Override

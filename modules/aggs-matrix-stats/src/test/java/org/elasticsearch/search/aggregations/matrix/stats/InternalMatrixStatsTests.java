@@ -19,17 +19,18 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -47,6 +48,11 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
     private String[] fields;
     private boolean hasMatrixStatsResults;
+
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new MatrixAggregationPlugin();
+    }
 
     @Override
     public void setUp() throws Exception {
@@ -78,11 +84,6 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
         return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalMatrixStats> instanceReader() {
-        return InternalMatrixStats::new;
     }
 
     @Override

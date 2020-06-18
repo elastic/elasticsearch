@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
@@ -103,11 +102,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         formats = null;
         reverseMuls = null;
         types = null;
-    }
-
-    @Override
-    protected Writeable.Reader<InternalComposite> instanceReader() {
-        return InternalComposite::new;
     }
 
     @Override

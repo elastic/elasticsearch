@@ -47,7 +47,7 @@ public class TransformTests extends ESTestCase {
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
         assertEquals(
-            transformPluginEnabled && transformEnabled,
+            transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
         if (transformPluginEnabled && useExplicitSetting && useLegacySetting) {

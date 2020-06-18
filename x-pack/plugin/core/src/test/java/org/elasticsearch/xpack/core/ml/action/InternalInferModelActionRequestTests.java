@@ -45,8 +45,8 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
     }
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
-        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfig(),
-            ClassificationConfigUpdateTests.randomClassificationConfig());
+        return randomFrom(RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
+            ClassificationConfigUpdateTests.randomClassificationConfigUpdate());
     }
 
     private static Map<String, Object> randomMap() {

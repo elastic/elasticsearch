@@ -34,7 +34,6 @@ import java.util.Locale;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction.usageFeatureResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -83,7 +82,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
                 new ClusterName("cluster_name"), nodeResponses, emptyList());
 
-        AnalyticsFeatureSetUsage usage = usageFeatureResponse(true, true, response);
+        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
         try (XContentBuilder builder = jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -31,7 +32,8 @@ public class AuditTrailService {
     }
 
     public AuditTrail get() {
-        if (compositeAuditTrail.isEmpty() == false && licenseState.isAuditingAllowed()) {
+        if (compositeAuditTrail.isEmpty() == false &&
+            licenseState.isSecurityEnabled() && licenseState.isAllowed(Feature.SECURITY_AUDITING)) {
             return compositeAuditTrail;
         } else {
             return NOOP_AUDIT_TRAIL;

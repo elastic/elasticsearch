@@ -39,6 +39,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -46,8 +48,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -55,7 +59,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -276,8 +279,13 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
-        when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
+        when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
+        DocumentFieldMappers fieldMappers = new DocumentFieldMappers(Collections.singleton(joinFieldMapper),
+            Collections.emptyList(), null, null, null);
+        DocumentMapper mockMapper = mock(DocumentMapper.class);
+        when(mockMapper.mappers()).thenReturn(fieldMappers);
+        when(mapperService.documentMapper()).thenReturn(mockMapper);
         return mapperService;
     }
 
@@ -294,8 +302,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
@@ -304,11 +311,9 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             throws IOException {
 
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
-        aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").userValueTypeHint(ValueType.LONG)
-            .field("number"));
+        aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
@@ -317,15 +322,18 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     private void testCaseTermsParentTerms(Query query, IndexSearcher indexSearcher, Consumer<LongTerms> verify)
             throws IOException {
         AggregationBuilder aggregationBuilder =
-            new TermsAggregationBuilder("subvalue_terms").userValueTypeHint(ValueType.LONG).field("subNumber").
+            new TermsAggregationBuilder("subvalue_terms").field("subNumber").
                 subAggregation(new ParentAggregationBuilder("to_parent", CHILD_TYPE).
-                    subAggregation(new TermsAggregationBuilder("value_terms").userValueTypeHint(ValueType.LONG).field("number")));
+                    subAggregation(new TermsAggregationBuilder("value_terms").field("number")));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
-        MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        subFieldType.setName("subNumber");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
         LongTerms result = search(indexSearcher, query, aggregationBuilder, fieldType, subFieldType);
         verify.accept(result);
+    }
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new ParentJoinPlugin());
     }
 }

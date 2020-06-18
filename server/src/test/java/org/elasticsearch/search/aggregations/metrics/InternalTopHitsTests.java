@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -300,11 +299,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);
         }
-    }
-
-    @Override
-    protected Reader<InternalTopHits> instanceReader() {
-        return InternalTopHits::new;
     }
 
     private SortField[] randomSortFields() {

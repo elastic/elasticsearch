@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
@@ -37,11 +36,6 @@ public class InternalGlobalTests extends InternalSingleBucketAggregationTestCase
     @Override
     protected void extraAssertReduced(InternalGlobal reduced, List<InternalGlobal> inputs) {
         // Nothing extra to assert
-    }
-
-    @Override
-    protected Reader<InternalGlobal> instanceReader() {
-        return InternalGlobal::new;
     }
 
     @Override

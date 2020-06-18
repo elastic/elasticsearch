@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -40,7 +42,7 @@ dependencies {
   compile project('spi')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 

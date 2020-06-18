@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -238,24 +239,6 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo(expected));
     }
 
-    public void testExporterWithPasswordButNoUsername() {
-        final String expected =
-                "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
-        final String prefix = "xpack.monitoring.exporters._http";
-        final Settings settings = Settings.builder()
-            .put(prefix + ".type", HttpExporter.TYPE)
-            .put(prefix + ".host", "localhost:9200")
-            .put(prefix + ".auth.password", "_pass")
-            .build();
-
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(prefix + ".auth.password").get(settings));
-        assertThat(e, hasToString(containsString(expected)));
-        assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
-    }
-
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
         when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
@@ -332,8 +315,10 @@ public class HttpExporterTests extends ESTestCase {
         // use basic auth
         final boolean useBasicAuth = randomBoolean();
         if (useBasicAuth) {
-            builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
-                   .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+            builder.put("xpack.monitoring.exporters._http.auth.username", "_user");
+            MockSecureSettings mockSecureSettings  = new MockSecureSettings();
+            mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", "securePassword");
+            builder.setSecureSettings(mockSecureSettings);
         }
 
         // use headers
@@ -346,10 +331,17 @@ public class HttpExporterTests extends ESTestCase {
 
         // doesn't explode
         HttpExporter.createRestClient(config, sslService, listener).close();
-        if (useBasicAuth) {
-            assertWarnings("[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will be " +
-                "removed in a future release! See the breaking changes documentation for the next major version.");
-        }
+    }
+
+    public void testCreateCredentialsProviderWithoutSecurity() {
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.monitoring.exporters._http.type", "http")
+            .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
+
+        final Config config = createConfig(builder.build());
+        CredentialsProvider provider = HttpExporter.createCredentialsProvider(config);
+
+        assertNull(provider);
     }
 
     public void testCreateSnifferDisabledByDefault() {

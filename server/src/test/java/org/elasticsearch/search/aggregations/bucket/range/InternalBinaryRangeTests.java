@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -84,11 +83,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalBinaryRange> instanceReader() {
-        return InternalBinaryRange::new;
     }
 
     @Override

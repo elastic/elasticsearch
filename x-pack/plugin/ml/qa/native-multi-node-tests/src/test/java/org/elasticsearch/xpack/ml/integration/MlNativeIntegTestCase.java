@@ -19,21 +19,35 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockDeterministicScript;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
-import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
@@ -41,10 +55,15 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 
@@ -57,13 +76,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.Matchers.is;
 
@@ -84,6 +106,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             LocalStateMachineLearning.class,
             Netty4Plugin.class,
             ReindexPlugin.class,
+            // The monitoring plugin requires script and gsub processors to be loaded
+            IngestCommonPlugin.class,
+            // The monitoring plugin script processor references painless. Include this for script compilation.
+            // This is to reduce log spam
+            MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
@@ -126,8 +153,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
         builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        builder.put(ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        builder.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put(Environment.PATH_HOME_SETTING.getKey(), home);
         builder.put("xpack.security.transport.ssl.enabled", true);
@@ -142,6 +170,18 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         setUpgradeModeTo(false);
         cleanUpResources();
         waitForPendingTasks();
+    }
+
+    @Override
+    protected Set<String> excludeTemplates() {
+        return new HashSet<>(Arrays.asList(
+            NotificationsIndex.NOTIFICATIONS_INDEX,
+            MlMetaIndex.INDEX_NAME,
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+            InferenceIndexConstants.LATEST_INDEX_NAME,
+            SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
+        ));
     }
 
     protected abstract void cleanUpResources();
@@ -181,12 +221,18 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return response;
     }
 
-    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
-        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
+    protected DeleteExpiredDataAction.Response deleteExpiredData(Float customThrottle) throws Exception {
+        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request();
+        request.setRequestsPerSecond(customThrottle);
+        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE, request).get();
+        // We need to refresh to ensure the deletion is visible
+        refresh("*");
+
+        return response;
     }
 
-    protected GetFiltersAction.Response getMlFilters() {
-        return client().execute(GetFiltersAction.INSTANCE, new GetFiltersAction.Request()).actionGet();
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
     @Override
@@ -195,6 +241,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                (in) -> TimeseriesLifecycleType.INSTANCE));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
                     StartDatafeedAction.DatafeedParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
@@ -240,6 +291,44 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public static class MockPainlessScriptEngine extends MockScriptEngine {
+
+        public static final String NAME = "painless";
+
+        public static class TestPlugin extends MockScriptPlugin {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MockPainlessScriptEngine();
+            }
+
+            @Override
+            protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+                return Collections.emptyMap();
+            }
+        }
+
+        @Override
+        public String getType() {
+            return NAME;
+        }
+
+        @Override
+        public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+            if (context.instanceClazz.equals(ScoreScript.class)) {
+                return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
+            }
+            if (context.name.equals("ingest")) {
+                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                    @Override
+                    public void execute(Map<String, Object> ctx) {
+                    }
+                };
+                return context.factoryClazz.cast(factory);
+            }
+            throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
         }
     }
 }

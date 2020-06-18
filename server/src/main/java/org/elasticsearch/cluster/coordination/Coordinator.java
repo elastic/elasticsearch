@@ -868,6 +868,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // Package-private for testing
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        assert validVotingConfigExclusionState(clusterState) : clusterState;
 
         // exclude any nodes whose ID is in the voting config exclusions list ...
         final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
@@ -893,6 +894,31 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     .lastAcceptedConfiguration(newConfig).build())).build();
         }
         return clusterState;
+    }
+
+    /*
+    * Valid Voting Configuration Exclusion state criteria:
+    * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
+    * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
+     */
+    static boolean validVotingConfigExclusionState(ClusterState clusterState) {
+        Set<VotingConfigExclusion> votingConfigExclusions = clusterState.getVotingConfigExclusions();
+        Set<String> nodeNamesWithAbsentId = votingConfigExclusions.stream()
+                                                .filter(e -> e.getNodeId().equals(VotingConfigExclusion.MISSING_VALUE_MARKER))
+                                                .map(VotingConfigExclusion::getNodeName)
+                                                .collect(Collectors.toSet());
+        Set<String> nodeIdsWithAbsentName = votingConfigExclusions.stream()
+                                                .filter(e -> e.getNodeName().equals(VotingConfigExclusion.MISSING_VALUE_MARKER))
+                                                .map(VotingConfigExclusion::getNodeId)
+                                                .collect(Collectors.toSet());
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            if (node.isMasterNode() &&
+                (nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName()))) {
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();

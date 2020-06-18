@@ -233,7 +233,7 @@ public class ILMHistoryStore implements Closeable {
         } else if (ilmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
+                "] already exists as " + ilmHistory.getType().getDisplayName()));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
             assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";

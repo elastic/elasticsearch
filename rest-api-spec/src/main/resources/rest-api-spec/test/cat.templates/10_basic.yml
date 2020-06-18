@@ -1,5 +1,9 @@
 ---
 "Help":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
+
     - do:
         cat.templates:
           help: true
@@ -10,6 +14,7 @@
                        index_patterns   .+   \n
                        order            .+   \n
                        version          .+   \n
+                       composed_of      .+   \n
                    $/
 
 ---
@@ -26,6 +31,9 @@
 
 ---
 "Normal templates":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -58,7 +66,7 @@
                  (^|\n)test     \s+
                  \[test-\*\]    \s+
                  0              \s+
-                 1
+                 1              \s+
                  (\n|$)
                /
 
@@ -68,12 +76,15 @@
                 (^|\n)test_2    \s+
                 \[test-2\*\]    \s+
                 1               \s+
-                2
+                2               \s+
                 (\n|$)
                /
 
 ---
 "Filtered templates":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -107,12 +118,16 @@
                     test    \s+
                     \[t\*\] \s+
                     0       \s+
-                    1
+                    1       \s*
                     \n
                 $/
 
 ---
 "Column headers":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
+
     - do:
         indices.put_template:
           name: test
@@ -135,17 +150,22 @@
                     name            \s+
                     index_patterns  \s+
                     order           \s+
-                    version
+                    version         \s+
+                    composed_of
                     \n
                     test            \s+
                     \[t\*\]         \s+
                     0               \s+
-                    1
+                    1               \s*
                     \n
                  $/
 
 ---
 "Select columns":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
+
     - do:
         indices.put_template:
           name: test
@@ -177,7 +197,10 @@
 ---
 "Sort templates":
     - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
         features: default_shards, no_xpack
+
     - do:
         indices.put_template:
           name: test
@@ -207,8 +230,8 @@
     - match:
         $body: |
               /^
-                  test   \s+ \[t\*\]  \s+   \n
-                  test_1 \s+ \[te\*\] \s+ 1 \n
+                  test   \s+ \[t\*\]  \s+   \n \n
+                  test_1 \s+ \[te\*\] \s+ 1 \n \n
               $/
 
     - do:
@@ -219,15 +242,18 @@
     - match:
         $body: |
               /^
-                  test_1 \s+ \[te\*\]   \s+ 1\n
-                  test   \s+ \[t\*\]    \s+  \n
+                  test_1 \s+ \[te\*\]   \s+ 1\n \n
+                  test   \s+ \[t\*\]    \s+  \n \n
 
               $/
 
 ---
 "Multiple template":
     - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
         features: default_shards, no_xpack
+
     - do:
         indices.put_template:
           name: test_1
@@ -254,4 +280,66 @@
                  test_1       \s+
                  \[t\*,\ te\*\]
                  \n
+                 \n
               $/
+
+---
+"Mixture of legacy and composable templates":
+    - skip:
+        version: " - 7.7.99"
+        reason: "format changed in 7.8 to accomodate V2 index templates"
+        features: allowed_warnings
+
+    - do:
+        cluster.put_component_template:
+          name: foo
+          body:
+            template:
+              settings:
+                number_of_shards: 1
+                number_of_replicas: 0
+
+    - do:
+        indices.put_template:
+          name: test
+          body:
+            order: 0
+            version: 1
+            index_patterns: test-*
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+    - do:
+        allowed_warnings:
+          - "index template [testv2] has index patterns [v2-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [testv2] will take precedence during new index creation"
+        indices.put_index_template:
+          name: testv2
+          body:
+            index_patterns: [v2-test]
+            priority: 4
+            version: 3
+            composed_of: [foo]
+
+    - do:
+        cat.templates: {}
+
+    - match:
+        $body: >
+               /
+                 (^|\n)test     \s+
+                 \[test-\*\]    \s+
+                 0              \s+
+                 1              \s+
+                 (\n|$)
+               /
+
+    - match:
+        $body: >
+               /
+                (^|\n)testv2    \s+
+                \[v2-test\]     \s+
+                4               \s+
+                3               \s+
+                \[foo\]
+               /

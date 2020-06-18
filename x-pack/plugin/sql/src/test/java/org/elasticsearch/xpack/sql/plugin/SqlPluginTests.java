@@ -19,21 +19,22 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class SqlPluginTests extends ESTestCase {
 
-    public void testSqlDisabled() {
+    public void testSqlDisabledIsNoOp() {
         Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
         SqlPlugin plugin = new SqlPlugin(settings);
         assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
-            empty());
-        assertThat(plugin.getActions(), hasSize(2)); // usage action
-        assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
-            mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)), empty());
+            hasSize(3));
+        assertThat(plugin.getActions(), hasSize(6));
+        assertThat(
+            plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
+                mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)),
+            hasSize(4));
     }
 }

@@ -194,7 +194,7 @@ final class FetchSearchPhase extends SearchPhase {
                     try {
                         logger.debug(
                             () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()), e);
-                        progressListener.notifyFetchFailure(shardIndex, e);
+                        progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
                         // the search context might not be cleared on the node where the fetch was executed for example

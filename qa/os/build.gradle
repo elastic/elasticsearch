@@ -37,12 +37,12 @@ dependencies {
 
   compile project(':libs:elasticsearch-core')
 
-  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
@@ -52,13 +52,13 @@ tasks.test.enabled = false
 testingConventions.enabled = false
 
 // this project doesn't get published
-tasks.dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 tasks.dependenciesInfo.enabled = false
 
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest' 
+  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.plugins', 'destructiveBatsTest.upgrade'
 }
 
 processTestResources {
@@ -67,7 +67,7 @@ processTestResources {
 
 subprojects { Project platformProject ->
   tasks.register('packagingTest') {
-    dependsOn 'distroTest'
+    dependsOn 'distroTest', 'batsTest.plugins', 'batsTest.upgrade'
   }
 
   vagrant {

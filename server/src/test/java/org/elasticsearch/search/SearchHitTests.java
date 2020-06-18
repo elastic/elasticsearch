@@ -71,20 +71,12 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
-        Map<String, DocumentField> fields = new HashMap<>();
+        Map<String, DocumentField> metaFields = new HashMap<>();
+        Map<String, DocumentField> documentFields = new HashMap<>();
         if (frequently()) {
-            fields = new HashMap<>();
             if (randomBoolean()) {
-                fields = GetResultTests.randomDocumentFields(xContentType).v2();
-            }
-        }
-        HashMap<String, DocumentField> metaFields = new HashMap<>();
-        HashMap<String, DocumentField> documentFields = new HashMap<>();
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                metaFields.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                documentFields.put(fieldEntry.getKey(), fieldEntry.getValue());
+                metaFields = GetResultTests.randomDocumentFields(xContentType, true).v2();
+                documentFields = GetResultTests.randomDocumentFields(xContentType, false).v2();
             }
         }
 
@@ -182,14 +174,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
      * objects allow arbitrary keys (the field names that are queries). Also we want to exclude
      * to add anything under "_source" since it is not parsed, and avoid complexity by excluding
      * everything under "inner_hits". They are also keyed by arbitrary names and contain SearchHits,
-     * which are already tested elsewhere.
+     * which are already tested elsewhere. We also exclude the root level, as all unknown fields
+     * on a root level are interpreted as meta-fields and will be kept.
      */
     public void testFromXContentLenientParsing() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
         Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
-                || path.contains("inner_hits"));
+                || path.contains("inner_hits") || path.isEmpty());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;

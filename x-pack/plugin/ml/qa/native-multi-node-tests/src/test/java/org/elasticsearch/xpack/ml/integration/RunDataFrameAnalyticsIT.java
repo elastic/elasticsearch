@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -36,12 +37,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -95,11 +98,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_few_docs";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -141,7 +143,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -181,11 +183,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -200,7 +201,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -256,11 +257,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -285,7 +285,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -325,7 +325,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -395,11 +394,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -414,7 +412,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -457,11 +455,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         String id = "test_outlier_detection_with_pre_existing_dest_index";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, destIndex, null, new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -476,7 +473,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -521,7 +518,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setModelMemoryLimit(modelMemoryLimit)
             .build();
 
-        registerAnalytics(config);
         putAnalytics(config);
         assertIsStopped(id);
 
@@ -566,12 +562,12 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setAllowLazyStart(true)
             .build();
 
-        registerAnalytics(config);
         putAnalytics(config);
         assertIsStopped(id);
 
         // Due to lazy start being allowed, this should succeed even though no node currently in the cluster is big enough
-        startAnalytics(id);
+        NodeAcknowledgedResponse response = startAnalytics(id);
+        assertThat(response.getNode(), emptyString());
 
         // Wait until state is STARTING, there is no node but there is an assignment explanation.
         assertBusy(() -> {
@@ -591,7 +587,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55068")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
@@ -616,11 +611,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String id = "test_outlier_detection_stop_and_restart";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", "custom_ml",
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        startAnalytics(id);
+        NodeAcknowledgedResponse response = startAnalytics(id);
+        assertThat(response.getNode(), not(emptyString()));
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
@@ -633,7 +628,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         // Now let's start it again
         try {
-            startAnalytics(id);
+            response = startAnalytics(id);
+            assertThat(response.getNode(), not(emptyString()));
         } catch (Exception e) {
             if (e.getMessage().equals("Cannot start because the job has already finished")) {
                 // That means the job had managed to complete
@@ -654,7 +650,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
@@ -692,11 +688,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 .setOutlierFraction(0.04)
                 .setStandardizationEnabled(true)
                 .build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -735,7 +730,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",

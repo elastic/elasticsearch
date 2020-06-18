@@ -107,6 +107,15 @@ public final class Expressions {
         return true;
     }
 
+    public static List<Object> fold(List<? extends Expression> exps) {
+        List<Object> folded = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            folded.add(exp.fold());
+        }
+
+        return folded;
+    }
+
     public static AttributeSet references(List<? extends Expression> exps) {
         if (exps.isEmpty()) {
             return AttributeSet.EMPTY;
@@ -141,6 +150,10 @@ public final class Expressions {
             return ((NamedExpression) e).toAttribute();
         }
         return null;
+    }
+
+    public static boolean isPresent(NamedExpression e) {
+        return e instanceof EmptyAttribute == false;
     }
 
     public static boolean equalsAsAttribute(Expression left, Expression right) {

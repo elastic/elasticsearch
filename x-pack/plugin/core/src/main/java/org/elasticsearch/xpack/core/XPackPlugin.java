@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -60,11 +61,14 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -86,9 +90,10 @@ import java.util.stream.StreamSupport;
 
 public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
-    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
+    public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
 
     // TODO: clean up this library to not ask for write access to all system properties!
@@ -230,14 +235,11 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
 
-        final SSLService sslService = new SSLService(environment);
-        setSslService(sslService);
-        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(environment, sslService, resourceWatcherService);
-
+        final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
 
@@ -256,6 +258,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
+        actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         return actions;
     }
 
@@ -312,7 +315,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                deprecationLogger.deprecate("config_file_path",
+                    "Config file [" + name + "] is in a deprecated location. Move from " +
                     legacyConfig.toString() + " to " + config.toString());
                 return legacyConfig;
             }
@@ -340,5 +344,19 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
         return settings;
+    }
+
+    /**
+     * Handles the creation of the SSLService along with the necessary actions to enable reloading
+     * of SSLContexts when configuration files change on disk.
+     */
+    private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
+        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final SSLConfigurationReloader reloader =
+            new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
+        final SSLService sslService = new SSLService(environment, sslConfigurations);
+        reloader.setSSLService(sslService);
+        setSslService(sslService);
+        return sslService;
     }
 }

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -29,6 +28,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalGeoCentroidTests extends InternalAggregationTestCase<InternalGeoCentroid> {
 
@@ -50,15 +51,10 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected Writeable.Reader<InternalGeoCentroid> instanceReader() {
-        return InternalGeoCentroid::new;
-    }
-
-    @Override
     protected void assertReduced(InternalGeoCentroid reduced, List<InternalGeoCentroid> inputs) {
         double lonSum = 0;
         double latSum = 0;
-        int totalCount = 0;
+        long totalCount = 0;
         for (InternalGeoCentroid input : inputs) {
             if (input.count() > 0) {
                 lonSum += (input.count() * input.centroid().getLon());
@@ -71,6 +67,14 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
         }
         assertEquals(totalCount, reduced.count());
+    }
+
+    public void testReduceMaxCount() {
+        InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid("agg", new GeoPoint(10, 0),
+            Long.MAX_VALUE, Collections.emptyMap());
+        InternalGeoCentroid reducedGeoCentroid = maxValueGeoCentroid
+            .reduce(Collections.singletonList(maxValueGeoCentroid), null);
+        assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
     }
 
     @Override

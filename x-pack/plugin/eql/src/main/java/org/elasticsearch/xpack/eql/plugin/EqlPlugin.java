@@ -24,6 +24,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -80,7 +81,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver) {
+            IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 
@@ -110,6 +111,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             return List.of(
                 new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
                 new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+                new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
                 new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
             );
@@ -139,7 +141,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
         if (enabled) {
-            return List.of(new RestEqlSearchAction(), new RestEqlStatsAction());
+            return List.of(
+                new RestEqlSearchAction(),
+                new RestEqlStatsAction(),
+                new RestEqlGetAsyncResultAction(),
+                new RestEqlDeleteAsyncResultAction()
+            );
         }
         return List.of();
     }

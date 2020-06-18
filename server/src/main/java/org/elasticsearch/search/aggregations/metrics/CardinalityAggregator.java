@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ import java.util.Map;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
     private final ValuesSource valuesSource;
@@ -60,14 +61,16 @@ class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private Collector collector;
 
-    CardinalityAggregator(String name,
-                            ValuesSource valuesSource,
-                            int precision,
-                            SearchContext context,
-                            Aggregator parent,
-                            Map<String, Object> metadata) throws IOException {
+    public CardinalityAggregator(
+            String name,
+            ValuesSourceConfig valuesSourceConfig,
+            int precision,
+            SearchContext context,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }

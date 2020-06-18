@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -33,16 +35,28 @@ import java.util.Objects;
  */
 public class EBool extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression left;
-    protected final AExpression right;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final Operation operation;
 
-    public EBool(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
+    public EBool(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
@@ -61,22 +75,24 @@ public class EBool extends AExpression {
 
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
-        left.cast(leftInput, leftOutput);
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
-        right.cast(rightInput, rightOutput);
+        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         output.actual = boolean.class;
 
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.cast(leftOutput));
-        booleanNode.setRightNode(right.cast(rightOutput));
+        booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        booleanNode.setLocation(location);
+        booleanNode.setLocation(getLocation());
         booleanNode.setExpressionType(output.actual);
         booleanNode.setOperation(operation);
 

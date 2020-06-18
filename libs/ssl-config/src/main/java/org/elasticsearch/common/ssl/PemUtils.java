@@ -350,7 +350,6 @@ final class PemUtils {
         EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
@@ -639,7 +638,7 @@ final class PemUtils {
             case "1.3.132.0.39":
                 return "sect571r1";
         }
-        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString 
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString
             + " is not supported");
     }
 

@@ -93,7 +93,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips = true;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
+        IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
@@ -606,22 +607,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public String getDescription() {
-                StringBuilder sb = new StringBuilder();
-                sb.append("indices[");
-                Strings.arrayToDelimitedString(indices, ",", sb);
-                sb.append("], ");
-                sb.append("search_type[").append(searchType).append("], ");
-                if (scroll != null) {
-                    sb.append("scroll[").append(scroll.keepAlive()).append("], ");
-                }
-                if (source != null) {
-                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-                } else {
-                    sb.append("source[]");
-                }
-                return sb.toString();
+                return buildDescription();
             }
         };
+    }
+
+    public String buildDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append("search_type[").append(searchType).append("], ");
+        if (scroll != null) {
+            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+        }
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     @Override

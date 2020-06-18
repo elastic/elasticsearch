@@ -40,7 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Request class to swap index under an alias upon satisfying conditions
+ * Request class to swap index under an alias or increment data stream generation upon satisfying conditions
  *
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
@@ -81,7 +81,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
     }
 
-    private String alias;
+    private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
     private Map<String, Condition<?>> conditions = new HashMap<>(2);
@@ -90,7 +90,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
-        alias = in.readString();
+        rolloverTarget = in.readString();
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
         int size = in.readVInt();
@@ -103,16 +103,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     RolloverRequest() {}
 
-    public RolloverRequest(String alias, String newIndexName) {
-        this.alias = alias;
+    public RolloverRequest(String rolloverTarget, String newIndexName) {
+        this.rolloverTarget = rolloverTarget;
         this.newIndexName = newIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest.validate();
-        if (alias == null) {
-            validationException = addValidationError("index alias is missing", validationException);
+        if (rolloverTarget == null) {
+            validationException = addValidationError("rollover target is missing", validationException);
         }
         return validationException;
     }
@@ -120,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(alias);
+        out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
@@ -132,7 +132,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[] {alias};
+        return new String[] {rolloverTarget};
     }
 
     @Override
@@ -141,10 +141,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the rollover target to rollover to another index
      */
-    public void setAlias(String alias) {
-        this.alias = alias;
+    public void setRolloverTarget(String rolloverTarget) {
+        this.rolloverTarget = rolloverTarget;
     }
 
     /**
@@ -209,8 +209,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    public String getAlias() {
-        return alias;
+    public String getRolloverTarget() {
+        return rolloverTarget;
     }
 
     public String getNewIndexName() {

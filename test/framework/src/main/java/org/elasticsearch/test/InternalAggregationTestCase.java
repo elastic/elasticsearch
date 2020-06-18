@@ -35,6 +35,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
@@ -80,15 +83,15 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -162,7 +165,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
+/**
+ * Implementors of this test case should be aware that the aggregation under test needs to be registered
+ * in the test's namedWriteableRegistry.  Core aggregations are registered already, but non-core
+ * aggs should override {@link InternalAggregationTestCase#registerPlugin()} so that the NamedWriteables
+ * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
+ */
+public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
      * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
      */
@@ -201,8 +210,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
-    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
@@ -270,12 +278,55 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedXContents;
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
+    }
+
+    @Override
+    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    /**
+     * Implementors can override this if they want to provide a custom list of namedWriteables.  If the implementor
+     * _just_ wants to register in namedWriteables provided by a plugin, prefer overriding
+     * {@link InternalAggregationTestCase#registerPlugin()} instead because that route handles the automatic
+     * conversion of AggSpecs into namedWriteables.
+     */
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        SearchPlugin plugin = registerPlugin();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugin == null ? emptyList() : List.of(plugin));
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedWriteables());
+
+        // Modules/plugins may have extra namedwriteables that are not added by agg specs
+        if (plugin != null) {
+            entries.addAll(((Plugin) plugin).getNamedWriteables());
+        }
+
+        return entries;
+    }
+
+    /**
+     * If a test needs to register additional aggregation specs for namedWriteable, etc, this method
+     * can be overridden by the implementor.
+     */
+    protected SearchPlugin registerPlugin() {
+        return null;
+    }
+
     protected abstract T createTestInstance(String name, Map<String, Object> metadata);
 
     /** Return an instance on an unmapped field. */
     protected T createUnmappedInstance(String name, Map<String, Object> metadata) {
         // For most impls, we use the same instance in the unmapped case and in the mapped case
         return createTestInstance(name, metadata);
+    }
+
+    @Override
+
+    protected final Class<T> categoryClass() {
+        return (Class<T>) InternalAggregation.class;
     }
 
     /**
@@ -326,7 +377,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * partial reduce. And to simulate cross cluster search.
              */
             if (randomBoolean()) {
-                reduced = copyInstance(reduced);
+                reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
             toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
@@ -337,9 +388,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
-        assertMultiBucketConsumer(reduced, bucketConsumer);
+        doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs);
     }
+
+    protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
+    }
+
 
     /**
      * overwrite in tests that need it
@@ -375,16 +431,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createUnmappedInstance(name, metadata);
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return namedXContentRegistry;
     }
 
     public final void testFromXContent() throws IOException {
@@ -426,9 +472,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              * objects, they are used with "keyed" aggregations and contain
              * named bucket objects. Any new named object on this level should
              * also be a bucket and be parsed as such.
+             *
+             * we also exclude top_hits that contain SearchHits, as all unknown fields
+             * on a root level of SearchHit are interpreted as meta-fields and will be kept.
              */
             Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName());
+                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName()) || path.contains("top_hits");
             Predicate<String> excludes = basicExcludes.or(excludePathsFromXContentInsertion());
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {

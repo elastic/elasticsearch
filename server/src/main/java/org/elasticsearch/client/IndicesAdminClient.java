@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -68,6 +68,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -709,7 +710,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
-    ActionFuture<RolloverResponse> rolloversIndex(RolloverRequest request);
+    ActionFuture<RolloverResponse> rolloverIndex(RolloverRequest request);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
@@ -739,10 +740,20 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Get data streams
      */
-    void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener);
+    void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener);
 
     /**
      * Get data streams
      */
-    ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request);
+    ActionFuture<GetDataStreamAction.Response> getDataStreams(GetDataStreamAction.Request request);
+
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    void resolveIndex(ResolveIndexAction.Request request, ActionListener<ResolveIndexAction.Response> listener);
+
+    /**
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
+     */
+    ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 }

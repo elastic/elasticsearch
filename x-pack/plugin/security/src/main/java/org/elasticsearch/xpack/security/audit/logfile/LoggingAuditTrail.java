@@ -38,9 +38,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -446,7 +444,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void accessGranted(String requestId, Authentication authentication, String action, TransportRequest msg,
                               AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        final boolean isSystem = User.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(msg);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
@@ -475,8 +473,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
         final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if (isSystem && eventType == ACCESS_GRANTED) {
+        if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {

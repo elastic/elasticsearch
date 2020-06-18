@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -34,16 +35,28 @@ import java.util.Objects;
  */
 public class EConditional extends AExpression {
 
-    protected final AExpression condition;
-    protected final AExpression left;
-    protected final AExpression right;
+    private final AExpression conditionNode;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
 
-    public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
-        super(location);
+    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression leftNode, AExpression rightNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
     }
 
     @Override
@@ -60,20 +73,21 @@ public class EConditional extends AExpression {
 
         Input conditionInput = new Input();
         conditionInput.expected = boolean.class;
-        Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
-        condition.cast(conditionInput, conditionOutput);
+        Output conditionOutput = analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(classNode.getLocation(),
+                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
         Input leftInput = new Input();
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
 
         output.actual = input.expected;
 
@@ -91,16 +105,18 @@ public class EConditional extends AExpression {
             output.actual = promote;
         }
 
-        left.cast(leftInput, leftOutput);
-        right.cast(rightInput, rightOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         ConditionalNode conditionalNode = new ConditionalNode();
 
-        conditionalNode.setLeftNode(left.cast(leftOutput));
-        conditionalNode.setRightNode(right.cast(rightOutput));
-        conditionalNode.setConditionNode(condition.cast(conditionOutput));
+        conditionalNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        conditionalNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
+        conditionalNode.setConditionNode(cast(conditionOutput.expressionNode, conditionCast));
 
-        conditionalNode.setLocation(location);
+        conditionalNode.setLocation(getLocation());
         conditionalNode.setExpressionType(output.actual);
 
         output.expressionNode = conditionalNode;

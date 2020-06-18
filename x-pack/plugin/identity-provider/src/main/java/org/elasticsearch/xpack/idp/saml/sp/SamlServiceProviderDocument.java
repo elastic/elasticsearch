@@ -38,6 +38,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -52,14 +54,15 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     public static class Privileges {
         public String resource;
-        public Set<String> rolePatterns = Set.of();
+        // we use a sorted set so that the order is consistent in XContent APIs
+        public SortedSet<String> rolePatterns = new TreeSet<>();
 
         public void setResource(String resource) {
             this.resource = resource;
         }
 
         public void setRolePatterns(Collection<String> rolePatterns) {
-            this.rolePatterns = Set.copyOf(rolePatterns);
+            this.rolePatterns = new TreeSet<>(rolePatterns);
         }
 
         @Override
@@ -258,7 +261,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
-        privileges.rolePatterns = in.readSet(StreamInput::readString);
+        privileges.rolePatterns = new TreeSet<>(in.readSet(StreamInput::readString));
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();

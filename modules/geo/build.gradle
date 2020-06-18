@@ -21,3 +21,7 @@ esplugin {
   description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
   classname 'org.elasticsearch.geo.GeoPlugin'
 }
+
+artifacts {
+  restTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+}

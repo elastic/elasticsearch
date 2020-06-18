@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -14,7 +15,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -82,7 +84,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  In case of instability persistent tasks checks may fail and that is ok, in that case all bets are off.
  The open job api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
 */
-public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
+public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, NodeAcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportOpenJobAction.class);
 
@@ -194,8 +196,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected NodeAcknowledgedResponse read(StreamInput in) throws IOException {
+        return new NodeAcknowledgedResponse(in);
     }
 
     @Override
@@ -208,20 +210,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     @Override
     protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                   ActionListener<NodeAcknowledgedResponse> listener) {
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobParams().getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("open job", request.getJobParams().getJobId()));
             return;
         }
 
         OpenJobAction.JobParams jobParams = request.getJobParams();
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
 
             // Clear job finished time once the job is started and respond
-            ActionListener<AcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
+            ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, jobParams.getJobId(), listener);
                     } else {
                         listener.onResponse(response);
                     }
@@ -274,7 +276,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<AcknowledgedResponse> listener) {
+    private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<NodeAcknowledgedResponse> listener) {
         JobPredicate predicate = new JobPredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, jobParams.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
@@ -289,7 +291,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         listener.onFailure(predicate.exception);
                     }
                 } else {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                 }
             }
 
@@ -306,21 +308,21 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         });
     }
 
-    private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
+    private void clearJobFinishedTime(NodeAcknowledgedResponse response, String jobId, ActionListener<NodeAcknowledgedResponse> listener) {
         JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
         jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
-                job -> listener.onResponse(new AcknowledgedResponse(true)),
+                job -> listener.onResponse(response),
                 e  -> {
                     logger.error("[" + jobId + "] Failed to clear finished_time", e);
                     // Not a critical error so continue
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(response);
                 }
         ));
     }
 
     private void cancelJobStart(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
-                                ActionListener<AcknowledgedResponse> listener) {
+                                ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
                 new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                     @Override
@@ -348,6 +350,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final MlMemoryTracker memoryTracker;
         private final Client client;
         private final IndexNameExpressionResolver expressionResolver;
+        private final JobResultsProvider jobResultsProvider;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
@@ -363,6 +366,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.client = Objects.requireNonNull(client);
             this.expressionResolver = Objects.requireNonNull(expressionResolver);
+            this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
@@ -439,10 +443,28 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
             JobTaskState jobTaskState = (JobTaskState) state;
+            JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
+            jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
+                r -> runJob(jobTask, jobState, params),
+                e -> {
+                    logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
+                    runJob(jobTask, jobState, params);
+                }
+            ));
+        }
+
+        private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {
+            // If the job is closing, simply stop and return
+            if (JobState.CLOSING.equals(jobState)) {
+                // Mark as completed instead of using `stop` as stop assumes native processes have started
+                logger.info("[{}] job got reassigned while stopping. Marking as completed", params.getJobId());
+                jobTask.markAsCompleted();
+                return;
+            }
             // If the job is failed then the Persistent Task Service will
             // try to restart it on a node restart. Exiting here leaves the
             // job in the failed state and it must be force closed.
-            if (jobTaskState != null && jobTaskState.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
+            if (JobState.FAILED.equals(jobState)) {
                 return;
             }
 
@@ -453,22 +475,22 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                         executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
-                                response -> task.markAsCompleted(),
+                                response -> jobTask.markAsCompleted(),
                                 e -> {
                                     logger.error("error finalizing job [" + jobId + "]", e);
                                     Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                                     if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
-                                        task.markAsCompleted();
+                                        jobTask.markAsCompleted();
                                     } else {
-                                        task.markAsFailed(e);
+                                        jobTask.markAsFailed(e);
                                     }
                                 }
                             ));
                     } else {
-                        task.markAsCompleted();
+                        jobTask.markAsCompleted();
                     }
                 } else {
-                    task.markAsFailed(e2);
+                    jobTask.markAsFailed(e2);
                 }
             });
         }
@@ -540,6 +562,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private static class JobPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String node = "";
         private volatile boolean shouldCancel;
 
         @Override
@@ -585,6 +608,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 case CLOSED:
                     return false;
                 case OPENED:
+                    node = persistentTask.getExecutorNode();
                     return true;
                 case CLOSING:
                     exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "

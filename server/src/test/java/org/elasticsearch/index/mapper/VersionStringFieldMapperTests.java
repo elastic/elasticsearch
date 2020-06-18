@@ -111,16 +111,26 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             .get();
         assertEquals(2, response.getHits().getTotalHits().value);
 
-        // prefix won't work, would need to encode this differently
-//        response = client().prepareSearch(indexName)
-//            .setQuery(QueryBuilders.prefixQuery("version","1"))
-//            .get();
-//        assertEquals(2, response.getHits().getTotalHits().value);
-//
-//        response = client().prepareSearch(indexName)
-//            .setQuery(QueryBuilders.prefixQuery("version","2.0"))
-//            .get();
-//        assertEquals(1, response.getHits().getTotalHits().value);
+        // prefix
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.prefixQuery("version","1"))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.prefixQuery("version","2.1"))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.prefixQuery("version","2.1.0-"))
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.prefixQuery("version","1.3.0+b"))
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
 
         // sort based on version field
         response = client().prepareSearch(indexName)

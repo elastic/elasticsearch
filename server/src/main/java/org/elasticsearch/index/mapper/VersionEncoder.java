@@ -55,9 +55,9 @@ import java.util.regex.Pattern;
 public class VersionEncoder {
 
     private static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
-    private static final char PRERELESE_SEPARATOR = '-';
+    static final char PRERELESE_SEPARATOR = '-';
     private static final byte PRERELESE_SEPARATOR_BYTE = (byte) 0x02;
-    private static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
+    static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
     private static final String DOT_SEPARATOR_REGEX = "\\.";
     private static final char DOT_SEPARATOR = '.';
     private static final byte DOT_SEPARATOR_BYTE = (byte) 0x04;

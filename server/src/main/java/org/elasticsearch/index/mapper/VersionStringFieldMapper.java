@@ -26,6 +26,8 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -214,6 +216,25 @@ public class VersionStringFieldMapper extends FieldMapper {
             } else {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
+                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
+                        "fields please enable [index_prefixes].");
+            }
+            failIfNotIndexed();
+            BytesRef encoded = indexedValueForSearch(value);
+            if (encoded.bytes[encoded.length - 1] == VersionEncoder.NO_PRERELESE_SEPARATOR_BYTE) {
+                encoded.length = encoded.length - 1;
+            }
+            PrefixQuery query = new PrefixQuery(new Term(name(), encoded));
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
+            return query;
         }
 
         @Override

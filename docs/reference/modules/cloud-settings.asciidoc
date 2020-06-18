@@ -19,6 +19,7 @@ The following {es} settings are supported on {ess}:
 * <<cloud-reindex-settings,Reindex settings>>
 * <<cloud-realm-settings,Realm settings>>
 * <<cloud-kerberos-settings,Kerberos realm settings>>
+* <<cloud-openid-connect-realm-settings,OpenID Connect realm settings>>
 * <<cloud-saml-realm-settings,SAML realm settings>>
 * <<cloud-saml-realm-encryption-settings,SAML realm encryption settings>>
 * <<cloud-saml-realm-signing-settings,SAML realm signing settings>>
@@ -134,9 +135,38 @@ include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-reindex-remote-whit
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-settings-description-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-order-tag]
 
+[[cloud-openid-connect-realm-settings]]
+===== OpenID Connect realm settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-description-tag]
+
+To learn about enabling OpenID Connect and related user settings, see {cloud}/ec-secure-clusters-oidc.html[securing your clusters with OpenID Connect].
+
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-allowed-clock-skew-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claim-pattern-principal-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claim-pattern-dn-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claim-pattern-groups-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claim-pattern-name-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claim-pattern-mail-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claims-principal-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claims-dn-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claims-groups-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claims-mail-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-claims-mail-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-populate-user-metadata-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-connect-timeout-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-read-timeout-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-max-connections-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-max-endpoint-connections-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-socket-timeout]
+
+<<cloud-settings,Back to top>>
+
 [[cloud-saml-realm-settings]]
 ===== SAML realm settings
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-description-tag]
+
+To learn about enabling SAML and related user settings, see {cloud}/ec-securing-clusters-SAML.html[securing your clusters with SAML].
+
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-allowed-clock-skew-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-dn-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-attributes-groups-tag]

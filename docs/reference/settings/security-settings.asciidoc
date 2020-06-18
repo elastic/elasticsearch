@@ -880,7 +880,7 @@ Configuring authentication delegation for PKI realms>>.
 // tag::saml-description-tag[]
 The `type` setting must be set to `saml`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following settings:
+the following settings.
 // end::saml-description-tag[]
 
 // tag::saml-idp-entity-id-tag[]
@@ -1324,9 +1324,10 @@ See <<authorization_realms>>.
 [[ref-oidc-settings]]
 [float]
 ===== OpenID Connect realm settings
-
+// tag::oidc-description-tag[]
 In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
-can specify the following settings:
+can specify the following settings.
+// end::oidc-description-tag[]
 
 `op.issuer`::
 A verifiable Identifier for your OpenID Connect Provider. An Issuer
@@ -1397,50 +1398,73 @@ part of the Authentication Request. Optional, defaults to `openid`
 The Redirect URI (usually within {kib}) that the OpenID Connect Provider
 should redirect the browser to after a successful Single Logout.
 
+// tag::oidc-claims-principal-tag[]
 `claims.principal`::
 The name of the OpenID Connect claim that contains the user's principal (username).
+// end::oidc-claims-principal-tag[]
 
-`claims.groups`::
+// tag::oidc-claims-groups-tag[]
+`claims.groups` {ess-icon}::
 The name of the OpenID Connect claim that contains the user's groups.
+// end::oidc-claims-groups-tag[]
 
-`claims.name`::
+// tag::oidc-claims-mail-tag[]
+`claims.name` {ess-icon}::
 The name of the OpenID Connect claim that contains the user's full name.
+// end::oidc-claims-mail-tag[]
 
-`claims.mail`::
+// tag::oidc-claims-mail-tag[]
+`claims.mail` {ess-icon}::
 The name of the OpenID Connect claim that contains the user's email address.
+// end::oidc-claims-mail-tag[]
 
-`claims.dn`::
+// tag::oidc-claims-dn-tag[]
+`claims.dn` {ess-icon}::
 The name of the OpenID Connect claim that contains the user's X.509
 _Distinguished Name_.
+// end::oidc-claims-dn-tag[]
 
-`claim_patterns.principal`::
+// tag::oidc-claim-pattern-principal-tag[]
+`claim_patterns.principal` {ess-icon}::
 A Java regular expression that is matched against the OpenID Connect claim specified
 by `claims.principal` before it is applied to the user's _principal_ property.
 The attribute value must match the pattern and the value of the first
 _capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
 matches email addresses from the "example.com" domain and uses the local-part as
 the principal.
+// end::oidc-claim-pattern-principal-tag[]
 
-`claim_patterns.groups`::
+// tag::oidc-claim-pattern-groups-tag[]
+`claim_patterns.groups` {ess-icon}::
 As per `claim_patterns.principal`, but for the _group_ property.
+// end::oidc-claim-pattern-groups-tag[]
 
-`claim_patterns.name`::
+// tag::oidc-claim-pattern-name-tag[]
+`claim_patterns.name` {ess-icon}::
 As per `claim_patterns.principal`, but for the _name_ property.
+// end::oidc-claim-pattern-name-tag[]
 
-`claim_patterns.mail`::
+// tag::oidc-claim-pattern-mail-tag[]
+`claim_patterns.mail` {ess-icon}::
 As per `claim_patterns.principal`, but for the _mail_ property.
+// end::oidc-claim-pattern-mail-tag[]
 
-`claim_patterns.dn`::
+// tag::oidc-claim-pattern-dn-tag[]
+`claim_patterns.dn` {ess-icon}::
 As per `claim_patterns.principal`, but for the _dn_ property.
+// end::oidc-claim-pattern-dn-tag[]
 
-
-`allowed_clock_skew`::
+// tag::oidc-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
 The maximum allowed clock skew to be taken into consideration when validating
 id tokens with regards to their creation and expiration times.
+// end::oidc-allowed-clock-skew-tag[]
 
-`populate_user_metadata`::
+// tag::oidc-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
 Specifies whether to populate the {es} user's metadata with the values that are
 provided by the OpenID Connect claims. Defaults to `true`.
+// end::oidc-populate-user-metadata-tag[]
 
 `http.proxy.host`::
 Specifies the address of the proxy server that will be used by the internal
@@ -1460,32 +1484,42 @@ Specifies the port of the proxy server that will be used by the http
 client for all backchannel communication to the OpenID Connect Provider
 endpoints. Defaults to `80`.
 
-`http.connect_timeout`::
+// tag::oidc-http-connect-timeout-tag[]
+`http.connect_timeout` {ess-icon}::
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the timeout until a connection
- is established. A value of zero means the timeout is not used. Defaults to `5s`
+ is established. A value of zero means the timeout is not used. Defaults to `5s`.
+// end::oidc-http-connect-timeout-tag[]
 
-`http.connection_read_timeout`::
+// tag::oidc-http-read-timeout-tag[]
+`http.connection_read_timeout` {ess-icon}::
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the timeout used when
 requesting a connection from the connection manager. Defaults to `5s`
+// end::oidc-http-read-timeout-tag[]
 
-`http.socket_timeout`::
+// tag::oidc-http-socket-timeout[]
+`http.socket_timeout` {ess-icon}::
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the socket timeout (SO_TIMEOUT)
 in milliseconds, which is the timeout for waiting for data or, put differently,
 a maximum period inactivity between two consecutive data packets). Defaults to
-`5s`
+`5s`.
+// end::oidc-http-socket-timeout[]
 
-`http.max_connections`::
+// tag::oidc-http-max-connections-tag[]
+`http.max_connections` {ess-icon}::
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed across all endpoints.
+// end::oidc-http-max-connections-tag[]
 
-`http.max_endpoint_connections`::
+// tag::oidc-http-max-endpoint-connections-tag[]
+`http.max_endpoint_connections` {ess-icon}::
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
+// end::oidc-http-max-endpoint-connections-tag[]
 
 [float]
 [[ref-oidc-ssl-settings]]

@@ -19,21 +19,29 @@
 
 package org.elasticsearch.recovery;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -57,16 +65,43 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
         createIndex("test");
 
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("ds"),
+                new Template(null,
+                    new CompressedXContent(mapping), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().admin().indices().createDataStream(new CreateDataStreamAction.Request("ds")).actionGet();
+
         final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test").setId(Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
+        for (int i = 2000; i < 3000; i++) {
+            client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+        }
         flush();
         for (int i = 1000; i < 2000; i++) {
             client().prepareIndex("test").setId(Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+        }
+        for (int i = 3000; i < 4000; i++) {
+            client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
 
         logger.info("--> now start adding nodes");
@@ -89,6 +124,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
         // now start shutting nodes down
@@ -106,6 +142,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
         // closing the 3rd node
@@ -124,6 +162,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
     }
 

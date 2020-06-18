@@ -174,7 +174,7 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
+boolean bwc_tests_enabled = true
 final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/58299" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {

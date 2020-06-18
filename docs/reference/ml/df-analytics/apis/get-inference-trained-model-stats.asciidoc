@@ -121,7 +121,7 @@ appropriate settings.
 
 `failure_count`:::
 (integer)
-The number of failures when the using the model for inference
+The number of failures when using the model for inference.
 
 `timestamp`:::
 (<<time-units,time units>>)

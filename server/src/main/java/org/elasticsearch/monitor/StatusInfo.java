@@ -45,6 +45,6 @@ public class StatusInfo {
 
     @Override
     public String toString() {
-        return "status[" + status + "]" + "info [" + info + "]";
+        return "status[" + status + "]" + ", info[" + info + "]";
     }
 }

@@ -4,7 +4,7 @@
 <titleabbrev>Delete data stream</titleabbrev>
 ++++
 
-Deletes one or more <<<<data-streams,data streams>> and their backing
+Deletes one or more <<data-streams,data streams>> and their backing
 indices. See <<delete-a-data-stream>>.
 
 ////

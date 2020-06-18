@@ -4,7 +4,7 @@
 <titleabbrev>Get data stream</titleabbrev>
 ++++
 
-Returns information about one or more <<<<data-streams,data streams>>.
+Returns information about one or more <<data-streams,data streams>>.
 See <<get-info-about-a-data-stream>>.
 
 ////

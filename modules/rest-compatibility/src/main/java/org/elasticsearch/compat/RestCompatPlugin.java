@@ -61,7 +61,7 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (Version.CURRENT.major == 8) {
-            return List.of(
+            return validatedList(
                 new RestDeleteByQueryActionV7(),
                 new RestUpdateByQueryActionV7(),
                 new RestCreateIndexActionV7(),
@@ -80,5 +80,13 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
             );
         }
         return Collections.emptyList();
+    }
+
+    private List<RestHandler> validatedList(RestHandler ... handlers){
+        List<RestHandler> handlers1 = List.of(handlers);
+        for (RestHandler handler : handlers) {
+            assert handler.compatibleWithVersion().major == Version.CURRENT.major-1 : "Handler is of incorrect version. " + handler;
+        }
+        return handlers1;
     }
 }

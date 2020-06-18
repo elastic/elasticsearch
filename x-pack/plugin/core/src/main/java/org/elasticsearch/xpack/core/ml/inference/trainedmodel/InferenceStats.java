@@ -240,6 +240,12 @@ public class InferenceStats implements ToXContentObject, Writeable {
             this.cacheMissAccumulator += previousStats.cacheMissCount;
         }
 
+        /**
+         * NOT Thread Safe
+         *
+         * @param otherStats the other stats with which to increment the current stats
+         * @return Updated accumulator
+         */
         public Accumulator merge(InferenceStats otherStats) {
             this.missingFieldsAccumulator += otherStats.missingAllFieldsCount;
             this.inferenceAccumulator += otherStats.inferenceCount;

@@ -95,8 +95,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         remoteClusterService,
         null,
         "node_id",
-        "license",
-        false
+        "license"
     );
 
     static {
@@ -578,8 +577,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "license",
-                false
+                "license"
             )
         );
 
@@ -604,8 +602,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "platinum",
-                false
+                "platinum"
             )
         );
 
@@ -635,8 +632,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "license",
-                false
+                "license"
             )
         );
         when(context2.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
@@ -657,8 +653,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "platinum",
-                false
+                "platinum"
             )
         );
         when(context3.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
@@ -680,8 +675,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "trial",
-                false
+                "trial"
             )
         );
         when(context4.getRegisteredRemoteClusterNames()).thenReturn(Collections.singleton(REMOTE_PLATINUM));
@@ -705,8 +699,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "license",
-                false
+                "license"
             )
         );
 
@@ -733,8 +726,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",
                 "node_id",
-                "license",
-                false
+                "license"
             )
         );
 

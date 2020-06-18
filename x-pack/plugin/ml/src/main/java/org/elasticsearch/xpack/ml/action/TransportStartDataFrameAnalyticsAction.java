@@ -131,8 +131,7 @@ public class TransportStartDataFrameAnalyticsAction
             transportService.getRemoteClusterService(),
             null,
             clusterService.getNodeName(),
-            License.OperationMode.PLATINUM.description(),
-            true
+            License.OperationMode.PLATINUM.description()
         );
     }
 

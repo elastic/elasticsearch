@@ -142,8 +142,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
-            License.OperationMode.BASIC.description(),
-            true
+            License.OperationMode.BASIC.description()
         );
         this.ingestService = ingestService;
     }

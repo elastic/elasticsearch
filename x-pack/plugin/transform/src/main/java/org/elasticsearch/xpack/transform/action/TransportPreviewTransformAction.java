@@ -125,8 +125,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
-            License.OperationMode.BASIC.description(),
-            true
+            License.OperationMode.BASIC.description()
         );
     }
 

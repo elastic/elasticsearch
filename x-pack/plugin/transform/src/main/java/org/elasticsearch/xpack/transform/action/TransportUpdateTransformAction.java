@@ -148,8 +148,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
-            License.OperationMode.BASIC.description(),
-            true
+            License.OperationMode.BASIC.description()
         );
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

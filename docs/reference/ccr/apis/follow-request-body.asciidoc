@@ -1,4 +1,8 @@
 [testenv="platinum"]
+`settings`::
+  (object) Settings to override from the leader index. Note that certain
+  settings can not be overrode (e.g., `index.number_of_shards`).
+
 `max_read_request_operation_count`::
   (integer) The maximum number of operations to pull per read from the remote
   cluster.

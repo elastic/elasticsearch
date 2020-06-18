@@ -26,7 +26,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,16 +56,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     protected StringFieldType(MappedFieldType ref) {
         super(ref);
-    }
-
-    @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
     }
 
     @Override

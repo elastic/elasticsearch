@@ -1,14 +1,16 @@
 [[data-stream-apis]]
 == Data stream APIs
 
-The following APIs are available for managing data streams:
+The following APIs are available for managing <<data-streams,data streams>>:
 
-* To get information about data streams, use the <<indices-get-data-stream, get data stream API>>.
-* To delete data streams, use the <<indices-delete-data-stream, delete data stream API>>.
-* To manually create a data stream, use the <<indices-create-data-stream, create data stream API>>.
+* <<indices-create-data-stream>>
+* <<indices-delete-data-stream>>
+* <<indices-get-data-stream>>
+
+For concepts and tutorials, see <<data-streams>>.
 
 include::{es-repo-dir}/indices/create-data-stream.asciidoc[]
 
-include::{es-repo-dir}/indices/get-data-stream.asciidoc[]
-
 include::{es-repo-dir}/indices/delete-data-stream.asciidoc[]
+
+include::{es-repo-dir}/indices/get-data-stream.asciidoc[]

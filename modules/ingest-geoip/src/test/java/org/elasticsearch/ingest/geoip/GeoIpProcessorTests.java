@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoIpProcessorTests extends ESTestCase {
 
     public void testCity() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -71,7 +71,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true,
                 new GeoIpCache(1000), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
@@ -82,7 +82,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true,
                 new GeoIpCache(1000), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
@@ -92,7 +92,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testNullWithoutIgnoreMissing() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
@@ -103,7 +103,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), false);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
@@ -113,7 +113,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCity_withIpV6() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -142,7 +142,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCityWithMissingLocation() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -159,7 +159,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCountry() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-Country.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -179,7 +179,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testCountryWithMissingLocation() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-Country.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -197,7 +197,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testAsn() throws Exception {
         String ip = "82.171.64.0";
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-ASN.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -216,7 +216,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -229,7 +229,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     /** Don't silently do DNS lookups or anything trappy on bogus data */
     public void testInvalid() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
                 loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
                 new GeoIpCache(1000), false);
 
@@ -241,7 +241,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testListAllValid() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
             loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), false);
 
@@ -262,7 +262,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testListPartiallyValid() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
             loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), false);
 
@@ -283,7 +283,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testListNoMatches() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
             loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), false);
 
@@ -296,7 +296,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testListFirstOnly() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
             loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), true);
 
@@ -315,7 +315,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testListFirstOnlyNoMatches() throws Exception {
-        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), null, "source_field",
             loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
             new GeoIpCache(1000), true);
 

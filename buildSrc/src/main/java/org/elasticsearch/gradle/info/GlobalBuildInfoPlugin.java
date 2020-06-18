@@ -402,7 +402,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                         // we're on to the next config item so stop looking
                         break;
                     }
-                    String[] pair = line.trim().split("=");
+                    String[] pair = line.trim().split("=", 2);
                     props.put(pair[0].trim(), pair[1].trim());
                 } else {
                     if (line.equals("[remote \"origin\"]")) {

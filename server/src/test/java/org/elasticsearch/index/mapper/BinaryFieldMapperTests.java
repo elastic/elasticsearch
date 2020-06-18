@@ -47,7 +47,7 @@ public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMappe
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity");
+        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity", "index");
     }
 
     @Override

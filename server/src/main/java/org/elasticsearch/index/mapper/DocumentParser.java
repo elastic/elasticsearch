@@ -46,19 +46,18 @@ final class DocumentParser {
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
     private final DocumentMapper docMapper;
-    private final String dataStreamTimestampField;
 
     DocumentParser(IndexSettings indexSettings,
                    DocumentMapperParser docMapperParser,
-                   DocumentMapper docMapper,
-                   String dataStreamTimestampField) {
+                   DocumentMapper docMapper) {
         this.indexSettings = indexSettings;
         this.docMapperParser = docMapperParser;
         this.docMapper = docMapper;
-        this.dataStreamTimestampField = dataStreamTimestampField;
     }
 
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 String dataStreamTimestampField) throws MapperParsingException {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;

@@ -147,7 +147,7 @@ public class DocumentMapper implements ToXContentFragment {
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
         this.dataStreamTimestampField = dataStreamTimestampField;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this, dataStreamTimestampField);
+        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -258,18 +258,22 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping.metadataMappers);
+        return documentParser.parseDocument(source, mapping.metadataMappers, dataStreamTimestampField);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
+        // Supply null as dataStreamTimestampField, to avoid data stream timestamp field validation to fail
+        // (tombstone docs have an empty source)
+        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, null).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        // Supply null as dataStreamTimestampField, to avoid data stream timestamp field validation to fail
+        // (tombstone docs have an empty source)
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, null).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));

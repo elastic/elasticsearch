@@ -23,7 +23,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,7 +67,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
         @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(context.indexSettings(), disableExplicit);
+            return new AllFieldMapper(disableExplicit);
         }
     }
 
@@ -94,8 +93,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new AllFieldMapper(indexSettings, false);
+            return new AllFieldMapper(false);
         }
     }
 
@@ -126,8 +124,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     private final boolean disableExplicit;
 
-    private AllFieldMapper(Settings indexSettings, boolean disableExplicit) {
-        super(Defaults.FIELD_TYPE, new AllFieldType(), indexSettings);
+    private AllFieldMapper(boolean disableExplicit) {
+        super(Defaults.FIELD_TYPE, new AllFieldType());
         this.disableExplicit = disableExplicit;
     }
 

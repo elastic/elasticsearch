@@ -144,10 +144,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private final Version indexCreatedVersion;
+
     private DenseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
+        this.indexCreatedVersion = Version.indexCreated(indexSettings);
     }
 
     @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -212,7 +213,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 new IOException("boum"));
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
-        ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
+        AsyncSearchTask.Listener listener = task.getSearchProgressActionListener();
+        listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
     }
 

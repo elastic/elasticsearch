@@ -112,42 +112,8 @@ To create a dedicated master-eligible node, set:
 
 [source,yaml]
 -------------------
-<<<<<<< HEAD
 node.roles: [ master ]
 -------------------
-=======
-node.master: true <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
--------------------
-<1> The `node.master` role is enabled by default.
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
-
-To create a dedicated master-eligible node in the {oss-dist}, set:
-
-[source,yaml]
--------------------
-node.master: true <1>
-node.data: false <2>
-node.ingest: false <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> The `node.master` role is enabled by default.
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable remote cluster connections (enabled by default).
->>>>>>> elastic
 
 [[voting-only-node]]
 ===== Voting-only master-eligible node
@@ -197,28 +163,8 @@ dedicated voting-only master-eligible node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-<<<<<<< HEAD
 node.roles: [ master, voting_only ]
 -------------------
-=======
-node.master: true <1>
-node.voting_only: true <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
--------------------
-<1> The `node.master` role is enabled by default.
-<2> Enable the `node.voting_only` role (disabled by default).
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
->>>>>>> elastic
 
 [[data-node]]
 ==== Data node
@@ -234,25 +180,8 @@ and data roles.
 To create a dedicated data node, set:
 [source,yaml]
 -------------------
-<<<<<<< HEAD
 node.roles: [ data ]
 -------------------
-=======
-node.master: false <1>
-node.voting_only: false <2>
-node.data: true <3>
-node.ingest: false <4>
-node.ml: false <5>
-node.transform: false <6>
-node.remote_cluster_client: false <7>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> The `node.data` role is enabled by default.
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> Disable the `node.transform` role.
-<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -303,33 +232,7 @@ acknowledgement of cluster state updates from every node! The benefit of
 coordinating only nodes should not be overstated -- data nodes can happily
 serve the same purpose.
 
-<<<<<<< HEAD
 To create a dedicated coordinating node, set:
-=======
-To create a dedicated coordinating node in the {default-dist}, set:
-
-[source,yaml]
--------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
-
-To create a dedicated coordinating node in the {oss-dist}, set:
->>>>>>> elastic
 
 [source,yaml]
 -------------------
@@ -354,78 +257,27 @@ To create a dedicated {ml} node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-<<<<<<< HEAD
 node.roles: [ ml ]
 xpack.ml.enabled: true <1>
-xpack.transform.enabled: true <2>
 -------------------
 <1> The `xpack.ml.enabled` setting is enabled by default.
-<2> The `xpack.transform.enabled` setting is enabled by default.
-=======
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: true <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> The `node.ml` role is enabled by default.
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
->>>>>>> elastic
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests.
 
-<<<<<<< HEAD
-If you want to use {transforms} in your cluster, you must have
-`xpack.transform.enabled` set to `true` on all master-eligible nodes and all
-data nodes. If you want to use {transforms} in clients (including {kib}), it
-must also be enabled on all coordinating nodes. You must also have at least one
-at least one node with the `transform` role. This is the default behavior. If
-you have the {oss-dist}, do not use these settings. For more information, see
-=======
-If you want to use {transforms} in your cluster, you must have `node.transform`
-set to `true` on at least one node. This is the default behavior. If you have
-the {oss-dist}, do not use these settings. For more information, see
->>>>>>> elastic
-<<transform-settings>>.
+If you want to use {transforms} in clients (including {kib}), it must also be
+enabled on all coordinating nodes. You must also have at least one node with the
+`transform` role. This is the default behavior. If you have the {oss-dist}, do
+not use these settings. For more information, see <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-<<<<<<< HEAD
 node.roles: [ transform ]
-xpack.transform.enabled: true <1>
 -------------------
-<1> Enable the `xpack.transform.enabled` setting.
-=======
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-node.transform: true <6>
-node.remote_cluster_client: false <7>
--------------------
-<1> Disable the `node.master` role.
-<2> Disable the `node.voting_only`.
-<3> Disable the `node.data` role.
-<4> Disable the `node.ingest` role.
-<5> Disable the `node.ml` role.
-<6> Enable the `node.transform` role.
-<7> Disable remote cluster connections.
->>>>>>> elastic
 
 [[change-node-role]]
 ==== Changing the role of a node

@@ -420,12 +420,15 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    private final Version indexCreatedVersion;
+
     public LegacyGeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                      Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
                                      Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                      MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
             multiFields, copyTo);
+        this.indexCreatedVersion = Version.indexCreated(indexSettings);
     }
 
     @Override

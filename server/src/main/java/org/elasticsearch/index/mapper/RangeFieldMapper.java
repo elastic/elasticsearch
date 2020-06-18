@@ -33,7 +33,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -139,7 +138,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new RangeFieldMapper(name, fieldType, setupFieldType(context), coerce(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -313,10 +312,9 @@ public class RangeFieldMapper extends FieldMapper {
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         Explicit<Boolean> coerce,
-        Settings indexSettings,
         MultiFields multiFields,
         CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.coerce = coerce;
     }
 

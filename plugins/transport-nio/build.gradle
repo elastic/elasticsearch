@@ -38,7 +38,7 @@ dependencies {
   compile "io.netty:netty-transport:${versions.netty}"
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 

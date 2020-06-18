@@ -1,5 +1,8 @@
 [[analysis-whitespace-analyzer]]
-=== Whitespace Analyzer
+=== Whitespace snalyzer
+++++
+<titleabbrev>Whitespace</titleabbrev>
+++++
 
 The `whitespace` analyzer breaks text into terms whenever it encounters a
 whitespace character.

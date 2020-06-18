@@ -898,11 +898,11 @@ public final class SearchPhaseController {
         }
 
         private synchronized List<DelayableWriteable<InternalAggregations>> getRemainingAggs() {
-            return hasAggs ? Collections.singletonList((DelayableWriteable<InternalAggregations>) lastPartialResult.aggs) : null;
+            return hasAggs ? Arrays.asList((DelayableWriteable<InternalAggregations>) lastPartialResult.aggs) : null;
         }
 
         private synchronized List<TopDocs> getRemainingTopDocs() {
-            return hasTopDocs ? Collections.singletonList(lastPartialResult.topDocs) : null;
+            return hasTopDocs ? Arrays.asList(lastPartialResult.topDocs) : null;
         }
 
         @Override

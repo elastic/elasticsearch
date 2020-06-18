@@ -189,7 +189,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, int shardId) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(NumericType.BOOLEAN);
         }

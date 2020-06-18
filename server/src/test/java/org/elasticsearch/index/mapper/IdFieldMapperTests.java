@@ -83,7 +83,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
+            () -> ft.fielddataBuilder("test", 0).build(mapperService.getIndexSettings(),
                 ft, null, null, mapperService));
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
 
@@ -91,7 +91,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
             .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
             .get();
         try {
-            ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
+            ft.fielddataBuilder("test", 0).build(mapperService.getIndexSettings(),
                 ft, null, null, mapperService);
             assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
         } finally {

@@ -74,13 +74,12 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
         writer.addDocument(doc);
         writer.commit();
         writer.addDocument(doc);
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-            DirectoryReader.open(writer),
-            new ShardId("test", "_na_", 1));
+        ShardId shardId = new ShardId("test", "_na_", 1);
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
 
         // Load global field data for subfield 'key'.
         KeyedFlatObjectFieldType fieldType1 = fieldMapper.keyedFieldType("key");
-        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1);
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, shardId.id());
         assertTrue(ifd1 instanceof KeyedFlatObjectFieldData);
 
         KeyedFlatObjectFieldData fieldData1 = (KeyedFlatObjectFieldData) ifd1;
@@ -90,7 +89,7 @@ public class FlatObjectIndexFieldDataTests extends ESSingleNodeTestCase  {
 
         // Load global field data for the subfield 'other_key'.
         KeyedFlatObjectFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
-        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2);
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, shardId.id());
         assertTrue(ifd2 instanceof KeyedFlatObjectFieldData);
 
         KeyedFlatObjectFieldData fieldData2 = (KeyedFlatObjectFieldData) ifd2;

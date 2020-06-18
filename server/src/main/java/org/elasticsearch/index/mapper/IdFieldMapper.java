@@ -167,7 +167,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, int shardId) {
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,

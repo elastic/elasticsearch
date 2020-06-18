@@ -104,7 +104,7 @@ public abstract class MappedFieldType {
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, int shardId) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -195,7 +195,7 @@ public abstract class MappedFieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder("");
+            fielddataBuilder("", 0);
             return true;
         } catch (IllegalArgumentException e) {
             return false;

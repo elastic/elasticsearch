@@ -74,7 +74,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper);
+        IndexFieldData<?> fd = ifdService.getForField(stringMapper, 0);
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
@@ -84,20 +84,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG).build(ctx).fieldType()
                 )) {
             ifdService.clear();
-            fd = ifdService.getForField(mapper);
+            fd = ifdService.getForField(mapper, 0);
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
         final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT)
                 .build(ctx).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(floatMapper);
+        fd = ifdService.getForField(floatMapper, 0);
         assertTrue(fd instanceof SortedNumericIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE)
                 .build(ctx).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(doubleMapper);
+        fd = ifdService.getForField(doubleMapper, 0);
         assertTrue(fd instanceof SortedNumericIndexFieldData);
     }
 
@@ -130,8 +130,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1);
-        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2);
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, 0);
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, 0);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
@@ -176,7 +176,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         writer.addDocument(doc);
         DirectoryReader open = DirectoryReader.open(writer);
         final boolean wrap = randomBoolean();
-        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
+        ShardId shardId = new ShardId("test", "_na_", 1);
+        final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, shardId) : open;
         final AtomicInteger onCacheCalled = new AtomicInteger();
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
@@ -200,7 +201,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd = ifdService.getForField(mapper1);
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, shardId.id());
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
@@ -256,10 +257,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             IndexFieldDataService ifds =
                 new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             if (ft.hasDocValues()) {
-                ifds.getForField(ft); // no exception
+                ifds.getForField(ft, 0); // no exception
             }
             else {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ifds.getForField(ft));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ifds.getForField(ft, 0));
                 assertThat(e.getMessage(), containsString("doc values"));
             }
         } finally {

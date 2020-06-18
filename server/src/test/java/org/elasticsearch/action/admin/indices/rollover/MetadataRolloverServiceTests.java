@@ -720,7 +720,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 when(indexService.mapperService()).thenReturn(mapperService);
                 when(mapperService.documentMapper()).thenReturn(documentMapper);
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
-                when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
+                when(indexService.getIndexSortSupplier()).thenReturn((shardId) -> null);
                 //noinspection unchecked
                 return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
             });

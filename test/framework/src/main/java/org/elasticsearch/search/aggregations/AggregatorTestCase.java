@@ -300,9 +300,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             }), circuitBreakerService, mapperService);
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
-            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
+            .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0], 0));
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField);
+        SearchLookup searchLookup = new SearchLookup(mapperService, fieldType -> ifds.getForField(fieldType, 0));
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext =
@@ -370,9 +370,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Sub-tests that need a more complex index field data provider can override this
      */
-    protected BiFunction<MappedFieldType, String, IndexFieldData<?>> getIndexFieldDataLookup(MapperService mapperService,
+    protected QueryShardContext.IndexFieldDataLookup getIndexFieldDataLookup(MapperService mapperService,
                                                                                              CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
+        return (fieldType, shardId, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName(), 0)
             .build(mapperService.getIndexSettings(), fieldType,
                 new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
 
@@ -738,7 +738,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("")
+        return fieldType.fielddataBuilder("", 0)
                                 .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
     }
 

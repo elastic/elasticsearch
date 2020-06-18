@@ -153,7 +153,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, int shardId) {
             return new ConstantIndexFieldData.Builder(mapperService -> value, CoreValuesSourceType.BYTES);
         }
 

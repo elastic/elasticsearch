@@ -68,7 +68,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         w.close();
 
         MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
+        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", 0).build(mapperService.getIndexSettings(),
                 ft, new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();

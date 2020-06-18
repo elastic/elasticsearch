@@ -800,7 +800,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, int shardId) {
             if (fielddata == false) {
                 throw new IllegalArgumentException("Text fields are not optimised for operations that require per-document "
                     + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "

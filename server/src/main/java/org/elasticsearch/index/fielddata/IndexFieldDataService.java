@@ -106,14 +106,14 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return getForField(fieldType, index().getName());
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, int shardId) {
+        return getForField(fieldType, index().getName(), shardId);
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName, int shardId) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, shardId);
 
         IndexFieldDataCache cache;
         synchronized (this) {

@@ -166,7 +166,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase<MappedFieldType
             // single-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f1
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float1", scalingFactor);
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index")
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index", 0)
                 .build(indexSettings, f1, null, null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
@@ -178,7 +178,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase<MappedFieldType
             // multi-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f2
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float2", scalingFactor);
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index").build(indexSettings, f2, null, null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index", 0).build(indexSettings, f2, null, null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

@@ -950,7 +950,8 @@ public class MetadataCreateIndexService {
             // we cannot validate for index shrinking since the mapping is empty
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
-            indexService.getIndexSortSupplier().get();
+            // we pass shard 0 as we only need sort field types to validate the index sort.
+            indexService.getIndexSortSupplier().apply(0);
         }
     }
 

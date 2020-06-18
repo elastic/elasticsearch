@@ -68,7 +68,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -88,7 +87,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
+    private final IndexFieldDataLookup indexFieldDataLookup;
     private final int shardId;
     private final IndexSearcher searcher;
     private boolean cacheable = true;
@@ -104,11 +103,15 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
 
+    public interface IndexFieldDataLookup {
+        IndexFieldData<?> lookup(MappedFieldType fieldType, String fullyQualifiedIndexName, int shardId);
+    }
+
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
                              BigArrays bigArrays,
                              BitsetFilterCache bitsetFilterCache,
-                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                             IndexFieldDataLookup indexFieldDataLookup,
                              MapperService mapperService,
                              SimilarityService similarityService,
                              ScriptService scriptService,
@@ -128,7 +131,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
+        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataLookup,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
             source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
@@ -138,7 +141,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               IndexSettings indexSettings,
                               BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
-                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                              IndexFieldDataLookup indexFieldDataLookup,
                               MapperService mapperService,
                               SimilarityService similarityService,
                               ScriptService scriptService,
@@ -157,7 +160,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.mapperService = mapperService;
         this.bigArrays = bigArrays;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.indexFieldDataService = indexFieldDataLookup;
+        this.indexFieldDataLookup = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
@@ -210,7 +213,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
+        return (IFD) indexFieldDataLookup.lookup(fieldType, fullyQualifiedIndex.getName(), shardId);
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -293,7 +296,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (lookup == null) {
             lookup = new SearchLookup(getMapperService(),
-                    mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()));
+                mappedFieldType -> indexFieldDataLookup.lookup(mappedFieldType, fullyQualifiedIndex.getName(), shardId));
         }
         return lookup;
     }

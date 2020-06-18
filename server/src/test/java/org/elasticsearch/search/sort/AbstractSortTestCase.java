@@ -65,7 +65,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -194,8 +193,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
+        QueryShardContext.IndexFieldDataLookup indexFieldDataLookup = (fieldType, fieldIndexName, shardId) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, shardId);
             return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,

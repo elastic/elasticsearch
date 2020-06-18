@@ -101,7 +101,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -145,7 +144,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
-    private Supplier<Sort> indexSortSupplier;
+    private Function<Integer, Sort> indexSortSupplier;
     private ValuesSourceRegistry valuesSourceRegistry;
 
     public IndexService(
@@ -193,12 +192,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
-                this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
+                this.indexSortSupplier = (shardId) -> indexSettings.getIndexSortConfig().buildIndexSort(
                     mapperService::fieldType,
-                    indexFieldData::getForField
+                    (fieldType) -> indexFieldData.getForField(fieldType, shardId)
                 );
             } else {
-                this.indexSortSupplier = () -> null;
+                this.indexSortSupplier = (shardId) -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
@@ -208,7 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers == null;
             this.mapperService = null;
             this.indexFieldData = null;
-            this.indexSortSupplier = () -> null;
+            this.indexSortSupplier = (shardId) -> null;
             this.bitsetFilterCache = null;
             this.warmer = null;
             this.indexCache = null;
@@ -307,7 +306,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return similarityService;
     }
 
-    public Supplier<Sort> getIndexSortSupplier() {
+    public Function<Integer, Sort> getIndexSortSupplier() {
         return indexSortSupplier;
     }
 

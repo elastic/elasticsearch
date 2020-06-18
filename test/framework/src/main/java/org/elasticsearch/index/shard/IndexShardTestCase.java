@@ -384,7 +384,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     indexSettings,
                     shardPath,
                     store,
-                    () -> null,
+                    (shardId) -> null,
                     indexCache,
                     mapperService,
                     similarityService,

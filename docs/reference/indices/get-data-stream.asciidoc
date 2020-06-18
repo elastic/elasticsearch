@@ -62,6 +62,46 @@ GET _data_stream/my-data-stream
 retrieve.
 --
 
+[role="child_attributes"]
+[[get-data-stream-api-response-body]]
+==== {api-response-body-title}
+
+`name`::
+(string)
+Name of the data stream.
+
+`timestamp_field`::
+(string)
+Name of the data stream's timestamp field. This field must be included in every
+document indexed to the data stream.
+
+`indices`::
+(array of objects)
+Array of objects containing information about the data stream's backing
+indices.
++
+The last item in this array contains information about the stream's current
+<<data-stream-write-index,write index>>.
++
+.Properties of `indices` objects
+[%collapsible%open]
+====
+`index_name`::
+(string)
+Name of the backing index. For naming conventions, see
+<<data-streams-generation>>.
+
+`index_uuid`::
+(string)
+Universally unique identifier (UUID) for the index.
+====
+
+`generation`::
+(integer)
+Current <<data-streams-generation,generation>> for the data stream. This number
+acts as a cumulative count of the stream's backing indices, including
+deleted indices.
+
 [[get-data-stream-api-example]]
 ==== {api-examples-title}
 

@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -403,16 +401,18 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskRemoval(newResp.getId());
     }
 
-    public void testSearchPhaseFailure() throws Exception {
+    public void testSearchPhaseFailureNoCause() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.setKeepOnCompletion(true);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
         request.getSearchRequest().allowPartialSearchResults(false);
-        request.getSearchRequest().source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), 0)));
+        request.getSearchRequest()
+            // AlreadyClosedException are ignored by the coordinating node
+            .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertFalse(response.isRunning());
         assertTrue(response.isPartial());
-      //  assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertNotNull(response.getFailure());
         ensureTaskNotRunning(response.getId());
     }

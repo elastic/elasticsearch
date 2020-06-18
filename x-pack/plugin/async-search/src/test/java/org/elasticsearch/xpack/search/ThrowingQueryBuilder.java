@@ -9,7 +9,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -23,26 +22,30 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
     public static final String NAME = "throw";
 
     private final long randomUID;
+    private final RuntimeException failure;
     private final int shardId;
 
     /**
      * Creates a {@link ThrowingQueryBuilder} with the provided <code>randomUID</code>.
      */
-    ThrowingQueryBuilder(long randomUID, int shardId) {
+    ThrowingQueryBuilder(long randomUID, RuntimeException failure, int shardId) {
         super();
         this.randomUID = randomUID;
+        this.failure = failure;
         this.shardId = shardId;
     }
 
     ThrowingQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.randomUID = in.readLong();
+        this.failure = in.readException();
         this.shardId = in.readVInt();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLong(randomUID);
+        out.writeException(failure);
         out.writeVInt(shardId);
     }
 
@@ -59,7 +62,7 @@ class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
                 if (context.getShardId() == shardId) {
-                    throw new AlreadyClosedException("boom");
+                    throw failure;
                 }
                 return delegate.createWeight(searcher, scoreMode, boost);
             }

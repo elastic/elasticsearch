@@ -96,6 +96,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             b.docValues(false);
         }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
+        booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
         new Modifier("search_analyzer", true, (a, b) -> {
             a.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));

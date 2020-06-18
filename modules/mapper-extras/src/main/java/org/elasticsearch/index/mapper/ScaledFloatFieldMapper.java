@@ -73,6 +73,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "scaled_float";
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
+    private static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
 
@@ -83,7 +87,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private Double nullValue;
 
         public Builder(String name) {
-            super(name, new FieldType());
+            super(name, FIELD_TYPE);
             builder = this;
         }
 

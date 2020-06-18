@@ -20,7 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Set;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -87,7 +87,7 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteAnnotationsFromTime_EventFiltering() {
         JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteAnnotationsFromTime(null, Set.of("dummy_event"), ActionListener.wrap(
+        jobDataDeleter.deleteAnnotationsFromTime(null, Collections.singleton("dummy_event"), ActionListener.wrap(
             deleteResponse -> {},
             e -> fail(e.toString())
         ));

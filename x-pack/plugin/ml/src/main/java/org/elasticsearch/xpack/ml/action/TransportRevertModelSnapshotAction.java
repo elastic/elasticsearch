@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -146,13 +147,12 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening annotations after reverting model: deleting annotations after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            Set<String> eventsToDelete =
-                Set.of(
-                    // Because the results based on the delayed data are being deleted, the fact that the data was originally delayed is
-                    // not relevant
-                    Annotation.Event.DELAYED_DATA.toString(),
-                    // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
-                    Annotation.Event.MODEL_CHANGE.toString());
+            Set<String> eventsToDelete = new HashSet<>();
+            // Because the results based on the delayed data are being deleted, the fact that the data was originally delayed is not
+            // relevant
+            eventsToDelete.add(Annotation.Event.DELAYED_DATA.toString());
+            // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
+            eventsToDelete.add(Annotation.Event.MODEL_CHANGE.toString());
             dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete, new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean success) {

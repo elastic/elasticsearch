@@ -26,7 +26,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -72,7 +71,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, context.indexSettings());
+            return new RoutingFieldMapper(fieldType, required);
         }
     }
 
@@ -95,8 +94,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new RoutingFieldMapper(Defaults.FIELD_TYPE, Defaults.REQUIRED, indexSettings);
+            return new RoutingFieldMapper(Defaults.FIELD_TYPE, Defaults.REQUIRED);
         }
     }
 
@@ -132,8 +130,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     private final boolean required;
 
-    private RoutingFieldMapper(FieldType fieldType, boolean required, Settings indexSettings) {
-        super(fieldType, RoutingFieldType.INSTANCE, indexSettings);
+    private RoutingFieldMapper(FieldType fieldType, boolean required) {
+        super(fieldType, RoutingFieldType.INSTANCE);
         this.required = required;
     }
 

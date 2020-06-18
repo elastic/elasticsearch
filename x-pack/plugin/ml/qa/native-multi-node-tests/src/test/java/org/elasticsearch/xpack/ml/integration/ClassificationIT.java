@@ -362,7 +362,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Index enough documents to have more classes than the allowed limit
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            IndexRequest indexRequest = new IndexRequest(sourceIndex)
+                .source(KEYWORD_FIELD, "fox-" + i)
+                .opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();

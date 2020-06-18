@@ -351,7 +351,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) { // todo 7.9.0
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.9.0
             out.writeOptionalWriteable(mapConfig);
         }
     }

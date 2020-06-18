@@ -459,10 +459,10 @@ final class RequestConverters {
         Request request;
 
         if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+            request = new Request(HttpGet.METHOD_NAME, "/_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
-            String endpoint = endpoint(searchRequest.indices(), "_search/template");
+            String endpoint = endpoint(searchRequest.indices(), "/_search/template");
             request = new Request(HttpGet.METHOD_NAME, endpoint);
 
             Params params = new Params();

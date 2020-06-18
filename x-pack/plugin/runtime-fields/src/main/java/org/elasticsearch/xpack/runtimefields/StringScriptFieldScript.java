@@ -7,17 +7,24 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public abstract class StringScriptFieldsScript extends AbstractScriptFieldsScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
+public abstract class StringScriptFieldScript extends AbstractScriptFieldsScript {
+    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
+    static List<Whitelist> whitelist() {
+        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
+    }
+
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -25,12 +32,12 @@ public abstract class StringScriptFieldsScript extends AbstractScriptFieldsScrip
     }
 
     public static interface LeafFactory {
-        StringScriptFieldsScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
+        StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
     }
 
     private final Consumer<String> sync;
 
-    public StringScriptFieldsScript(
+    public StringScriptFieldScript(
         Map<String, Object> params,
         SourceLookup source,
         DocLookup fieldData,
@@ -41,12 +48,15 @@ public abstract class StringScriptFieldsScript extends AbstractScriptFieldsScrip
         this.sync = sync;
     }
 
-    /**
-     * Expose the consumer to the script.
-     * <p>
-     * This is temporary and I'll remove it in the next PR when I figure out class methods.
-     */
-    public Consumer<String> getSync() {
-        return sync;
+    public static class Value {
+        private final StringScriptFieldScript script;
+
+        public Value(StringScriptFieldScript script) {
+            this.script = script;
+        }
+
+        public void value(String v) {
+            script.sync.accept(v);
+        }
     }
 }

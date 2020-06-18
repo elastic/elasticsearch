@@ -7,17 +7,24 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongConsumer;
 
 public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+    static List<Whitelist> whitelist() {
+        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
+    }
+
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
@@ -40,12 +47,15 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
         this.sync = sync;
     }
 
-    /**
-     * Expose the consumer to the script.
-     * <p>
-     * This is temporary and I'll remove it in the next PR when I figure out class methods.
-     */
-    public LongConsumer getSync() {
-        return sync;
+    public static class Value {
+        private final LongScriptFieldScript script;
+
+        public Value(LongScriptFieldScript script) {
+            this.script = script;
+        }
+
+        public void value(long v) {
+            script.sync.accept(v);
+        }
     }
 }

@@ -54,8 +54,9 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldsSc
     protected final List<R> execute(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder, String script, MappedFieldType... types)
         throws IOException {
 
-        // TODO replace painless with mock script engine
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(new PainlessPlugin(), new RuntimeFields()));
+        PainlessPlugin painlessPlugin = new PainlessPlugin();
+        painlessPlugin.reloadSPI(Thread.currentThread().getContextClassLoader());
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
         Map<String, Object> params = new HashMap<>();
         SourceLookup source = new SourceLookup();
         MapperService mapperService = mock(MapperService.class);

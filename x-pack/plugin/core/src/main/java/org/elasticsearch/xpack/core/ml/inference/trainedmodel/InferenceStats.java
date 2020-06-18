@@ -54,9 +54,6 @@ public class InferenceStats implements ToXContentObject, Writeable {
             TIMESTAMP,
             ObjectParser.ValueType.VALUE);
     }
-    public static InferenceStats emptyStats(String modelId, String nodeId) {
-        return new InferenceStats(0L, 0L, 0L, 0L, modelId, nodeId, Instant.now());
-    }
 
     public static String docId(String modelId, String nodeId) {
         return NAME + "-" + modelId + "-" + nodeId;
@@ -77,10 +74,10 @@ public class InferenceStats implements ToXContentObject, Writeable {
                            String modelId,
                            String nodeId,
                            Instant instant) {
-        this(unbox(missingAllFieldsCount),
-            unbox(inferenceCount),
-            unbox(failureCount),
-            unbox(cacheMissCount),
+        this(unboxOrZero(missingAllFieldsCount),
+            unboxOrZero(inferenceCount),
+            unboxOrZero(failureCount),
+            unboxOrZero(cacheMissCount),
             modelId,
             nodeId,
             instant);
@@ -194,14 +191,14 @@ public class InferenceStats implements ToXContentObject, Writeable {
             "missingAllFieldsCount=" + missingAllFieldsCount +
             ", inferenceCount=" + inferenceCount +
             ", failureCount=" + failureCount +
-            ", cachMissCount=" + cacheMissCount +
+            ", cacheMissCount=" + cacheMissCount +
             ", modelId='" + modelId + '\'' +
             ", nodeId='" + nodeId + '\'' +
             ", timeStamp=" + timeStamp +
             '}';
     }
 
-    private static long unbox(@Nullable Long value) {
+    private static long unboxOrZero(@Nullable Long value) {
         return value == null ? 0L : value;
     }
 

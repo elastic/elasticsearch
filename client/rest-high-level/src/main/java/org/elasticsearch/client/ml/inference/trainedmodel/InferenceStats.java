@@ -67,10 +67,10 @@ public class InferenceStats implements ToXContentObject {
                            Long failureCount,
                            Long cacheMissCount,
                            Instant instant) {
-        this(unbox(missingAllFieldsCount),
-            unbox(inferenceCount),
-            unbox(failureCount),
-            unbox(cacheMissCount),
+        this(unboxOrZero(missingAllFieldsCount),
+            unboxOrZero(inferenceCount),
+            unboxOrZero(failureCount),
+            unboxOrZero(cacheMissCount),
             instant);
     }
 
@@ -158,12 +158,12 @@ public class InferenceStats implements ToXContentObject {
             "missingAllFieldsCount=" + missingAllFieldsCount +
             ", inferenceCount=" + inferenceCount +
             ", failureCount=" + failureCount +
-            ", cachMissCount=" + cacheMissCount +
+            ", cacheMissCount=" + cacheMissCount +
             ", timeStamp=" + timeStamp +
             '}';
     }
 
-    private static long unbox(@Nullable Long value) {
+    private static long unboxOrZero(@Nullable Long value) {
         return value == null ? 0L : value;
     }
 

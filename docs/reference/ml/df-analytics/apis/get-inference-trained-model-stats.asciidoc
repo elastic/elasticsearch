@@ -160,22 +160,22 @@ The API returns the following results:
       "model_id": "flight-delay-prediction-1574775339910",
       "pipeline_count": 0,
       "inference_stats": {
-        "missing_all_fields_count": 0,
+        "failure_count": 0,
         "inference_count": 4,
         "cache_miss_count": 3,
-        "failure_count": 0,
-        "timestamp": 1592399986979,
+        "missing_all_fields_count": 0,
+        "timestamp": 1592399986979
       }
     },
     {
       "model_id": "regression-job-one-1574775307356",
       "pipeline_count": 1,
       "inference_stats": {
-        "missing_all_fields_count": 0,
+        "failure_count": 0,
         "inference_count": 178,
         "cache_miss_count": 3,
-        "failure_count": 0,
-        "timestamp": 1592399986979,
+        "missing_all_fields_count": 0,
+        "timestamp": 1592399986979
       },
       "ingest": {
         "total": {

@@ -4,12 +4,13 @@
 <titleabbrev>Delete data stream</titleabbrev>
 ++++
 
-Deletes an existing data stream along with its backing indices.
+Deletes one or more <<data-streams,data streams>> and their backing
+indices. See <<delete-a-data-stream>>.
 
 ////
 [source,console]
------------------------------------
-PUT _index_template/template
+----
+PUT /_index_template/template
 {
   "index_patterns": ["my-data-stream*"],
   "template": {
@@ -27,31 +28,33 @@ PUT _index_template/template
 }
 
 PUT /_data_stream/my-data-stream
------------------------------------
+----
 // TESTSETUP
 ////
 
 [source,console]
---------------------------------------------------
-DELETE _data_stream/my-data-stream
---------------------------------------------------
+----
+DELETE /_data_stream/my-data-stream
+----
 
 ////
 [source,console]
------------------------------------
+----
 DELETE /_index_template/template
------------------------------------
+----
 // TEST[continued]
 ////
 
 [[delete-data-stream-api-request]]
 ==== {api-request-title}
 
-`DELETE _data_stream/<data-stream>`
+`DELETE /_data_stream/<data-stream>`
 
 
 [[delete-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
-(Required, string) Name or wildcard expression of data stream(s) to delete.
+(Required, string)
+Name of the data stream to delete.
+Wildcard (`*`) expressions are supported.

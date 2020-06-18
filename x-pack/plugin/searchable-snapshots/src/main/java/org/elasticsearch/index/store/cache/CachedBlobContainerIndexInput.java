@@ -16,7 +16,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -140,7 +140,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             int bytesRead = 0;
             try {
                 final CacheFile cacheFile = getCacheFileSafe();
-                try (ReleasableLock ignored = cacheFile.fileLock()) {
+                try (Releasable ignored = cacheFile.fileLock()) {
                     final Tuple<Long, Long> range = computeRange(pos);
                     bytesRead = cacheFile.fetchRange(
                         range.v1(),
@@ -184,7 +184,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         try {
             final CacheFile cacheFile = getCacheFileSafe();
-            try (ReleasableLock ignored = cacheFile.fileLock()) {
+            try (Releasable ignored = cacheFile.fileLock()) {
 
                 final Tuple<Long, Long> range = cacheFile.getAbsentRangeWithin(partRange.v1(), partRange.v2());
                 if (range == null) {

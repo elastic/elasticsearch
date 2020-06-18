@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
@@ -431,6 +432,36 @@ public class DataStreamIT extends ESIntegTestCase {
             err.getMessage().contains("unable to remove composable templates [id] " +
                 "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
         assertTrue(maybeE.isPresent());
+    }
+
+    public void testAliasActionsFailOnDataStreams() throws Exception {
+        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(dataStreamName).aliases("foo");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        expectFailure(dataStreamName, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+    }
+
+    public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
+        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(backingIndex).aliases("first_gen");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("The provided expressions [" + backingIndex
+            + "] match a backing index belonging to data stream [" + dataStreamName + "]. Data streams and their backing indices don't " +
+            "support aliases."));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

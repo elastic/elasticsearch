@@ -321,8 +321,8 @@ setup:
   - match: { items.1.create.result: created }
   - match: { items.1.create._index: .ds-logs-foobar-000001 }
   - match: { items.2.create.status: 400 }
-  - match: { items.2.create.error.type: illegal_argument_exception }
-  - match: { items.2.create.error.reason: "timestamp field has multiple values, only a single value is allowed" }
+  - match: { items.2.create.error.caused_by.type: illegal_argument_exception }
+  - match: { items.2.create.error.caused_by.reason: "timestamp field has multiple values, only a single value is allowed" }
 
   - do:
       indices.delete_data_stream:

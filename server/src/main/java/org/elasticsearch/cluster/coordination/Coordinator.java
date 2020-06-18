@@ -68,6 +68,7 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
@@ -1203,9 +1204,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
-                            logger.debug("skip prevoting due to {} : {}", nodeHealthService.getHealth().getInfo(),
-                                lastAcceptedState.coordinationMetadata());
+                        final StatusInfo statusInfo = nodeHealthService.getHealth();
+                        if (statusInfo.getStatus() == UNHEALTHY) {
+                            logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
                             return;
                         }
 

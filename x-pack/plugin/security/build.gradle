@@ -153,7 +153,7 @@ artifacts {
   testArtifacts testJar
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
 }

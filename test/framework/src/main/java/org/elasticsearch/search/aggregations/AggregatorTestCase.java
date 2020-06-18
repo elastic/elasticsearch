@@ -176,7 +176,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             MappedFieldType fieldType = entry.getValue();
 
             when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-            when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
+            when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
 

@@ -21,7 +21,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -185,7 +184,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (eagerGlobalOrdinals) {
                 ft.setEagerGlobalOrdinals(true);
             }
-            return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue, context.indexSettings());
+            return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue);
         }
     }
 
@@ -566,9 +565,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                   MappedFieldType mappedFieldType,
                                   int ignoreAbove,
                                   int depthLimit,
-                                  String nullValue,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, CopyTo.empty());
+                                  String nullValue) {
+        super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;

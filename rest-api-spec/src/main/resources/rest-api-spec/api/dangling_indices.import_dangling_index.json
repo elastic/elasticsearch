@@ -1,8 +1,8 @@
 {
-  "dangling_indices.delete": {
+  "dangling_indices.import_dangling_index": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
-      "description": "Deletes the specified dangling index"
+      "description": "Imports the specified dangling index"
     },
     "stability": "stable",
     "url": {
@@ -10,7 +10,7 @@
         {
           "path": "/_dangling/{index_uuid}",
           "methods": [
-            "DELETE"
+            "POST"
           ],
           "parts": {
             "index_uuid": {
@@ -24,7 +24,7 @@
     "params": {
       "accept_data_loss": {
         "type": "boolean",
-        "description": "Must be set to true in order to delete the dangling index"
+        "description": "Must be set to true in order to import the dangling index"
       },
       "timeout": {
         "type": "time",

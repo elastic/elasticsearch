@@ -34,7 +34,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -141,7 +140,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed, hasDocValues, meta, scalingFactor);
             return new ScaledFloatFieldMapper(name, fieldType, type, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, nullValue);
+                    coerce(context), multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -347,11 +346,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             ScaledFloatFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo,
             Double nullValue) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.scalingFactor = mappedFieldType.scalingFactor;
         this.nullValue = nullValue;
         if (Double.isFinite(scalingFactor) == false || scalingFactor <= 0) {

@@ -48,7 +48,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -180,7 +179,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
             prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, prefixSearchWrapper));
-            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType, context.indexSettings());
+            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize - 1];
@@ -204,11 +203,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                     new NamedAnalyzer(searchQuoteAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchQuoteWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType, context.indexSettings());
+                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, fieldType, ft, context.indexSettings(), copyTo,
+            return new SearchAsYouTypeFieldMapper(name, fieldType, ft, copyTo,
                 maxShingleSize, prefixFieldMapper, shingleFieldMappers);
         }
     }
@@ -463,8 +462,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     static final class PrefixFieldMapper extends FieldMapper {
 
-        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, Settings indexSettings) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
+            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
@@ -499,8 +498,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     static final class ShingleFieldMapper extends FieldMapper {
 
-        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, Settings indexSettings) {
-            super(mappedFieldtype.name(), fieldType, mappedFieldtype, indexSettings, MultiFields.empty(), CopyTo.empty());
+        ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
+            super(mappedFieldtype.name(), fieldType, mappedFieldtype, MultiFields.empty(), CopyTo.empty());
         }
 
         FieldType getLuceneFieldType() {
@@ -647,12 +646,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public SearchAsYouTypeFieldMapper(String simpleName,
                                       FieldType fieldType,
                                       SearchAsYouTypeFieldType mappedFieldType,
-                                      Settings indexSettings,
                                       CopyTo copyTo,
                                       int maxShingleSize,
                                       PrefixFieldMapper prefixField,
                                       ShingleFieldMapper[] shingleFields) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), copyTo);
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), copyTo);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = maxShingleSize;

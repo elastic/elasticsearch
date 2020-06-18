@@ -801,9 +801,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "render_search_template",
             "scripts_painless_execute",
-            "indices.create_data_stream",
-            "indices.get_data_stream",
-            "indices.delete_data_stream",
             "indices.simulate_template",
             "indices.resolve_index"
         };
@@ -816,9 +813,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.stats",
             "cluster.post_voting_config_exclusions",
             "cluster.delete_voting_config_exclusions",
-            "dangling_indices.delete",
-            "dangling_indices.import",
-            "dangling_indices.list",
+            "dangling_indices.delete_dangling_index",
+            "dangling_indices.import_dangling_index",
+            "dangling_indices.list_dangling_indices",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

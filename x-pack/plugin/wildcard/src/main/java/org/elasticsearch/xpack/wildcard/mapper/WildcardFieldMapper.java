@@ -41,7 +41,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -178,7 +177,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public WildcardFieldMapper build(BuilderContext context) {
             return new WildcardFieldMapper(
                     name, fieldType, new WildcardFieldType(buildFullName(context), fieldType, meta), ignoreAbove,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, nullValue);
+                    multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -899,9 +898,9 @@ public class WildcardFieldMapper extends FieldMapper {
     private final FieldType ngramFieldType;
 
     private WildcardFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
                                 String nullValue) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.ngramFieldType = new FieldType(fieldType);

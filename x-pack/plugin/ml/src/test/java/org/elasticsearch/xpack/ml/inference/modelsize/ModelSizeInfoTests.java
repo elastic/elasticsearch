@@ -74,7 +74,7 @@ public class ModelSizeInfoTests extends AbstractXContentTestCase<ModelSizeInfo> 
         "                {\"num_nodes\": 3, \"num_leaves\": 4},\n" +
         "                {\"num_leaves\": 1}\n" +
         "            ],\n" +
-        "            \"input_field_name_lengths\": [\n" +
+        "            \"feature_name_lengths\": [\n" +
         "                14,\n" +
         "                10,\n" +
         "                11\n" +

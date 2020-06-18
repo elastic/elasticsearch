@@ -164,7 +164,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NUMERIC, meta);
+            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         HistogramFieldType(HistogramFieldType ref) {

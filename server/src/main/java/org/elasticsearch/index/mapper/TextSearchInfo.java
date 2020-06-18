@@ -27,10 +27,23 @@ import org.apache.lucene.index.IndexOptions;
  */
 public class TextSearchInfo {
 
-    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE = new FieldType();
+    static {
+        SIMPLE_MATCH_ONLY_FIELD_TYPE.setTokenized(false);
+        SIMPLE_MATCH_ONLY_FIELD_TYPE.setOmitNorms(true);
+        SIMPLE_MATCH_ONLY_FIELD_TYPE.freeze();
+    }
+
+    /**
+     * Defines indexing information for fields that support only simple match text queries
+     */
+    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE);
 
     private final FieldType luceneFieldType;
 
+    /**
+     * Create a TextSearchInfo by wrapping a lucene FieldType
+     */
     public TextSearchInfo(FieldType luceneFieldType) {
         this.luceneFieldType = luceneFieldType;
     }
@@ -42,6 +55,9 @@ public class TextSearchInfo {
         return luceneFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
     }
 
+    /**
+     * @return whether or not this field has indexed offsets for highlighting
+     */
     public boolean hasOffsets() {
         return luceneFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
     }
@@ -53,14 +69,28 @@ public class TextSearchInfo {
         return luceneFieldType.omitNorms() == false;
     }
 
+    /**
+     * @return whether or not this field is tokenized
+     */
     public boolean isTokenized() {
         return luceneFieldType.tokenized();
     }
 
+    /**
+     * @return whether or not this field is stored
+     */
     public boolean isStored() {
         return luceneFieldType.stored();    // TODO move this directly to MappedFieldType? It's not text specific...
     }
 
+    /**
+     * What sort of term vectors are available
+     */
+    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+
+    /**
+     * @return the type of term vectors available for this field
+     */
     public TermVector termVectors() {
         if (luceneFieldType.storeTermVectors() == false) {
             return TermVector.NONE;
@@ -73,33 +103,5 @@ public class TextSearchInfo {
         }
         return TermVector.DOCS;
     }
-
-    private static final FieldType NON_TEXT_FIELD_TYPE = new FieldType();
-    static {
-        NON_TEXT_FIELD_TYPE.setOmitNorms(true);
-        NON_TEXT_FIELD_TYPE.freeze();
-    }
-
-    /**
-     * The field type used by numeric fields
-     */
-    public static TextSearchInfo NUMERIC = new TextSearchInfo(NON_TEXT_FIELD_TYPE);
-
-    /**
-     * The field type used by geometry fields
-     */
-    public static TextSearchInfo GEOMETRY = new TextSearchInfo(NON_TEXT_FIELD_TYPE);
-
-    private static final FieldType KEYWORD_FIELD_TYPE = new FieldType();
-    static {
-        KEYWORD_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-        KEYWORD_FIELD_TYPE.setTokenized(false);
-        KEYWORD_FIELD_TYPE.freeze();
-    }
-
-    /**
-     * The field type used by un-analyzed text fields
-     */
-    public static TextSearchInfo KEYWORD = new TextSearchInfo(KEYWORD_FIELD_TYPE);
 
 }

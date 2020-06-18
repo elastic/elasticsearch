@@ -86,7 +86,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.KEYWORD, Collections.emptyMap());
+            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected NestedPathFieldType(NestedPathFieldType ref) {

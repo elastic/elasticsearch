@@ -206,7 +206,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final class JoinFieldType extends StringFieldType {
         public JoinFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, TextSearchInfo.KEYWORD, meta);
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

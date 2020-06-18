@@ -117,7 +117,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final IdFieldType INSTANCE = new IdFieldType();
 
         private IdFieldType() {
-            super(NAME, true, false, TextSearchInfo.KEYWORD, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

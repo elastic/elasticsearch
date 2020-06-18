@@ -60,7 +60,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -235,7 +234,7 @@ public class TextFieldMapper extends FieldMapper {
             PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, fullName + "._index_prefix",
                 minPrefixChars, maxPrefixChars, pft.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0);
             prefixFieldType.setAnalyzer(indexAnalyzer);
-            return new PrefixFieldMapper(pft, prefixFieldType, context.indexSettings());
+            return new PrefixFieldMapper(pft, prefixFieldType);
         }
 
         private PhraseFieldMapper buildPhraseMapper(BuilderContext context, TextFieldType parent) {
@@ -249,7 +248,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
             }
             FieldType phraseFieldType = new FieldType(fieldType);
-            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent), context.indexSettings());
+            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent));
         }
 
         @Override
@@ -266,7 +265,7 @@ public class TextFieldMapper extends FieldMapper {
             TextFieldType tft = buildFieldType(context);
             return new TextFieldMapper(name,
                     fieldType, tft, positionIncrementGap, buildPrefixMapper(context), buildPhraseMapper(context, tft),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -498,8 +497,8 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PhraseFieldMapper extends FieldMapper {
 
-        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType, Settings indexSettings) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
+            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
@@ -520,8 +519,8 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PrefixFieldMapper extends FieldMapper {
 
-        protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType, Settings indexSettings) {
-            super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
+            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         void addField(ParseContext context, String value) {
@@ -813,8 +812,8 @@ public class TextFieldMapper extends FieldMapper {
     protected TextFieldMapper(String simpleName, FieldType fieldType, TextFieldType mappedFieldType,
                                 int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
                                 PhraseFieldMapper phraseFieldMapper,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {

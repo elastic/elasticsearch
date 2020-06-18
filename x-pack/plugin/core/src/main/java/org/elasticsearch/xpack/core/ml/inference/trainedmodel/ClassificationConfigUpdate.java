@@ -120,6 +120,12 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
         return resultsField;
     }
 
+    @Override
+    public InferenceConfigUpdate duplicateWithResultsField(String resultsFieldName) {
+        return new ClassificationConfigUpdate(numTopClasses, resultsFieldName, topClassesResultsField,
+            numTopFeatureImportanceValues, predictionFieldType);
+    }
+
     public Integer getNumTopFeatureImportanceValues() {
         return numTopFeatureImportanceValues;
     }

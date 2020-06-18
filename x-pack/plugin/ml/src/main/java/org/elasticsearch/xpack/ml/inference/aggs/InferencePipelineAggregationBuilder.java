@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,9 +24,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -49,6 +48,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
+    private static String DEFAULT_RESULT_FIELD = "value";
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferencePipelineAggregationBuilder,
         Tuple<SetOnce<ModelLoadingService>, String>> PARSER = new ConstructingObjectParser<>(
@@ -60,7 +61,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         PARSER.declareObject(constructorArg(), (p, c) -> p.mapStrings(), BUCKETS_PATH_FIELD);
         PARSER.declareString(InferencePipelineAggregationBuilder::setModelId, MODEL_ID);
         PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
-            (p, c, n) -> p.namedObject(LenientlyParsedInferenceConfig.class, n, c), INFERENCE_CONFIG);
+            (p, c, n) -> p.namedObject(InferenceConfigUpdate.class, n, c), INFERENCE_CONFIG);
         PARSER.declareField(InferencePipelineAggregationBuilder::setGapPolicy, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return BucketHelpers.GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
@@ -72,7 +73,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     private final Map<String, String> bucketPathMap;
     private String modelId;
-    private InferenceConfig inferenceConfig;
+    private InferenceConfigUpdate inferenceConfig;
     private final SetOnce<ModelLoadingService> modelLoadingService;
     private BucketHelpers.GapPolicy gapPolicy = BucketHelpers.GapPolicy.SKIP;
 
@@ -94,7 +95,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         super(in, NAME);
         modelId = in.readString();
         bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
-        inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
+        inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
         this.modelLoadingService = modelLoadingService;
     }
@@ -103,7 +104,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         this.modelId = modelId;
     }
 
-    void setInferenceConfig(InferenceConfig inferenceConfig) {
+    void setInferenceConfig(InferenceConfigUpdate inferenceConfig) {
         this.inferenceConfig = inferenceConfig;
     }
 
@@ -160,14 +161,15 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         InferenceConfigUpdate update;
         if (inferenceConfig == null) {
             update = new EmptyConfigUpdate();
-        } else if (inferenceConfig instanceof RegressionConfig) {
-            update = RegressionConfigUpdate.fromConfig((RegressionConfig)inferenceConfig);
-        } else if (inferenceConfig instanceof ClassificationConfig) {
-            update = ClassificationConfigUpdate.fromConfig((ClassificationConfig)inferenceConfig);
         } else {
-            throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
-                inferenceConfig.getName(),
-                Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
+            // error if the results field is set and not equal to the only acceptable value
+            if (Strings.isNullOrEmpty(inferenceConfig.getResultsField()) == false &&
+                DEFAULT_RESULT_FIELD.equals(inferenceConfig.getResultsField()) == false) {
+                throw ExceptionsHelper.badRequestException("setting [{}] is not a valid option for inference aggregations",
+                    ClassificationConfig.RESULTS_FIELD.getPreferredName());
+            }
+
+            update = inferenceConfig.duplicateWithResultsField(DEFAULT_RESULT_FIELD);
         }
 
         return new InferencePipelineAggregator(name, bucketPathMap, metaData, update, model.get());

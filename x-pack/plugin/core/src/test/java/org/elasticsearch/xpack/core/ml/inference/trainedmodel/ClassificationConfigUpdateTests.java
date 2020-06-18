@@ -82,6 +82,20 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
         assertEquals("Cannot apply inference config. More than one field is configured as [foo]", e.getMessage());
     }
 
+    public void testDuplicateWithResultsField() {
+        ClassificationConfigUpdate update = randomClassificationConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+        ClassificationConfigUpdate updateWithField = (ClassificationConfigUpdate)update.duplicateWithResultsField(newFieldName);
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertEquals(update.getTopClassesResultsField(), updateWithField.getTopClassesResultsField());
+        assertEquals(update.getNumTopClasses(), updateWithField.getNumTopClasses());
+        assertEquals(update.getPredictionFieldType(), updateWithField.getPredictionFieldType());
+        assertEquals(update.getNumTopFeatureImportanceValues(), updateWithField.getNumTopFeatureImportanceValues());
+    }
+
     @Override
     protected ClassificationConfigUpdate createTestInstance() {
         return randomClassificationConfigUpdate();

@@ -14,9 +14,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -62,11 +62,11 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             builder.setGapPolicy(randomFrom(BucketHelpers.GapPolicy.values()));
         }
         if (randomBoolean()) {
-            InferenceConfig config;
+            InferenceConfigUpdate config;
             if (randomBoolean()) {
-                config = ClassificationConfigTests.randomClassificationConfig();
+                config = ClassificationConfigUpdateTests.randomClassificationConfigUpdate();
             } else {
-                config = RegressionConfigTests.randomRegressionConfig();
+                config = RegressionConfigUpdateTests.randomRegressionConfigUpdate();
             }
             builder.setInferenceConfig(config);
         }

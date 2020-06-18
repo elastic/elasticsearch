@@ -67,6 +67,17 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
         assertEquals("Cannot apply inference config. More than one field is configured as [warning]", e.getMessage());
     }
 
+    public void testDuplicateWithResultsField() {
+        RegressionConfigUpdate update = randomRegressionConfigUpdate();
+        String newFieldName = update.getResultsField() + "_value";
+        RegressionConfigUpdate updateWithField = (RegressionConfigUpdate)update.duplicateWithResultsField(newFieldName);
+
+        assertNotSame(updateWithField, update);
+        assertEquals(newFieldName, updateWithField.getResultsField());
+        // other fields are the same
+        assertEquals(update.getNumTopFeatureImportanceValues(), updateWithField.getNumTopFeatureImportanceValues());
+    }
+
     @Override
     protected RegressionConfigUpdate createTestInstance() {
         return randomRegressionConfigUpdate();

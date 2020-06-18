@@ -86,6 +86,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
+    public InferenceConfigUpdate duplicateWithResultsField(String resultsFieldName) {
+        return new RegressionConfigUpdate(resultsFieldName, numTopFeatureImportanceValues);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }

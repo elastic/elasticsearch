@@ -29,6 +29,8 @@ public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteab
 
     String getResultsField();
 
+    InferenceConfigUpdate duplicateWithResultsField(String resultsField);
+
     static void checkFieldUniqueness(String... fieldNames) {
         Set<String> duplicatedFieldNames = new HashSet<>();
         Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);

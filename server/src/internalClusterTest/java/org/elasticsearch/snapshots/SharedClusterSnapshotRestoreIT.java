@@ -2521,11 +2521,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put("block_on_data", true)));
 
 
-        DataStreamIT.createIndexTemplate("dst", "@timestamp", "test-ds");
+        String dataStream = "test-ds";
+        DataStreamIT.createIndexTemplate("dst", "@timestamp", dataStream);
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex("test-ds")
+            client.prepareIndex(dataStream)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("k", "v"))
@@ -2533,18 +2534,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
         refresh();
 
-        assertThat(client.prepareSearch("test-ds").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(client.prepareSearch(dataStream).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> snapshot");
         ActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setIndices("test-ds").setWaitForCompletion(true).setPartial(false).execute();
+            .setIndices(dataStream).setWaitForCompletion(true).setPartial(false).execute();
         logger.info("--> wait for block to kick in");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("test-ds")).actionGet();
+            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(dataStream)).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
             assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [test-ds"));
@@ -2558,8 +2559,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("Snapshot successfully completed");
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
-        assertThat(snapshotInfo.dataStreams(), contains("test-ds"));
-        assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName("test-ds", 1)));
+        assertThat(snapshotInfo.dataStreams(), contains(dataStream));
+        assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
     }
 
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {

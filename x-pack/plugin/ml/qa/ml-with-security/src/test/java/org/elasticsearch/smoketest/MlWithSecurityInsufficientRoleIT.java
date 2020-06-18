@@ -8,6 +8,8 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
 import java.io.IOException;
 
@@ -16,8 +18,11 @@ import static org.hamcrest.Matchers.either;
 
 public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
 
+    private final ClientYamlTestCandidate testCandidate;
+
     public MlWithSecurityInsufficientRoleIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+        this.testCandidate = testCandidate;
     }
 
     @Override
@@ -26,7 +31,18 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
             // Cannot use expectThrows here because blacklisted tests will throw an
             // InternalAssumptionViolatedException rather than an AssertionError
             super.test();
-            fail("should have failed because of missing role");
+
+            // We should have got here if and only if no ML endpoints were called
+            for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
+                if (section instanceof DoSection) {
+                    String apiName = ((DoSection) section).getApiCallSection().getApi();
+
+                    if (apiName.startsWith("ml.")) {
+                        fail("call to ml endpoint should have failed because of missing role");
+                    }
+                }
+            }
+
         } catch (AssertionError ae) {
             // Some tests assert on searches of wildcarded ML indices rather than on ML endpoints.  For these we expect no hits.
             if (ae.getMessage().contains("hits.total didn't match expected value")) {

@@ -33,12 +33,9 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
-  ignoreSha 'elasticsearch'
-  ignoreSha 'elasticsearch-core'
 }
 
 thirdPartyAudit.ignoreMissingClasses(

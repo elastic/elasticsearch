@@ -52,10 +52,10 @@ public final class KeyValueProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final Consumer<IngestDocument> execution;
 
-    KeyValueProcessor(String tag, String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
+    KeyValueProcessor(String tag, String description, String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
                       Set<String> excludeKeys, String targetField, boolean ignoreMissing,
                       String trimKey, String trimValue, boolean stripBrackets, String prefix) {
-        super(tag);
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.fieldSplit = fieldSplit;
@@ -201,7 +201,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
     public static class Factory implements Processor.Factory {
         @Override
         public KeyValueProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                        Map<String, Object> config) throws Exception {
+                                        String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             String fieldSplit = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field_split");
@@ -223,7 +223,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             return new KeyValueProcessor(
-                processorTag, field, fieldSplit, valueSplit, includeKeys, excludeKeys, targetField, ignoreMissing,
+                processorTag, description, field, fieldSplit, valueSplit, includeKeys, excludeKeys, targetField, ignoreMissing,
                 trimKey, trimValue, stripBrackets, prefix
             );
         }

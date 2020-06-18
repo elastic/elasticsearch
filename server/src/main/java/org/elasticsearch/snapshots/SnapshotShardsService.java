@@ -232,7 +232,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
-                        if (shard.value.state() == ShardState.ABORTED) {
+                        if (shard.value.state() == ShardState.ABORTED && localNodeId.equals(shard.value.nodeId())) {
                             notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     } else {

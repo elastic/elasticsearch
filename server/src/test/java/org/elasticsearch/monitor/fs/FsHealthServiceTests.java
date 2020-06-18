@@ -134,12 +134,12 @@ public class FsHealthServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING.getKey(),
             slowLogThreshold + "ms").build();
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         FileSystemFsyncHungProvider disruptFileSystemProvider = new FileSystemFsyncHungProvider(fileSystem,
-            randomLongBetween(slowLogThreshold + 1 , 400));
+            randomLongBetween(slowLogThreshold + 1 , 400), testThreadPool);
         fileSystem = disruptFileSystemProvider.getFileSystem(null);
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
 
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -307,10 +307,12 @@ public class FsHealthServiceTests extends ESTestCase {
 
         private String pathPrefix = "/";
         private long delay;
+        private final ThreadPool threadPool;
 
-        FileSystemFsyncHungProvider(FileSystem inner, long delay) {
+        FileSystemFsyncHungProvider(FileSystem inner, long delay, ThreadPool threadPool) {
             super("disrupt_fs_health://", inner);
             this.delay = delay;
+            this.threadPool = threadPool;
         }
 
         public int getInjectedPathCount(){
@@ -325,11 +327,14 @@ public class FsHealthServiceTests extends ESTestCase {
                     if (injectIOException.get()) {
                         if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
                             injectedPaths.incrementAndGet();
-                            try {
-                                Thread.sleep(delay);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                            }
+                            final long startTimeMillis = threadPool.relativeTimeInMillis();
+                            do {
+                                try {
+                                    Thread.sleep(delay);
+                                } catch (InterruptedException e) {
+                                    throw new AssertionError(e);
+                                }
+                            } while (threadPool.relativeTimeInMillis() <= startTimeMillis + delay);
                         }
                     }
                     super.force(metaData);

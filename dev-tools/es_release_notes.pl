@@ -118,14 +118,14 @@ ASCIIDOC
                 }
                 my $number = $issue->{number};
 
-                print encode_utf8("* $title {pull}${number}[#${number}]");
+                print encode_utf8("* $title {es-pull}${number}[#${number}]");
 
                 if ( my $related = $issue->{related_issues} ) {
                     my %uniq = map { $_ => 1 } @$related;
                     print keys %uniq > 1
                         ? " (issues: "
                         : " (issue: ";
-                    print join ", ", map {"{issue}${_}[#${_}]"}
+                    print join ", ", map {"{es-issue}${_}[#${_}]"}
                         sort keys %uniq;
                     print ")";
                 }

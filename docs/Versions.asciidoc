@@ -7,11 +7,6 @@ include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 :jdk_major:             8
 :build_flavor:          default
 
-:issue:           https://github.com/elastic/elasticsearch/issues/
-:ml-issue:        https://github.com/elastic/ml-cpp/issues/
-:pull:            https://github.com/elastic/elasticsearch/pull/
-:ml-pull:         https://github.com/elastic/ml-cpp/pull/
-
 :docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
 :docker-image:    {docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins

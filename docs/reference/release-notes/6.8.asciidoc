@@ -5,21 +5,21 @@
 === Bug fixes
 
 Infra/Logging::
-* SlowLoggers using single logger {pull}56708[#56708] (issue: {issue}56171[#56171])
+* SlowLoggers using single logger {es-pull}56708[#56708] (issue: {es-issue}56171[#56171])
 
 Machine Learning::
-* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {pull}57041[#57041] (issue: {issue}47103[#47103])
+* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {es-pull}57041[#57041] (issue: {es-issue}47103[#47103])
 
 Search::
-* Ensure search contexts are removed on index delete {pull}56335[#56335]
-* Fix validate query listener invocation bug {pull}56157[#56157]
+* Ensure search contexts are removed on index delete {es-pull}56335[#56335]
+* Fix validate query listener invocation bug {es-pull}56157[#56157]
 
 [[upgrade-6.8.10]]
 [float]
 === Upgrades
 
 Infra/Packaging::
-* Upgrade bundled jdk to 14.0.1 {pull}57233[#57233]
+* Upgrade bundled jdk to 14.0.1 {es-pull}57233[#57233]
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
@@ -28,7 +28,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {es-pull}57228[#57228] (issue: {es-issue}56171[#56171])
 +
 This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
@@ -39,49 +39,49 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 Authorization::
-* Remove synthetic role names of API keys as they confuse users {pull}56005[#56005]
+* Remove synthetic role names of API keys as they confuse users {es-pull}56005[#56005]
 
 Infra/Core::
-* Enable helpful null pointer exceptions {pull}54853[#54853]
+* Enable helpful null pointer exceptions {es-pull}54853[#54853]
 
 Snapshot/Restore::
-* Update the HDFS version used by HDFS Repo {pull}53693[#53693]
+* Update the HDFS version used by HDFS Repo {es-pull}53693[#53693]
 
 [[bug-6.8.9]]
 [float]
 === Bug fixes
 
 CCR::
-* Retry follow task when remote connection queue full {pull}55314[#55314]
-* Clear recent errors when auto-follow successfully {pull}54997[#54997]
-* Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
+* Retry follow task when remote connection queue full {es-pull}55314[#55314]
+* Clear recent errors when auto-follow successfully {es-pull}54997[#54997]
+* Handle no such remote cluster exception in ccr {es-pull}53415[#53415] (issue: {es-issue}53225[#53225])
 
 CRUD::
-* Reduce deprecation warnings from bulk OCC {pull}53911[#53911]
+* Reduce deprecation warnings from bulk OCC {es-pull}53911[#53911]
 
 Engine::
-* Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
+* Ensure no circular reference in translog tragic exception {es-pull}55959[#55959] (issue: {es-issue}55893[#55893])
 
 Features/CAT APIs::
-* Cat tasks output should respect time display settings {pull}54536[#54536]
+* Cat tasks output should respect time display settings {es-pull}54536[#54536]
 
 Infra/Core::
-* Avoid StackOverflowError if write circular reference exception {pull}54147[#54147] (issue: {issue}53589[#53589])
-* Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
+* Avoid StackOverflowError if write circular reference exception {es-pull}54147[#54147] (issue: {es-issue}53589[#53589])
+* Disallow negative TimeValues {es-pull}53913[#53913] (issue: {es-issue}54041[#54041])
 
 Network::
-* Fix use of password protected PKCS#8 keys for SSL {pull}55457[#55457] (issue: {issue}8[#8])
-* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
+* Fix use of password protected PKCS#8 keys for SSL {es-pull}55457[#55457] (issue: {es-issue}8[#8])
+* Add support for more named curves {es-pull}55179[#55179] (issue: {es-issue}55031[#55031])
 
 Reindex::
-* Reindex negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])
+* Reindex negative TimeValue fix {es-pull}54057[#54057] (issue: {es-issue}53913[#53913])
 
 [[upgrade-6.8.9]]
 [float]
 === Upgrades
 
 Engine::
-* Upgrade to Lucene 7.7.3 {pull}55897[#55897]
+* Upgrade to Lucene 7.7.3 {es-pull}55897[#55897]
 
 
 [[release-notes-6.8.8]]
@@ -90,7 +90,7 @@ Engine::
 
 [float]
 === Known issues
-* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {es-pull}57228[#57228] (issue: {es-issue}56171[#56171])
 +
 This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
@@ -101,41 +101,41 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Bug fixes
 
 Authorization::
-* Explicitly require that delegate API keys have no privileges {pull}53647[#53647]
+* Explicitly require that delegate API keys have no privileges {es-pull}53647[#53647]
 
 Distributed::
-* Avoid loading retention leases while writing them {pull}42620[#42620] (issue: {issue}41430[#41430])
+* Avoid loading retention leases while writing them {es-pull}42620[#42620] (issue: {es-issue}41430[#41430])
 
 Infra/Core::
-* Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
+* Avoid self-suppression on grouped action listener {es-pull}53262[#53262] (issue: {es-issue}53174[#53174])
 
 Network::
-* Invoke response handler on failure to send {pull}53631[#53631]
+* Invoke response handler on failure to send {es-pull}53631[#53631]
 
 SQL::
-* Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
+* Fix column size for IP data type {es-pull}53056[#53056] (issue: {es-issue}52762[#52762])
 
 Search::
-* Fix concurrent requests race over scroll context limit {pull}53449[#53449]
-* Fix potential NPE in FuzzyTermsEnum {pull}53231[#53231] (issue: {issue}52894[#52894])
+* Fix concurrent requests race over scroll context limit {es-pull}53449[#53449]
+* Fix potential NPE in FuzzyTermsEnum {es-pull}53231[#53231] (issue: {es-issue}52894[#52894])
 
 [[upgrade-6.8.8]]
 [float]
 === Upgrades
 
 Features/Ingest::
-* Ingest Attachment: Upgrade tika to v1.22 {pull}53418[#53418]
+* Ingest Attachment: Upgrade tika to v1.22 {es-pull}53418[#53418]
 
 Infra/Core::
-* Upgrade the bundled JDK to JDK 14 {pull}53748[#53748] (issue: {issue}53575[#53575])
-* Update jackson-databind to 2.8.11.6 {pull}53522[#53522] (issue: {issue}45225[#45225])
+* Upgrade the bundled JDK to JDK 14 {es-pull}53748[#53748] (issue: {es-issue}53575[#53575])
+* Update jackson-databind to 2.8.11.6 {es-pull}53522[#53522] (issue: {es-issue}45225[#45225])
 
 [[release-notes-6.8.7]]
 == {es} version 6.8.7
 
 [float]
 === Known issues
-* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {es-pull}57228[#57228] (issue: {es-issue}56171[#56171])
 +
 This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
@@ -146,45 +146,45 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Bug fixes
 
 Authentication::
-* Preserve ApiKey credentials for async verification {pull}51244[#51244]
+* Preserve ApiKey credentials for async verification {es-pull}51244[#51244]
 
 CCR::
-* Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
+* Fix shard follow task cleaner under security {es-pull}52347[#52347] (issues: {es-issue}44702[#44702], {es-issue}51971[#51971])
 
 Engine::
-* Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
+* Account soft-deletes in FrozenEngine {es-pull}51192[#51192] (issue: {es-issue}50775[#50775])
 
 Features/Java Low Level REST Client::
-* Improve warning value extraction performance in Response {pull}50208[#50208] (issue: {issue}24114[#24114])
+* Improve warning value extraction performance in Response {es-pull}50208[#50208] (issue: {es-issue}24114[#24114])
 
 Infra/Core::
-* Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
+* Ignore virtual ethernet devices that disappear {es-pull}51581[#51581] (issue: {es-issue}49914[#49914])
 
 Machine Learning::
 * Include out-of-order as well as in-order terms in categorization reverse
 searches {ml-pull}950[#950] (issue: {ml-issue}949[#949])
 
 SQL::
-* Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
-* Fix ORDER BY YEAR() function {pull}51562[#51562] (issue: {issue}51224[#51224])
-* Fix issue with CAST and NULL checking. {pull}50371[#50371] (issue: {issue}50191[#50191])
+* Fix ORDER BY on aggregates and GROUPed BY fields {es-pull}51894[#51894] (issue: {es-issue}50355[#50355])
+* Fix ORDER BY YEAR() function {es-pull}51562[#51562] (issue: {es-issue}51224[#51224])
+* Fix issue with CAST and NULL checking. {es-pull}50371[#50371] (issue: {es-issue}50191[#50191])
 
 Search::
-* Fix NPE bug inner_hits {pull}50709[#50709] (issue: {issue}50539[#50539])
+* Fix NPE bug inner_hits {es-pull}50709[#50709] (issue: {es-issue}50539[#50539])
 
 [[enhancement-6.8.7]]
 [float]
 === Enhancements
 
 SQL::
-* Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
+* Verify Full-Text Search functions not allowed in SELECT {es-pull}51568[#51568] (issue: {es-issue}47446[#47446])
 
 [[upgrade-6.8.7]]
 [float]
 === Upgrades
 
 Infra/Packaging::
-* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
+* Upgrade the bundled JDK to JDK 13.0.2 {es-pull}51511[#51511]
 
 [[release-notes-6.8.6]]
 == {es} version 6.8.6
@@ -193,7 +193,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {es-pull}57228[#57228] (issue: {es-issue}56171[#56171])
 +
 This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
@@ -202,38 +202,38 @@ This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 === Enhancements
 
 Features/Watcher::
-* Log attachment generation failures {pull}50080[#50080]
+* Log attachment generation failures {es-pull}50080[#50080]
 
 Infra/Packaging::
-* Restrict support for CMS to pre-JDK 14 {pull}49123[#49123] (issue: {issue}46973[#46973])
+* Restrict support for CMS to pre-JDK 14 {es-pull}49123[#49123] (issue: {es-issue}46973[#46973])
 
 [[bug-6.8.6]]
 [float]
 === Bug fixes
 
 Aggregations::
-* Avoid precision loss in DocValueFormat.RAW#parseLong {pull}49063[#49063] (issue: {issue}38692[#38692])
+* Avoid precision loss in DocValueFormat.RAW#parseLong {es-pull}49063[#49063] (issue: {es-issue}38692[#38692])
 
 Audit::
-* Audit log filter and marker {pull}45456[#45456] (issue: {issue}47251[#47251])
+* Audit log filter and marker {es-pull}45456[#45456] (issue: {es-issue}47251[#47251])
 
 Authentication::
-* Fix iterate-from-1 bug in smart realm order {pull}49473[#49473]
+* Fix iterate-from-1 bug in smart realm order {es-pull}49473[#49473]
 
 CCR::
-* CCR should auto-retry rejected execution exceptions {pull}49213[#49213]
+* CCR should auto-retry rejected execution exceptions {es-pull}49213[#49213]
 
 Features/Java High Level REST Client::
-* Support es7 node http publish_address format {pull}49279[#49279] (issue: {issue}48950[#48950])
+* Support es7 node http publish_address format {es-pull}49279[#49279] (issue: {es-issue}48950[#48950])
 
 Machine Learning::
-* Fixes for stop datafeed edge cases {pull}49191[#49191] (issues: {issue}43670[#43670], {issue}48931[#48931])
+* Fixes for stop datafeed edge cases {es-pull}49191[#49191] (issues: {es-issue}43670[#43670], {es-issue}48931[#48931])
 
 Recovery::
-* Ignore Lucene index in peer recovery if translog corrupted {pull}49114[#49114]
+* Ignore Lucene index in peer recovery if translog corrupted {es-pull}49114[#49114]
 
 Reindex::
-* Fix delete- and update-by-query on indices without sequence numbers {pull}50077[#50077]
+* Fix delete- and update-by-query on indices without sequence numbers {es-pull}50077[#50077]
 
 
 [[release-notes-6.8.5]]
@@ -243,7 +243,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {es-pull}57228[#57228] (issue: {es-issue}56171[#56171])
 +
 This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
@@ -252,10 +252,10 @@ This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 === Enhancements
 
 Engine::
-* Avoid unneeded refresh with concurrent realtime gets {pull}47895[#47895]
+* Avoid unneeded refresh with concurrent realtime gets {es-pull}47895[#47895]
 
 Infra/Settings::
-* Do not reference values for filtered settings {pull}48066[#48066]
+* Do not reference values for filtered settings {es-pull}48066[#48066]
 
 Machine Learning::
 * The {ml} native processes are now arranged in a `.app` directory structure on
@@ -267,37 +267,37 @@ Machine Learning::
 === Bug fixes
 
 Allocation::
-* Handle negative free disk space in deciders {pull}48392[#48392] (issue: {issue}48380[#48380])
+* Handle negative free disk space in deciders {es-pull}48392[#48392] (issue: {es-issue}48380[#48380])
 
 Analysis::
-* Actually close IndexAnalyzers contents {pull}43914[#43914]
+* Actually close IndexAnalyzers contents {es-pull}43914[#43914]
 
 CCR::
-* Handle lower retaining sequence number retention lease error {pull}46420[#46420] (issues: {issue}46013[#46013], {issue}46416[#46416])
+* Handle lower retaining sequence number retention lease error {es-pull}46420[#46420] (issues: {es-issue}46013[#46013], {es-issue}46416[#46416])
 
 CRUD::
-* Close query cache on index service creation failure {pull}48230[#48230] (issue: {issue}48186[#48186])
+* Close query cache on index service creation failure {es-pull}48230[#48230] (issue: {es-issue}48186[#48186])
 
 Engine::
-* Fix refresh optimization for realtime get in mixed cluster {pull}48151[#48151] (issue: {issue}48114[#48114])
+* Fix refresh optimization for realtime get in mixed cluster {es-pull}48151[#48151] (issue: {es-issue}48114[#48114])
 
 Features/Java High Level REST Client::
-* Fix ILM HLRC Javadoc->documentation links {pull}48083[#48083]
-* Prevent deadlock in BulkProcessor by using separate schedulers {pull}48697[#48697] (issue: {issue}47599[#47599])
+* Fix ILM HLRC Javadoc->documentation links {es-pull}48083[#48083]
+* Prevent deadlock in BulkProcessor by using separate schedulers {es-pull}48697[#48697] (issue: {es-issue}47599[#47599])
 
 Infra/Logging::
-* Slow log must use separate underlying logger for each index {pull}47234[#47234] (issue: {issue}42432[#42432])
+* Slow log must use separate underlying logger for each index {es-pull}47234[#47234] (issue: {es-issue}42432[#42432])
 
 Machine Learning::
 * Restore from checkpoint could damage seasonality modeling. For example, it could
   cause seasonal components to be overwritten in error {ml-pull}821[#821]
 
 SQL::
-* Fix issue with negative literels and parentheses {pull}48113[#48113] (issue: {issue}48009[#48009])
-* Failing group by queries due to different ExpressionIds {pull}43072[#43072] (issues: {issue}33361[#33361], {issue}34543[#34543], {issue}36074[#36074], {issue}37044[#37044], {issue}40001[#40001], {issue}40240[#40240], {issue}41159[#41159], {issue}42041[#42041], {issue}46316[#46316])
+* Fix issue with negative literels and parentheses {es-pull}48113[#48113] (issue: {es-issue}48009[#48009])
+* Failing group by queries due to different ExpressionIds {es-pull}43072[#43072] (issues: {es-issue}33361[#33361], {es-issue}34543[#34543], {es-issue}36074[#36074], {es-issue}37044[#37044], {es-issue}40001[#40001], {es-issue}40240[#40240], {es-issue}41159[#41159], {es-issue}42041[#42041], {es-issue}46316[#46316])
 
 Snapshot/Restore::
-* Cleanup concurrent RepositoryData loading {pull}48329[#48329] (issue: {issue}48122[#48122])
+* Cleanup concurrent RepositoryData loading {es-pull}48329[#48329] (issue: {es-issue}48122[#48122])
 
 
 [[release-notes-6.8.4]]
@@ -310,13 +310,13 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 Engine::
-* Limit number of retaining translog files for peer recovery {pull}47414[#47414]
+* Limit number of retaining translog files for peer recovery {es-pull}47414[#47414]
 
 Infra/Settings::
-* Add more meaningful keystore version mismatch errors {pull}46291[#46291] (issue: {issue}44624[#44624])
+* Add more meaningful keystore version mismatch errors {es-pull}46291[#46291] (issue: {es-issue}44624[#44624])
 
 Machine Learning::
-* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003])
+* Throttle the delete-by-query of expired results {es-pull}47177[#47177] (issues: {es-issue}47003[#47003])
 
 
 
@@ -325,44 +325,44 @@ Machine Learning::
 === Bug fixes
 
 Authentication::
-* Fallback to realm authc if ApiKey fails {pull}46538[#46538]
+* Fallback to realm authc if ApiKey fails {es-pull}46538[#46538]
 
 CRUD::
-* Do not use ifSeqNo if doc does not have seq_no {pull}46198[#46198]
+* Do not use ifSeqNo if doc does not have seq_no {es-pull}46198[#46198]
 
 Distributed::
-* Fix false positive out of sync warning in synced-flush {pull}46576[#46576] (issues: {issue}28464[#28464], {issue}30244[#30244])
-* Suppress warning logs from background sync on relocated primary {pull}46247[#46247] (issues: {issue}40800[#40800], {issue}42241[#42241])
+* Fix false positive out of sync warning in synced-flush {es-pull}46576[#46576] (issues: {es-issue}28464[#28464], {es-issue}30244[#30244])
+* Suppress warning logs from background sync on relocated primary {es-pull}46247[#46247] (issues: {es-issue}40800[#40800], {es-issue}42241[#42241])
 
 Engine::
-* Improve translog corruption detection {pull}47873[#47873] (issues: {issue}41480[#41480], {issue}42744[#42744], {issue}42980[#42980], {issue}44217[#44217])
-* Always rebuild checkpoint tracker for old indices {pull}46340[#46340] (issues: {issue}38879[#38879], {issue}46311[#46311])
+* Improve translog corruption detection {es-pull}47873[#47873] (issues: {es-issue}41480[#41480], {es-issue}42744[#42744], {es-issue}42980[#42980], {es-issue}44217[#44217])
+* Always rebuild checkpoint tracker for old indices {es-pull}46340[#46340] (issues: {es-issue}38879[#38879], {es-issue}46311[#46311])
 
 Features/Indices APIs::
-* Fix Rollover error when alias has closed indices {pull}47839[#47839] (issue: {issue}47148[#47148])
+* Fix Rollover error when alias has closed indices {es-pull}47839[#47839] (issue: {es-issue}47148[#47148])
 
 Features/Ingest::
-* Allow dropping documents with auto-generated ID {pull}46773[#46773] (issue: {issue}46678[#46678])
+* Allow dropping documents with auto-generated ID {es-pull}46773[#46773] (issue: {es-issue}46678[#46678])
 
 Features/Watcher::
-* Watcher - workaround for potential deadlock {pull}47603[#47603] (issues: {issue}41451[#41451], {issue}47599[#47599])
-* Fix class used to initialize logger in Watcher {pull}46467[#46467]
+* Watcher - workaround for potential deadlock {es-pull}47603[#47603] (issues: {es-issue}41451[#41451], {es-issue}47599[#47599])
+* Fix class used to initialize logger in Watcher {es-pull}46467[#46467]
 
 Machine Learning::
-* Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
-* Fix two datafeed flush lockup bugs {pull}46982[#46982]
-* Throw an error when a datafeed needs CCS but it is not enabled for the node {pull}46044[#46044]
+* Reinstate ML daily maintenance actions {es-pull}47103[#47103] (issue: {es-issue}47003[#47003])
+* Fix two datafeed flush lockup bugs {es-pull}46982[#46982]
+* Throw an error when a datafeed needs CCS but it is not enabled for the node {es-pull}46044[#46044]
 * Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
 
 SQL::
-* SQL: Allow whitespaces in escape patterns {pull}47577[#47577] (issue: {issue}47401[#47401])
-* SQL: Fix issue with common type resolution {pull}46565[#46565] (issue: {issue}46551[#46551])
-* SQL: wrong number of values for columns {pull}42122[#42122]
+* SQL: Allow whitespaces in escape patterns {es-pull}47577[#47577] (issue: {es-issue}47401[#47401])
+* SQL: Fix issue with common type resolution {es-pull}46565[#46565] (issue: {es-issue}46551[#46551])
+* SQL: wrong number of values for columns {es-pull}42122[#42122]
 
 Snapshot/Restore::
-* Fix Bug in Azure Repo Exception Handling {pull}47968[#47968]
-* Fix Snapshot Corruption in Edge Case {pull}47552[#47552] (issues: {issue}46250[#46250], {issue}47550[#47550])
-* Fix TransportSnapshotsStatusAction ThreadPool Use {pull}45824[#45824]
+* Fix Bug in Azure Repo Exception Handling {es-pull}47968[#47968]
+* Fix Snapshot Corruption in Edge Case {es-pull}47552[#47552] (issues: {es-issue}46250[#46250], {es-issue}47550[#47550])
+* Fix TransportSnapshotsStatusAction ThreadPool Use {es-pull}45824[#45824]
 
 
 
@@ -371,7 +371,7 @@ Snapshot/Restore::
 === Upgrades
 
 Engine::
-* Upgrade to lucene 7.7.2 {pull}47901[#47901]
+* Upgrade to lucene 7.7.2 {es-pull}47901[#47901]
 
 
 [[release-notes-6.8.3]]
@@ -384,13 +384,13 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 CCR::
-* Include leases in error message when operations no longer available {pull}45681[#45681]
+* Include leases in error message when operations no longer available {es-pull}45681[#45681]
 
 Infra/Core::
-* Add OCI annotations and adjust existing annotations {pull}45167[#45167] 
+* Add OCI annotations and adjust existing annotations {es-pull}45167[#45167] 
 
 Infra/Settings::
-* Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
+* Normalize environment paths {es-pull}45179[#45179] (issue: {es-issue}45176[#45176])
 
 
 
@@ -399,46 +399,46 @@ Infra/Settings::
 === Bug fixes
 
 Aggregations::
-* Fix early termination of aggregators that run with breadth-first mode {pull}44963[#44963] (issue: {issue}44909[#44909])
+* Fix early termination of aggregators that run with breadth-first mode {es-pull}44963[#44963] (issue: {es-issue}44909[#44909])
 
 Allocation::
-* Avoid overshooting watermarks during relocation {pull}46079[#46079] (issue: {issue}45177[#45177])
+* Avoid overshooting watermarks during relocation {es-pull}46079[#46079] (issue: {es-issue}45177[#45177])
 
 CCR::
-* Clean up ShardFollowTasks for deleted indices {pull}44702[#44702] (issue: {issue}34404[#34404])
+* Clean up ShardFollowTasks for deleted indices {es-pull}44702[#44702] (issue: {es-issue}34404[#34404])
 
 CRUD::
-* Allow _update on write alias {pull}45318[#45318] (issue: {issue}31520[#31520])
+* Allow _update on write alias {es-pull}45318[#45318] (issue: {es-issue}31520[#31520])
 
 Distributed::
-* Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
+* Ensure AsyncTask#isScheduled remain false after close {es-pull}45687[#45687] (issue: {es-issue}45576[#45576])
 
 Engine::
-* Handle delete document level failures {pull}46100[#46100] 
-* Handle no-op document level failures {pull}46083[#46083]
+* Handle delete document level failures {es-pull}46100[#46100] 
+* Handle no-op document level failures {es-pull}46083[#46083]
 
 Features/Indices APIs::
-* Check shard limit after applying index templates {pull}44619[#44619] (issue: {issue}44567[#44567])
-* Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
+* Check shard limit after applying index templates {es-pull}44619[#44619] (issue: {es-issue}44567[#44567])
+* Prevent NullPointerException in TransportRolloverAction {es-pull}43353[#43353] (issue: {es-issue}43296[#43296])
 
 Features/Java High Level REST Client::
-* Add rest_total_hits_as_int in HLRC's search requests {pull}46076[#46076] (issue: {issue}43925[#43925])
+* Add rest_total_hits_as_int in HLRC's search requests {es-pull}46076[#46076] (issue: {es-issue}43925[#43925])
 
 Infra/Core::
-* Add default CLI JVM options {pull}44545[#44545] (issue: {issue}42021[#42021])
+* Add default CLI JVM options {es-pull}44545[#44545] (issue: {es-issue}42021[#42021])
 
 Infra/Plugins::
-* Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
+* Do not checksum all bytes at once in plugin install {es-pull}44649[#44649] (issue: {es-issue}44545[#44545])
 
 SQL::
-* Fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
-* Interval arithmetics failure {pull}42014[#42014] (issue: {issue}41200[#41200])
+* Fix URI path being lost in case of hosted ES scenario {es-pull}44776[#44776] (issue: {es-issue}44721[#44721])
+* Interval arithmetics failure {es-pull}42014[#42014] (issue: {es-issue}41200[#41200])
 
 Search::
-* Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
+* Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {es-pull}45500[#45500]
 
 Security::
-* Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
+* Use system context for looking up connected nodes {es-pull}43991[#43991] (issue: {es-issue}43974[#43974])
 
 
 [[upgrade-6.8.3]]
@@ -446,7 +446,7 @@ Security::
 === Upgrades
 
 Infra/Packaging::
-* Upgrade to JDK 12.0.2 {pull}45172[#45172]
+* Upgrade to JDK 12.0.2 {es-pull}45172[#45172]
 
 [[release-notes-6.8.2]]
 == {es} version 6.8.2
@@ -458,14 +458,14 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 Machine Learning::
-* Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
-* Introduce a setting for the process connect timeout {pull}43234[#43234]
+* Improve message when native controller cannot connect {es-pull}43565[#43565] (issue: {es-issue}42341[#42341])
+* Introduce a setting for the process connect timeout {es-pull}43234[#43234]
 
 Ranking::
-* Fix parameter value for calling `data.advanceExact` {pull}44205[#44205]
+* Fix parameter value for calling `data.advanceExact` {es-pull}44205[#44205]
 
 Snapshot/Restore::
-* Add SAS token authentication support to Azure Repository plugin {pull}42982[#42982] (issue: {issue}42117[#42117])
+* Add SAS token authentication support to Azure Repository plugin {es-pull}42982[#42982] (issue: {es-issue}42117[#42117])
 
 
 
@@ -474,54 +474,54 @@ Snapshot/Restore::
 === Bug fixes
 
 Allocation::
-* Do not copy initial recovery filter during an index split {pull}44053[#44053] (issue: {issue}43955[#43955])
+* Do not copy initial recovery filter during an index split {es-pull}44053[#44053] (issue: {es-issue}43955[#43955])
 
 Analysis::
-* Fix varying responses for `<index>/_analyze` request {pull}44342[#44342] (issues: {issue}44078[#44078], {issue}44284[#44284])
+* Fix varying responses for `<index>/_analyze` request {es-pull}44342[#44342] (issues: {es-issue}44078[#44078], {es-issue}44284[#44284])
 
 CCR::
-* Skip update if leader and follower settings are identical {pull}44535[#44535] (issue: {issue}44521[#44521])
-* Avoid stack overflow in auto-follow coordinator {pull}44421[#44421] (issue: {issue}43251[#43251])
-* Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
+* Skip update if leader and follower settings are identical {es-pull}44535[#44535] (issue: {es-issue}44521[#44521])
+* Avoid stack overflow in auto-follow coordinator {es-pull}44421[#44421] (issue: {es-issue}43251[#43251])
+* Avoid NPE when checking for CCR index privileges {es-pull}44397[#44397] (issue: {es-issue}44172[#44172])
 
 Engine::
-* Preserve thread context in AsyncIOProcessor {pull}43729[#43729]
+* Preserve thread context in AsyncIOProcessor {es-pull}43729[#43729]
 
 Features/ILM::
-* Fix swapped variables in error message {pull}44300[#44300]
-* Account for node versions during allocation in ILM shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
-* Narrow period of shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
+* Fix swapped variables in error message {es-pull}44300[#44300]
+* Account for node versions during allocation in ILM shrink {es-pull}43300[#43300] (issue: {es-issue}41879[#41879])
+* Narrow period of shrink action in which ILM prevents stopping {es-pull}43254[#43254] (issue: {es-issue}43253[#43253])
 
 Features/Indices APIs::
-* Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
+* Validate index settings after applying templates {es-pull}44612[#44612] (issues: {es-issue}34021[#34021], {es-issue}44567[#44567])
 
 Features/Stats::
-* Return 0 for negative "free" and "total" memory reported by the OS {pull}42725[#42725] (issue: {issue}42157[#42157])
+* Return 0 for negative "free" and "total" memory reported by the OS {es-pull}42725[#42725] (issue: {es-issue}42157[#42157])
 
 Machine Learning::
-* Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
-* Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+* Fix ML memory tracker lockup when inner step fails {es-pull}44158[#44158] (issue: {es-issue}44156[#44156])
+* Fix datafeed checks when a concrete remote index is present {es-pull}43923[#43923] (issue: {es-issue}42113[#42113])
 * Don't write model size stats when job is closed without any input {ml-pull}512[#512] (issue: {ml-issue}394[#394])
 * Don't persist model state at the end of lookback if the lookback did not generate any input {ml-pull}521[#521] (issue: {ml-issue}519[#519])
 
 Mapping::
-* Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])
-* Add `include_type_name` in `indices.exists` REST API specification {pull}43910[#43910] (issue: {issue}43905[#43905])
+* Prevent types deprecation warning for indices.exists requests {es-pull}43963[#43963] (issue: {es-issue}43905[#43905])
+* Add `include_type_name` in `indices.exists` REST API specification {es-pull}43910[#43910] (issue: {es-issue}43905[#43905])
 
 Network::
-* Reconnect remote cluster when seeds are changed {pull}43379[#43379] (issue: {issue}37799[#37799])
+* Reconnect remote cluster when seeds are changed {es-pull}43379[#43379] (issue: {es-issue}37799[#37799])
 
 SQL::
-* Handle the edge case of an empty array of values to return from source {pull}43868[#43868] (issue: {issue}43863[#43863])
-* Fix NPE in case of subsequent scrolled requests for a CSV/TSV formatted response {pull}43365[#43365] (issue: {issue}43327[#43327])
-* Increase hard limit for sorting on aggregates {pull}43220[#43220] (issue: {issue}43168[#43168])
+* Handle the edge case of an empty array of values to return from source {es-pull}43868[#43868] (issue: {es-issue}43863[#43863])
+* Fix NPE in case of subsequent scrolled requests for a CSV/TSV formatted response {es-pull}43365[#43365] (issue: {es-issue}43327[#43327])
+* Increase hard limit for sorting on aggregates {es-pull}43220[#43220] (issue: {es-issue}43168[#43168])
 
 Search::
-* Fix wrong logic in `match_phrase` query with multi-word synonyms {pull}43941[#43941] (issue: {issue}43308[#43308])
+* Fix wrong logic in `match_phrase` query with multi-word synonyms {es-pull}43941[#43941] (issue: {es-issue}43308[#43308])
 
 Security::
-* Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
-* `SecurityIndexSearcherWrapper` doesn't always carry over caches and similarity {pull}43436[#43436]
+* Do not swallow I/O exception getting authentication {es-pull}44398[#44398] (issues: {es-issue}44172[#44172], {es-issue}44397[#44397])
+* `SecurityIndexSearcherWrapper` doesn't always carry over caches and similarity {es-pull}43436[#43436]
 
 [[release-notes-6.8.1]]
 == {es} version 6.8.1
@@ -533,7 +533,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 === Enhancements
 
 Java High Level REST Client::
-* Added param ignore_throttled=false when indicesOptions.ignoreThrottle {pull}42393[#42393] (issue: {issue}42358[#42358])
+* Added param ignore_throttled=false when indicesOptions.ignoreThrottle {es-pull}42393[#42393] (issue: {es-issue}42358[#42358])
 
 
 [[bug-6.8.1]]
@@ -541,57 +541,57 @@ Java High Level REST Client::
 === Bug fixes
 
 Allocation::
-* Avoid bubbling up failures from a shard that is recovering {pull}42287[#42287] (issues: {issue}30919[#30919], {issue}40107[#40107])
+* Avoid bubbling up failures from a shard that is recovering {es-pull}42287[#42287] (issues: {es-issue}30919[#30919], {es-issue}40107[#40107])
 
 Authentication::
-* Only index into "doc" type in security index {pull}42563[#42563] (issue: {issue}42562[#42562])
+* Only index into "doc" type in security index {es-pull}42563[#42563] (issue: {es-issue}42562[#42562])
 
 Distributed::
-* Do not use ifSeqNo for update requests on mixed cluster {pull}42596[#42596] (issue: {issue}42561[#42561])
-* Avoid unnecessary persistence of retention leases {pull}42299[#42299]
-* Execute actions under permit in primary mode only {pull}42241[#42241] (issues: {issue}40386[#40386], {issue}41686[#41686])
+* Do not use ifSeqNo for update requests on mixed cluster {es-pull}42596[#42596] (issue: {es-issue}42561[#42561])
+* Avoid unnecessary persistence of retention leases {es-pull}42299[#42299]
+* Execute actions under permit in primary mode only {es-pull}42241[#42241] (issues: {es-issue}40386[#40386], {es-issue}41686[#41686])
 
 Engine::
-* Account soft deletes for committed segments {pull}43126[#43126] (issue: {issue}43103[#43103])
+* Account soft deletes for committed segments {es-pull}43126[#43126] (issue: {es-issue}43103[#43103])
 
 Infra/Core::
-* scheduleAtFixedRate would hang {pull}42993[#42993] (issue: {issue}38441[#38441])
-* Only ignore IOException when fsyncing on dirs {pull}42972[#42972] (issue: {issue}42950[#42950])
-* Deprecation info for joda-java migration {pull}41956[#41956] (issue: {issue}42010[#42010])
+* scheduleAtFixedRate would hang {es-pull}42993[#42993] (issue: {es-issue}38441[#38441])
+* Only ignore IOException when fsyncing on dirs {es-pull}42972[#42972] (issue: {es-issue}42950[#42950])
+* Deprecation info for joda-java migration {es-pull}41956[#41956] (issue: {es-issue}42010[#42010])
 
 Machine Learning::
-* Fix possible race condition when closing an opening job {pull}42506[#42506]
+* Fix possible race condition when closing an opening job {es-pull}42506[#42506]
 
 Mapping::
-* Fix possible NPE in put mapping validators {pull}43000[#43000] (issue: {issue}37675[#37675])
+* Fix possible NPE in put mapping validators {es-pull}43000[#43000] (issue: {es-issue}37675[#37675])
 
 Percolator::
-* Fixed ignoring name parameter for percolator queries {pull}42598[#42598] (issue: {issue}40405[#40405])
-* Exclude nested documents {pull}42554[#42554] (issue: {issue}42361[#42361])
+* Fixed ignoring name parameter for percolator queries {es-pull}42598[#42598] (issue: {es-issue}40405[#40405])
+* Exclude nested documents {es-pull}42554[#42554] (issue: {es-issue}42361[#42361])
 
 Recovery::
-* Recovery with syncId should verify seqno infos {pull}41265[#41265]
+* Recovery with syncId should verify seqno infos {es-pull}41265[#41265]
 
 Reindex::
-* Remote reindex failure parse fix {pull}42928[#42928]
+* Remote reindex failure parse fix {es-pull}42928[#42928]
 
 Rollup::
-* Fix max boundary for rollup jobs that use a delay {pull}42158[#42158]
+* Fix max boundary for rollup jobs that use a delay {es-pull}42158[#42158]
 
 SQL::
-* Fix wrong results when sorting on aggregate {pull}43154[#43154] (issue: {issue}42851[#42851])
-* Cover the Integer type when extracting values from _source {pull}42859[#42859] (issue: {issue}42858[#42858])
+* Fix wrong results when sorting on aggregate {es-pull}43154[#43154] (issue: {es-issue}42851[#42851])
+* Cover the Integer type when extracting values from _source {es-pull}42859[#42859] (issue: {es-issue}42858[#42858])
 
 Search::
-* SearchRequest#allowPartialSearchResults does not handle successful retries {pull}43095[#43095] (issue: {issue}40743[#40743])
-* Fix auto fuzziness in query_string query {pull}42897[#42897]
-* Wire query cache into sorting nested-filter computation {pull}42906[#42906] (issue: {issue}42813[#42813])
-* Fix sorting on nested field with unmapped {pull}42451[#42451] (issue: {issue}33644[#33644])
-* Fixes a bug in AnalyzeRequest.toXContent() {pull}42795[#42795] (issues: {issue}39670[#39670], {issue}42197[#42197])
-* Fix concurrent search and index delete {pull}42621[#42621] (issue: {issue}28053[#28053])
+* SearchRequest#allowPartialSearchResults does not handle successful retries {es-pull}43095[#43095] (issue: {es-issue}40743[#40743])
+* Fix auto fuzziness in query_string query {es-pull}42897[#42897]
+* Wire query cache into sorting nested-filter computation {es-pull}42906[#42906] (issue: {es-issue}42813[#42813])
+* Fix sorting on nested field with unmapped {es-pull}42451[#42451] (issue: {es-issue}33644[#33644])
+* Fixes a bug in AnalyzeRequest.toXContent() {es-pull}42795[#42795] (issues: {es-issue}39670[#39670], {es-issue}42197[#42197])
+* Fix concurrent search and index delete {es-pull}42621[#42621] (issue: {es-issue}28053[#28053])
 
 Snapshot/Restore::
-* Fix Azure List by Prefix Bug {pull}42713[#42713]
+* Fix Azure List by Prefix Bug {es-pull}42713[#42713]
 
 [[release-notes-6.8.0]]
 == {es} version 6.8.0
@@ -606,28 +606,28 @@ Security::
 * Moved some security features to basic. See <<release-highlights-6.8.0, 6.8.0 Release highlights>>
 
 Authentication::
-* Log warning when unlicensed realms are skipped {pull}41778[#41778]
+* Log warning when unlicensed realms are skipped {es-pull}41778[#41778]
 
 Infra/Settings::
-* Drop distinction in entries for keystore {pull}41701[#41701]
+* Drop distinction in entries for keystore {es-pull}41701[#41701]
 
 [[bug-6.8.0]]
 [float]
 === Bug fixes
 
 Features/Watcher::
-* Fix Watcher deadlock that can cause in-abilty to index documents. {pull}41418[#41418] (issue: {issue}41390[#41390])
+* Fix Watcher deadlock that can cause in-abilty to index documents. {es-pull}41418[#41418] (issue: {es-issue}41390[#41390])
 
 Network::
-* Enforce transport TLS on Basic with Security {pull}42150[#42150]
+* Enforce transport TLS on Basic with Security {es-pull}42150[#42150]
 
 Reindex::
-* Allow reindexing into write alias {pull}41677[#41677] (issue: {issue}41667[#41667])
+* Allow reindexing into write alias {es-pull}41677[#41677] (issue: {es-issue}41667[#41667])
 
 SQL::
-* SQL: Fix issue regarding INTERVAL * number {pull}42014[#42014] (issue: {issue}41239[#41239])
-* SQL: Remove CircuitBreaker from parser {pull}41835[#41835] (issue: {issue}41471[#41471])
+* SQL: Fix issue regarding INTERVAL * number {es-pull}42014[#42014] (issue: {es-issue}41239[#41239])
+* SQL: Remove CircuitBreaker from parser {es-pull}41835[#41835] (issue: {es-issue}41471[#41471])
 
 Security::
-* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
-* Add granular API key privileges {pull}41488[#41488] (issue: {issue}40031[#40031])
+* Remove dynamic objects from security index {es-pull}40499[#40499] (issue: {es-issue}35460[#35460])
+* Add granular API key privileges {es-pull}41488[#41488] (issue: {es-issue}40031[#40031])

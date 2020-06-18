@@ -74,7 +74,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 `count`::
 (integer)
 The total number of trained model statistics that matched the requested ID patterns.
-Could be higher than the number of items in the `trained_model_stats` array as they
+Could be higher than the number of items in the `trained_model_stats` array as the
 size of the array is restricted by the supplied `size` parameter.
 
 `trained_model_stats`::
@@ -109,19 +109,19 @@ were missing.
 `inference_count`:::
 (integer)
 The total number of times the model has been called for inference.
-This is accross all inference contexts, including all pipelines.
+This is across all inference contexts, including all pipelines.
 
 `cache_miss_count`:::
 (integer)
 The number of times the model was loaded for inference and was not retrieved from the
 cache. If this number is close to the `inference_count`, then the cache
 is not being appropriately used. This can be remedied by increasing the cache's size
-or its time-to-live (TTL). See <<ML Settings, general-ml-settings>> for the
+or its time-to-live (TTL). See <<general-ml-settings>> for the
 appropriate settings.
 
 `failure_count`:::
 (integer)
-The number of failures when the using the model for inference
+The number of failures when using the model for inference.
 
 `timestamp`:::
 (<<time-units,time units>>)
@@ -130,9 +130,9 @@ The time when the statistics were last updated.
 
 `ingest`:::
 (object)
-A collection of ingest stats for the model accross all nodes. The values are
+A collection of ingest stats for the model across all nodes. The values are
 summations of the individual node statistics. The format matches the `ingest`
-section in <<cluster-nodes-stats,Nodes Stats>>.
+section in <<cluster-nodes-stats>>.
 
 ====
 

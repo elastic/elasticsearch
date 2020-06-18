@@ -682,6 +682,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + (id == null ? 0 : (id.length() * 2)) + (source == null ? 0 : source.length());
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.ramBytesUsed());
     }
 }

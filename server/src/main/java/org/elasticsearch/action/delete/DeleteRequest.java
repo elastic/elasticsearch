@@ -253,6 +253,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + (id == null ? 0 : (2 * id.length()));
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id);
     }
 }

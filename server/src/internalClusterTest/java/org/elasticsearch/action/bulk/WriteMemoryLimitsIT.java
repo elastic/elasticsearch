@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
@@ -123,7 +122,8 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             bulkRequest.add(request);
         }
 
-        final int operationSize = totalRequestSize + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+        final long bulkRequestSize = bulkRequest.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+        final long bulkShardRequestSize = totalRequestSize + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
 
         try {
             final ActionFuture<BulkResponse> successFuture = client(replicaName).bulk(bulkRequest);
@@ -132,10 +132,10 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
             WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
 
-            assertEquals(operationSize, primaryWriteLimits.getCoordinatingBytes());
-            assertEquals(operationSize, primaryWriteLimits.getPrimaryBytes());
+            assertEquals(bulkShardRequestSize, primaryWriteLimits.getCoordinatingBytes());
+            assertEquals(bulkShardRequestSize, primaryWriteLimits.getPrimaryBytes());
             assertEquals(0, primaryWriteLimits.getReplicaBytes());
-            assertEquals(operationSize, replicaWriteLimits.getCoordinatingBytes());
+            assertEquals(bulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
             assertEquals(0, replicaWriteLimits.getPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getReplicaBytes());
 
@@ -162,18 +162,21 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
             IndexRequest request = new IndexRequest(index).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            final BulkRequest secondBulkRequest = new BulkRequest();
+            secondBulkRequest.add(request);
 
-            ActionFuture<IndexResponse> future1 = client(replicaName).index(request);
+            ActionFuture<BulkResponse> secondFuture = client(replicaName).bulk(secondBulkRequest);
 
-            long newOperationSize = request.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+            final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+            final long secondBulkShardRequestSize = request.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
 
-            assertEquals(operationSize + newOperationSize, replicaWriteLimits.getCoordinatingBytes());
-            assertBusy(() -> assertEquals(operationSize + newOperationSize, replicaWriteLimits.getReplicaBytes()));
+            assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
+            assertBusy(() -> assertEquals(bulkShardRequestSize + secondBulkShardRequestSize, replicaWriteLimits.getReplicaBytes()));
 
             latchBlockingReplication.countDown();
 
             successFuture.actionGet();
-            future1.actionGet();
+            secondFuture.actionGet();
 
             assertEquals(0, primaryWriteLimits.getCoordinatingBytes());
             assertEquals(0, primaryWriteLimits.getPrimaryBytes());
@@ -182,11 +185,17 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(0, replicaWriteLimits.getPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getReplicaBytes());
         } finally {
+            if (replicationSendPointReached.getCount() > 0) {
+                replicationSendPointReached.countDown();
+            }
+            while (newActionsSendPointReached.getCount() > 0) {
+                newActionsSendPointReached.countDown();
+            }
             if (latchBlockingReplicationSend.getCount() > 0) {
                 latchBlockingReplicationSend.countDown();
             }
             if (latchBlockingReplication.getCount() > 0) {
-                latchBlockingReplicationSend.countDown();
+                latchBlockingReplication.countDown();
             }
             primaryTransportService.clearAllRules();
         }

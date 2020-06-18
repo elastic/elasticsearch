@@ -140,7 +140,7 @@ public class PackageTests extends PackagingTestCase {
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
 
             stopElasticsearch();
         } finally {
@@ -305,11 +305,13 @@ public class PackageTests extends PackagingTestCase {
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
             stopElasticsearch();
         });
+
+        cleanup();
     }
 
     public void test83SystemdMask() throws Exception {

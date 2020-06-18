@@ -1695,7 +1695,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex()), 1));
+            .put(new DataStream(dataStreamName, createTimestampField("ts"), List.of(backingIndex.getIndex()), 1));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {

@@ -116,7 +116,7 @@ This is across all inference contexts, including all pipelines.
 The number of times the model was loaded for inference and was not retrieved from the
 cache. If this number is close to the `inference_count`, then the cache
 is not being appropriately used. This can be remedied by increasing the cache's size
-or its time-to-live (TTL). See <<ML Settings, general-ml-settings>> for the
+or its time-to-live (TTL). See <<general-ml-settings>> for the
 appropriate settings.
 
 `failure_count`:::

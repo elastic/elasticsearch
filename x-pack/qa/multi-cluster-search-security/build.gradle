@@ -24,7 +24,6 @@ testClusters.'remote-cluster' {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'node.roles', '[data,ingest,master]'
-  setting 'node.remote_cluster_client', "false"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

@@ -170,6 +170,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             map.put("id", doc.id());
+            map.put("version", doc.version().stringValue());
             if (doc.routing() != null) {
                 map.put("routing", doc.routing());
             }

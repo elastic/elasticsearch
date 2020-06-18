@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.io.IOException;
@@ -289,13 +289,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final TransformConfig config = request.getConfig();
-        // final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
-        Function function;
-        if (config.getPivotConfig() != null) {
-            function = new Pivot(config.getPivotConfig(), config.getId());
-        } else {
-            function = new org.elasticsearch.xpack.transform.transforms.map.Map(config.getMapConfig(), config.getId());
-        }
+        // create the function for validation
+        final Function function = FunctionFactory.create(config);
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {

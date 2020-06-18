@@ -15,13 +15,14 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 public interface Function {
 
     /**
-     * Get the initial page size for this pivot.
+     * Get the initial page size for this function.
      *
      * The page size is the main parameter for adjusting memory consumption. Memory consumption mainly depends on
      * the page size, the type of aggregations and the data. As the page size is the number of buckets we return
@@ -55,4 +56,14 @@ public interface Function {
 
     void validateConfig();
 
+    void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener);
+
+    void preview(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        Map<String, String> fieldTypeMap,
+        int numberOfBuckets,
+        ActionListener<List<Map<String, Object>>> listener
+    );
 }

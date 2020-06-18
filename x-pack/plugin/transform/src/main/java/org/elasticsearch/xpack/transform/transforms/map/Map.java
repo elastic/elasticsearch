@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.transform.transforms.Function;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.Stream;
 
 public class Map implements Function {
@@ -103,8 +104,26 @@ public class Map implements Function {
 
     @Override
     public void validateConfig() {
-        // TODO Auto-generated method stub
+        // TODO not implemented yet
+    }
 
+    @Override
+    public void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<java.util.Map<String, String>> listener) {
+        // TODO not implemented yet
+        listener.onResponse(Collections.emptyMap());
+    }
+
+    @Override
+    public void preview(
+        Client client,
+        java.util.Map<String, String> headers,
+        SourceConfig sourceConfig,
+        java.util.Map<String, String> fieldTypeMap,
+        int numberOfBuckets,
+        ActionListener<List<java.util.Map<String, Object>>> listener
+    ) {
+        // TODO not implemented yet
+        listener.onResponse(Collections.emptyList());
     }
 
 }

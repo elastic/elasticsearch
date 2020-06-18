@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -36,8 +35,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,10 +47,9 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
@@ -64,7 +60,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.transform.transforms.pivot.Pivot.COMPOSITE_AGGREGATION_NAME;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<
     PreviewTransformAction.Request,
@@ -147,9 +142,11 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             SourceDestValidations.PREVIEW_VALIDATIONS,
             ActionListener.wrap(r -> {
 
-                Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
+                // create the function for validation
+                final Function function = FunctionFactory.create(config);
+
                 try {
-                    pivot.validateConfig();
+                    function.validateConfig();
                 } catch (ElasticsearchStatusException e) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -172,7 +169,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
                 getPreview(
                     config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    pivot,
+                    function,
                     config.getSource(),
                     config.getDestination().getPipeline(),
                     config.getDestination().getIndex(),
@@ -186,7 +183,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
     @SuppressWarnings("unchecked")
     private void getPreview(
         String transformId,
-        Pivot pivot,
+        Function function,
         SourceConfig source,
         String pipeline,
         String dest,
@@ -211,69 +208,51 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
             listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
         }, listener::onFailure);
-        pivot.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
+        function.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
-            ClientHelper.executeWithHeadersAsync(
-                threadPool.getThreadContext().getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
+            function.preview(
                 client,
-                SearchAction.INSTANCE,
-                pivot.buildSearchRequest(source, null, NUMBER_OF_PREVIEW_BUCKETS),
-                ActionListener.wrap(r -> {
-                    try {
-                        final Aggregations aggregations = r.getAggregations();
-                        if (aggregations == null) {
-                            listener.onFailure(
-                                new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                threadPool.getThreadContext().getHeaders(),
+                source,
+                deducedMappings,
+                NUMBER_OF_PREVIEW_BUCKETS,
+                ActionListener.wrap(docs -> {
+                    if (pipeline == null) {
+                        TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                            mappings.get(),
+                            transformId,
+                            Clock.systemUTC()
+                        );
+
+                        listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
+                    } else {
+                        List<Map<String, Object>> results = docs.stream().map(doc -> {
+                            Map<String, Object> src = new HashMap<>();
+                            String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
+                            src.put("_source", doc);
+                            src.put("_id", id);
+                            src.put("_index", dest);
+                            return src;
+                        }).collect(Collectors.toList());
+
+                        try (XContentBuilder builder = jsonBuilder()) {
+                            builder.startObject();
+                            builder.field("docs", results);
+                            builder.endObject();
+                            var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                            pipelineRequest.setId(pipeline);
+                            ClientHelper.executeAsyncWithOrigin(
+                                client,
+                                ClientHelper.TRANSFORM_ORIGIN,
+                                SimulatePipelineAction.INSTANCE,
+                                pipelineRequest,
+                                pipelineResponseActionListener
                             );
-                            return;
                         }
-                        final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-                        TransformIndexerStats stats = new TransformIndexerStats();
-                        // remove all internal fields
-
-                        if (pipeline == null) {
-                            List<Map<String, Object>> docs = pivot.extractResults(agg, deducedMappings, stats)
-                                .peek(doc -> doc.keySet().removeIf(k -> k.startsWith("_")))
-                                .collect(Collectors.toList());
-
-                            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                                mappings.get(),
-                                transformId,
-                                Clock.systemUTC()
-                            );
-
-                            listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
-                        } else {
-                            List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats).map(doc -> {
-                                Map<String, Object> src = new HashMap<>();
-                                String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
-                                doc.keySet().removeIf(k -> k.startsWith("_"));
-                                src.put("_source", doc);
-                                src.put("_id", id);
-                                src.put("_index", dest);
-                                return src;
-                            }).collect(Collectors.toList());
-                            try (XContentBuilder builder = jsonBuilder()) {
-                                builder.startObject();
-                                builder.field("docs", results);
-                                builder.endObject();
-                                var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
-                                pipelineRequest.setId(pipeline);
-                                ClientHelper.executeAsyncWithOrigin(
-                                    client,
-                                    ClientHelper.TRANSFORM_ORIGIN,
-                                    SimulatePipelineAction.INSTANCE,
-                                    pipelineRequest,
-                                    pipelineResponseActionListener
-                                );
-                            }
-                        }
-                    } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
-                        listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
                     }
                 }, listener::onFailure)
             );
+
         }, listener::onFailure));
     }
 }

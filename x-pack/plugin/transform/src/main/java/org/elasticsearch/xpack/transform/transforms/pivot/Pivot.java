@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -48,8 +49,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -119,8 +122,49 @@ public class Pivot implements Function {
         }));
     }
 
+    @Override
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
         SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), listener);
+    }
+
+    @Override
+    public void preview(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        Map<String, String> fieldTypeMap,
+        int numberOfBuckets,
+        ActionListener<List<Map<String, Object>>> listener
+    ) {
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            buildSearchRequest(sourceConfig, null, numberOfBuckets),
+            ActionListener.wrap(r -> {
+                try {
+                    final Aggregations aggregations = r.getAggregations();
+                    if (aggregations == null) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
+                        );
+                        return;
+                    }
+                    final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+                    TransformIndexerStats stats = new TransformIndexerStats();
+                    // remove all internal fields
+
+                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats).peek(
+                        doc -> doc.keySet().removeIf(k -> k.startsWith("_"))
+                    ).collect(Collectors.toList());
+
+                    listener.onResponse(docs);
+                } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
+                    listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
+                }
+            }, listener::onFailure)
+        );
     }
 
     /**

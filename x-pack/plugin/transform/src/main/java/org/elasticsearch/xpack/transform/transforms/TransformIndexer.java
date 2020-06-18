@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
@@ -60,7 +59,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // apply results
         APPLY_RESULTS,
 
-        // identify changes, used for continuous pivot
+        // identify changes, used for continuous transform
         IDENTIFY_CHANGES,
     }
 
@@ -229,12 +228,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                // todo: super hack
-                if (getConfig().getPivotConfig() != null) {
-                    function = new Pivot(getConfig().getPivotConfig(), getJobId());
-                } else {
-                    function = new org.elasticsearch.xpack.transform.transforms.map.Map(getConfig().getMapConfig(), getJobId());
-                }
+                // create the function
+                function = FunctionFactory.create(getConfig());
 
                 if (isContinuous()) {
                     changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());

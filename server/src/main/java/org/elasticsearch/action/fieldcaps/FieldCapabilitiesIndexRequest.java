@@ -52,8 +52,8 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        indexFilter = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readLong() : 0L;
+        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
+        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
@@ -113,7 +113,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalString(index);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeLong(nowInMillis);
         }

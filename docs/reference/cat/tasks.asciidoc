@@ -4,7 +4,7 @@
 <titleabbrev>cat task management</titleabbrev>
 ++++
 
-beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{issue}51628]
+beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about tasks currently executing in the cluster,
 similar to the <<tasks,task management>> API.

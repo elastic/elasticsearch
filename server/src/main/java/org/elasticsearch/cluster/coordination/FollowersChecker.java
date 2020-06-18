@@ -334,6 +334,9 @@ public class FollowersChecker {
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
+                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            reason = "health check failed";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();

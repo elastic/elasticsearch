@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.fs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -39,9 +40,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedHashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -57,17 +58,19 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
     private volatile boolean enabled;
-    private volatile TimeValue refreshInterval;
+    private final TimeValue refreshInterval;
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
     private final LongSupplier currentTimeMillisSupplier;
-    private Map<Path, StatusInfo.Status> pathHealthStats;
     private volatile Scheduler.Cancellable scheduledFuture;
+
+    @Nullable
+    private volatile Set<Path> unhealthyPaths;
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(1),
+        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(120), TimeValue.timeValueMillis(1),
             Setting.Property.NodeScope);
     public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING =
         Setting.timeSetting("monitor.fs.health.slow_path_logging_threshold", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(1),
@@ -81,7 +84,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.slowPathLoggingThreshold = SLOW_PATH_LOGGING_THRESHOLD_SETTING.get(settings);
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.nodeEnv = nodeEnv;
-        this.pathHealthStats = new HashMap<>(1);
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
@@ -113,24 +115,19 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         StatusInfo statusInfo;
         if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
-        }
-        else if (pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == UNHEALTHY)) {
-            String info = "health check failed on [" + pathHealthStats.entrySet()
-                .stream().filter(v -> v.getValue() == UNHEALTHY)
-                .map(k -> k.getKey().toString())
-                .collect(Collectors.joining(",")) + "]";
-
+        } else if (unhealthyPaths == null) {
+            statusInfo = new StatusInfo(HEALTHY, "All paths have passed writabililty checks");
+        } else {
+            String info = "health check failed on [" + unhealthyPaths.stream()
+                .map(k -> k.toString()).collect(Collectors.joining(",")) + "]";
             statusInfo = new StatusInfo(UNHEALTHY, info);
-        }
-        else {
-            statusInfo = new StatusInfo(HEALTHY, "health check passed");
         }
         return statusInfo;
     }
 
      class FsHealthMonitor implements Runnable {
 
-        static final String TEMP_FILE_NAME = ".es_temp_file";
+        private static final String TEMP_FILE_NAME = ".es_temp_file";
         private byte[] byteToWrite;
 
         FsHealthMonitor(){
@@ -142,7 +139,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             try {
                 if (enabled) {
                     monitorFSHealth();
-                    logger.debug("health check succeeded: {}", pathHealthStats);
+                    logger.debug("health check succeeded: {}");
                 }
             } catch (Exception e) {
                 logger.error("health check failed", e);
@@ -150,6 +147,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
 
         private void monitorFSHealth() {
+            Set<Path> currentUnhealthyPaths = null;
             for (Path path : nodeEnv.nodeDataPaths()) {
                 long executionStartTime = currentTimeMillisSupplier.getAsLong();
                 try {
@@ -162,7 +160,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                             IOUtils.fsync(tempDataPath, false);
                         }
                         Files.delete(tempDataPath);
-                        pathHealthStats.put(path, HEALTHY);
                         final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
                         if (elapsedTime > slowPathLoggingThreshold.millis()) {
                             logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
@@ -171,9 +168,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                     }
                 } catch (Exception ex) {
                     logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
-                    pathHealthStats.put(path,  UNHEALTHY);
+                    if (currentUnhealthyPaths == null) {
+                        currentUnhealthyPaths = new LinkedHashSet<>(1);
+                    }
+                    currentUnhealthyPaths.add(path);
                 }
             }
+            unhealthyPaths = currentUnhealthyPaths;
         }
     }
 }

@@ -113,7 +113,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "unhealthy-info"));
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
         deterministicTaskQueue.runAllTasks();
@@ -308,10 +308,7 @@ public class FollowersCheckerTests extends ESTestCase {
 
         testBehaviourOfFailingNode(settings, () -> {
                 throw new NodeHealthCheckFailureException("non writable exception");
-            },
-            "followers check retry count exceeded",
-            (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> new StatusInfo(HEALTHY, "healthy-info"));
+            }, "health check failed", 0, () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, String failureReason,

@@ -36,7 +36,7 @@ testClusters {
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.authc.api_key.enabled', 'true'
-      setting 'xpack.security.audit.logfile.events.include', '[access_denied,access_granted,authentication_failed]'
+      setting 'xpack.security.audit.logfile.events.include', '[access_denied,access_granted,authentication_failed,system_access_granted]'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }

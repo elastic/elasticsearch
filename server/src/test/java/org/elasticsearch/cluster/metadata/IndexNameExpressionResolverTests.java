@@ -1688,6 +1688,40 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
+    public void testIndicesAliasesRequestTargetDataStreams() {
+        final String dataStreamName = "my-data-stream";
+        IndexMetadata backingIndex = createBackingIndex(dataStreamName, 1).build();
+
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(backingIndex, false)
+            .put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex()), 1));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName);
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions, false));
+            assertEquals("The provided expression [" + dataStreamName + "] matches a data stream, specify the corresponding " +
+                "concrete indices instead.", iae.getMessage());
+        }
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions, false));
+            assertEquals("The provided expression [my-data-*] matches a data stream, specify the corresponding concrete indices instead.",
+                iae.getMessage());
+        }
+
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
+                .alias("my-data");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions, true);
+            assertEquals(1, indices.length);
+            assertEquals(backingIndex.getIndex().getName(), indices[0]);
+        }
+    }
+
     public void testInvalidIndex() {
         Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("test"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();

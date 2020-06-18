@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -74,9 +75,34 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
+        followIndex(client, leaderCluster, leaderIndex, followIndex, null);
+    }
+
+    protected static void followIndex(
+        final RestClient client,
+        final String leaderCluster,
+        final String leaderIndex,
+        final String followIndex,
+        final Settings settings
+    ) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
-            "\", \"read_poll_timeout\": \"10ms\"}");
+        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+            bodyBuilder.startObject();
+            {
+                bodyBuilder.field("remote_cluster", leaderCluster);
+                bodyBuilder.field("leader_index", leaderIndex);
+                bodyBuilder.field("read_poll_timeout", "10ms");
+                if (settings != null) {
+                    bodyBuilder.startObject("settings");
+                    {
+                        settings.toXContent(bodyBuilder, ToXContent.EMPTY_PARAMS);
+                    }
+                    bodyBuilder.endObject();
+                }
+            }
+            bodyBuilder.endObject();
+            request.setJsonEntity(Strings.toString(bodyBuilder));
+        }
         assertOK(client.performRequest(request));
     }
 

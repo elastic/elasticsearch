@@ -485,7 +485,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // Create a snapshot repo
         initializeRepo(repoId);
 
-        // Create a policy with a retention period of 1 millisecond
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, dataStreamName, true);
 
         final String snapshotName = executePolicy(policyName);

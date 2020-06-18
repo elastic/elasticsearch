@@ -195,8 +195,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
-
-        Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
+        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;

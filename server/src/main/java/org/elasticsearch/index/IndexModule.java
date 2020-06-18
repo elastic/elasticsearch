@@ -145,13 +145,13 @@ public final class IndexModule {
      * @param directoryFactories the available store types
      */
     public IndexModule(
-        final IndexSettings indexSettings,
-        final AnalysisRegistry analysisRegistry,
-        final EngineFactory engineFactory,
-        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
-        final BooleanSupplier allowExpensiveQueries,
-        final IndexNameExpressionResolver expressionResolver,
-        final String dataStreamTimestampField) {
+            final IndexSettings indexSettings,
+            final AnalysisRegistry analysisRegistry,
+            final EngineFactory engineFactory,
+            final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+            final BooleanSupplier allowExpensiveQueries,
+            final IndexNameExpressionResolver expressionResolver,
+            final String dataStreamTimestampField) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);

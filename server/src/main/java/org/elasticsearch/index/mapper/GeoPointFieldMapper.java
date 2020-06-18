@@ -22,6 +22,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
@@ -49,6 +50,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setStored(false);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         FIELD_TYPE.freeze();
     }
 

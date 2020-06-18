@@ -213,9 +213,28 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 new IOException("boum"));
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
-        AsyncSearchTask.Listener listener = task.getSearchProgressActionListener();
-        listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+        ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
+    }
+
+    public void testFatalFailureWithNoCause() throws InterruptedException {
+        AsyncSearchTask task = createAsyncSearchTask();
+        AsyncSearchTask.Listener listener = task.getSearchProgressActionListener();
+        int numShards = randomIntBetween(0, 10);
+        List<SearchShard> shards = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        List<SearchShard> skippedShards = new ArrayList<>();
+        int numSkippedShards = randomIntBetween(0, 10);
+        for (int i = 0; i < numSkippedShards; i++) {
+            skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        int totalShards = numShards + numSkippedShards;
+        task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
+
+        listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+        assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true);
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,

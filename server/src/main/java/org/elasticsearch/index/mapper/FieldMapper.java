@@ -24,11 +24,9 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -192,17 +190,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    protected final Version indexCreatedVersion;
     protected FieldType fieldType;
     protected MappedFieldType mappedFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                          Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                          MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
-        assert indexSettings != null;
-        this.indexCreatedVersion = Version.indexCreated(indexSettings);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }

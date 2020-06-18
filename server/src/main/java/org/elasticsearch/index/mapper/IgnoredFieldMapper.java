@@ -24,7 +24,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -63,7 +62,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IgnoredFieldMapper build(BuilderContext context) {
-            return new IgnoredFieldMapper(context.indexSettings());
+            return new IgnoredFieldMapper();
         }
     }
 
@@ -76,8 +75,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new IgnoredFieldMapper(indexSettings);
+            return new IgnoredFieldMapper();
         }
     }
 
@@ -114,8 +112,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private IgnoredFieldMapper(Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE, indexSettings);
+    private IgnoredFieldMapper() {
+        super(Defaults.FIELD_TYPE, IgnoredFieldType.INSTANCE);
     }
 
     @Override

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class WriteMemoryLimits {
 
     // A heuristic for the bytes overhead of a single write operation
-    public static final int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
+    public static final int WRITE_REQUEST_BYTES_OVERHEAD = 1024;
 
     private final AtomicLong coordinatingBytes = new AtomicLong(0);
     private final AtomicLong primaryBytes = new AtomicLong(0);

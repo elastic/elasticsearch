@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -113,18 +114,19 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        final BulkRequest lessThan1KB = new BulkRequest();
-        int totalSourceLength = 0;
+        final BulkRequest bulkRequest = new BulkRequest();
+        int totalRequestSize = 0;
         for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalSourceLength += request.source().length();
-            lessThan1KB.add(request);
+            IndexRequest request = new IndexRequest(index).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            totalRequestSize += request.ramBytesUsed();
+            bulkRequest.add(request);
         }
 
-        final int operationSize = totalSourceLength + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+        final int operationSize = totalRequestSize + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
 
         try {
-            final ActionFuture<BulkResponse> successFuture = client(replicaName).bulk(lessThan1KB);
+            final ActionFuture<BulkResponse> successFuture = client(replicaName).bulk(bulkRequest);
             replicationSendPointReached.await();
 
             WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
@@ -158,14 +160,15 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             newActionsSendPointReached.await();
             latchBlockingReplicationSend.countDown();
 
-            IndexRequest request1 = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            IndexRequest request = new IndexRequest(index).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
 
-            ActionFuture<IndexResponse> future1 = client(replicaName).index(request1);
+            ActionFuture<IndexResponse> future1 = client(replicaName).index(request);
 
-            int newOperationSizes = request1.source().length() + (WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD);
+            long newOperationSize = request.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
 
-            assertEquals(operationSize + newOperationSizes, replicaWriteLimits.getCoordinatingBytes());
-            assertBusy(() -> assertEquals(operationSize + newOperationSizes, replicaWriteLimits.getReplicaBytes()));
+            assertEquals(operationSize + newOperationSize, replicaWriteLimits.getCoordinatingBytes());
+            assertBusy(() -> assertEquals(operationSize + newOperationSize, replicaWriteLimits.getReplicaBytes()));
 
             latchBlockingReplication.countDown();
 

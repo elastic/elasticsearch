@@ -572,7 +572,7 @@ public class TransportStartDataFrameAnalyticsAction
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
                                                             IndexNameExpressionResolver resolver,
                                                             String... indexNames) {
-        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), true, indexNames);
+        String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
             // This is OK as indices are created on demand

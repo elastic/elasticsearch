@@ -87,10 +87,12 @@ Because it's the only index capable of ingesting new documents, you cannot
 perform operations on a write index that might hinder indexing. These
 prohibited operations include:
 
+* <<indices-clone-index,Clone>>
 * <<indices-close,Close>>
 * <<indices-delete-index,Delete>>
 * <<freeze-index-api,Freeze>>
 * <<indices-shrink-index,Shrink>>
+* <<indices-split-index,Split>>
 
 [discrete]
 [[data-streams-rollover]]
@@ -135,6 +137,8 @@ following requests to the backing index containing the document:
   arguments.
 
 * A <<docs-delete,delete API>> request
+
+See <<update-delete-docs-in-a-data-stream>>.
 
 TIP: If you need to frequently update or delete existing documents across
 multiple indices, we recommend using an <<indices-add-alias,index alias>> and

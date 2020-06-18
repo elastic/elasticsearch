@@ -21,6 +21,7 @@ package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -164,12 +165,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         pathHealthStats.put(path, HEALTHY);
                         final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
                         if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                            logger.warn("checking writability of [{}], took [{}ms] which is above the warn threshold of [{}]",
+                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
                                 path, elapsedTime, slowPathLoggingThreshold);
                         }
                     }
                 } catch (Exception ex) {
-                    logger.error("Failed to perform FS health check on path [{}] due to ", path, ex);
+                    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
                     pathHealthStats.put(path,  UNHEALTHY);
                 }
             }

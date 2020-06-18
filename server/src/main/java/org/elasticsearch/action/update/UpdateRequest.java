@@ -920,6 +920,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (upsertRequest != null) {
             childRequestBytes += upsertRequest.ramBytesUsed();
         }
-        return SHALLOW_SIZE + (id.length() * 2) + childRequestBytes;
+        return SHALLOW_SIZE + (id == null ? 0 : (id.length() * 2)) + childRequestBytes;
     }
 }

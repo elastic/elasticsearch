@@ -21,7 +21,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -184,7 +183,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (eagerGlobalOrdinals) {
                 ft.setEagerGlobalOrdinals(true);
             }
-            return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue, context.indexSettings());
+            return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue);
         }
     }
 
@@ -565,9 +564,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                   MappedFieldType mappedFieldType,
                                   int ignoreAbove,
                                   int depthLimit,
-                                  String nullValue,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, CopyTo.empty());
+                                  String nullValue) {
+        super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;
@@ -635,7 +633,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || mappedFieldType.isSearchable() && fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
         if (includeDefaults || depthLimit != Defaults.DEPTH_LIMIT) {

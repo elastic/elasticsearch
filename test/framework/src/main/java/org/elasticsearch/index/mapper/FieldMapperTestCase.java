@@ -95,6 +95,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             b.docValues(false);
         }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
+        booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
         new Modifier("search_analyzer", true, (a, b) -> {
             a.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
@@ -228,22 +229,27 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
         Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
 
-        XContentBuilder x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        builder.build(context).toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String mappings = Strings.toString(x);
+        String mappings = mappingsToString(builder.build(context), false);
+        String mappingsWithDefault = mappingsToString(builder.build(context), true);
 
         mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
 
         Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
-        x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        rebuilt.toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String reparsed = Strings.toString(x);
+        String reparsed = mappingsToString(rebuilt, false);
+        String reparsedWithDefault = mappingsToString(rebuilt, true);
 
         assertThat(reparsed, equalTo(mappings));
+        assertThat(reparsedWithDefault, equalTo(mappingsWithDefault));
+    }
+
+    private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
+        ToXContent.Params params = includeDefaults ?
+            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
+        XContentBuilder x = JsonXContent.contentBuilder();
+        x.startObject().startObject("properties");
+        builder.toXContent(x, params);
+        x.endObject().endObject();
+        return Strings.toString(x);
     }
 
 }

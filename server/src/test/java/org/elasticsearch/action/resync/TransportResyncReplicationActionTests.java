@@ -134,7 +134,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds()));
+                        shardRoutingTable.getAllAllocationIds(), 0));
 
                 final IndexService indexService = mock(IndexService.class);
                 when(indexService.getShard(eq(shardId.id()))).thenReturn(indexShard);

@@ -328,7 +328,7 @@ operation.
 `_index`::
 (string)
 Name of the index associated with the operation. If the operation targeted a
-data stream, this is the associated backing index.
+data stream, this is the backing index into which the document was written.
 
 `_id`::
 (integer)
@@ -418,7 +418,8 @@ ID of the shard associated with the failed operation.
 `index`::
 (string)
 Name of the index associated with the failed operation. If the operation
-targeted a data stream, this is the associated backing index.
+targeted a data stream, this is the backing index into which the document was
+written.
 ======
 =====
 ====

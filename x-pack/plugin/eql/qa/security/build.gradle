@@ -7,7 +7,6 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testImplementation project(path: xpackModule('eql'), configuration: 'runtime')
   testImplementation project(path: xpackModule('eql:qa:common'), configuration: 'runtime')
-  testImplementation project(':x-pack:plugin:async-search:qa')
 }
 
 testClusters.integTest {

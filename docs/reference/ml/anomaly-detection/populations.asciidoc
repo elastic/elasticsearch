@@ -82,6 +82,6 @@ details about the anomalies:
 [role="screenshot"]
 image::images/ml-population-anomaly.png["Anomaly details for a specific user"]
 
-In this example, the client IP address `29.64.62.83` received a high volume of
+In this example, the client IP address `30.156.16.164` received a low volume of
 bytes on the date and time shown. This event is anomalous because the mean is
-three times higher than the expected behavior of the population.
+three times lower than the expected behavior of the population.

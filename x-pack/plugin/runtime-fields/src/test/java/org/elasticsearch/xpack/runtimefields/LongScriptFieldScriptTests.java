@@ -29,28 +29,59 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     LongScriptFieldScript.Factory,
     LongScriptFieldScript.LeafFactory,
     Long> {
+
     public void testConstant() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
         };
-        assertThat(execute(indexBuilder, "10"), equalTo(List.of(10L, 10L)));
+        assertThat(execute(indexBuilder, "value(10)"), equalTo(List.of(10L, 10L)));
+    }
+
+    public void testTwoConstants() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
+        };
+        assertThat(execute(indexBuilder, "value(10); value(20)"), equalTo(List.of(10L, 20L, 10L, 20L)));
     }
 
     public void testSource() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 10}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 100}"))));
         };
-        assertThat(execute(indexBuilder, "source['foo']"), equalTo(List.of(10L, 100L)));
+        assertThat(execute(indexBuilder, "value(source['foo'] * 10)"), equalTo(List.of(10L, 100L)));
+    }
+
+    public void testTwoSourceFields() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1, \"bar\": 2}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 10, \"bar\": 20}"))));
+        };
+        assertThat(execute(indexBuilder, "value(source['foo'] * 10); value(source['bar'] * 10)"), equalTo(List.of(10L, 20L, 100L, 200L)));
     }
 
     public void testDocValues() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 10)));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 100)));
         };
-        assertThat(execute(indexBuilder, "doc['foo'].value", new NumberFieldType("foo", NumberType.LONG)), equalTo(List.of(10L, 100L)));
+        assertThat(
+            execute(indexBuilder, "value(doc['foo'].value * 10)", new NumberFieldType("foo", NumberType.LONG)),
+            equalTo(List.of(10L, 100L))
+        );
+    }
+
+    public void testTwoDocValuesValues() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new SortedNumericDocValuesField("foo", 2)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 10), new SortedNumericDocValuesField("foo", 20)));
+        };
+        assertThat(
+            execute(indexBuilder, "for (long l : doc['foo']) {value(l * 10)}", new NumberFieldType("foo", NumberType.LONG)),
+            equalTo(List.of(10L, 20L, 100L, 200L))
+        );
     }
 
     @Override
@@ -69,13 +100,9 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected LongScriptFieldScript newInstance(LongScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context)
+    protected LongScriptFieldScript newInstance(LongScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context, List<Long> result)
         throws IOException {
-        return leafFactory.newInstance(context);
-    }
 
-    @Override
-    protected void collect(LongScriptFieldScript script, List<Long> result) {
-        result.add(script.execute());
+        return leafFactory.newInstance(context, result::add);
     }
 }

@@ -17,12 +17,12 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 
-public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
-    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+public abstract class StringScriptFieldScript extends AbstractScriptFieldsScript {
+    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
     static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
+        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
     }
 
     public static final String[] PARAMETERS = {};
@@ -30,31 +30,32 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldsScript {
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
     }
+
     public static interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx, LongConsumer sync) throws IOException;
+        StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
     }
 
-    private final LongConsumer sync;
+    private final Consumer<String> sync;
 
-    public LongScriptFieldScript(
+    public StringScriptFieldScript(
         Map<String, Object> params,
         SourceLookup source,
         DocLookup fieldData,
         LeafReaderContext ctx,
-        LongConsumer sync
+        Consumer<String> sync
     ) {
         super(params, source, fieldData, ctx);
         this.sync = sync;
     }
 
     public static class Value {
-        private final LongScriptFieldScript script;
+        private final StringScriptFieldScript script;
 
-        public Value(LongScriptFieldScript script) {
+        public Value(StringScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(long v) {
+        public void value(String v) {
             script.sync.accept(v);
         }
     }

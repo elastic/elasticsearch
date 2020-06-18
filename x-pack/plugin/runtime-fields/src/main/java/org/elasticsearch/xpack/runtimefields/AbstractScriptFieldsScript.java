@@ -35,7 +35,7 @@ public abstract class AbstractScriptFieldsScript {
     /**
      * Set the document to run the script against.
      */
-    public void setDocument(int docId) {
+    public final void setDocument(int docId) {
         source.setSegmentAndDocument(ctx, docId);
         fieldData.setDocument(docId);
     }
@@ -43,21 +43,24 @@ public abstract class AbstractScriptFieldsScript {
     /**
      * Expose the {@code params} of the script to the script itself.
      */
-    public Map<String, Object> getParams() {
+    public final Map<String, Object> getParams() {
         return params;
     }
 
     /**
      * Expose the {@code _source} to the script.
      */
-    public Map<String, Object> getSource() {
+    public final Map<String, Object> getSource() {
         return source;
     }
 
     /**
      * Expose field data to the script as {@code doc}.
      */
-    public Map<String, ScriptDocValues<?>> getDoc() {
+    public final Map<String, ScriptDocValues<?>> getDoc() {
         return fieldData;
     }
+
+    public abstract void execute();
+
 }

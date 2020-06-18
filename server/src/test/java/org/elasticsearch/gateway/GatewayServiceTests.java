@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -101,8 +102,7 @@ public class GatewayServiceTests extends ESTestCase {
         GatewayService service = createService(Settings.builder());
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true).build(),
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT).put(masterNode()).build();
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
         ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build()).

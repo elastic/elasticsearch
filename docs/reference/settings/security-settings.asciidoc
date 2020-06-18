@@ -1034,7 +1034,7 @@ instead loads the user from the listed realms.
 See <<authorization_realms>>.
 
 // tag::saml-allowed-clock-skew-tag[]
-`allowed_clock_skew`::
+`allowed_clock_skew` {ess-icon}::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
@@ -1126,7 +1126,7 @@ content. Encryption can be configured using the following settings:
 // end::saml-encryption-description-tag[]
 
 // tag::saml-encryption-key-tag[]
-`encryption.key`::
+`encryption.key` {ess-icon}::
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
 `encryption.key` and `encryption.keystore.path` cannot be used at the same time.
@@ -1176,7 +1176,7 @@ they cannot have individual passwords.
 [float]
 [[ref-saml-ssl-settings]]
 ===== SAML realm SSL settings
-
+// tag::saml-ssl-description-tag[]
 If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path`
 is a URL using the `https` protocol), the following settings can be used to
 configure SSL.
@@ -1184,45 +1184,47 @@ configure SSL.
 NOTE: These settings are not used for any purpose other than loading metadata
 over https.
 
-`ssl.key`::
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
-+
-If HTTP client authentication is required, it uses this file. You cannot use
-this setting and `ssl.keystore.path` at the same time.
+// end::saml-ssl-description-tag[]
 
-`ssl.key_passphrase`::
+// tag::saml-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::saml-ssl-key-tag[]
+
+// tag::saml-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
-+
-You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
+// end::saml-ssl-key-passphrase-tag[]
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 +
 You cannot use this setting and `ssl.key_passphrase` at the same time.
 
-`ssl.certificate`::
+// tag::saml-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
-+
-This setting can be used only if `ssl.key` is set.
+// end::saml-ssl-certificate-tag[]
 
-`ssl.certificate_authorities`::
+// tag::saml-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
-+
-This setting and `ssl.truststore.path` cannot be used at the same time.
+// end::saml-ssl-certificate-authorities-tag[]
 
-`ssl.keystore.path`::
+// tag::saml-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
-+
-It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this
-setting and `ssl.key` at the same time.
+// end::saml-ssl-keystore-path-tag[]
 
-`ssl.keystore.type`::
+// tag::saml-ssl-keystore-type[]
+`ssl.keystore.type` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::saml-ssl-keystore-type[]
 
-`ssl.keystore.password`::
+// tag::saml-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
-+
-You cannot use this setting and `ssl.keystore.secure_password` at the same time.
+// end::saml-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
@@ -1240,35 +1242,40 @@ time.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
-`ssl.truststore.path`::
+// tag::saml-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
-+
-You cannot use this setting and `ssl.certificate_authorities` at the same time.
+// end::saml-ssl-truststore-path-tag[]
 
-
-`ssl.truststore.type`::
+// tag::saml-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::saml-ssl-truststore-type-tag[]
 
-`ssl.truststore.password`::
+// tag::saml-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
-+
-You cannot use this setting and `ssl.truststore.secure_password` at the same
-time.
+// end::saml-ssl-truststore-password-tag[]
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 +
 This setting cannot be used with `ssl.truststore.password`.
 
-`ssl.verification_mode`::
-Controls the verification of certificates.
+// tag::saml-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::saml-ssl-verification-mode-tag[]
 
-`ssl.supported_protocols`::
+// tag::saml-ssl-supported-prototols-tag[]
+`ssl.supported_protocols` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::saml-ssl-supported-prototols-tag[]
 
-`ssl.cipher_suites`::
+// tag::saml-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::saml-ssl-cipher-suites-tag[]
 
 [float]
 [[ref-kerberos-settings]]

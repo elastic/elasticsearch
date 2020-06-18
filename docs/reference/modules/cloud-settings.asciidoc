@@ -21,6 +21,7 @@ The following {es} settings are supported on {ess}:
 * <<cloud-saml-realm-settings,SAML realm settings>>
 * <<cloud-saml-realm-encryption-settings,SAML realm encryption settings>>
 * <<cloud-saml-realm-signing-settings,SAML realm signing settings>>
+* <<cloud-saml-realm-ssl-settings,SAML realm SSL settings>>
 * <<cloud-snapshot-restore-settings,Snapshot and restore settings>>
 * <<cloud-watcher-settings,Watcher settings>>
 
@@ -109,6 +110,13 @@ include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-node-ingest-tag]
 
 <<cloud-settings,Back to top>>
 
+[[cloud-reindex-settings]]
+==== Reindex settings
+include::{es-repo-dir}/docs/reindex.asciidoc[tag=docs-reindex-api-desc-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-reindex-remote-whitelist]
+
+<<cloud-settings,Back to top>>
+
 [[cloud-realm-settings]]
 ==== Realm settings
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=realm-settings-description-tag]
@@ -152,14 +160,6 @@ include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-k
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-alias-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-path-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-encryption-keystore-type-tag]
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
-// include::{es-repo-dir}/settings/security-settings.asciidoc[tag=
 
 <<cloud-settings,Back to top>>
 
@@ -175,10 +175,22 @@ include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-signing-mess
 
 <<cloud-settings,Back to top>>
 
-[[cloud-reindex-settings]]
-==== Reindex settings
-include::{es-repo-dir}/docs/reindex.asciidoc[tag=docs-reindex-api-desc-tag]
-include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-reindex-remote-whitelist]
+[[cloud-saml-realm-ssl-settings]]
+===== SAML realm SSL settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-certificate-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-certificate-authorities-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-cipher-suites-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-key-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-keystore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-key-passphrase-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-keystore-password-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-keystore-type]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-supported-prototols-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-truststore-password-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-truststore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-truststore-type-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=saml-ssl-verification-mode-tag]
 
 <<cloud-settings,Back to top>>
 

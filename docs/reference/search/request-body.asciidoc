@@ -18,7 +18,7 @@ GET /twitter/_search
 [[search-request-body-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search
+`GET /<target>/_search
 {
   "query": {<parameters>}
 }`
@@ -34,7 +34,13 @@ The search request can be executed with a search DSL, which includes the
 [[search-request-body-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list or wildcard (`*`) expression of data streams, indices,
+and index aliases used to limit the request.
++
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[search-request-body-api-request-body]]
 ==== {api-request-body-title}

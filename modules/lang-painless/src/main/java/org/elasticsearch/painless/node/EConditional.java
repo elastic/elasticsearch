@@ -21,12 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -60,7 +59,7 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
         }
@@ -73,7 +72,7 @@ public class EConditional extends AExpression {
 
         Input conditionInput = new Input();
         conditionInput.expected = boolean.class;
-        Output conditionOutput = analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
+        Output conditionOutput = analyze(conditionNode, classNode, semanticScope, conditionInput);
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(classNode.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
@@ -81,13 +80,13 @@ public class EConditional extends AExpression {
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
 
         output.actual = input.expected;
 

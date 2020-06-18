@@ -65,14 +65,6 @@ processTestResources {
   from(project(':client:rest-high-level').file('src/test/resources'))
 }
 
-dependencyLicenses {
-  // Don't check licenses for dependency that are part of the elasticsearch project
-  // But any other dependency should have its license/notice/sha1
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  }
-}
-
 tasks.named('forbiddenApisMain').configure {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified

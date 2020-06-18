@@ -189,6 +189,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertThat(query, instanceOf(SpanQuery.class));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58199")
     public void testToQueryInnerTermQuery() throws IOException {
         String fieldName = randomFrom("prefix_field", "prefix_field_alias");
         final QueryShardContext context = createShardContext();

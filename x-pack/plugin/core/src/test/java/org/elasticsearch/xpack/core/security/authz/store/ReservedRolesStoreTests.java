@@ -66,6 +66,10 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
+import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -74,6 +78,8 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -83,6 +89,9 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -92,12 +101,16 @@ import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -333,6 +346,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
 
+        // ML
+        assertRoleHasManageMl(kibanaRole);
+
         // Application Privileges
         DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });
         DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[]{ "all", "read" });
@@ -387,7 +403,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
         });
 
-        // read-only index access
+        // read-only index access, including cross cluster
         Arrays.asList(".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
@@ -401,6 +417,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
+        });
+
+        // read-only index access, excluding cross cluster
+        Arrays.asList(
+            ".ml-anomalies-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".ml-notifications-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".ml-stats-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach((index) -> {
+            logger.trace("index name [{}]", index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(false));
         });
 
         // read-only indices for APM telemetry
@@ -1122,56 +1158,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteForecastAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(FindFileStructureAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(FlushJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ForecastJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetBucketsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCalendarsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetCategoriesAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetFiltersAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetInfluencersAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetJobsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(OpenJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PersistJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PostDataAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutCalendarAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StartDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StopDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateFilterAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateJobAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(UpdateProcessAction.NAME, request, authentication), is(false)); // internal use only
-        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(true));
+        assertRoleHasManageMl(role);
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
@@ -1198,6 +1185,75 @@ public class ReservedRolesStoreTests extends ESTestCase {
             new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
             new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_admin"), "*"), is(false));
+    }
+
+    private void assertRoleHasManageMl(Role role) {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+
+        assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteForecastAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteTrainedModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(EstimateModelMemoryAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(EvaluateDataFrameAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ExplainDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(FindFileStructureAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(FlushJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ForecastJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetBucketsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCalendarEventsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCalendarsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetCategoriesAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetDataFrameAnalyticsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetFiltersAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetInfluencersAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetJobsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetOverallBucketsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetRecordsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTrainedModelsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTrainedModelsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(InternalInferModelAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(KillProcessAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(MlInfoAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(OpenJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PersistJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PostCalendarEventsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PostDataAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutCalendarAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutTrainedModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(SetUpgradeModeAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopDataFrameAnalyticsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateCalendarJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateFilterAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateJobAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(UpdateProcessAction.NAME, request, authentication), is(false)); // internal use only
+        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request, authentication), is(true));
     }
 
     public void testMachineLearningUserRole() {

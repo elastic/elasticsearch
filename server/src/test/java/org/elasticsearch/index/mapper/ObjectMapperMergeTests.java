@@ -127,9 +127,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private static TextFieldMapper createTextFieldMapper(String name) {
         final TextFieldType fieldType = new TextFieldType(name);
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-
         return new TextFieldMapper(name, TextFieldMapper.Defaults.FIELD_TYPE, fieldType, -1,
-            null, null, indexSettings, MultiFields.empty(), CopyTo.empty());
+            null, null, MultiFields.empty(), CopyTo.empty());
     }
 }

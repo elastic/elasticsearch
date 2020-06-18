@@ -130,7 +130,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     break;
                 case REMOVE:
                     for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        finalActions.add(new AliasAction.Remove(index.getName(), alias));
+                        finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
                     }
                     break;
                 case REMOVE_INDEX:

@@ -15,8 +15,8 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -70,7 +70,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public SparseVectorFieldMapper build(BuilderContext context) {
             return new SparseVectorFieldMapper(
                     name, fieldType, new SparseVectorFieldType(buildFullName(context), meta),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexCreatedVersion(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -125,11 +125,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private final Version indexCreatedVersion;
 
     private SparseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override

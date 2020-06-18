@@ -578,7 +578,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldType(String name) {
+    public MappedFieldType fieldType(String name) {
         if (mapperService() != null) {
             return mapperService().fieldType(name);
         }

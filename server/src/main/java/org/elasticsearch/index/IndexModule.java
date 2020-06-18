@@ -30,7 +30,6 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -122,7 +121,6 @@ public final class IndexModule {
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
 
     private final IndexSettings indexSettings;
-    private final DataStream dataStream;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
     private SetOnce<Function<IndexService,
@@ -136,27 +134,25 @@ public final class IndexModule {
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
+    private final String dataStreamTimestampField;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
-     *
      * @param indexSettings       the index settings
-     * @param dataStream          the data stream the index is part of
      * @param analysisRegistry    the analysis registry
      * @param engineFactory       the engine factory
      * @param directoryFactories the available store types
      */
     public IndexModule(
         final IndexSettings indexSettings,
-        final DataStream dataStream,
         final AnalysisRegistry analysisRegistry,
         final EngineFactory engineFactory,
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
-        final IndexNameExpressionResolver expressionResolver) {
+        final IndexNameExpressionResolver expressionResolver,
+        final String dataStreamTimestampField) {
         this.indexSettings = indexSettings;
-        this.dataStream = dataStream;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
@@ -164,6 +160,7 @@ public final class IndexModule {
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
+        this.dataStreamTimestampField = dataStreamTimestampField;
     }
 
     /**
@@ -432,12 +429,12 @@ public final class IndexModule {
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
             }
-            final IndexService indexService = new IndexService(indexSettings, dataStream, indexCreationContext, environment,
+            final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment,
                 xContentRegistry, new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
-                valuesSourceRegistry);
+                valuesSourceRegistry, dataStreamTimestampField);
             success = true;
             return indexService;
         } finally {
@@ -486,7 +483,7 @@ public final class IndexModule {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false,
-            dataStream);
+            dataStreamTimestampField);
     }
 
     /**

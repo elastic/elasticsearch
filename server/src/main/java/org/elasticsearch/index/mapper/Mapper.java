@@ -88,14 +88,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
+            private final String dataStreamTimestampField;
+
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
+                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
+                                 String dataStreamTimestampField) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.queryShardContextSupplier = queryShardContextSupplier;
+                this.dataStreamTimestampField = dataStreamTimestampField;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -132,10 +136,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return new MultiFieldParserContext(in);
             }
 
+            public String getDataStreamTimestampField() {
+                return dataStreamTimestampField;
+            }
+
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier());
+                            in.indexVersionCreated(), in.queryShardContextSupplier(), null);
                 }
 
                 @Override

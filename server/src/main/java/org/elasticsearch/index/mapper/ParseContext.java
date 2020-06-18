@@ -22,10 +22,8 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 
@@ -287,6 +285,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public boolean isDataStreamTimestampParsed() {
+            return in.isDataStreamTimestampParsed();
+        }
+
+        @Override
+        public void setDataStreamTimestampParsed(boolean dataStreamTimestampParsed) {
+            in.setDataStreamTimestampParsed(dataStreamTimestampParsed);
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -321,7 +329,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         private final Set<String> ignoredFields = new HashSet<>();
 
-        private DataStream dataStream;
+        private String dataStreamTimestampField;
+
+        private boolean dataStreamTimestampParsed;
 
         public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
                                     SourceToParse source, XContentParser parser) {
@@ -445,7 +455,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         void postParse() {
-            validateDataStreamTimestampField();
+            if (dataStreamTimestampField != null) {
+                if (dataStreamTimestampParsed == false) {
+                    throw new IllegalArgumentException("required timestamp field is missing");
+                }
+            }
             if (documents.size() > 1) {
                 docsReversed = true;
                 // We preserve the order of the children while ensuring that parents appear after them.
@@ -472,42 +486,6 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             return newDocs;
         }
 
-        /**
-         * If the document is going to be index into a backing index of a data stream then
-         * check whether a timestamp field has been specified and that exactly one timestamp
-         * value has been specified.
-         */
-        private void validateDataStreamTimestampField() {
-            if (dataStream == null) {
-                // the index being index into is not part of a datas stream.
-                return;
-            }
-
-            int numStoredFields = 0;
-            int numPointFields = 0;
-            int numDocValuesFields = 0;
-            IndexableField[] fields = rootDoc().getFields(dataStream.getTimeStampField());
-            if (fields.length == 0) {
-                throw new IllegalArgumentException("required timestamp field is missing");
-            }
-
-            for (IndexableField field : fields) {
-                if (field.fieldType().pointDimensionCount() != 0) {
-                    numPointFields++;
-                }
-                if (field.fieldType().stored()) {
-                    numStoredFields++;
-                }
-                if (field.fieldType().docValuesType() != DocValuesType.NONE) {
-                    numDocValuesFields++;
-                }
-            }
-
-            if (numStoredFields > 1 || numPointFields > 1 || numDocValuesFields > 1) {
-                throw new IllegalArgumentException("timestamp field has multiple values, only a single value is allowed");
-            }
-        }
-
         @Override
         public Iterator<Document> iterator() {
             return documents.iterator();
@@ -524,8 +502,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             return Collections.unmodifiableCollection(ignoredFields);
         }
 
-        public void setDataStream(DataStream dataStream) {
-            this.dataStream = dataStream;
+        public void setDataStreamTimestampField(String dataStreamTimestampField) {
+            this.dataStreamTimestampField = dataStreamTimestampField;
+        }
+
+        public boolean isDataStreamTimestampParsed() {
+            return dataStreamTimestampParsed;
+        }
+
+        public void setDataStreamTimestampParsed(boolean dataStreamTimestampParsed) {
+            this.dataStreamTimestampParsed = dataStreamTimestampParsed;
         }
     }
 
@@ -691,4 +677,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    public abstract boolean isDataStreamTimestampParsed();
+
+    public abstract void setDataStreamTimestampParsed(boolean dataStreamTimestampParsed);
 }

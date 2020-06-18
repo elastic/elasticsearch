@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -80,6 +81,7 @@ import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.search;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.segments;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.validateQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -459,8 +461,9 @@ public class DataStreamIT extends ESIntegTestCase {
         IndexRequest indexRequest = new IndexRequest(dataStreamName)
             .opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("timestamp field has multiple values, only a single value is allowed"));
+        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        assertThat(e.getCause().getMessage(),
+            containsString("timestamp field has multiple values, only a single value is allowed"));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

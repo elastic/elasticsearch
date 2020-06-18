@@ -167,8 +167,8 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testWrapperIsBound() throws IOException {
         final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
-        IndexModule module = new IndexModule(indexSettings, null, emptyAnalysisRegistry, engineFactory, Collections.emptyMap(),
-            () -> true, new IndexNameExpressionResolver());
+        IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap(),
+            () -> true, new IndexNameExpressionResolver(), null);
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -188,8 +188,8 @@ public class IndexModuleTests extends ESTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
-        final IndexModule module = new IndexModule(indexSettings, null, emptyAnalysisRegistry, new InternalEngineFactory(),
-            indexStoreFactories, () -> true, new IndexNameExpressionResolver());
+        final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(),
+            indexStoreFactories, () -> true, new IndexNameExpressionResolver(), null);
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -486,8 +486,8 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private static IndexModule createIndexModule(IndexSettings indexSettings, AnalysisRegistry emptyAnalysisRegistry) {
-        return new IndexModule(indexSettings, null, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
-            new IndexNameExpressionResolver());
+        return new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
+            new IndexNameExpressionResolver(), null);
     }
 
     class CustomQueryCache implements QueryCache {

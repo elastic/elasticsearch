@@ -187,6 +187,7 @@ public final class DateFieldMapper extends FieldMapper {
         private Locale locale;
         private Resolution resolution = Resolution.MILLISECONDS;
         String nullValue;
+        private boolean singletonDataStreamTimestamp;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -241,6 +242,10 @@ public final class DateFieldMapper extends FieldMapper {
             return format.explicit();
         }
 
+        public void setSingletonDataStreamTimestamp(boolean singletonDataStreamTimestamp) {
+            this.singletonDataStreamTimestamp = singletonDataStreamTimestamp;
+        }
+
         protected DateFieldType setupFieldType(BuilderContext context) {
             String pattern = this.format.value();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
@@ -252,7 +257,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = setupFieldType(context);
             Long nullTimestamp = nullValue == null ? null : ft.dateTimeFormatter.parseMillis(nullValue);
             return new DateFieldMapper(name, fieldType, ft, ignoreMalformed(context), nullTimestamp, nullValue,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, singletonDataStreamTimestamp);
         }
     }
 
@@ -291,6 +296,9 @@ public final class DateFieldMapper extends FieldMapper {
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
+            }
+            if (name.equals(parserContext.getDataStreamTimestampField())) {
+                builder.setSingletonDataStreamTimestamp(true);
             }
             return builder;
         }
@@ -551,6 +559,13 @@ public final class DateFieldMapper extends FieldMapper {
     private final Long nullValue;
     private final String nullValueAsString;
 
+    /**
+     * If this is set to true then that means this field mapper is used by a data stream's
+     * timestamp field. In this case the expectation is that exactly one date value is provided.
+     * No or more date values will result that indexing a document fails.
+     */
+    private final boolean singletonDataStreamTimestamp;
+
     private DateFieldMapper(
             String simpleName,
             FieldType fieldType,
@@ -559,11 +574,13 @@ public final class DateFieldMapper extends FieldMapper {
             Long nullValue, String nullValueAsString,
             Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
+            CopyTo copyTo,
+            boolean singletonDataStreamTimestamp) {
         super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
         this.nullValueAsString = nullValueAsString;
+        this.singletonDataStreamTimestamp = singletonDataStreamTimestamp;
     }
 
     @Override
@@ -583,6 +600,13 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        if (singletonDataStreamTimestamp) {
+            if (context.isDataStreamTimestampParsed()) {
+                throw new IllegalArgumentException("timestamp field has multiple values, only a single value is allowed");
+            }
+            context.setDataStreamTimestampParsed(true);
+        }
+
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();

@@ -28,7 +28,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
@@ -67,13 +65,13 @@ public class DocumentMapper implements ToXContentFragment {
 
         private final Mapper.BuilderContext builderContext;
 
-        private final DataStream dataStream;
+        private final String dataStreamTimestampField;
 
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService) {
             this(builder, mapperService, null);
         }
 
-        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, DataStream dataStream) {
+        public Builder(RootObjectMapper.Builder builder, MapperService mapperService, String dataStreamTimestampField) {
             final Settings indexSettings = mapperService.getIndexSettings().getSettings();
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
@@ -96,7 +94,7 @@ public class DocumentMapper implements ToXContentFragment {
                 }
                 metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             }
-            this.dataStream = dataStream;
+            this.dataStreamTimestampField = dataStreamTimestampField;
         }
 
         public Builder meta(Map<String, Object> meta) {
@@ -117,7 +115,7 @@ public class DocumentMapper implements ToXContentFragment {
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
                     meta);
-            return new DocumentMapper(mapperService, mapping, dataStream);
+            return new DocumentMapper(mapperService, mapping, dataStreamTimestampField);
         }
     }
 
@@ -130,7 +128,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final Mapping mapping;
 
-    private final DataStream dataStream;
+    private final String dataStreamTimestampField;
 
     private final DocumentParser documentParser;
 
@@ -142,14 +140,14 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    public DocumentMapper(MapperService mapperService, Mapping mapping, DataStream dataStream) {
+    public DocumentMapper(MapperService mapperService, Mapping mapping, String dataStreamTimestampField) {
         this.mapperService = mapperService;
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
-        this.dataStream = dataStream;
-        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this, dataStream);
+        this.dataStreamTimestampField = dataStreamTimestampField;
+        this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this, dataStreamTimestampField);
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -315,7 +313,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public DocumentMapper merge(Mapping mapping) {
         Mapping merged = this.mapping.merge(mapping);
-        return new DocumentMapper(mapperService, merged, dataStream);
+        return new DocumentMapper(mapperService, merged, dataStreamTimestampField);
     }
 
     @Override

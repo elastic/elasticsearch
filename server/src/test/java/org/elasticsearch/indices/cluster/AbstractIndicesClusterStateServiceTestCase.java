@@ -21,7 +21,6 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -196,9 +195,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public synchronized MockIndexService createIndex(
                 IndexMetadata indexMetadata,
-                DataStream dataStream,
                 List<IndexEventListener> buildInIndexListener,
-                boolean writeDanglingIndices) throws IOException {
+                boolean writeDanglingIndices, String dataStreamTimestampField) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetadata, Settings.EMPTY));
             indices = Maps.copyMapWithAddedEntry(indices, indexMetadata.getIndexUUID(), indexService);
             return indexService;

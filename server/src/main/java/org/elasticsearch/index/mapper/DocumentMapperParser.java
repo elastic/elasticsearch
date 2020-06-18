@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -53,7 +52,7 @@ public class DocumentMapperParser {
 
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
-    private final DataStream dataStream;
+    private final String dataStreamTimestampField;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
                                 SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -63,7 +62,7 @@ public class DocumentMapperParser {
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
                                 SimilarityService similarityService, MapperRegistry mapperRegistry,
-                                Supplier<QueryShardContext> queryShardContextSupplier, DataStream dataStream) {
+                                Supplier<QueryShardContext> queryShardContextSupplier, String dataStreamTimestampField) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
@@ -71,12 +70,12 @@ public class DocumentMapperParser {
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
-        this.dataStream = dataStream;
+        this.dataStreamTimestampField = dataStreamTimestampField;
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
         return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier);
+                typeParsers::get, indexVersionCreated, queryShardContextSupplier, dataStreamTimestampField);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
@@ -101,8 +100,8 @@ public class DocumentMapperParser {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
-                (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService, dataStream);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder((RootObjectMapper.Builder)
+            rootObjectTypeParser.parse(type, mapping, parserContext), mapperService, dataStreamTimestampField);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {

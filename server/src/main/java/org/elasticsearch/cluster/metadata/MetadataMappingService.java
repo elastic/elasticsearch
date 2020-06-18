@@ -144,7 +144,7 @@ public class MetadataMappingService {
             IndexService indexService = indicesService.indexService(indexMetadata.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetadata, null, Collections.emptyList(), false);
+                indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false, null);
                 removeIndex = true;
                 indexService.mapperService().merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
             }
@@ -198,7 +198,7 @@ public class MetadataMappingService {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",  
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,

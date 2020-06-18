@@ -29,7 +29,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -148,10 +147,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private Supplier<Sort> indexSortSupplier;
     private ValuesSourceRegistry valuesSourceRegistry;
+    private final String dataStreamTimestampField;
 
     public IndexService(
         IndexSettings indexSettings,
-        DataStream dataStream,
         IndexCreationContext indexCreationContext,
         NodeEnvironment nodeEnv,
         NamedXContentRegistry xContentRegistry,
@@ -176,7 +175,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier idFieldDataEnabled,
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
-        ValuesSourceRegistry valuesSourceRegistry) {
+        ValuesSourceRegistry valuesSourceRegistry,
+        String dataStreamTimestampField) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -190,7 +190,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, dataStream);
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, dataStreamTimestampField);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -235,6 +235,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.dataStreamTimestampField = dataStreamTimestampField;
         updateFsyncTaskIfNecessary();
     }
 

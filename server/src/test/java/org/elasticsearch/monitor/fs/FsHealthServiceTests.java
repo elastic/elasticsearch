@@ -109,18 +109,18 @@ public class FsHealthServiceTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), UNHEALTHY);
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
             for (Path path : env.nodeDataPaths()) {
                 assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
             }
-            assertEquals(disruptFileSystemProvider.getInjectedPathCount(), env.nodeDataPaths().length);
+            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptFileSystemProvider.injectIOException.set(false);
             PathUtilsForTesting.teardown();
@@ -161,7 +161,7 @@ public class FsHealthServiceTests extends ESTestCase {
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(disruptFileSystemProvider.getInjectedPathCount(), env.nodeDataPaths().length);
+            assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
             assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, mockAppender);
@@ -183,8 +183,8 @@ public class FsHealthServiceTests extends ESTestCase {
             Path[] paths = env.nodeDataPaths();
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
             //disrupt file system fsync on single path
             disruptFsyncFileSystemProvider.injectIOException.set(true);
@@ -192,9 +192,9 @@ public class FsHealthServiceTests extends ESTestCase {
             disruptFsyncFileSystemProvider.restrictPathPrefix(disruptedPath);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), UNHEALTHY);
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
-            assertEquals(disruptFsyncFileSystemProvider.getInjectedPathCount(), 1);
+            assertEquals(1, disruptFsyncFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptFsyncFileSystemProvider.injectIOException.set(false);
             PathUtilsForTesting.teardown();
@@ -214,8 +214,8 @@ public class FsHealthServiceTests extends ESTestCase {
             Path[] paths = env.nodeDataPaths();
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), HEALTHY);
-            assertEquals(fsHealthService.getHealth().getInfo(), "health check passed");
+            assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
+            assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
             //disrupt file system writes on single path
             disruptWritesFileSystemProvider.injectIOException.set(true);
@@ -223,9 +223,9 @@ public class FsHealthServiceTests extends ESTestCase {
             disruptWritesFileSystemProvider.restrictPathPrefix(disruptedPath);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
-            assertEquals(fsHealthService.getHealth().getStatus(), UNHEALTHY);
+            assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
-            assertEquals(disruptWritesFileSystemProvider.getInjectedPathCount(), 1);
+            assertEquals(1, disruptWritesFileSystemProvider.getInjectedPathCount());
         } finally {
             disruptWritesFileSystemProvider.injectIOException.set(false);
             PathUtilsForTesting.teardown();

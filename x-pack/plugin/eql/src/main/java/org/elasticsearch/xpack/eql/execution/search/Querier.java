@@ -18,11 +18,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.execution.listener.BasicListener;
+import org.elasticsearch.xpack.eql.execution.listener.RuntimeUtils;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Results;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 public class Querier {
@@ -56,24 +56,10 @@ public class Querier {
         if (cfg.isCancelled()) {
             throw new TaskCancelledException("cancelled");
         }
-        SearchRequest search = prepareRequest(client, sourceBuilder, cfg.requestTimeout(), false,
-                Strings.commaDelimitedListToStringArray(index));
 
-        ActionListener<SearchResponse> l = new BasicListener(listener, search);
+        SearchRequest search = RuntimeUtils.prepareRequest(client, sourceBuilder, false, Strings.commaDelimitedListToStringArray(index));
+        ActionListener<SearchResponse> l = new BasicListener(listener, search, container.descendingOrder());
 
         client.search(search, l);
-    }
-
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
-                                               String... indices) {
-        return client.prepareSearch(indices)
-                // always track total hits accurately
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(false)
-                .setSource(source)
-                .setTimeout(timeout)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
     }
 }

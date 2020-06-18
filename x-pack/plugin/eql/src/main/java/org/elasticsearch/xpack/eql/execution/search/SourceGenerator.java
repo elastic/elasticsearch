@@ -13,6 +13,7 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
+import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer.Limit;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -62,6 +63,12 @@ public abstract class SourceGenerator {
         // set fetch size
         if (size != null) {
             int sz = size;
+            if (container.limit() != null) {
+                Limit limit = container.limit();
+                // negative limit means DESC order but since the results are ordered ASC
+                // pagination becomes mute (since all the data needs to be returned)
+                sz = limit.limit > 0 ? Math.min(limit.total, size) : limit.total;
+            }
 
             if (source.size() == -1) {
                 source.size(sz);

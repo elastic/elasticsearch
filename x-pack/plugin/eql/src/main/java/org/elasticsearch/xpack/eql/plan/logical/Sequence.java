@@ -53,6 +53,11 @@ public class Sequence extends Join {
     }
 
     @Override
+    public Join with(List<KeyedFilter> queries, KeyedFilter until) {
+        return new Sequence(source(), queries, until, maxSpan, timestamp(), tiebreaker());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(maxSpan, super.hashCode());
     }

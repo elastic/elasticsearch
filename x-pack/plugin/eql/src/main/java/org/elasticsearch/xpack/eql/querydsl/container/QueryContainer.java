@@ -34,6 +34,38 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class QueryContainer {
 
+    public static class Limit {
+        public final int limit;
+        public final int offset;
+        public final int total;
+
+        public Limit(int limit, int offset) {
+            this.limit = limit;
+            this.offset = offset;
+            this.total = Math.abs(limit) + offset;
+        }
+        
+        @Override
+        public int hashCode() {
+            return Objects.hash(limit, offset);
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            
+            QueryContainer.Limit other = (QueryContainer.Limit) obj;
+            return Objects.equals(limit, other.limit)
+                    && Objects.equals(offset, other.offset);
+        }
+    }
+
     private final FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
     private final Query query;
     // attributes found in the tree
@@ -45,18 +77,27 @@ public class QueryContainer {
     private final boolean trackHits;
     private final boolean includeFrozen;
 
+    private final Limit limit;
+
     public QueryContainer() {
-        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false);
+        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query, List<Tuple<FieldExtraction, String>> fields, AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort, boolean trackHits, boolean includeFrozen) {
+    private QueryContainer(Query query,
+                           List<Tuple<FieldExtraction, String>> fields,
+                           AttributeMap<Expression> attributes,
+                           Map<String, Sort> sort,
+                           boolean trackHits,
+                           boolean includeFrozen,
+                           Limit limit) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
         this.attributes = attributes;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
+
+        this.limit = limit;
     }
 
     public QueryContainer withFrozen() {
@@ -79,8 +120,20 @@ public class QueryContainer {
         return trackHits;
     }
 
+    public Limit limit() {
+        return limit;
+    }
+
+    public boolean descendingOrder() {
+        return limit != null && limit.limit < 0;
+    }
+
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
+    }
+
+    public QueryContainer with(Limit limit) {
+        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -111,7 +164,7 @@ public class QueryContainer {
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
-        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen);
+        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen, limit);
     }
 
     //
@@ -119,12 +172,12 @@ public class QueryContainer {
     //
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
-        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen);
+        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, attributes, fields, trackHits, includeFrozen);
+        return Objects.hash(query, attributes, fields, trackHits, includeFrozen, limit);
     }
 
     @Override
@@ -141,8 +194,9 @@ public class QueryContainer {
         return Objects.equals(query, other.query)
                 && Objects.equals(attributes, other.attributes)
                 && Objects.equals(fields, other.fields)
-                && Objects.equals(trackHits, other.trackHits)
-                && Objects.equals(includeFrozen, other.includeFrozen);
+                && trackHits == other.trackHits
+                && includeFrozen == other.includeFrozen
+                && Objects.equals(limit, other.limit);
     }
 
     @Override

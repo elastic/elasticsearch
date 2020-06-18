@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -40,8 +41,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         Batch fold = new Batch("Fold queries",
                 new FoldProject(),
                 new FoldFilter(),
-                new FoldLimit(),
-                new FoldOrderBy()
+                new FoldOrderBy(),
+                new FoldLimit()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
@@ -118,12 +119,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class FoldLimit extends FoldingRule<LimitWithOffsetExec> {
+    private static class FoldLimit extends QueryFoldingRule<LimitWithOffsetExec> {
 
         @Override
-        protected PhysicalPlan rule(LimitWithOffsetExec plan) {
-
-            return plan;
+        protected PhysicalPlan rule(LimitWithOffsetExec limit, EsQueryExec query) {
+            return query.with(query.queryContainer().with(new QueryContainer.Limit(limit.limit(), limit.offset())));
         }
     }
 
@@ -150,5 +150,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
+    }
+
+    abstract static class QueryFoldingRule<SubPlan extends UnaryExec> extends FoldingRule<SubPlan> {
+
+        @Override
+        protected final PhysicalPlan rule(SubPlan plan) {
+            PhysicalPlan p = plan;
+            if (plan.child() instanceof EsQueryExec) {
+                p = rule(plan, (EsQueryExec) plan.child());
+            }
+            return p;
+        }
+
+        protected abstract PhysicalPlan rule(SubPlan plan, EsQueryExec query);
     }
 }

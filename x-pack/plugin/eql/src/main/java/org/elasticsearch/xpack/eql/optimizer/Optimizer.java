@@ -47,6 +47,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     public LogicalPlan optimize(LogicalPlan verified) {
@@ -247,7 +249,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (child instanceof OrderBy) {
                     OrderBy ob = (OrderBy) child;
                     if (PushDownOrderBy.isDefaultOrderBy(ob)) {
-                        ob = new OrderBy(ob.source(), ob.child(), PushDownOrderBy.changeDirection(ob.order(), Order.OrderDirection.DESC));
+                        ob = new OrderBy(ob.source(), ob.child(), PushDownOrderBy.changeOrderDirection(ob.order(), Order.OrderDirection.DESC));
                         limit = new LimitWithOffset(limit.source(), limit.limit(), limit.offset(), ob);
                     }
                 }
@@ -266,8 +268,41 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static final class PushDownOrderBy extends OptimizerRule<OrderBy> {
 
         @Override
-        protected LogicalPlan rule(OrderBy order) {
-            return order;
+        protected LogicalPlan rule(OrderBy orderBy) {
+            LogicalPlan plan = orderBy;
+            if (isDefaultOrderBy(orderBy)) {
+                LogicalPlan child = orderBy.child();
+                //
+                // When dealing with sequences, the matching needs to happen ascending
+                // hence why the queries will always be ascending
+                // but if the order is descending, apply that only to the first query
+                // which is used to discover the window for which matching is being applied.
+                //
+                if (child instanceof Join) {
+                    Join join = (Join) child;
+                    List<KeyedFilter> queries = join.queries();
+
+                    List<Order> ascendingOrders = changeOrderDirection(orderBy.order(), Order.OrderDirection.ASC);
+                    // preserve the order direction as is (can be DESC) for the base query
+                    List<KeyedFilter> orderedQueries = new ArrayList<>(queries.size());
+                    int index = 0;
+                    for (KeyedFilter filter : queries) {
+                        // preserve the order for the base query, everything else needs to be ascending
+                        List<Order> pushedOrder = index == 0 ? orderBy.order() : ascendingOrders;
+                        OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
+                        orderedQueries.add((KeyedFilter) filter.replaceChildren(singletonList(order)));
+                        index++;
+                    }
+
+                    KeyedFilter until = join.until();
+                    OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
+                    orderedQueries.add((KeyedFilter) until.replaceChildren(singletonList(order)));
+                    until = (KeyedFilter) until.replaceChildren(singletonList(order));
+
+                    plan = join.with(orderedQueries, until);
+                }
+            }
+            return plan;
         }
 
         private static boolean isDefaultOrderBy(OrderBy orderBy) {
@@ -277,7 +312,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return child instanceof Project || child instanceof Join;
         }
 
-        private static List<Order> changeDirection(List<Order> orders, Order.OrderDirection direction) {
+        private static List<Order> changeOrderDirection(List<Order> orders, Order.OrderDirection direction) {
             List<Order> changed = new ArrayList<>(orders.size());
             boolean hasChanged = false;
             for (Order order : orders) {
@@ -297,7 +332,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Join plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
-                if (filter.child() instanceof LocalRelation) {
+                if (filter.anyMatch(LocalRelation.class::isInstance)) {
                     return new LocalRelation(plan.source(), plan.output(), Results.Type.SEQUENCE);
                 }
             }

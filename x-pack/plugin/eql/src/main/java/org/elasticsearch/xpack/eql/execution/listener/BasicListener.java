@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.Results;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.eql.execution.listener.RuntimeUtils.logSearchResponse;
@@ -28,12 +29,12 @@ public class BasicListener implements ActionListener<SearchResponse> {
 
     private final ActionListener<Results> listener;
     private final SearchRequest request;
+    private final boolean reverseResults;
 
-    public BasicListener(ActionListener<Results> listener,
-                               SearchRequest request) {
-
+    public BasicListener(ActionListener<Results> listener, SearchRequest request, boolean reverseResults) {
         this.listener = listener;
         this.request = request;
+        this.reverseResults = reverseResults;
     }
 
     @Override
@@ -56,6 +57,9 @@ public class BasicListener implements ActionListener<SearchResponse> {
         }
 
         List<SearchHit> results = Arrays.asList(response.getHits().getHits());
+        if (reverseResults) {
+            Collections.reverse(results);
+        }
         listener.onResponse(Results.fromHits(response.getTook(), results));
     }
 

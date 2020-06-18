@@ -107,6 +107,10 @@ public class Join extends LogicalPlan {
         return tiebreaker;
     }
 
+    public Join with(List<KeyedFilter> queries, KeyedFilter until) {
+        return new Join(source(), queries, until, timestamp, tiebreaker);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(timestamp, tiebreaker, queries, until);

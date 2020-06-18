@@ -96,6 +96,8 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
         }
         this.numTopFeatureImportanceValues = featureImportance;
         this.predictionFieldType = predictionFieldType;
+
+        InferenceConfigUpdate.checkFieldUniqueness(resultsField, topClassesResultsField);
     }
 
     public ClassificationConfigUpdate(StreamInput in) throws IOException {

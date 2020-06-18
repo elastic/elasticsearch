@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -58,6 +59,12 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
                 .build()
                 .apply(originalConfig)
             ));
+    }
+
+    public void testInvalidResultFieldNotUnique() {
+        ElasticsearchStatusException e =
+            expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
+        assertEquals("Cannot apply inference config. More than one field is configured as [warning]", e.getMessage());
     }
 
     @Override

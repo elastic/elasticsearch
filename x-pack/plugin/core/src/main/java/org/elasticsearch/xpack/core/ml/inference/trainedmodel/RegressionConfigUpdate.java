@@ -68,6 +68,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
                 "] must be greater than or equal to 0");
         }
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
+
+        InferenceConfigUpdate.checkFieldUniqueness(resultsField);
     }
 
     public RegressionConfigUpdate(StreamInput in) throws IOException {

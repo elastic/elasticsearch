@@ -52,6 +52,11 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
+    public String getResultsField() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
     }

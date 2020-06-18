@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -72,6 +73,13 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
                 .build()
                 .apply(originalConfig)
             ));
+    }
+
+    public void testDuplicateFieldNamesThrow() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new ClassificationConfigUpdate(5, "foo", "foo", 1, PredictionFieldType.BOOLEAN));
+
+        assertEquals("Cannot apply inference config. More than one field is configured as [foo]", e.getMessage());
     }
 
     @Override

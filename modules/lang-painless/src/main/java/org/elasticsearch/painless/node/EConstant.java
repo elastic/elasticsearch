@@ -26,18 +26,24 @@ import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.Objects;
+
 /**
  * Represents a constant inserted into the tree replacing
  * other constants during constant folding.  (Internal only.)
  */
 public class EConstant extends AExpression {
 
-    protected Object constant;
+    private final Object constant;
 
-    public EConstant(Location location, Object constant) {
-        super(location);
+    public EConstant(int identifier, Location location, Object constant) {
+        super(identifier, location);
 
-        this.constant = constant;
+        this.constant = Objects.requireNonNull(constant);
+    }
+
+    public Object getConstant() {
+        return constant;
     }
 
     @Override
@@ -77,7 +83,7 @@ public class EConstant extends AExpression {
         }
 
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 

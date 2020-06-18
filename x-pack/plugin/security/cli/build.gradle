@@ -15,11 +15,11 @@ dependencies {
     exclude group: 'com.google.guava', module: 'guava'
   }
   testRuntimeOnly 'com.google.guava:guava:19.0'
-  testCompile project(":test:framework")
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(":test:framework")
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 

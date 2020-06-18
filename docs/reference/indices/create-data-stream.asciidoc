@@ -6,14 +6,23 @@
 
 Creates a new data stream.
 
-A data stream can only be created if the namespace it targets has a component
-template that exists with a `data_stream` definition.
+A data stream can only be created if the namespace it targets has a composable
+index template with a `data_stream` definition.
 
 [source,console]
 -----------------------------------
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

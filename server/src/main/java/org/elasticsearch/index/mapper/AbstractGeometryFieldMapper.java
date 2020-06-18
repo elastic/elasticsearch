@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -58,6 +58,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
+        public static final FieldType FIELD_TYPE = new FieldType();
+        static {
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.freeze();
+        }
     }
 
     /**
@@ -76,18 +81,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
     }
 
-    public abstract static class Builder<T extends Builder, FT extends AbstractGeometryFieldType>
+    public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
             extends FieldMapper.Builder<T> {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
+        protected boolean indexed = true;
 
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
-            super(name, fieldType, defaultFieldType);
+        public Builder(String name, FieldType fieldType) {
+            super(name, fieldType);
         }
 
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType, boolean ignoreMalformed,
+        public Builder(String name, FieldType fieldType, boolean ignoreMalformed,
                        boolean ignoreZValue) {
-            super(name, fieldType, defaultFieldType);
+            super(name, fieldType);
             this.ignoreMalformed = ignoreMalformed;
             this.ignoreZValue = ignoreZValue;
         }
@@ -132,30 +138,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             this.ignoreZValue = ignoreZValue;
             return this;
         }
-
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-
-            // field mapper handles this at build time
-            // but prefix tree strategies require a name, so throw a similar exception
-            if (name().isEmpty()) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
-
-            setGeometryParser();
-            setGeometryIndexer(fieldType());
-            setGeometryQueryBuilder(fieldType());
-        }
-
-        @Override
-        public FT fieldType() {
-            return (FT)fieldType;
-        }
-
-        protected abstract void setGeometryParser();
-        protected abstract void setGeometryIndexer(FT fieldType);
-        protected abstract void setGeometryQueryBuilder(FT fieldType);
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
@@ -202,12 +184,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected Parser<Parsed> geometryParser;
         protected QueryProcessor geometryQueryBuilder;
 
-        protected AbstractGeometryFieldType() {
-            setIndexOptions(IndexOptions.DOCS);
-            setTokenized(false);
-            setStored(false);
-            setStoreTermVectors(false);
-            setOmitNorms(true);
+        protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
         }
 
         protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
@@ -226,7 +204,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return geometryIndexer;
         }
 
-        public void setGeometryParser(Parser geometryParser)  {
+        public void setGeometryParser(Parser<Parsed> geometryParser)  {
             this.geometryParser = geometryParser;
         }
 
@@ -271,10 +249,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
 
-    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    protected AbstractGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                           Settings indexSettings, Explicit<Boolean> ignoreMalformed,
                                           Explicit<Boolean> ignoreZValue, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
     }
@@ -293,7 +271,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType)fieldType;
+        return (AbstractGeometryFieldType)mappedFieldType;
     }
 
     @Override
@@ -313,10 +291,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
-        AbstractGeometryFieldMapper.AbstractGeometryFieldType fieldType = fieldType();
+        AbstractGeometryFieldMapper.AbstractGeometryFieldType mappedFieldType = fieldType();
 
-        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = fieldType.geometryIndexer();
-        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = fieldType.geometryParser();
+        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
+        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {
@@ -328,13 +306,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
 
             List<IndexableField> fields = new ArrayList<>();
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.hasDocValues()) {
+            if (mappedFieldType.isSearchable() || mappedFieldType.hasDocValues()) {
                 fields.addAll(geometryIndexer.indexShape(context, shape));
             }
 
             // indexed:
             List<IndexableField> indexedFields = new ArrayList<>();
-            if (fieldType.indexOptions() != IndexOptions.NONE) {
+            if (mappedFieldType.isSearchable()) {
                 indexedFields.addAll(fields);
             }
             // stored:
@@ -343,8 +321,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
             // docValues:
             if (fieldType().hasDocValues()) {
-                addDocValuesFields(fieldType.name(), shape, fields, context);
-            } else if (fieldType.stored() || fieldType.indexOptions() != IndexOptions.NONE) {
+                addDocValuesFields(mappedFieldType.name(), shape, fields, context);
+            } else if (fieldType.stored() || fieldType().isSearchable()) {
                 createFieldNamesField(context);
             }
 
@@ -360,7 +338,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
                     fieldType().typeName());
             }
-            context.addIgnoredField(fieldType.name());
+            context.addIgnoredField(mappedFieldType.name());
         }
     }
 

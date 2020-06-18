@@ -58,7 +58,7 @@ public class Murmur3FieldMapperTests extends FieldMapperTestCase<Murmur3FieldMap
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values");
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "index");
     }
 
     @Before

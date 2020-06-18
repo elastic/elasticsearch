@@ -69,6 +69,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             builder = this;
         }
 
+        // TODO we should ban setting 'index' on constant keyword
+
         public Builder setValue(String value) {
             this.value = value;
             return this;

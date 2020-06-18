@@ -244,9 +244,10 @@ public class Archives {
         // requires the "expect" utility to be installed
         List<String> command = new ArrayList<>();
         command.add("sudo -E -u %s %s -p %s");
-        if (daemonize) {
-            command.add("-d");
-        }
+
+        // TODO: daemonization isn't working with expect versions prior to 5.45
+        // centos-6 has 5.45.1.15
+
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"

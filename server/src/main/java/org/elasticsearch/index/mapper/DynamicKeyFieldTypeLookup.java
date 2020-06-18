@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -34,8 +33,8 @@ import java.util.Map;
  * Flattened object fields live in the 'mapper-flattened' module.
  */
 class DynamicKeyFieldTypeLookup {
-    private final Map<String, DynamicKeyFieldMapper> mappers = new HashMap<>();
-    private final Map<String, String> aliasToConcreteName = new HashMap<>();
+    private final Map<String, DynamicKeyFieldMapper> mappers;
+    private final Map<String, String> aliasToConcreteName;
 
     /**
      * The maximum field depth of any dynamic key mapper. Allows us to stop searching for
@@ -45,8 +44,8 @@ class DynamicKeyFieldTypeLookup {
 
     DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers,
                               Map<String, String> aliasToConcreteName) {
-        this.mappers.putAll(newMappers);
-        this.aliasToConcreteName.putAll(aliasToConcreteName);
+        this.mappers = newMappers;
+        this.aliasToConcreteName = aliasToConcreteName;
         this.maxKeyDepth = getMaxKeyDepth(mappers, aliasToConcreteName);
     }
 

@@ -44,7 +44,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                           Collection<FieldAliasMapper> fieldAliasMappers) {
+                    Collection<FieldAliasMapper> fieldAliasMappers) {
 
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 

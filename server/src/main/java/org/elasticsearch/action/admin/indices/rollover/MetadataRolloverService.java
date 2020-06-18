@@ -229,7 +229,7 @@ public class MetadataRolloverService {
         } else {
             return Collections.unmodifiableList(Arrays.asList(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias)));
+                new AliasAction.Remove(oldIndex, alias, null)));
         }
     }
 

@@ -9,8 +9,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -89,6 +94,60 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(job.getId());
+    }
+
+    public void testLookbackOnlyDataStream() throws Exception {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"time\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }" +
+            "      }\n" +
+            "    }";
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("data_template")
+                .indexTemplate(new ComposableIndexTemplate(Collections.singletonList("datafeed_data_*"),
+                    new Template(null, new CompressedXContent(mapping), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate("time"))))
+            .actionGet();
+        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request("datafeed_data_stream")).actionGet();
+        long numDocs = randomIntBetween(32, 2048);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "datafeed_data_stream", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        client().admin().cluster().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
+
+        Job.Builder job = createScheduledJob("lookback-data-stream-job");
+        registerJob(job);
+        PutJobAction.Response putJobResponse = putJob(job);
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList("datafeed_data_stream"));
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());

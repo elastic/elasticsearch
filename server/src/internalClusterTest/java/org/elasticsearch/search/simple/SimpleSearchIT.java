@@ -432,10 +432,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testTermQueryBigInt() throws Exception {
-        prepareCreate("idx").setMapping("field", "type=keyword").get();
+        prepareCreate("idx").addMapping("type", "field", "type=keyword").get();
         ensureGreen("idx");
 
-        client().prepareIndex("idx")
+        client().prepareIndex("idx", "type")
             .setId("1")
             .setSource("{\"field\" : 80315953321748200608 }", XContentType.JSON)
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

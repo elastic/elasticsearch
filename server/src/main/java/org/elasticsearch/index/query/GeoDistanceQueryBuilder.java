@@ -21,20 +21,23 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.*;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -42,12 +45,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
  * geo point.
  */
-public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
+public class GeoDistanceQueryBuilder extends AbstractGeometryQueryBuilder<GeoDistanceQueryBuilder> {
     public static final String NAME = "geo_distance";
 
     /** Default for distance unit computation. */
@@ -66,7 +70,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
-    private final String fieldName;
+//    private final String fieldName;
     /** Distance from center to cover. */
     private double distance;
     /** Point to use as center. */
@@ -78,6 +82,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
+    private SpatialStrategy strategy;
+    protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
     protected static final List<String> validContentTypes =
         Collections.unmodifiableList(
             Arrays.asList(
@@ -91,24 +97,31 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * Construct new GeoDistanceQueryBuilder.
      * @param fieldName name of indexed geo field to operate distance computation on.
      * */
-    public GeoDistanceQueryBuilder(String fieldName) {
-        if (Strings.isEmpty(fieldName)) {
-            throw new IllegalArgumentException("fieldName must not be null or empty");
-        }
-        this.fieldName = fieldName;
+    public GeoDistanceQueryBuilder(String fieldName, String indexedShapeId) {
+        super(fieldName, indexedShapeId);
+    }
+    public GeoDistanceQueryBuilder(String fieldName, Geometry geometry){
+        super(fieldName, geometry);
     }
 
+    public GeoDistanceQueryBuilder(String fieldName, Supplier<Geometry> geometrySupplier ,String indexedShapeId){
+        super(fieldName, geometrySupplier, indexedShapeId);
+    }
+    public GeoDistanceQueryBuilder(String fieldName, ShapeBuilder shapeBuilder) {
+        super(fieldName, shapeBuilder);
+    }
     /**
      * Read from a stream.
      */
     public GeoDistanceQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        fieldName = in.readString();
+//        fieldName = in.readString();
         distance = in.readDouble();
         validationMethod = GeoValidationMethod.readFromStream(in);
         center = in.readGeoPoint();
         geoDistance = GeoDistance.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
+        strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
     }
 
     @Override
@@ -119,6 +132,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeGeoPoint(center);
         geoDistance.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
+    }
+
+    public GeoDistanceQueryBuilder strategy(SpatialStrategy strategy) {
+        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException("strategy [" + strategy.getStrategyName() + "] only supports relation ["
+                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+        }
+        this.strategy = strategy;
+        return this;
     }
 
     /** Name of the field this query is operating on. */
@@ -235,43 +257,73 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return ignoreUnmapped;
     }
 
-    @Override
-    protected Query doToQuery(QueryShardContext shardContext) throws IOException {
-        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
-            } else {
-                throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
-            }
-        }
+//    @Override
+//    protected Query doToQuery(QueryShardContext shardContext) throws IOException {
+//        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+//        if (fieldType == null) {
+//            if (ignoreUnmapped) {
+//                return new MatchNoDocsQuery();
+//            } else {
+//                throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+//            }
+//        }
 
 //        if (!(fieldType instanceof GeoPointFieldType)) {
 //            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
 //        }
 
+//        if (!validContentTypes().contains(fieldType.typeName())) {
+//            throw new QueryShardException(shardContext,
+//                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
+//                    + NAME + "] query supports the following types ["
+//                    + String.join(",", validContentTypes()) +  "]");
+//        }
+//
+//        QueryValidationException exception = checkLatLon();
+//        if (exception != null) {
+//            throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
+//        }
+//
+//        if (GeoValidationMethod.isCoerce(validationMethod)) {
+//            GeoUtils.normalizePoint(center, true, true);
+//        }
+
+//        Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+//        if (fieldType.hasDocValues()) {
+//            Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+//            query = new IndexOrDocValuesQuery(query, dvQuery);
+//        }
+//        return query;
+//    }
+    @Override
+    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
         if (!validContentTypes().contains(fieldType.typeName())) {
-            throw new QueryShardException(shardContext,
+            throw new QueryShardException(context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
                     + NAME + "] query supports the following types ["
                     + String.join(",", validContentTypes()) +  "]");
         }
 
-        QueryValidationException exception = checkLatLon();
-        if (exception != null) {
-            throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
-        }
+        final AbstractSearchableGeometryFieldType ft =
+            (AbstractSearchableGeometryFieldType) fieldType;
+        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
+    }
 
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
-            GeoUtils.normalizePoint(center, true, true);
+    @Override
+    protected void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException {
+        if (strategy != null) {
+            builder.field(STRATEGY_FIELD.getPreferredName(), strategy.getStrategyName());
         }
+    }
 
-        Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-            query = new IndexOrDocValuesQuery(query, dvQuery);
-        }
-        return query;
+    @Override
+    protected GeoDistanceQueryBuilder newShapeQueryBuilder(String fieldName, Geometry shape) {
+        return new GeoDistanceQueryBuilder(fieldName, shape);
+    }
+
+    @Override
+    protected GeoDistanceQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId) {
+        return new GeoDistanceQueryBuilder(fieldName, shapeSupplier, indexedShapeId);
     }
 
     @Override
@@ -286,104 +338,167 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static GeoDistanceQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token;
+//    public static GeoDistanceQueryBuilder fromXContent(XContentParser parser) throws IOException {
+//        XContentParser.Token token;
+//
+//        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+//        String queryName = null;
+//        String currentFieldName = null;
+//        GeoPoint point = new GeoPoint(Double.NaN, Double.NaN);
+//        String fieldName = null;
+//        Object vDistance = null;
+//        DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
+//        GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
+//        GeoValidationMethod validationMethod = null;
+//        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+//
+//        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+//            if (token == XContentParser.Token.FIELD_NAME) {
+//                currentFieldName = parser.currentName();
+//            } else if (token == XContentParser.Token.START_ARRAY) {
+//                fieldName = currentFieldName;
+//                GeoUtils.parseGeoPoint(parser, point);
+//            } else if (token == XContentParser.Token.START_OBJECT) {
+//                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+//                // the json in the format of -> field : { lat : 30, lon : 12 }
+//                String currentName = parser.currentName();
+//                fieldName = currentFieldName;
+//                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+//                    if (token == XContentParser.Token.FIELD_NAME) {
+//                        currentName = parser.currentName();
+//                    } else if (token.isValue()) {
+//                        if (currentName.equals("lat")) {
+//                            point.resetLat(parser.doubleValue());
+//                        } else if (currentName.equals("lon")) {
+//                            point.resetLon(parser.doubleValue());
+//                        } else if (currentName.equals("geohash")) {
+//                            point.resetFromGeoHash(parser.text());
+//                        } else {
+//                            throw new ParsingException(parser.getTokenLocation(),
+//                                    "[geo_distance] query does not support [" + currentFieldName + "]");
+//                        }
+//                    }
+//                }
+//            } else if (token.isValue()) {
+//                if (DISTANCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    if (token == XContentParser.Token.VALUE_STRING) {
+//                        vDistance = parser.text(); // a String
+//                    } else {
+//                        vDistance = parser.numberValue(); // a Number
+//                    }
+//                } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    unit = DistanceUnit.fromString(parser.text());
+//                } else if (DISTANCE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    geoDistance = GeoDistance.fromString(parser.text());
+//                } else if (currentFieldName.endsWith(".lat")) {
+//                    point.resetLat(parser.doubleValue());
+//                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lat".length());
+//                } else if (currentFieldName.endsWith(".lon")) {
+//                    point.resetLon(parser.doubleValue());
+//                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lon".length());
+//                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    queryName = parser.text();
+//                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    boost = parser.floatValue();
+//                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    ignoreUnmapped = parser.booleanValue();
+//                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+//                    validationMethod = GeoValidationMethod.fromString(parser.text());
+//                } else {
+//                    if (fieldName == null) {
+//                        point.resetFromString(parser.text());
+//                        fieldName = currentFieldName;
+//                    } else {
+//                        throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
+//                            NAME, currentFieldName);
+//                    }
+//                }
+//            }
+//        }
+//
+//        if (vDistance == null) {
+//            throw new ParsingException(parser.getTokenLocation(), "geo_distance requires 'distance' to be specified");
+//        }
+//
+//        GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
+//        if (vDistance instanceof Number) {
+//            qb.distance(((Number) vDistance).doubleValue(), unit);
+//        } else {
+//            qb.distance((String) vDistance, unit);
+//        }
+//        qb.point(point);
+//        if (validationMethod != null) {
+//            qb.setValidationMethod(validationMethod);
+//        }
+//        qb.geoDistance(geoDistance);
+//        qb.boost(boost);
+//        qb.queryName(queryName);
+//        qb.ignoreUnmapped(ignoreUnmapped);
+//        return qb;
+//    }
+    private static class ParsedGeoShapeQueryParams extends ParsedGeometryQueryParams {
+        SpatialStrategy strategy;
 
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        String queryName = null;
-        String currentFieldName = null;
-        GeoPoint point = new GeoPoint(Double.NaN, Double.NaN);
-        String fieldName = null;
-        Object vDistance = null;
-        DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
-        GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
-        GeoValidationMethod validationMethod = null;
-        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                fieldName = currentFieldName;
-                GeoUtils.parseGeoPoint(parser, point);
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
-                // the json in the format of -> field : { lat : 30, lon : 12 }
-                String currentName = parser.currentName();
-                fieldName = currentFieldName;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if (currentName.equals("lat")) {
-                            point.resetLat(parser.doubleValue());
-                        } else if (currentName.equals("lon")) {
-                            point.resetLon(parser.doubleValue());
-                        } else if (currentName.equals("geohash")) {
-                            point.resetFromGeoHash(parser.text());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[geo_distance] query does not support [" + currentFieldName + "]");
-                        }
-                    }
-                }
-            } else if (token.isValue()) {
-                if (DISTANCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        vDistance = parser.text(); // a String
-                    } else {
-                        vDistance = parser.numberValue(); // a Number
-                    }
-                } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    unit = DistanceUnit.fromString(parser.text());
-                } else if (DISTANCE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    geoDistance = GeoDistance.fromString(parser.text());
-                } else if (currentFieldName.endsWith(".lat")) {
-                    point.resetLat(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lat".length());
-                } else if (currentFieldName.endsWith(".lon")) {
-                    point.resetLon(parser.doubleValue());
-                    fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lon".length());
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    boost = parser.floatValue();
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    ignoreUnmapped = parser.booleanValue();
-                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    validationMethod = GeoValidationMethod.fromString(parser.text());
+        @Override
+        protected boolean parseXContentField(XContentParser parser) throws IOException {
+            SpatialStrategy strategy;
+            if (SHAPE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
+                this.shape = ShapeParser.parse(parser);
+                return true;
+            } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
+                String strategyName = parser.text();
+                strategy = SpatialStrategy.fromString(strategyName);
+                if (strategy == null) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
                 } else {
-                    if (fieldName == null) {
-                        point.resetFromString(parser.text());
-                        fieldName = currentFieldName;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
-                            NAME, currentFieldName);
-                    }
+                    this.strategy = strategy;
                 }
+                return true;
             }
+            return false;
         }
-
-        if (vDistance == null) {
-            throw new ParsingException(parser.getTokenLocation(), "geo_distance requires 'distance' to be specified");
-        }
-
-        GeoDistanceQueryBuilder qb = new GeoDistanceQueryBuilder(fieldName);
-        if (vDistance instanceof Number) {
-            qb.distance(((Number) vDistance).doubleValue(), unit);
-        } else {
-            qb.distance((String) vDistance, unit);
-        }
-        qb.point(point);
-        if (validationMethod != null) {
-            qb.setValidationMethod(validationMethod);
-        }
-        qb.geoDistance(geoDistance);
-        qb.boost(boost);
-        qb.queryName(queryName);
-        qb.ignoreUnmapped(ignoreUnmapped);
-        return qb;
     }
+    public static GeoDistanceQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        ParsedGeoShapeQueryParams pgsqp =
+            (ParsedGeoShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser, new ParsedGeoShapeQueryParams());
+
+        GeoDistanceQueryBuilder builder;
+
+        if (pgsqp.shape != null) {
+            builder = new GeoDistanceQueryBuilder(pgsqp.fieldName, pgsqp.shape);
+        } else {
+            builder = new GeoDistanceQueryBuilder(pgsqp.fieldName, pgsqp.id);
+        }
+
+        if (pgsqp.index != null) {
+            builder.indexedShapeIndex(pgsqp.index);
+        }
+
+        if (pgsqp.shapePath != null) {
+            builder.indexedShapePath(pgsqp.shapePath);
+        }
+
+        if (pgsqp.shapeRouting != null) {
+            builder.indexedShapeRouting(pgsqp.shapeRouting);
+        }
+
+        if (pgsqp.relation != null) {
+            builder.relation(pgsqp.relation);
+        }
+
+        if (pgsqp.strategy != null) {
+            builder.strategy(pgsqp.strategy);
+        }
+
+        if (pgsqp.queryName != null) {
+            builder.queryName(pgsqp.queryName);
+        }
+
+        builder.boost(pgsqp.boost);
+        builder.ignoreUnmapped(pgsqp.ignoreUnmapped);
+        return builder;
+    }
+
 
     @Override
     protected int doHashCode() {

@@ -577,7 +577,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // We are reacting to shards that started only so which only affects the individual shard states of  started snapshots
                     statesToUpdate = EnumSet.of(State.STARTED);
                 }
-                ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+                ArrayList<SnapshotsInProgress.Entry> updatedSnapshotEntries = new ArrayList<>();
 
                 // We keep a cache of shards that failed in this map. If we fail a shardId for a given repository because of
                 // a node leaving or shard becoming unassigned for one snapshot, we will also fail it for all subsequent enqueued snapshots
@@ -597,9 +597,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             } else {
                                 updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, shards);
                             }
-                            entries.add(updatedSnapshot);
+                            updatedSnapshotEntries.add(updatedSnapshot);
                         } else {
-                            entries.add(snapshot);
+                            updatedSnapshotEntries.add(snapshot);
                         }
                     } else if (snapshot.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
                         // BwC path, older versions could create entries with unknown repo GEN in INIT or ABORTED state that did not yet
@@ -611,12 +611,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (snapshot.state().completed() || completed(snapshot.shards().values())) {
                             finishedSnapshots.add(snapshot);
                         }
-                        entries.add(snapshot);
+                        updatedSnapshotEntries.add(snapshot);
                     }
                 }
                 final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(
-                        changed ? ClusterState.builder(currentState)
-                                .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build() :
+                        changed ? ClusterState.builder(currentState).putCustom(
+                                SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(updatedSnapshotEntries))).build() :
                                 currentState);
                 deletionsToExecute = res.v2();
                 return res.v1();
@@ -1534,24 +1534,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         boolean updatedQueuedSnapshot = false;
                                         for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
                                             if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_WAITING)) {
-                                                // TODO: this could be made more efficient by not recomputing assignments for shards that
-                                                //       are already in reAssignedShardIds
-                                                final ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardAssignments =
-                                                        shards(currentState, entry.indices(),
-                                                                entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
-                                                                repositoryData, entry.repository(), true);
-                                                final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus>
-                                                        updatedAssignmentsBuilder = ImmutableOpenMap.builder();
-                                                for (ObjectCursor<ShardId> key : entry.shards().keys()) {
-                                                    final ShardSnapshotStatus existing = entry.shards().get(key.value);
-                                                    if (existing.equals(ShardSnapshotStatus.UNASSIGNED_WAITING)
-                                                            && reAssignedShardIds.add(key.value)) {
-                                                        updatedAssignmentsBuilder.put(key.value, shardAssignments.get(key.value));
-                                                    } else {
-                                                        updatedAssignmentsBuilder.put(key.value, existing);
-                                                    }
-                                                }
-                                                snapshotEntries.add(entry.withShards(updatedAssignmentsBuilder.build()));
+                                                snapshotEntries.add(updateAssignmentsAfterWaitingForDelete(
+                                                        currentState, reAssignedShardIds, entry, repositoryData));
                                                 updatedQueuedSnapshot = true;
                                                 break;
                                             }
@@ -1641,6 +1625,37 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         });
+    }
+
+    /**
+     * Starts all shards that can be started on the given {@link SnapshotsInProgress.Entry} after removing a snapshot deletion from the
+     * cluster state.
+     *
+     * @param currentState       current cluster state
+     * @param reAssignedShardIds shard ids that cannot be reassigned because they were already assigned to other snapshots in this cluster
+     *                           state update
+     * @param entry              snapshot entry
+     * @param repositoryData     current repository data
+     * @return updated snapshot entry
+     */
+    private static SnapshotsInProgress.Entry updateAssignmentsAfterWaitingForDelete(ClusterState currentState,
+                                                                                    Set<ShardId> reAssignedShardIds,
+                                                                                    SnapshotsInProgress.Entry entry,
+                                                                                    RepositoryData repositoryData) {
+        // TODO: this could be made more efficient by not recomputing assignments for shards that
+        //       are already in reAssignedShardIds
+        final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardAssignments = shards(currentState, entry.indices(),
+                entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION), repositoryData, entry.repository(), true);
+        final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap.builder();
+        for (ObjectCursor<ShardId> key : entry.shards().keys()) {
+            final ShardSnapshotStatus existing = entry.shards().get(key.value);
+            if (existing.equals(ShardSnapshotStatus.UNASSIGNED_WAITING) && reAssignedShardIds.add(key.value)) {
+                updatedAssignmentsBuilder.put(key.value, shardAssignments.get(key.value));
+            } else {
+                updatedAssignmentsBuilder.put(key.value, existing);
+            }
+        }
+        return entry.withShards(updatedAssignmentsBuilder.build());
     }
 
     private static <T> void failListenersIgnoringException(@Nullable List<ActionListener<T>> listeners, Exception failure) {

@@ -57,7 +57,8 @@ GET /_data_stream/my-data-stream
 
 `<data-stream>`::
 (Required, string)
-Comma-separated list or wildcard (`*`) expression of data streams to retrieve.
+Name of the data stream to retrieve.
+Wildcard (`*`) expressions are supported.
 
 [[get-data-stream-api-example]]
 ==== {api-examples-title}

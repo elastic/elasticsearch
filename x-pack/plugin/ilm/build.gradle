@@ -14,7 +14,7 @@ archivesBaseName = 'x-pack-ilm'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 // add all sub-projects of the qa sub-project

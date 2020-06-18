@@ -46,7 +46,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
-            request.indicesOptions(), request.indices());
+            request.indicesOptions(), true, request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),
             clusterService.state().getMetadata().indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));

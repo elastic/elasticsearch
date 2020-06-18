@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
@@ -371,7 +372,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getExpirationTime(), greaterThan(now));
 
         // remove the async search index
-        client().admin().indices().prepareDelete(AsyncSearch.INDEX).get();
+        client().admin().indices().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
 
         Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
         Throwable cause = exc instanceof ExecutionException ?

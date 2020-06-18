@@ -106,8 +106,8 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 tasks.withType(AbstractArchiveTask).configureEach {
   dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
-  destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
+  destinationDirectory = file("${subdir}/build/distributions")
+  archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
 Closure commonZipConfig = {

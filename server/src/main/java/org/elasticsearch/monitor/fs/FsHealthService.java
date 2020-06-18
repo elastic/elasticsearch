@@ -111,18 +111,18 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     public StatusInfo getHealth() {
         StatusInfo statusInfo;
         if (enabled == false) {
-            statusInfo = new StatusInfo(HEALTHY, "FS health checks are disabled");
+            statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         }
         else if (pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == UNHEALTHY)) {
-            String info = "Path(s) " + pathHealthStats.entrySet()
+            String info = "health check failed on [" + pathHealthStats.entrySet()
                 .stream().filter(v -> v.getValue() == UNHEALTHY)
                 .map(k -> k.getKey().toString())
-                .collect(Collectors.joining(",")) + " have failed writability checks";
+                .collect(Collectors.joining(",")) + "]";
 
             statusInfo = new StatusInfo(UNHEALTHY, info);
         }
         else {
-            statusInfo = new StatusInfo(HEALTHY, "All paths have passed writabililty checks");
+            statusInfo = new StatusInfo(HEALTHY, "health check passed");
         }
         return statusInfo;
     }

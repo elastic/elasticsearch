@@ -63,18 +63,18 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRevertModelSnapshot() throws Exception {
-        test(false);
+        test("revert-model-snapshot-it-job", false);
     }
 
     public void testRevertModelSnapshot_DeleteInterveningResults() throws Exception {
-        test(true);
+        test("revert-model-snapshot-it-job-delete-intervening-results", true);
     }
 
-    private void test(boolean deleteInterveningResults) throws Exception {
+    private void test(String jobId, boolean deleteInterveningResults) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 
-        Job.Builder job = buildAndRegisterJob("revert-model-snapshot-it-job", bucketSpan);
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
         postData(job.getId(), generateData(startTime, bucketSpan, 10, Arrays.asList("foo"),
                 (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream().collect(Collectors.joining()));

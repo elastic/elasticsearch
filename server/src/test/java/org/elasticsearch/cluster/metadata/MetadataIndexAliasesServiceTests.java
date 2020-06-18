@@ -503,7 +503,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
             singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
         assertThat(exception.getMessage(), is("The provided index [ .ds-foo-stream-000001] is a backing index belonging to data stream " +
-            "[foo-stream]. data streams and their backing indices don't support aliases driven operations."));
+            "[foo-stream]. Data streams and their backing indices don't support alias operations."));
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

@@ -195,7 +195,7 @@ public class MetadataIndexAliasesService {
         if (indexAbstraction.getParentDataStream() != null) {
             throw new IllegalArgumentException("The provided index [ " + action.getIndex()
                 + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                + "]. data streams and their backing indices don't support aliases driven operations.");
+                + "]. Data streams and their backing indices don't support alias operations.");
         }
     }
 }

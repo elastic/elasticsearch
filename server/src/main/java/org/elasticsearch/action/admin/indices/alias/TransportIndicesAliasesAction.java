@@ -122,7 +122,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 if (indexAbstraction.getParentDataStream() != null) {
                     throw new IllegalArgumentException("The provided expressions [" + String.join(",", action.indices())
                         + "] match a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                        + "]. data streams and their backing indices don't support aliases.");
+                        + "]. Data streams and their backing indices don't support aliases.");
                 }
             }
             final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);

@@ -460,7 +460,7 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest.addAliasAction(addAction);
         Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
         assertThat(e.getMessage(), equalTo("The provided expressions [" + backingIndex
-            + "] match a backing index belonging to data stream [" + dataStreamName + "]. data streams and their backing indices don't " +
+            + "] match a backing index belonging to data stream [" + dataStreamName + "]. Data streams and their backing indices don't " +
             "support aliases."));
     }
 

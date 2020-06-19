@@ -9,9 +9,9 @@ https://en.wikipedia.org/wiki/Multiple_dispatch[runtime types] of the
 parameters and Java which uses the compile time types of the parameters.
 
 The consequence of this that Painless doesn't support overloaded methods like
-Java, leading to some trouble when it whitelists classes from the Java
+Java, leading to some trouble when it allows classes from the Java
 standard library. For example, in Java and Groovy, `Matcher` has two methods:
-`group(int)` and `group(String)`. Painless can't whitelist both of these methods
+`group(int)` and `group(String)`. Painless can't allow both of these methods
 because they have the same name and the same number of parameters. So instead it
 has `group(int)` and `namedGroup(String)`.
 

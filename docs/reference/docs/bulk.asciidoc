@@ -90,7 +90,7 @@ as this will slow things down.
 ===== Client support for bulk requests
 
 Some of the officially supported clients provide helpers to assist with
-bulk requests and reindexing of documents from one index to another:
+bulk requests and reindexing:
 
 Go::
 

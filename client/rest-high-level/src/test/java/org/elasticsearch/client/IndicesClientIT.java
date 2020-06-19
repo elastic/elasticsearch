@@ -58,26 +58,31 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DataStream;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
+import org.elasticsearch.client.indices.GetDataStreamResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
-import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -87,8 +92,8 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -1563,6 +1568,60 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(alias2), equalTo(true));
         assertThat(aliasExists(index, alias), equalTo(false));
         assertThat(aliasExists(index, alias2), equalTo(true));
+    }
+
+    public void testDataStreams() throws Exception {
+        String dataStreamName = "data-stream";
+
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
+        Template template = new Template(null, mappings, null);
+        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
+            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
+            highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        CreateDataStreamRequest createDataStreamRequest = new CreateDataStreamRequest(dataStreamName);
+        IndicesClient indices = highLevelClient().indices();
+        response = execute(createDataStreamRequest, indices::createDataStream, indices::createDataStreamAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        GetDataStreamRequest getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
+        GetDataStreamResponse getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        List<DataStream> dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(1));
+        DataStream dataStream = dataStreams.get(0);
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        assertThat(dataStream.getGeneration(), equalTo(1L));
+        assertThat(dataStream.getTimeStampField(), equalTo("@timestamp"));
+        assertThat(dataStream.getIndices(), hasSize(1));
+
+        getDataStreamRequest = new GetDataStreamRequest(null);
+        getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(1));
+        dataStream = dataStreams.get(0);
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        assertThat(dataStream.getGeneration(), equalTo(1L));
+        assertThat(dataStream.getTimeStampField(), equalTo("@timestamp"));
+        assertThat(dataStream.getIndices(), hasSize(1));
+
+        DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
+        response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        getDataStreamRequest = new GetDataStreamRequest(null);
+        getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(0));
+
+        getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
+        GetDataStreamRequest finalGetDataStreamRequest = getDataStreamRequest;
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(finalGetDataStreamRequest,
+            indices::getDataStream, indices::getDataStreamAsync));
+        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testIndexTemplates() throws Exception {

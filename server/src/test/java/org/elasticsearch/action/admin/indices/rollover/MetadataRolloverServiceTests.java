@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -483,8 +484,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, shardLimitValidator, env, null,
-                testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitValidator, env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -560,8 +561,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, shardLimitValidator, env, null,
-                testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitValidator, env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

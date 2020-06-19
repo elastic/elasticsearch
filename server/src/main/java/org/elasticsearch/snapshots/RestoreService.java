@@ -210,7 +210,7 @@ public class RestoreService implements ClusterStateApplier {
                 Map<String, DataStream> dataStreams;
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
 
-                List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(String[]::new),
+                List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(new String[0]),
                     IndicesOptions.fromOptions(true, true, true, true));
                 if (requestedDataStreams.isEmpty()) {
                     dataStreams = new HashMap<>();
@@ -228,7 +228,7 @@ public class RestoreService implements ClusterStateApplier {
                     .collect(Collectors.toSet());
                 requestIndices.addAll(dataStreamIndices);
 
-                final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(String[]::new),
+                final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(new String[0]),
                     request.indicesOptions());
 
                 final Metadata.Builder metadataBuilder;

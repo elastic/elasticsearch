@@ -2548,7 +2548,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(dataStream)).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
-            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [test-ds"));
+            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: ["+dataStream));
         } finally {
             logger.info("--> unblock all data nodes");
             unblockAllDataNodes("test-repo");

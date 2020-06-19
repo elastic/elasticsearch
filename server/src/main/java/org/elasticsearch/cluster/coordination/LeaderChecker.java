@@ -164,7 +164,7 @@ public class LeaderChecker {
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             final String message = "rejecting leader check from [" + request.getSender() + "] " +
-                "since node is unhealthy [" + statusInfo.getInfo() + "], rejecting " + statusInfo.getInfo();
+                "since node is unhealthy [" + statusInfo.getInfo() + "]";
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
         } else if (discoveryNodes.isLocalNodeElectedMaster() == false) {

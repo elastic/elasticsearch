@@ -398,6 +398,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final CapturingTransport capturingTransport = new CapturingTransport();
+        AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
         final TransportService transportService = capturingTransport.createTransportService(settings,
             deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
@@ -405,11 +406,25 @@ public class LeaderCheckerTests extends ESTestCase {
         transportService.acceptIncomingRequests();
 
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> fail("shouldn't be checking anything"),
-            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
+            () -> nodeHealthServiceStatus.get());
 
         final DiscoveryNodes discoveryNodes
             = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()).build();
 
+        {
+            leaderChecker.setCurrentNodes(discoveryNodes);
+
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
+            deterministicTaskQueue.runAllTasks();
+
+            assertFalse(handler.successfulResponseReceived);
+            assertThat(handler.transportException.getRootCause(), instanceOf(NodeHealthCheckFailureException.class));
+            NodeHealthCheckFailureException cause = (NodeHealthCheckFailureException) handler.transportException.getRootCause();
+            assertThat(cause.getMessage(), equalTo("rejecting leader check from [" + otherNode + "] since node is unhealthy [unhealthy-info]"));
+        }
+        
+        nodeHealthServiceStatus.getAndSet(new StatusInfo(HEALTHY, "healthy-info"));
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 

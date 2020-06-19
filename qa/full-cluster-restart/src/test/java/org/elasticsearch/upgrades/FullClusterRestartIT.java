@@ -1417,8 +1417,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
             assertOK(client().performRequest(indexRequest));
         }
-
-        ensureGreen(DataStream.getDefaultBackingIndexName("ds", 1));
+        
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
         assertOK(response);

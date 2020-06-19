@@ -31,6 +31,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -43,6 +45,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
@@ -123,18 +126,31 @@ public class ClusterFormationFailureHelper {
         private final List<DiscoveryNode> foundPeers;
         private final long currentTerm;
         private final ElectionStrategy electionStrategy;
+        private final NodeHealthService nodeHealthService;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy) {
+                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy,
+                              NodeHealthService nodeHealthService) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
             this.currentTerm = currentTerm;
             this.electionStrategy = electionStrategy;
+            this.nodeHealthService = nodeHealthService;
         }
 
         String getDescription() {
+            final StatusInfo statusInfo = nodeHealthService.getHealth();
+            if (statusInfo.getStatus() == UNHEALTHY) {
+                if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+                    return String.format(Locale.ROOT,
+                        "this node cannot form the cluster as health check has failed due to %s", statusInfo.getInfo());
+                } else {
+                    return String.format(Locale.ROOT,
+                        "this node cannot form the cluster or elect master as health check has failed due to %s", statusInfo.getInfo());
+                }
+            }
             final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
                 .map(n -> n.value.toString()).collect(Collectors.toList());
 

@@ -421,7 +421,8 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(NodeHealthCheckFailureException.class));
             NodeHealthCheckFailureException cause = (NodeHealthCheckFailureException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("rejecting leader check from [" + otherNode + "] since node is unhealthy [unhealthy-info]"));
+            assertThat(cause.getMessage(), equalTo("rejecting leader check from [" + otherNode
+                + "] since node is unhealthy [unhealthy-info]"));
         }
         
         nodeHealthServiceStatus.getAndSet(new StatusInfo(HEALTHY, "healthy-info"));

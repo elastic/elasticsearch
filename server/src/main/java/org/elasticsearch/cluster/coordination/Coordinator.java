@@ -206,7 +206,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
-                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy);
+                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy, nodeHealthService);
     }
 
     private void onLeaderFailure(Exception e) {

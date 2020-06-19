@@ -79,6 +79,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -89,6 +90,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+
 
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
@@ -177,7 +179,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 () -> healthStatusInfo.get());
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
-            cluster.stabilise();
+            cluster.stabilise(
+                // The first pinging discovers the master
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                    // One message delay to send a join
+                    + DEFAULT_DELAY_VARIABILITY
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + 2 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
             {
                 assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
@@ -552,6 +561,66 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ));
 
             assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+        }
+    }
+
+    public void testUnHealthyLeaderRemoved() {
+        AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 3), true, Settings.EMPTY,
+            () -> nodeHealthServiceStatus.get())) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+
+            logger.info("--> adding three new healthy nodes");
+            ClusterNode newNode1 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                () -> new StatusInfo(HEALTHY, "healthy-info"));
+            ClusterNode newNode2 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                () -> new StatusInfo(HEALTHY, "healthy-info"));
+            ClusterNode newNode3 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                () -> new StatusInfo(HEALTHY, "healthy-info"));
+            cluster.clusterNodes.add(newNode1);
+            cluster.clusterNodes.add(newNode2);
+            cluster.clusterNodes.add(newNode3);
+            cluster.stabilise(
+                // The first pinging discovers the master
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                    // One message delay to send a join
+                    + DEFAULT_DELAY_VARIABILITY
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + 3 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+
+            logger.info("--> changing health status of leader {} to unhealthy", leader);
+            nodeHealthServiceStatus.getAndSet(new StatusInfo(UNHEALTHY, "unhealthy-info"));
+
+            cluster.stabilise(
+                // first wait for all the followers to notice the leader has gone
+                (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING))
+                    // then wait for a follower to be promoted to leader
+                    + DEFAULT_ELECTION_DELAY
+                    // and the first publication times out because of the unresponsive node
+                    + defaultMillis(PUBLISH_TIMEOUT_SETTING)
+                    // there might be a term bump causing another election
+                    + DEFAULT_ELECTION_DELAY
+
+                    // then wait for both of:
+                    + Math.max(
+                    // 1. the term bumping publication to time out
+                    defaultMillis(PUBLISH_TIMEOUT_SETTING),
+                    // 2. the new leader to notice that the old leader is unresponsive
+                    (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                    )
+
+                    // then wait for the new leader to commit a state without the old leader
+                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                    // then wait for the followup reconfiguration
+                    + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            );
+
+            assertThat(cluster.getAnyLeader().getId(), anyOf(equalTo(newNode1.getId()), equalTo(newNode2.getId()),
+                equalTo(newNode3.getId())));
         }
     }
 

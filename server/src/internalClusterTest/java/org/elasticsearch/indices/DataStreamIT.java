@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
@@ -96,11 +97,11 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testBasicScenario() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
+        createIndexTemplate("id2", "@timestamp2", "metrics-bar*");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
@@ -184,7 +185,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        createIndexTemplate("id", "@timestamp1", "metrics-foobar*");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -350,7 +351,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
-        createIndexTemplate("id", "logs-*", "ts");
+        createIndexTemplate("id", "ts", "logs-*");
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(request).actionGet();
@@ -411,7 +412,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        createIndexTemplate("id", "@timestamp1", "metrics-foobar*");
         String dataStreamName = "metrics-foobar-baz";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -431,6 +432,36 @@ public class DataStreamIT extends ESIntegTestCase {
             err.getMessage().contains("unable to remove composable templates [id] " +
                 "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
         assertTrue(maybeE.isPresent());
+    }
+
+    public void testAliasActionsFailOnDataStreams() throws Exception {
+        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(dataStreamName).aliases("foo");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        expectFailure(dataStreamName, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+    }
+
+    public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
+        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(backingIndex).aliases("first_gen");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("The provided expressions [" + backingIndex
+            + "] match a backing index belonging to data stream [" + dataStreamName + "]. Data streams and their backing indices don't " +
+            "support aliases."));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
@@ -507,11 +538,11 @@ public class DataStreamIT extends ESIntegTestCase {
             "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
-    static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
+    public static void createIndexTemplate(String id, String timestampFieldName, String... pattern) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
-                List.of(pattern),
+                Arrays.asList(pattern),
                 new Template(null,
                     new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
                 null, null, null, null,

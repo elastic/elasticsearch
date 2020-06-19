@@ -27,7 +27,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -162,7 +161,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
-            return new ParentJoinFieldMapper(name, fieldType, new JoinFieldType(buildFullName(context), meta), context.indexSettings(),
+            return new ParentJoinFieldMapper(name, fieldType, new JoinFieldType(buildFullName(context), meta),
                 unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
         }
     }
@@ -253,11 +252,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     protected ParentJoinFieldMapper(String simpleName,
                                     FieldType fieldType,
                                     MappedFieldType mappedFieldType,
-                                    Settings indexSettings,
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;

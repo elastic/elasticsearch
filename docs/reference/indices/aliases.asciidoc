@@ -113,6 +113,10 @@ unless overriden in the request using the `expand_wildcards` parameter,
 similar to <<index-hidden,hidden indices>>. This property must be set to the
 same value on all indices that share an alias. Defaults to `false`.
 
+`must_exist`::
+(Optional, boolean)
+If `true`, the alias to remove must exist. Defaults to `false`.
+
 `is_write_index`::
 (Optional, boolean)
 If `true`, assigns the index as an alias's write index.

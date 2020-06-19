@@ -23,7 +23,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -63,7 +62,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(fieldType, context.indexSettings());
+            return new IndexFieldMapper(fieldType);
         }
     }
 
@@ -76,8 +75,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new IndexFieldMapper(Defaults.FIELD_TYPE, indexSettings);
+            return new IndexFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
@@ -120,8 +118,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private IndexFieldMapper(FieldType fieldType, Settings indexSettings) {
-        super(fieldType, IndexFieldType.INSTANCE, indexSettings);
+    private IndexFieldMapper(FieldType fieldType) {
+        super(fieldType, IndexFieldType.INSTANCE);
     }
 
     @Override

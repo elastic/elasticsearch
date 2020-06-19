@@ -109,7 +109,7 @@ public class RootObjectMapper extends ObjectMapper {
                     boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
                     boolean includedInRoot = isNested && nested.isIncludeInRoot();
                     if (includeInRootViaParent && includedInRoot) {
-                        child.nested = Nested.newNested(true, false);
+                        child.nested = Nested.newNested(new Explicit<>(true, true), new Explicit<>(false, true));
                     }
                     fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
                 }
@@ -117,7 +117,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
             return new RootObjectMapper(name, enabled, dynamic, mappers,
@@ -215,7 +215,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
 
-    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
+    RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Explicit<DateFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
                      Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
         super(name, name, enabled, Nested.NO, dynamic, mappers, settings);

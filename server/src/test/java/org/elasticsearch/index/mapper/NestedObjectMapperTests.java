@@ -758,7 +758,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         // cannot update `include_in_parent` dynamically
         MapperException e1 = expectThrows(MapperException.class, () -> mapperService.merge("type",
             new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
-        assertEquals("The [include_in_parent] parameter can't be updated for the nested object mapping [nested1].", e1.getMessage());
+        assertEquals("The [include_in_parent] parameter can't be updated on a nested object mapping.", e1.getMessage());
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").field("include_in_root", true)
@@ -767,6 +767,6 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         // cannot update `include_in_root` dynamically
         MapperException e2 = expectThrows(MapperException.class, () -> mapperService.merge("type",
             new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertEquals("The [include_in_root] parameter can't be updated for the nested object mapping [nested1].", e2.getMessage());
+        assertEquals("The [include_in_root] parameter can't be updated on a nested object mapping.", e2.getMessage());
     }
 }

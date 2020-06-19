@@ -210,7 +210,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             @Override
             public ObjectMapper getObjectMapper(String name) {
                 BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder<>(name).nested(Nested.newNested()).build(context);
             }
         };
     }

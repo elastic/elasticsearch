@@ -98,14 +98,14 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
             objectMapper.merge(nestedMapper.mapping(), reason);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("object mapping [obj] can't be changed from non-nested to nested"));
+            assertThat(e.getMessage(), containsString("Cannot change object mapping from non-nested to nested"));
         }
 
         try {
             nestedMapper.merge(objectMapper.mapping(), reason);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("object mapping [obj] can't be changed from nested to non-nested"));
+            assertThat(e.getMessage(), containsString("Cannot change object mapping from nested to non-nested"));
         }
     }
 

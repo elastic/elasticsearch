@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -165,14 +166,16 @@ public class MapperMergeValidatorTests extends ESTestCase {
         .build();
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, true,
+        return new ObjectMapper(name, name,
+            new Explicit<>(true, false),
             ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
     }
 
     private static ObjectMapper createNestedObjectMapper(String name) {
-        return new ObjectMapper(name, name, true,
-            ObjectMapper.Nested.newNested(false, false),
+        return new ObjectMapper(name, name,
+            new Explicit<>(true, false),
+            ObjectMapper.Nested.newNested(),
             ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
     }
 }

@@ -341,6 +341,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // original mapping not modified
         assertEquals(mapping, serialize(mapper));
         // but we have an update
+        String serializedUpdate = serialize(update);
         assertEquals(Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz")
                 .field("type", "text")

@@ -162,6 +162,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMerge() throws IOException {
+        MergeReason reason = randomFrom(MergeReason.values());
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -171,14 +172,55 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), reason);
         assertNull(mapper.root().dynamic());
         String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .field("dynamic", "strict")
                 .endObject().endObject());
-        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE);
+        mapper = mapperService.merge("type", new CompressedXContent(update), reason);
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
+    }
+
+    public void testMergeEnabledForIndexTemplates() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", false)
+                .endObject()
+            .endObject().endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+        assertNull(mapper.root().dynamic());
+
+        // If we don't explicitly set 'enabled', then the mapping should not change.
+        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("dynamic", false)
+                .endObject()
+            .endObject().endObject());
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        ObjectMapper objectMapper = mapper.objectMappers().get("object");
+        assertNotNull(objectMapper);
+        assertFalse(objectMapper.isEnabled());
+
+        // Setting 'enabled' to true is allowed, and updates the mapping.
+        update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .field("type", "object")
+                    .field("enabled", true)
+                .endObject()
+            .endObject().endObject());
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        objectMapper = mapper.objectMappers().get("object");
+        assertNotNull(objectMapper);
+        assertTrue(objectMapper.isEnabled());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {

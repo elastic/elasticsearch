@@ -46,6 +46,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -174,6 +176,13 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 }
                 throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
             }
+
+            Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
+            if (snapshottingDataStreams.isEmpty() == false) {
+                throw new SnapshotInProgressException("Cannot delete data streams that are being snapshotted: " + snapshottingDataStreams +
+                    ". Try again after snapshot finishes or cancel the currently running snapshot.");
+            }
+
             List<String> dataStreamsToRemove = new ArrayList<>();
             Set<Index> backingIndicesToRemove = new HashSet<>();
             for (String dataStreamName : dataStreams) {

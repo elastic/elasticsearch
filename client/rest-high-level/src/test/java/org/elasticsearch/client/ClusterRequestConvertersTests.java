@@ -136,6 +136,13 @@ public class ClusterRequestConvertersTests extends ESTestCase {
                 expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
             }
         }
+        if (ESTestCase.randomBoolean()) {
+            boolean waitForIndicesExists = ESTestCase.randomBoolean();
+            healthRequest.waitForIndicesExists(waitForIndicesExists);
+            if (waitForIndicesExists) {
+                expectedParams.put("wait_for_indices_exists", Boolean.TRUE.toString());
+            }
+        }
         String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
         healthRequest.indices(indices);
 

@@ -276,3 +276,19 @@
       cluster.health:
         index: index-2
   - match:     { status:     yellow }
+
+---
+"cluster health basic test, index not found test":
+  - do:
+      cluster.health:
+        index: test_index
+
+  - is_false:  timed_out
+
+  - do:
+      cluster.health:
+        index: test_index
+        wait_for_indices_exists: true
+        timeout: 1s
+
+  - is_false:  timed_out

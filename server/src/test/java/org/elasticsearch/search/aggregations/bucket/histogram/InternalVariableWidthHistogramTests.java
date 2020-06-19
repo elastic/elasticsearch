@@ -73,7 +73,7 @@ public class InternalVariableWidthHistogramTests extends
                                                                 Map<String, Object> metaData,
                                                                 InternalAggregations aggregations) {
         final double base = randomIntBetween(-50, 50);
-        final int numBuckets = randomIntBetween(1, 5);
+        final int numBuckets = randomIntBetween(1, 3);
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         double curKey = base;
         for (int i = 0; i < numBuckets; ++i) {

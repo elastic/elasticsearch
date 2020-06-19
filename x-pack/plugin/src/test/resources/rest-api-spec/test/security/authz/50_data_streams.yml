@@ -77,7 +77,7 @@ teardown:
   - set: { _seq_no: seqno }
   - set: { _primary_term: primary_term }
 
-  - do:
+  - do: # superuser
       indices.refresh:
         index: simple-data-stream1
 

@@ -40,7 +40,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -169,7 +169,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 } catch (Exception ex) {
                     logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
                     if (currentUnhealthyPaths == null) {
-                        currentUnhealthyPaths = new LinkedHashSet<>(1);
+                        currentUnhealthyPaths = new HashSet<>(1);
                     }
                     currentUnhealthyPaths.add(path);
                 }

@@ -296,6 +296,6 @@ public class AggregationsTests extends ESTestCase {
             }
             aggs.add(testCase.createTestInstance());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 }

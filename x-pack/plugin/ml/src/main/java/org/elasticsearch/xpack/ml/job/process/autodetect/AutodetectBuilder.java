@@ -73,6 +73,7 @@ public class AutodetectBuilder {
     static final String MAX_QUANTILE_INTERVAL_ARG = "--maxQuantileInterval=";
     static final String SUMMARY_COUNT_FIELD_ARG = "--summarycountfield=";
     static final String TIME_FIELD_ARG = "--timefield=";
+    static final String STOP_CATEGORIZATION_ON_WARN_ARG = "--stopCategorizationOnWarnStatus";
 
     /**
      * Name of the config setting containing the path to the logs directory
@@ -197,6 +198,9 @@ public class AutodetectBuilder {
             addIfNotNull(analysisConfig.getSummaryCountFieldName(), SUMMARY_COUNT_FIELD_ARG, command);
             if (Boolean.TRUE.equals(analysisConfig.getMultivariateByFields())) {
                 command.add(MULTIVARIATE_BY_FIELDS_ARG);
+            }
+            if (Boolean.TRUE.equals(analysisConfig.getPerPartitionCategorizationConfig().isStopOnWarn())) {
+                command.add(STOP_CATEGORIZATION_ON_WARN_ARG);
             }
         }
 

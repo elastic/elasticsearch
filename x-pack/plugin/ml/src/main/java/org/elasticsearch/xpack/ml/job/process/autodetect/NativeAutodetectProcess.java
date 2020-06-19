@@ -84,7 +84,7 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     @Override
     public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig)
         throws IOException {
-        // TODO: write the control message once it's been implemented on the C++ side
+        newMessageWriter().writeCategorizationStopOnWarnMessage(perPartitionCategorizationConfig.isStopOnWarn());
     }
 
     @Override

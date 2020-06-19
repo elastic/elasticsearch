@@ -436,7 +436,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testAliasActionsFailOnDataStreams() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -449,7 +449,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();

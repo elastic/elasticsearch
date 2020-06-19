@@ -2521,7 +2521,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put("block_on_data", true)));
 
 
-        String dataStream = "test-ds";
+        String dataStream = "datastream";
         DataStreamIT.createIndexTemplate("dst", "@timestamp", dataStream);
 
         logger.info("--> indexing some data");

@@ -122,7 +122,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Add a new shard to this node
-     * @param shard Shard to be created on this Node
+     * @param shard Shard to create on this Node
      */
     void add(ShardRouting shard) {
         assert invariant();
@@ -144,7 +144,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     void update(ShardRouting oldShard, ShardRouting newShard) {
         assert invariant();
         if (shards.containsKey(oldShard.shardId()) == false) {
-            // Shard has already been removed by routing nodes iterator
+            // Shard was already removed by routing nodes iterator
             // TODO: change caller logic in RoutingNodes so that this check can go away
             return;
         }

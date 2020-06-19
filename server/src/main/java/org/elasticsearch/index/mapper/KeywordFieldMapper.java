@@ -33,7 +33,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -174,7 +173,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldMapper build(BuilderContext context) {
             return new KeywordFieldMapper(name,
                     fieldType, buildFieldType(context), ignoreAbove, splitQueriesOnWhitespace, nullValue,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -330,8 +329,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                  int ignoreAbove, boolean splitQueriesOnWhitespace, String nullValue,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                 MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
         this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
@@ -429,7 +428,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || (mappedFieldType.isSearchable() && fieldType.indexOptions() != IndexOptions.DOCS)) {
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
         if (nullValue != null) {

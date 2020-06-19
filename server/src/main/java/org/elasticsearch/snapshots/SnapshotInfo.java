@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  */
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
-    public static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_8_0_0;
+    public static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_7_9_0;
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";

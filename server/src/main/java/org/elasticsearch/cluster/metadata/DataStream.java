@@ -38,6 +38,7 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final String DATA_STREAMS_METADATA_FIELD = "data-streams";
 
     private final String name;
     private final String timeStampField;

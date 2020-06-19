@@ -194,7 +194,27 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> changing health of newly added nodes to unhealthy");
             healthStatusInfo.getAndSet(new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
-            cluster.stabilise();
+            cluster.stabilise(Math.max(
+                // Each follower may have just sent a leader check, which receives no response
+                defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
+                    // then wait for the follower to check the leader
+                    + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
+                    // then wait for the exception response
+                    + DEFAULT_DELAY_VARIABILITY,
+
+                // ALSO the leader may have just sent a follower check, which receives no response
+                defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
+                    // wait for the leader to check its followers
+                    + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
+                    // then wait for the exception response
+                    + DEFAULT_DELAY_VARIABILITY)
+
+                // FINALLY:
+
+                // wait for the removal to be committed
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                // then wait for the followup reconfiguration
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
             {
                 final ClusterNode newLeader = cluster.getAnyLeader();
                 final VotingConfiguration lastCommittedConfiguration

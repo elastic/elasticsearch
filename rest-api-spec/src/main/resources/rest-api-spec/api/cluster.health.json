@@ -90,6 +90,10 @@
         "type":"boolean",
         "description":"Whether to wait until there are no initializing shards in the cluster"
       },
+      "wait_for_indices_exists":{
+        "type":"boolean",
+        "description":"Whether to wait until indices exists"
+      },
       "wait_for_status":{
         "type":"enum",
         "options":[

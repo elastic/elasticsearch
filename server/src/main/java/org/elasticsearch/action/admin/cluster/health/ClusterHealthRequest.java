@@ -44,6 +44,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
     private boolean waitForNoInitializingShards = false;
+    private boolean waitForIndicesExists = false;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
@@ -87,6 +88,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            waitForIndicesExists = in.readBoolean();
+        }
     }
 
     @Override
@@ -119,6 +123,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         out.writeBoolean(waitForNoInitializingShards);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(waitForIndicesExists);
         }
     }
 
@@ -203,6 +210,21 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      */
     public ClusterHealthRequest waitForNoInitializingShards(boolean waitForNoInitializingShards) {
         this.waitForNoInitializingShards = waitForNoInitializingShards;
+        return this;
+    }
+
+    public boolean waitForIndicesExists() {
+        return waitForIndicesExists;
+    }
+
+    /**
+     * Sets whether the request should wait for indices exists if indices is not empty before
+     * retrieving the cluster health status.  Defaults to {@code false}, meaning the
+     * operation does not wait on if indices not found.  Set to <code>true</code>
+     * to wait until the indices exists.
+     */
+    public ClusterHealthRequest waitForIndicesExists(boolean waitForIndicesExists) {
+        this.waitForIndicesExists = waitForIndicesExists;
         return this;
     }
 

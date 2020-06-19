@@ -73,6 +73,7 @@ final class ClusterRequestConverters {
             .withWaitForStatus(healthRequest.waitForStatus())
             .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
             .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
+            .withWaitForIndicesExists(healthRequest.waitForIndicesExists())
             .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
             .withWaitForNodes(healthRequest.waitForNodes())
             .withWaitForEvents(healthRequest.waitForEvents())

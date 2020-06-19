@@ -50,6 +50,7 @@ public class ClusterHealthRequestTests extends ESTestCase {
         assertThat(cloneRequest.waitForNodes(), equalTo(originalRequest.waitForNodes()));
         assertThat(cloneRequest.waitForNoInitializingShards(), equalTo(originalRequest.waitForNoInitializingShards()));
         assertThat(cloneRequest.waitForNoRelocatingShards(), equalTo(originalRequest.waitForNoRelocatingShards()));
+        assertThat(cloneRequest.waitForIndicesExists(), equalTo(originalRequest.waitForIndicesExists()));
         assertThat(cloneRequest.waitForActiveShards(), equalTo(originalRequest.waitForActiveShards()));
         assertThat(cloneRequest.waitForEvents(), equalTo(originalRequest.waitForEvents()));
         assertIndicesEquals(cloneRequest.indices(), originalRequest.indices());
@@ -63,9 +64,13 @@ public class ClusterHealthRequestTests extends ESTestCase {
 
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
-            // Generate a random cluster health request in version < 7.2.0 and serializes it
+            // Generate a random cluster health request in version < 7.2.0 or 8.0.0 and serializes it
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
+            if (randomBoolean()) {
+                out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
+            } else {
+                out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_8_0_0)));
+            }
 
             final ClusterHealthRequest expected = randomRequest();
             {
@@ -108,19 +113,28 @@ public class ClusterHealthRequestTests extends ESTestCase {
             assertThat(actual.waitForNodes(), equalTo(expected.waitForNodes()));
             assertThat(actual.waitForNoInitializingShards(), equalTo(expected.waitForNoInitializingShards()));
             assertThat(actual.waitForNoRelocatingShards(), equalTo(expected.waitForNoRelocatingShards()));
+            assertThat(actual.waitForIndicesExists(), equalTo(false));
             assertThat(actual.waitForActiveShards(), equalTo(expected.waitForActiveShards()));
             assertThat(actual.waitForEvents(), equalTo(expected.waitForEvents()));
             assertIndicesEquals(actual.indices(), expected.indices());
-            assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
+            if (out.getVersion().before(Version.V_7_2_0)) {
+                assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
+            } else {
+                assertThat(actual.indicesOptions(), equalTo(expected.indicesOptions()));
+            }
         }
 
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster health request in current version
             final ClusterHealthRequest expected = randomRequest();
 
-            // Serialize to node in version < 7.2.0
+            // Serialize to node in version < 7.2.0 or 8.0.0
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
+            if (randomBoolean()) {
+                out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_7_2_0)));
+            } else {
+                out.setVersion(randomVersionBetween(random(), VersionUtils.getFirstVersion(), getPreviousVersion(Version.V_8_0_0)));
+            }
             expected.writeTo(out);
 
             // Deserialize and check the cluster health request
@@ -132,10 +146,15 @@ public class ClusterHealthRequestTests extends ESTestCase {
             assertThat(actual.waitForNodes(), equalTo(expected.waitForNodes()));
             assertThat(actual.waitForNoInitializingShards(), equalTo(expected.waitForNoInitializingShards()));
             assertThat(actual.waitForNoRelocatingShards(), equalTo(expected.waitForNoRelocatingShards()));
+            assertThat(actual.waitForIndicesExists(), equalTo(false));
             assertThat(actual.waitForActiveShards(), equalTo(expected.waitForActiveShards()));
             assertThat(actual.waitForEvents(), equalTo(expected.waitForEvents()));
             assertIndicesEquals(actual.indices(), expected.indices());
-            assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
+            if (out.getVersion().before(Version.V_7_2_0)) {
+                assertThat(actual.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
+            } else {
+                assertThat(actual.indicesOptions(), equalTo(expected.indicesOptions()));
+            }
         }
     }
 
@@ -145,6 +164,7 @@ public class ClusterHealthRequestTests extends ESTestCase {
         request.waitForNodes(randomFrom("", "<", "<=", ">", ">=") + between(0, 1000));
         request.waitForNoInitializingShards(randomBoolean());
         request.waitForNoRelocatingShards(randomBoolean());
+        request.waitForIndicesExists(randomBoolean());
         request.waitForActiveShards(randomIntBetween(0, 10));
         request.waitForEvents(randomFrom(Priority.values()));
         if (randomBoolean()) {

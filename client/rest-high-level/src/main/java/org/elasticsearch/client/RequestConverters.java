@@ -1143,6 +1143,13 @@ final class RequestConverters {
             return this;
         }
 
+        Params withWaitForIndicesExists(boolean waitForIndicesExists) {
+            if (waitForIndicesExists) {
+                return putParam("wait_for_indices_exists", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
         Params withWaitForNodes(String waitForNodes) {
             return putParam("wait_for_nodes", waitForNodes);
         }

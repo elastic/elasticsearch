@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -30,42 +29,27 @@ import java.util.Map;
  *
  * Uses lucene 8 XYPoint encoding
  */
-public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>>
-        implements ArrayValueMapperParser {
+public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
         public Builder(String name) {
-            super(name, new PointFieldType(), new PointFieldType());
+            super(name, new FieldType());
             builder = this;
         }
 
         @Override
-        public PointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                      MappedFieldType defaultFieldType, Settings indexSettings,
+        public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                      Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-            setupFieldType(context);
-            return new PointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, ignoreZValue(context), copyTo);
+                                      Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
+            PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            ft.setGeometryParser(new PointParser<>());
+            ft.setGeometryIndexer(new PointIndexer(ft));
+            ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
+            return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
+                ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
         }
 
-        @Override
-        protected void setGeometryParser() {
-            PointParser<ParsedCartesianPoint> pointParser = new PointParser<>();
-            fieldType().setGeometryParser((parser, mapper) -> pointParser.parse(parser, mapper));
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected void setGeometryIndexer(PointFieldType fieldType) {
-            fieldType.setGeometryIndexer(new PointIndexer(fieldType));
-        }
-
-        @Override
-        protected void setGeometryQueryBuilder(PointFieldType fieldType) {
-            fieldType.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
-        }
     }
 
     @Override
@@ -73,14 +57,14 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         return new ParsedCartesianPoint();
     }
 
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<CartesianPoint, Builder> {
+    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
             return new PointFieldMapper.Builder(name);
         }
 
         @Override
-        protected CartesianPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        protected ParsedPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
             ParsedCartesianPoint point = new ParsedCartesianPoint();
             CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
@@ -104,10 +88,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         CartesianPoint.parsePoint(parser, (CartesianPoint)point, ignoreZValue().value());
     }
 
-    public PointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                            Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                            Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, ignoreMalformed, ignoreZValue, copyTo);
+    public PointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                            MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                            Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
     }
 
     @Override
@@ -139,12 +123,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
 
     @Override
     public PointFieldType fieldType() {
-        return (PointFieldType)fieldType;
+        return (PointFieldType)mappedFieldType;
     }
 
     public static class PointFieldType extends AbstractPointGeometryFieldType<List<ParsedCartesianPoint>, List<ParsedCartesianPoint>> {
-        public PointFieldType() {
-            super();
+        public PointFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
         }
 
          PointFieldType(PointFieldType ref) {

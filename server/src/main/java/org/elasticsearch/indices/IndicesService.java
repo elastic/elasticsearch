@@ -35,13 +35,11 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -84,14 +82,15 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
-import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -330,6 +329,10 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
+
+    public ClusterService clusterService() {
+        return clusterService;
+    }
 
     @Override
     protected void doStop() {
@@ -1543,36 +1546,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void setIdFieldDataEnabled(boolean value) {
         this.idFieldDataEnabled = value;
-    }
-
-    /**
-     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit. Adds a deprecation
-     * warning or returns an error message as appropriate
-     *
-     * @param newShards         The number of shards to be added by this operation
-     * @param state             The current cluster state
-     * @return If present, an error message to be given as the reason for failing
-     * an operation. If empty, a sign that the operation is valid.
-     */
-    public static Optional<String> checkShardLimit(int newShards, ClusterState state) {
-        Settings theseSettings = state.metadata().settings();
-        int nodeCount = state.getNodes().getDataNodes().size();
-
-        // Only enforce the shard limit if we have at least one data node, so that we don't block
-        // index creation during cluster setup
-        if (nodeCount == 0 || newShards < 0) {
-            return Optional.empty();
-        }
-        int maxShardsPerNode = Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(theseSettings);
-        int maxShardsInCluster = maxShardsPerNode * nodeCount;
-        int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
-
-        if ((currentOpenShards + newShards) > maxShardsInCluster) {
-            String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
-                currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
-            return Optional.of(errorMessage);
-        }
-        return Optional.empty();
     }
 
     private void updateDanglingIndicesInfo(Index index) {

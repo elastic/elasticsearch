@@ -1,7 +1,7 @@
 apply plugin: 'base'
 
 task buildDockerBuildContext(type: Tar) {
-  extension = 'tar.gz'
+  archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   archiveClassifier = "docker-build-context"
   archiveBaseName = "elasticsearch"

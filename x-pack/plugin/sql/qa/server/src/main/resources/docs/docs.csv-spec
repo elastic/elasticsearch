@@ -344,7 +344,8 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 STARTS_WITH      |SCALAR
-SUBSTRING        |SCALAR         
+SUBSTRING        |SCALAR
+TRIM             |SCALAR
 UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
@@ -1129,6 +1130,18 @@ Georgi         |Facello        |10001
 // end::limitBasic
 ;
 
+topBasic
+// tag::topBasic
+SELECT TOP 2 first_name, last_name, emp_no FROM emp;
+
+  first_name   |   last_name   |    emp_no
+---------------+---------------+---------------
+Georgi         |Facello        |10001
+Bezalel        |Simmel         |10002
+
+// end::topBasic
+;
+
 ///////////////////////////////
 //
 // Aggregations
@@ -1831,6 +1844,16 @@ Elastic
 // end::stringSubString
 ;
 
+stringTrim
+// tag::stringTrim
+SELECT TRIM('   Elastic   ') AS trimmed;
+
+trimmed
+--------------
+Elastic
+// end::stringTrim
+;
+
 stringUCase
 // tag::stringUCase
 SELECT UCASE('Elastic');
@@ -1858,7 +1881,8 @@ SELECT CAST('123' AS INT) AS int;
 // end::conversionStringToIntCast
 ;
 
-conversionIntToStringCast-Ignore
+conversionIntToStringCast
+schema::string:s
 // tag::conversionIntToStringCast
 SELECT CAST(123 AS VARCHAR) AS string;
 
@@ -2575,7 +2599,6 @@ SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 Monday
 // end::dayName
 ;
-
 
 // Ignored because of https://github.com/elastic/elasticsearch/issues/33796
 constantMonthName-Ignore

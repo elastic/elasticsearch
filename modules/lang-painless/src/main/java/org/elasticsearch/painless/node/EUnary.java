@@ -22,13 +22,12 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -37,18 +36,26 @@ import java.util.Objects;
  */
 public class EUnary extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression child;
+    private final AExpression childNode;
+    private final Operation operation;
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
+    public EUnary(int identifier, Location location, AExpression childNode, Operation operation) {
+        super(identifier, location);
 
+        this.childNode = Objects.requireNonNull(childNode);
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -67,25 +74,27 @@ public class EUnary extends AExpression {
         Input childInput = new Input();
         Output childOutput;
 
-        ENumeric numeric = (ENumeric)child.getChildIf(ENumeric.class);
-        EDecimal decimal = (EDecimal)child.getChildIf(EDecimal.class);
-
-        if ((operation == Operation.SUB || operation == Operation.ADD) && (numeric != null || decimal != null)) {
+        if ((operation == Operation.SUB || operation == Operation.ADD) &&
+                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
             childInput.expected = input.expected;
             childInput.explicit = input.explicit;
             childInput.internal = input.internal;
 
-            if (numeric != null) {
+            if (childNode instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)childNode;
+
                 if (operation == Operation.SUB) {
-                    childOutput = numeric.analyze(classNode, scriptRoot, scope, childInput, numeric.value.charAt(0) != '-');
+                    childOutput = numeric.analyze(childInput, numeric.getNumeric().charAt(0) != '-');
                 } else {
-                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = childNode.analyze(classNode, semanticScope, childInput);
                 }
-            } else if (decimal != null) {
+            } else if (childNode instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)childNode;
+
                 if (operation == Operation.SUB) {
-                    childOutput = decimal.analyze(classNode, scriptRoot, scope, childInput, decimal.value.charAt(0) != '-');
+                    childOutput = decimal.analyze(childInput, decimal.getDecimal().charAt(0) != '-');
                 } else {
-                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = childNode.analyze(classNode, semanticScope, childInput);
                 }
             } else {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
@@ -98,13 +107,13 @@ public class EUnary extends AExpression {
 
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
-                childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childOutput = analyze(childNode, classNode, semanticScope, childInput);
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 output.actual = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                childOutput = analyze(child, classNode, scriptRoot, scope, new Input());
+                childOutput = analyze(childNode, classNode, semanticScope, new Input());
 
                 promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 
@@ -115,7 +124,7 @@ public class EUnary extends AExpression {
                 }
 
                 childInput.expected = promote;
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 if (promote == def.class && input.expected != null) {
@@ -129,7 +138,7 @@ public class EUnary extends AExpression {
 
             UnaryMathNode unaryMathNode = new UnaryMathNode();
             unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
-            unaryMathNode.setLocation(location);
+            unaryMathNode.setLocation(getLocation());
             unaryMathNode.setExpressionType(output.actual);
             unaryMathNode.setUnaryType(promote);
             unaryMathNode.setOperation(operation);

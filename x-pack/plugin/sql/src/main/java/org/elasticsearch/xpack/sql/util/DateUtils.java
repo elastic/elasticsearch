@@ -120,10 +120,14 @@ public final class DateUtils {
      * Parses the given string into a Date (SQL DATE type) using UTC as a default timezone.
      */
     public static ZonedDateTime asDateOnly(String dateFormat) {
-        int separatorIdx = dateFormat.indexOf('-');
-        if (separatorIdx == 0) { // negative year
-            separatorIdx = dateFormat.indexOf('-', 1);
+        int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
+        if (separatorIdx == 0) { // first char = `-` denotes a negative year
+            separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
         }
+        // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
+        // e.g. 2020-06-01T10:20:30....
+        //             ^
+        //           +3 = ^
         separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways
         if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {

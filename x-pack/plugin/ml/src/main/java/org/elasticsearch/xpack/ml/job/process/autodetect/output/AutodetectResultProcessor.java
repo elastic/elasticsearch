@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -87,7 +89,6 @@ public class AutodetectResultProcessor {
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
-    private final AnnotationPersister annotationPersister;
     private final AutodetectProcess process;
     private final TimingStatsReporter timingStatsReporter;
     private final Clock clock;
@@ -101,6 +102,7 @@ public class AutodetectResultProcessor {
     private final long priorRunsBucketCount;
     private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
+    private final AnnotationPersister.Builder bulkAnnotationsPersister;
     private boolean deleteInterimRequired;
 
     /**
@@ -130,11 +132,11 @@ public class AutodetectResultProcessor {
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
-        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.bulkAnnotationsPersister = annotationPersister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.clock = Objects.requireNonNull(clock);
         this.deleteInterimRequired = true;
@@ -154,6 +156,7 @@ public class AutodetectResultProcessor {
                 if (processKilled == false) {
                     timingStatsReporter.finishReporting();
                     bulkResultsPersister.executeRequest();
+                    bulkAnnotationsPersister.executeRequest();
                 }
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
@@ -252,6 +255,7 @@ public class AutodetectResultProcessor {
             // results are also interim
             timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
+            bulkAnnotationsPersister.executeRequest();
             ++currentRunBucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
@@ -266,9 +270,17 @@ public class AutodetectResultProcessor {
         if (categoryDefinition != null) {
             persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
+        CategorizerStats categorizerStats = result.getCategorizerStats();
+        if (categorizerStats != null) {
+            bulkResultsPersister.persistCategorizerStats(categorizerStats);
+        }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
             bulkResultsPersister.persistModelPlot(modelPlot);
+        }
+        Annotation annotation = result.getAnnotation();
+        if (annotation != null) {
+            bulkAnnotationsPersister.persistAnnotation(annotation);
         }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
@@ -312,7 +324,7 @@ public class AutodetectResultProcessor {
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
-            annotationPersister.persistAnnotation(
+            bulkAnnotationsPersister.persistAnnotation(
                 ModelSnapshot.annotationDocumentId(modelSnapshot), createModelSnapshotAnnotation(modelSnapshot));
         }
         Quantiles quantiles = result.getQuantiles();
@@ -337,7 +349,9 @@ public class AutodetectResultProcessor {
             Exception exception = null;
             try {
                 bulkResultsPersister.executeRequest();
+                bulkAnnotationsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
+                persister.commitAnnotationWrites();
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
                 LOGGER.error(
@@ -368,7 +382,8 @@ public class AutodetectResultProcessor {
             .setJobId(jobId)
             .setModifiedTime(currentTime)
             .setModifiedUsername(XPackUser.NAME)
-            .setType("annotation")
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
             .build();
     }
 
@@ -404,9 +419,9 @@ public class AutodetectResultProcessor {
     }
 
     private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
-        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
         if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
-            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+            if (categorizationStatus == CategorizationStatus.WARN) {
                 auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
                     priorRunsBucketCount + currentRunBucketCount));
             }
@@ -461,6 +476,7 @@ public class AutodetectResultProcessor {
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
             waitUntilRenormalizerIsIdle();
             persister.commitResultWrites(jobId);
+            persister.commitAnnotationWrites();
             persister.commitStateWrites(jobId);
 
         } catch (InterruptedException e) {

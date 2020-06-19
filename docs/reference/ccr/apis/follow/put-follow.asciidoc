@@ -90,6 +90,9 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index",
+  "settings": {
+    "index.number_of_replicas": 0
+  },
   "max_read_request_operation_count" : 1024,
   "max_outstanding_read_requests" : 16,
   "max_read_request_size" : "1024k",

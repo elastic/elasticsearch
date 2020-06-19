@@ -38,7 +38,7 @@ Use the  <<slm-api-get-status>> to see if {slm-init} is running.
 
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[slm-api-stop-example]]
 ==== {api-examples-title}

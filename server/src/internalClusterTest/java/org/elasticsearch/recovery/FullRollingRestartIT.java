@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -43,6 +42,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -73,18 +74,18 @@ public class FullRollingRestartIT extends ESIntegTestCase {
             "      }\n" +
             "    }";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
+        Settings settings = Settings.builder().put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), timeValueSeconds(5)).build();
         request.indexTemplate(
             new ComposableIndexTemplate(
                 List.of("ds"),
-                new Template(null,
-                    new CompressedXContent(mapping), null),
+                new Template(settings, new CompressedXContent(mapping), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
         client().admin().indices().createDataStream(new CreateDataStreamAction.Request("ds")).actionGet();
 
-        final String healthTimeout = "1m";
+        final String healthTimeout = "2m";
 
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test").setId(Long.toString(i))
@@ -143,7 +144,6 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
             assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
-            assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
         // closing the 3rd node
@@ -178,7 +178,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
          */
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "6")
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Long.toString(i))

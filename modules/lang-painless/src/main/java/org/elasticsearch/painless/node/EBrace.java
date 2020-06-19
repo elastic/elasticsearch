@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
@@ -33,7 +33,6 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -64,12 +63,12 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = analyze(prefixNode, classNode, scriptRoot, scope, new Input());
+        Output prefixOutput = analyze(prefixNode, classNode, semanticScope, new Input());
 
         ExpressionNode expressionNode;
         Output output = new Output();
@@ -77,7 +76,7 @@ public class EBrace extends AExpression {
         if (prefixOutput.actual.isArray()) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
-            Output indexOutput = analyze(indexNode, classNode, scriptRoot, scope, indexInput);
+            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
             PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                     indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -90,7 +89,7 @@ public class EBrace extends AExpression {
             expressionNode = braceSubNode;
         } else if (prefixOutput.actual == def.class) {
             Input indexInput = new Input();
-            Output indexOutput = analyze(indexNode, classNode, scriptRoot, scope, indexInput);
+            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
@@ -105,8 +104,8 @@ public class EBrace extends AExpression {
             Class<?> targetClass = prefixOutput.actual;
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-            PainlessMethod getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
+            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
                 throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "]."));
@@ -127,7 +126,7 @@ public class EBrace extends AExpression {
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = analyze(indexNode, classNode, scriptRoot, scope, indexInput);
+                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -147,8 +146,8 @@ public class EBrace extends AExpression {
             Class<?> targetClass = prefixOutput.actual;
             String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-            PainlessMethod getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
                     getter.typeParameters.get(0) != int.class)) {
@@ -170,7 +169,7 @@ public class EBrace extends AExpression {
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
-                indexOutput = analyze(indexNode, classNode, scriptRoot, scope, indexInput);
+                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 

@@ -76,9 +76,8 @@
 ---
 "Get field caps from remote cluster with index filter":
   - skip:
-      version: " - 7.99.99"
-      # TODO: Adapt version after backport
-      reason: Index filter support was added in 8.0
+      version: " - 7.8.99"
+      reason: Index filter support was added in 7.9
 
   - do:
       indices.create:

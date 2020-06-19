@@ -141,6 +141,69 @@ GET /logs/_search
 // TEST[continued]
 ====
 
+You can use a comma-separated list or wildcard (`*`) expression to search
+multiple data streams, indices, and index aliases in the same request.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+PUT /_data_stream/logs_alt
+----
+// TEST[continued]
+////
+
+The following request searches the `logs` and `logs_alt` data streams, which are
+specified as a comma-separated list in the request path.
+
+[source,console]
+----
+GET /logs,logs_alt/_search
+{
+  "query": {
+    "match": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following request uses the `logs*` wildcard expression to search any data
+stream, index, or index alias beginning with `logs`.
+
+[source,console]
+----
+GET /logs*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "vlb44hny"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following search request omits a target in the request path. The request
+searches all data streams and indices in the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "user.id": "l7gk7f82"
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
 [discrete]
 [[manually-roll-over-a-data-stream]]
 === Manually roll over a data stream
@@ -480,6 +543,8 @@ PUT /_bulk?refresh
 [source,console]
 ----
 DELETE /_data_stream/logs
+
+DELETE /_data_stream/logs_alt
 
 DELETE /_index_template/logs_data_stream
 ----

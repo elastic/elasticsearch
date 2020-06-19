@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
@@ -35,6 +37,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestIssueLogging(value = "org.elasticsearch.xpack.eql.action:TRACE",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/58270")
 public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;
@@ -76,6 +80,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testRestCancellation() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/58270", Constants.WINDOWS);
         assertAcked(client().admin().indices().prepareCreate("test")
             .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
             .get());

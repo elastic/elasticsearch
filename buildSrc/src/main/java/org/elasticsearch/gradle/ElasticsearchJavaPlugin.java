@@ -117,21 +117,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
         testImplementationConfig.extendsFrom(compileOnlyConfig);
 
-        // fail on using deprecated testCompile
-        project.getConfigurations()
-            .getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME)
-            .getIncoming()
-            .beforeResolve(resolvableDependencies -> {
-                if (resolvableDependencies.getDependencies().size() > 0) {
-                    throw new GradleException(
-                        "Usage of configuration "
-                            + JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME
-                            + " is no longer supported. Use "
-                            + JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME
-                            + " instead."
-                    );
-                }
-            });
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;
@@ -419,8 +404,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("gradle.user.home", gradleHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
-
-            nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
 
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");

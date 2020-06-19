@@ -47,7 +47,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         super(in);
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
-        this.canMatch = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : true;
+        this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
     }
 
     /**
@@ -80,7 +80,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeBoolean(canMatch);
         }
     }

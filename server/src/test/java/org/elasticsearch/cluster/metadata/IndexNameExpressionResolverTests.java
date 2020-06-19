@@ -1967,8 +1967,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index3, false)
                 .put(index4, false)
                 .put(justAnIndex, false)
-                .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))
-                .put(new DataStream(dataStream2, "ts", List.of(index3.getIndex(), index4.getIndex())))).build();
+                .put(new DataStream(dataStream1, "ts", Arrays.asList(index1.getIndex(), index2.getIndex())))
+                .put(new DataStream(dataStream2, "ts", Arrays.asList(index3.getIndex(), index4.getIndex())))).build();
 
         List<String> names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "log*");
         assertEquals(Collections.singletonList(dataStream1), names);

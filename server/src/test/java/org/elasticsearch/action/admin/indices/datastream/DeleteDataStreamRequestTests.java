@@ -39,6 +39,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -93,11 +94,11 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     public void testDeleteSnapshottingDataStream() {
         final String dataStreamName = "my-data-stream1";
         final String dataStreamName2 = "my-data-stream2";
-        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
+        final List<String> otherIndices = randomSubsetOf(Arrays.asList("foo", "bar", "baz"));
 
-        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
+        ClusterState cs = getClusterStateWithDataStreams(Arrays.asList(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
             otherIndices);
-        SnapshotsInProgress snapshotsInProgress = new SnapshotsInProgress(List.of(
+        SnapshotsInProgress snapshotsInProgress = new SnapshotsInProgress(Arrays.asList(
             createEntry(dataStreamName, "repo1", false),
             createEntry(dataStreamName2, "repo2", true)));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
@@ -112,7 +113,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
         return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
-            SnapshotsInProgress.State.STARTED, Collections.emptyList(), List.of(dataStreamName), 0, 1, null, null, null, null);
+            SnapshotsInProgress.State.STARTED, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1, null, null, null
+            , null);
     }
 
     public void testDeleteNonexistentDataStream() {

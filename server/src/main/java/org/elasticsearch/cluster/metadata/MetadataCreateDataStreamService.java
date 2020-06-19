@@ -122,7 +122,7 @@ public class MetadataCreateDataStreamService {
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().compareTo(Version.V_8_0_0) < 0) {
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
             throw new IllegalStateException("data streams require minimum node version of " + Version.V_8_0_0);
         }
 

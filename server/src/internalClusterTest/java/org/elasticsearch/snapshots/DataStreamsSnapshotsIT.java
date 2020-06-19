@@ -69,7 +69,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
-        IndexResponse indexResponse = client.prepareIndex("ds")
+        IndexResponse indexResponse = client.prepareIndex("ds", "_doc")
             .setOpType(DocWriteRequest.OpType.CREATE)
             .setSource(DOCUMENT_SOURCE)
             .get();
@@ -89,7 +89,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
 
         GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
-        List<SnapshotInfo> snap = snapshot.getSnapshots(REPO);
+        List<SnapshotInfo> snap = snapshot.getSnapshots();
         assertEquals(1, snap.size());
         assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
 
@@ -103,7 +103,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, "_doc", id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -144,7 +144,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
         assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, "_doc", id).get().getSourceAsMap());
     }
 
     public void testWildcards() throws Exception {

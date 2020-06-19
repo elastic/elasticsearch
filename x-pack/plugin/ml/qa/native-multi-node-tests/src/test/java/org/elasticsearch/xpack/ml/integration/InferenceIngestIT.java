@@ -117,9 +117,13 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/inference/" + classificationModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":30"));
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":30"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
                 fail(ex.getMessage());
@@ -169,9 +173,13 @@ public class InferenceIngestIT extends ESRestTestCase {
             try {
                 Response statsResponse = client().performRequest(new Request("GET",
                     "_ml/inference/" + classificationModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":10"));
+                assertThat(response, containsString("\"cache_miss_count\":3"));
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
+                response = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(response, containsString("\"inference_count\":15"));
+                assertThat(response, containsString("\"cache_miss_count\":3"));
                 // can get both
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
                 String entityString = EntityUtils.toString(statsResponse.getEntity());

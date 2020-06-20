@@ -108,38 +108,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return removed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
     }
 
-    public SnapshotDeletionsInProgress withRemovedSnapshotIds(String repository, Collection<SnapshotId> snapshotIds) {
-        boolean changed = false;
-        List<Entry> updatedEntries = new ArrayList<>(entries.size());
-        for (Entry entry : entries) {
-            if (entry.repository().equals(repository)) {
-                final List<SnapshotId> updatedSnapshotIds = new ArrayList<>(entry.getSnapshots());
-                if (updatedSnapshotIds.removeAll(snapshotIds)) {
-                    changed = true;
-                    updatedEntries.add(entry.withSnapshots(updatedSnapshotIds));
-                } else {
-                    updatedEntries.add(entry);
-                }
-            } else {
-                updatedEntries.add(entry);
-            }
-        }
-        return changed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
-    }
-
-    public SnapshotDeletionsInProgress withRemovedRepository(String repository) {
-        boolean changed = false;
-        List<Entry> updatedEntries = new ArrayList<>(entries.size());
-        for (Entry entry : entries) {
-            if (entry.repository().equals(repository)) {
-                changed = true;
-            } else {
-                updatedEntries.add(entry);
-            }
-        }
-        return changed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
-    }
-
     /**
      * Returns an unmodifiable list of snapshot deletion entries.
      */

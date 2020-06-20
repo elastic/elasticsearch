@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
@@ -193,7 +194,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(found.state(), is(SnapshotState.SUCCESS));
     }
 
-    public void testCorrectCountsForDoneNonIncrementalShards() throws Exception {
+    public void testCorrectCountsForDoneShards() throws Exception {
         final String indexOne = "index-1";
         final String indexTwo = "index-2";
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
@@ -211,8 +212,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNodeOne);
 
         final String snapshotOne = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> responseSnapshotOne =
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotOne).setWaitForCompletion(true).execute();
+        // restarting a data node below so using a master client here
+        final ActionFuture<CreateSnapshotResponse> responseSnapshotOne = internalCluster().masterClient().admin()
+            .cluster().prepareCreateSnapshot(repoName, snapshotOne).setWaitForCompletion(true).execute();
 
         assertBusy(() -> {
             final SnapshotStatus snapshotStatusOne = getSnapshotStatus(repoName, snapshotOne);
@@ -221,6 +223,19 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
             assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
         }, 30L, TimeUnit.SECONDS);
+
+        final SnapshotStats snapshotShardStats =
+            stateFirstShard(getSnapshotStatus(repoName, snapshotOne), indexTwo).getStats();
+        final int totalFiles = snapshotShardStats.getTotalFileCount();
+        final long totalFileSize = snapshotShardStats.getTotalSize();
+
+        internalCluster().restartNode(dataNodeTwo);
+
+        final SnapshotIndexShardStatus snapshotShardStateAfterNodeRestart =
+            stateFirstShard(getSnapshotStatus(repoName, snapshotOne), indexTwo);
+        assertThat(snapshotShardStateAfterNodeRestart.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalFileCount(), equalTo(totalFiles));
+        assertThat(snapshotShardStateAfterNodeRestart.getStats().getTotalSize(), equalTo(totalFileSize));
 
         unblockAllDataNodes(repoName);
         assertThat(responseSnapshotOne.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));

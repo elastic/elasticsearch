@@ -208,9 +208,22 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "mock", randomRepoPath());
 
+        blockDataNode(repoName, dataNodeOne);
+
         final String snapshotOne = "snap-1";
-        assertThat(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotOne)
-            .setWaitForCompletion(true).get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        final ActionFuture<CreateSnapshotResponse> responseSnapshotOne =
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotOne).setWaitForCompletion(true).execute();
+
+        assertBusy(() -> {
+            final SnapshotStatus snapshotStatusOne = getSnapshotStatus(repoName, snapshotOne);
+            final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatusOne, indexTwo);
+            assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+            assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+            assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+        }, 30L, TimeUnit.SECONDS);
+
+        unblockAllDataNodes(repoName);
+        assertThat(responseSnapshotOne.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
 
         // indexing another document to the second index so it will do writes during the snapshot and we can block on those writes
         indexDoc(indexTwo, "some_other_doc_id", "foo", "other_bar");
@@ -249,8 +262,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static SnapshotStatus getSnapshotStatus(String repoName, String snapshotName) {
-        return client().admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotName)
-            .get().getSnapshots().get(0);
+        try {
+            return client().admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotName)
+                .get().getSnapshots().get(0);
+        } catch (SnapshotMissingException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static Settings singleShardOneNode(String node) {

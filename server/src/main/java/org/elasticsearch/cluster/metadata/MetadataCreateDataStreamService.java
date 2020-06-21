@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -125,7 +126,9 @@ public class MetadataCreateDataStreamService {
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request)
         throws Exception {
-
+if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
+            throw new IllegalStateException("data streams require minimum node version of " + Version.V_8_0_0);
+        }
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
         }

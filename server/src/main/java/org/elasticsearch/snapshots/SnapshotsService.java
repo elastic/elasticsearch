@@ -1321,13 +1321,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 if (replacedEntry == null) {
                     newDelete = new SnapshotDeletionsInProgress.Entry(
-                            snapshotIds,
-                            repoName,
-                            threadPool.absoluteTimeInMillis(),
-                            repositoryStateId,
-                            updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository()))
-                                    .noneMatch(SnapshotsService::isWritingToRepository)
-                                    ? SnapshotDeletionsInProgress.State.META_DATA : SnapshotDeletionsInProgress.State.WAITING
+                        snapshotIds,
+                        repoName,
+                        threadPool.absoluteTimeInMillis(),
+                        repositoryStateId,
+                        updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository()))
+                            .noneMatch(SnapshotsService::isWritingToRepository)
+                            && (deletionsInProgress == null || deletionsInProgress.getEntries().stream().noneMatch(entry ->
+                            repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA))
+                            ? SnapshotDeletionsInProgress.State.META_DATA : SnapshotDeletionsInProgress.State.WAITING
                     );
                 } else {
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
@@ -1498,7 +1500,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterStateUpdateTask = new FailPendingRepoTasksTask(deleteEntry, failure);
         } else {
             if (failure == null) {
-                clusterStateUpdateTask = new RemoveSnapshotDeletionForHealthyRepoTask(deleteEntry, repositoryData) {
+                clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
 
                     @Override
                     protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
@@ -1528,7 +1530,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 };
             } else {
-                clusterStateUpdateTask = new RemoveSnapshotDeletionForHealthyRepoTask(deleteEntry, repositoryData) {
+                clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
                     @Override
                     protected void handleListeners(List<ActionListener<RepositoryData>> deleteListeners) {
                         failListenersIgnoringException(deleteListeners, failure);
@@ -1539,6 +1541,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         clusterService.submitStateUpdateTask("remove snapshot deletion metadata", clusterStateUpdateTask);
     }
 
+    /**
+     * Cluster state update task that will try to remove a specific {@link SnapshotDeletionsInProgress.Entry} from the cluster state and
+     * perform further modifications of the cluster state if the delete was found and removed in the cluster state.
+     * If the specific {@link SnapshotDeletionsInProgress.Entry} is not found no cluster state update is performed.
+     */
     private abstract class RemoveSnapshotDeletionFromClusterStateTask extends ClusterStateUpdateTask {
 
         protected final SnapshotDeletionsInProgress.Entry deleteEntry;
@@ -1558,6 +1565,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return doExecute(currentState, updatedDeletions);
         }
 
+        /**
+         * Cluster state update function to perform if {@link #deleteEntry} was found in the current cluster state.
+         * NOTE:
+         * Implementations of this may not throw any exceptions as {@link #onFailure} assumes only exceptions related to
+         * master fail-over. Any other exceptions are a bug as they would result in being unable to remove the delete
+         * from the cluster state permanently and block any further operations on the affected repository.
+         *
+         * @param currentState               current cluster state
+         * @param updatedDeletionsInProgress updated {@link SnapshotDeletionsInProgress} that has {@link #deleteEntry} removed
+         *                                   relative to the deletes found in {@code currentState}
+         * @return updated cluster state
+         */
         protected abstract ClusterState doExecute(ClusterState currentState, SnapshotDeletionsInProgress updatedDeletionsInProgress);
 
         @Override
@@ -1594,14 +1613,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private abstract class RemoveSnapshotDeletionForHealthyRepoTask extends RemoveSnapshotDeletionFromClusterStateTask {
+    /**
+     * A cluster state update that will remove a given {@link SnapshotDeletionsInProgress.Entry} from the cluster state
+     * and trigger running the next snapshot-delete or -finalization operation available to execute if there is one
+     * ready in the cluster state as a result of this state update.
+     */
+    private abstract class RemoveSnapshotDeletionAndContinueTask extends RemoveSnapshotDeletionFromClusterStateTask {
 
         // Snapshots that can be finalized after the delete operation has been removed from the cluster state
         protected final List<SnapshotsInProgress.Entry> newFinalizations = new ArrayList<>();
 
+        private List<SnapshotDeletionsInProgress.Entry> readyDeletions = Collections.emptyList();
+
         protected final RepositoryData repositoryData;
 
-        RemoveSnapshotDeletionForHealthyRepoTask(SnapshotDeletionsInProgress.Entry deleteEntry, RepositoryData repositoryData) {
+        RemoveSnapshotDeletionAndContinueTask(SnapshotDeletionsInProgress.Entry deleteEntry, RepositoryData repositoryData) {
             super(deleteEntry);
             this.repositoryData = repositoryData;
         }
@@ -1614,7 +1640,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (updatedSnapshotsInProgress != null) {
                 builder = builder.putCustom(SnapshotsInProgress.TYPE, updatedSnapshotsInProgress);
             }
-            return builder.putCustom(SnapshotDeletionsInProgress.TYPE, updatedDeletions).build();
+            final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res =
+                readyDeletions(builder.putCustom(SnapshotDeletionsInProgress.TYPE, updatedDeletions).build());
+            readyDeletions = res.v2();
+            return res.v1();
         }
 
         protected SnapshotDeletionsInProgress filterDeletions(SnapshotDeletionsInProgress deletions) {
@@ -1628,14 +1657,48 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 handleListeners(deleteListeners);
             }
             runningDeletions.remove(deleteEntry.uuid());
-            for (SnapshotsInProgress.Entry entry : newFinalizations) {
-                endSnapshot(entry, newState.metadata());
+            assert currentlyFinalizing.contains(deleteEntry.repository());
+            if (newFinalizations.isEmpty()) {
+                currentlyFinalizing.remove(deleteEntry.repository());
+                for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
+                    deleteSnapshotsFromRepository(readyDeletion, repositoryData.getGenId(), newState.nodes().getMinNodeVersion());
+                }
+            } else {
+                assert readyDeletions.stream().noneMatch(entry -> entry.repository().equals(deleteEntry.repository()))
+                    : "New finalizations " + newFinalizations + " added even though deletes " + readyDeletions + " are ready";
+                for (SnapshotsInProgress.Entry entry : newFinalizations) {
+                    endSnapshot(entry, newState.metadata());
+                }
+                runNextQueuedOperation(repositoryData.getGenId(), deleteEntry.repository());
             }
-            runNextQueuedOperation(repositoryData.getGenId(), deleteEntry.repository());
         }
 
+        /**
+         * Invoke snapshot delete listeners for {@link #deleteEntry}
+         *
+         * @param deleteListeners delete snapshot listeners
+         */
         protected abstract void handleListeners(List<ActionListener<RepositoryData>> deleteListeners);
 
+        /**
+         * Computes an updated {@link SnapshotsInProgress} that takes into account an updated version of
+         * {@link SnapshotDeletionsInProgress} that has a {@link SnapshotDeletionsInProgress.Entry} removed from it
+         * relative to the {@link SnapshotDeletionsInProgress} found in {@code currentState}.
+         * The removal of a delete from the cluster state can trigger two possible actions on in-progress snapshots:
+         * <ul>
+         *     <li>Snapshots that had unfinished shard snapshots in state {@link ShardSnapshotStatus#UNASSIGNED_WAITING} that
+         *     could not be started because the delete was running can have those started.</li>
+         *     <li>Snapshots that had all their shards reach a completed state while a delete was running (e.g. as a result of
+         *     nodes dropping out of the cluster or another incoming delete aborting them) need not be updated in the cluster
+         *     state but need to have their finalization triggered now that it's possible with the removal of the delete
+         *     from the state.</li>
+         * </ul>
+         *
+         * @param currentState     current cluster state
+         * @param updatedDeletions deletions with removed entry
+         * @return updated snapshot in progress instance or {@code null} if there are no changes to it
+         */
+        @Nullable
         private SnapshotsInProgress updatedSnapshotsInProgress(ClusterState currentState,
                                                                SnapshotDeletionsInProgress updatedDeletions) {
             final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);

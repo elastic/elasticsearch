@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -770,7 +771,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(false).get();
 
-        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        final ActionFuture<AcknowledgedResponse> deleteFuture =
+            dataNodeClient().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
         awaitClusterState(state -> {
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
             return deletionsInProgress.getEntries().size() == 2;
@@ -788,6 +790,52 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             }
             return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
         });
+        expectThrows(RepositoryException.class, deleteFuture::actionGet);
+    }
+
+    public void testQueuedOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
+        disableRepoConsistencyCheck("This test corrupts the repository on purpose");
+
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        createIndexWithContent("index-one");
+
+        final String firstSnapshot = "snapshot-one";
+        createFullSnapshot(repoName, firstSnapshot);
+        final String secondSnapshot = "snapshot-two";
+        createFullSnapshot(repoName, secondSnapshot);
+
+        final long generation = getRepositoryData(repoName).getGenId();
+        final String masterNode = internalCluster().getMasterName();
+        blockNodeOnControlFiles(repoName, masterNode);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotThree =
+            dataNodeClient().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-three").setWaitForCompletion(true).execute();
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        Path indexNBlob = repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + generation);
+        assertFileExists(indexNBlob);
+        Files.write(indexNBlob, randomByteArrayOfLength(1), StandardOpenOption.TRUNCATE_EXISTING);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFour =
+            dataNodeClient().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-four").setWaitForCompletion(true).execute();
+        internalCluster().stopCurrentMasterNode();
+        ensureStableCluster(3);
+
+        logger.info("verify that all operations finish in the cluster state after all");
+        awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshotsInProgress == null || snapshotDeletionsInProgress == null) {
+                return false;
+            }
+            return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
+        });
+        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
     }
 
     public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {
@@ -905,6 +953,40 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         // Two snapshots and two distinct delete operations move us 4 steps from -1 to 3
         assertThat(repositoryData.getGenId(), is(3L));
+    }
+
+    public void testQueuedOperationsAfterFinalizationFailure() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+
+        createIndexWithContent("index-test");
+
+        final String snapshotOne = "snap-1";
+        createFullSnapshot(repoName, snapshotOne);
+        final String snapshotTwo = "snap-2";
+        createFullSnapshot(repoName, snapshotTwo);
+
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+
+        final String masterName = internalCluster().getMasterName();
+        final ActionFuture<CreateSnapshotResponse> snapshotThree =
+            client().admin().cluster().prepareCreateSnapshot(repoName, "snap-3").setWaitForCompletion(true).execute();
+
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+
+        logger.info("--> start deleting snapshot [{}]", snapshotOne);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne =
+            client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotOne).execute();
+
+        logger.info("--> wait for both deletions to show up in the cluster state");
+        awaitDeleteInClusterState();
+
+        unblockNode(repoName, masterName);
+
+        expectThrows(SnapshotException.class, snapshotThree::actionGet);
+        assertAcked(deleteSnapshotOne.get());
     }
 
     private void createFullSnapshot(String repoName, String snapshotName) throws Exception {

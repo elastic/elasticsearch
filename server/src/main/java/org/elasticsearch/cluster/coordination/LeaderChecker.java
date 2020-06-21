@@ -252,7 +252,7 @@ public class LeaderChecker {
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.debug(new ParameterizedMessage(
                                 "leader [{}] health check failed", leader), exp);
-                            leaderFailed(new ConnectTransportException(leader, "health check failed", exp));
+                            leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
                             return;
                         }
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();

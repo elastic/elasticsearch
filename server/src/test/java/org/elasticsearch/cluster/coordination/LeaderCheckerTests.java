@@ -368,7 +368,7 @@ public class LeaderCheckerTests extends ESTestCase {
         final AtomicBoolean leaderFailed = new AtomicBoolean();
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
             e -> {
-                assertThat(e.getMessage(), endsWith("health check failed"));
+                assertThat(e.getMessage(), endsWith("failed health checks"));
                 assertTrue(leaderFailed.compareAndSet(false, true));
             }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 

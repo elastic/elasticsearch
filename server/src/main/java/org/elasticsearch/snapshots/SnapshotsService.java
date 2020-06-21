@@ -1478,7 +1478,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
                                                long repoGen, Version minNodeVersion) {
-        repositoriesService.repository(deleteEntry.repository()).getRepositoryData(new ActionListener<>() {
+        repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
                 assert repositoryData.getGenId() == repoGen;
@@ -1504,11 +1504,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (runningDeletions.add(deleteEntry.uuid())) {
             boolean added = currentlyFinalizing.add(deleteEntry.repository());
             assert added : "Tried to start snapshot delete while already running operation on repository [" + deleteEntry + "]";
-            Repository repository = repositoriesService.repository(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.META_DATA :
                     "incorrect state for entry [" + deleteEntry + "]";
-            repository.deleteSnapshots(
+            repositoriesService.repository(deleteEntry.repository()).deleteSnapshots(
                 snapshotIds,
                 repositoryData.getGenId(),
                 minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
@@ -2198,6 +2197,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 failListenersIgnoringException(snapshotDeletionListeners.remove(delete), failure);
                 runningDeletions.remove(delete);
             }
+            currentlyFinalizing.remove(repository);
         }
     }
 }

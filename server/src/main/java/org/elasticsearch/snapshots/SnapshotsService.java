@@ -2043,6 +2043,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // Delete uuids to fail because after the state update
         private final List<String> deletionsToFail = new ArrayList<>();
 
+        // Failure that caused the decision to fail all snapshots and deletes for a repo
         private final Exception failure;
 
         FailPendingRepoTasksTask(SnapshotDeletionsInProgress.Entry deleteEntry, Exception failure) {
@@ -2059,7 +2060,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             for (SnapshotDeletionsInProgress.Entry entry : remainingEntries) {
                 if (entry.repository().equals(deleteEntry.repository())) {
                     changed = true;
-                    deletionsToFail.add(deleteEntry.uuid());
+                    deletionsToFail.add(entry.uuid());
                 } else {
                     updatedEntries.add(entry);
                 }

@@ -195,12 +195,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         currentNodeCount,
                         maximumNodeCount);
             } else if (shardCount > numberOfAttributes) {
-                int remainingAttributes = numberOfAttributes - shardPerAttribute.size(); // remaining attributes are not assign the shard copies
-                int remainingShards = shardCount - Arrays.stream(shardPerAttribute.values).sum(); // remaining shard copies are not allocated
-                if (remainingAttributes > 0 && remainingShards < remainingAttributes) {
+                // remaining attributes are not assign the shard copies
+                int remainingAttributes = numberOfAttributes - shardPerAttribute.size();
+                // remaining shard copies are not allocated
+                int remainingShards = shardCount - Arrays.stream(shardPerAttribute.values).sum();
+                if (remainingShards > 0 && remainingShards < remainingAttributes) {
                     return allocation.decision(Decision.NO, NAME,
-                        "remaining attributes [%d] are not assign the shard copies, remaining shard copies [%d] are not allocated, " +
-                            "the shard is allocated to the node, it will cause that the later shard copies allocation does not reach absolute high availability",
+                        "remaining attributes [%d] are not assign the shard copies, " +
+                            "remaining shard copies [%d] are not allocated, " +
+                            "the shard is allocated to the node, " +
+                            "it will cause that the later shard copies allocation does not reach absolute high availability",
                         remainingAttributes,
                         remainingShards);
                 }

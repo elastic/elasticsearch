@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
 import java.util.List;
@@ -500,7 +501,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             equalTo("node6"));
 
         logger.info("--> complete relocation");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
@@ -1037,7 +1037,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         for (String awarenessAttribute : awarenessAttributes) {
             ObjectIntHashMap<String> nodesPerAttribute = clusterState.getRoutingNodes().nodesPerAttributesCounts(awarenessAttribute);
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (ShardRouting assignedShard : clusterState.getRoutingNodes().assignedShards(initialRoutingTable.index("test").shard(0).shardId())) {
+            ShardId shardId = initialRoutingTable.index("test").shard(0).shardId();
+            for (ShardRouting assignedShard : clusterState.getRoutingNodes().assignedShards(shardId)) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     RoutingNode routingNode = clusterState.getRoutingNodes().node(assignedShard.currentNodeId());
                     shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);

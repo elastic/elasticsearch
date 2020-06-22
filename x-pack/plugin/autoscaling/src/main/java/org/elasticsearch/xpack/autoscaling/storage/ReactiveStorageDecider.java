@@ -223,7 +223,7 @@ public class ReactiveStorageDecider implements AutoscalingDecider {
 
     /**
      * Check that the disk decider is only decider that says NO to let shard remain on current node.
-     * @return true iff disk decider is only decider that says NO to canRemain.
+     * @return true if and only if disk decider is only decider that says NO to canRemain.
      */
     private static boolean cannotRemainDueToStorage(ShardRouting shard, RoutingAllocation allocation, AutoscalingDeciderContext context) {
         assert allocation.debugDecision() == false;

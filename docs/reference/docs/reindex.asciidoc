@@ -933,11 +933,10 @@ using basic auth or the password will be sent in plain text.
 There are a range of <<reindex-ssl,settings>> available to configure the behaviour of the
  `https` connection.
 
-Remote hosts have to be explicitly whitelisted in elasticsearch.yml using the
+Remote hosts have to be explicitly allowed in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
-of allowed remote `host` and `port` combinations (e.g.
-`otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
-ignored by the whitelist -- only host and port are used, for example:
+of allowed remote `host` and `port` combinations. Scheme is
+ignored, only the host and port are used. For example:
 
 
 [source,yaml]
@@ -945,7 +944,7 @@ ignored by the whitelist -- only host and port are used, for example:
 reindex.remote.whitelist: "otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"
 --------------------------------------------------
 
-The whitelist must be configured on any nodes that will coordinate the reindex.
+The list of allowed hosts must be configured on any nodes that will coordinate the reindex.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of

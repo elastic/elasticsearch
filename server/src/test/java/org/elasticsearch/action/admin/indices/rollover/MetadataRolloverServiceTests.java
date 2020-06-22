@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -483,8 +484,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, shardLimitValidator, env, null,
-                testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitValidator, env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -549,7 +550,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.type()).thenReturn("_doc");
-            CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField()));
+            CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField().getName()));
             when(documentMapper.mappingSource()).thenReturn(mapping);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);
@@ -560,8 +561,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, shardLimitValidator, env, null,
-                testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitValidator, env,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

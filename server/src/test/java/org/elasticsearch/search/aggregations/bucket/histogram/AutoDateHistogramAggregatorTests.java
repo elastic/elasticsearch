@@ -22,34 +22,41 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
@@ -58,14 +65,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 
-public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
+public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
     private static final String DATE_FIELD = "date";
     private static final String INSTANT_FIELD = "instant";
     private static final String NUMERIC_FIELD = "numeric";
@@ -95,19 +108,22 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2010-01-01T00:00:00.000Z", 2);
+        expectedDocCount.put("2012-01-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2013-01-01T00:00:00.000Z", 2);
+        expectedDocCount.put("2015-01-01T00:00:00.000Z", 3);
+        expectedDocCount.put("2016-01-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2017-01-01T00:00:00.000Z", 1);
         testSearchCase(DEFAULT_QUERY, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
-            histogram -> {
-                assertEquals(10, histogram.getBuckets().size());
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
+            aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
+        expectedDocCount.put("2011-01-01T00:00:00.000Z", 0);
+        expectedDocCount.put("2014-01-01T00:00:00.000Z", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
-            histogram -> {
-                assertEquals(8, histogram.getBuckets().size());
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
@@ -194,6 +210,177 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             });
     }
 
+    public void testAsSubAgg() throws IOException {
+        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1").subAggregation(
+            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(3).subAggregation(
+                new MaxAggregationBuilder("max").field("n")));
+        asSubAggTestCase(builder, (StringTerms terms) -> {
+            StringTerms.Bucket a = terms.getBucketByKey("a");
+            InternalAutoDateHistogram adh = a.getAggregations().get("dh");
+            Map<String, Integer> expectedDocCount = new TreeMap<>();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 2);
+            expectedDocCount.put("2021-01-01T00:00:00.000Z", 2);
+            assertThat(bucketCountsAsMap(adh), equalTo(expectedDocCount));
+            Map<String, Double> expectedMax = new TreeMap<>();
+            expectedMax.put("2020-01-01T00:00:00.000Z", 2.0);
+            expectedMax.put("2021-01-01T00:00:00.000Z", 4.0);
+            assertThat(maxAsMap(adh), equalTo(expectedMax));
+
+            StringTerms.Bucket b = terms.getBucketByKey("b");
+            InternalAutoDateHistogram bdh = b.getAggregations().get("dh");
+            expectedDocCount.clear();
+            expectedDocCount.put("2020-02-01T00:00:00.000Z", 1);
+            assertThat(bucketCountsAsMap(bdh), equalTo(expectedDocCount));
+            expectedMax.clear();
+            expectedMax.put("2020-02-01T00:00:00.000Z", 5.0);
+            assertThat(maxAsMap(bdh), equalTo(expectedMax));
+        });
+        builder = new TermsAggregationBuilder("k2").field("k2").subAggregation(builder);
+        asSubAggTestCase(builder, (StringTerms terms) -> {
+            StringTerms.Bucket a = terms.getBucketByKey("a");
+            StringTerms ak1 = a.getAggregations().get("k1");
+            StringTerms.Bucket ak1a = ak1.getBucketByKey("a");
+            InternalAutoDateHistogram ak1adh = ak1a.getAggregations().get("dh");
+            Map<String, Integer> expectedDocCount = new TreeMap<>();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 2);
+            expectedDocCount.put("2021-01-01T00:00:00.000Z", 1);
+            assertThat(bucketCountsAsMap(ak1adh), equalTo(expectedDocCount));
+            Map<String, Double> expectedMax = new TreeMap<>();
+            expectedMax.put("2020-01-01T00:00:00.000Z", 2.0);
+            expectedMax.put("2021-01-01T00:00:00.000Z", 3.0);
+            assertThat(maxAsMap(ak1adh), equalTo(expectedMax));
+    
+            StringTerms.Bucket b = terms.getBucketByKey("b");
+            StringTerms bk1 = b.getAggregations().get("k1");
+            StringTerms.Bucket bk1a = bk1.getBucketByKey("a");
+            InternalAutoDateHistogram bk1adh = bk1a.getAggregations().get("dh");
+            expectedDocCount.clear();
+            expectedDocCount.put("2021-03-01T00:00:00.000Z", 1);
+            assertThat(bucketCountsAsMap(bk1adh), equalTo(expectedDocCount));
+            expectedMax.clear();
+            expectedMax.put("2021-03-01T00:00:00.000Z", 4.0);
+            assertThat(maxAsMap(bk1adh), equalTo(expectedMax));
+            StringTerms.Bucket bk1b = bk1.getBucketByKey("b");
+            InternalAutoDateHistogram bk1bdh = bk1b.getAggregations().get("dh");
+            expectedDocCount.clear();
+            expectedDocCount.put("2020-02-01T00:00:00.000Z", 1);
+            assertThat(bucketCountsAsMap(bk1bdh), equalTo(expectedDocCount));
+            expectedMax.clear();
+            expectedMax.put("2020-02-01T00:00:00.000Z", 5.0);
+            assertThat(maxAsMap(bk1bdh), equalTo(expectedMax));
+        });
+    }
+
+    public void testAsSubAggWithIncreasedRounding() throws IOException {
+        CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
+            long start = dft.parse("2020-01-01T00:00:00Z");
+            long end = dft.parse("2021-01-01T00:00:00Z");
+            long useC = dft.parse("2020-07-01T00:00Z");
+            long anHour = dft.resolution().convert(Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(1)));
+            List<List<IndexableField>> docs = new ArrayList<>();
+            BytesRef aBytes = new BytesRef("a");
+            BytesRef bBytes = new BytesRef("b");
+            BytesRef cBytes = new BytesRef("c");
+            int n = 0;
+            for (long d = start; d < end; d += anHour) {
+                docs.add(List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
+                    new SortedSetDocValuesField("k1", aBytes),
+                    new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
+                    new SortedNumericDocValuesField("n", n++)
+                ));
+            }
+            /*
+             * Intentionally add all documents at once to put them on the
+             * same shard to make the reduce behavior consistent.
+             */
+            iw.addDocuments(docs);
+        };
+        AggregationBuilder builder = new TermsAggregationBuilder("k1").field("k1").subAggregation(
+            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(4).subAggregation(
+                new MaxAggregationBuilder("max").field("n")));
+        asSubAggTestCase(builder, buildIndex, (StringTerms terms) -> {
+            StringTerms.Bucket a = terms.getBucketByKey("a");
+            InternalAutoDateHistogram adh = a.getAggregations().get("dh");
+            Map<String, Integer> expectedDocCount = new TreeMap<>();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 2184);
+            expectedDocCount.put("2020-04-01T00:00:00.000Z", 2184);
+            expectedDocCount.put("2020-07-01T00:00:00.000Z", 2208);
+            expectedDocCount.put("2020-10-01T00:00:00.000Z", 2208);
+            assertThat(bucketCountsAsMap(adh), equalTo(expectedDocCount));
+            Map<String, Double> expectedMax = new TreeMap<>();
+            expectedMax.put("2020-01-01T00:00:00.000Z", 2183.0);
+            expectedMax.put("2020-04-01T00:00:00.000Z", 4367.0);
+            expectedMax.put("2020-07-01T00:00:00.000Z", 6575.0);
+            expectedMax.put("2020-10-01T00:00:00.000Z", 8783.0);
+            assertThat(maxAsMap(adh), equalTo(expectedMax));
+
+            StringTerms.Bucket b = terms.getBucketByKey("b");
+            InternalAutoDateHistogram bdh = b.getAggregations().get("dh");
+            expectedDocCount.clear();
+            expectedDocCount.put("2020-01-01T00:00:00.000Z", 2184);
+            expectedDocCount.put("2020-04-01T00:00:00.000Z", 2184);
+            assertThat(bucketCountsAsMap(bdh), equalTo(expectedDocCount));
+            expectedMax.clear();
+            expectedMax.put("2020-01-01T00:00:00.000Z", 2183.0);
+            expectedMax.put("2020-04-01T00:00:00.000Z", 4367.0);
+            assertThat(maxAsMap(bdh), equalTo(expectedMax));
+
+            StringTerms.Bucket c = terms.getBucketByKey("c");
+            InternalAutoDateHistogram cdh = c.getAggregations().get("dh");
+            expectedDocCount.clear();
+            expectedDocCount.put("2020-07-01T00:00:00.000Z", 2208);
+            expectedDocCount.put("2020-10-01T00:00:00.000Z", 2208);
+            assertThat(bucketCountsAsMap(cdh), equalTo(expectedDocCount));
+            expectedMax.clear();
+            expectedMax.put("2020-07-01T00:00:00.000Z", 6575.0);
+            expectedMax.put("2020-10-01T00:00:00.000Z", 8783.0);
+            assertThat(maxAsMap(cdh), equalTo(expectedMax));
+        });
+    }
+
+    public void testAsSubAggInManyBuckets() throws IOException {
+        CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
+            long start = dft.parse("2020-01-01T00:00:00Z");
+            long end = dft.parse("2021-01-01T00:00:00Z");
+            long anHour = dft.resolution().convert(Instant.ofEpochSecond(TimeUnit.HOURS.toSeconds(1)));
+            List<List<IndexableField>> docs = new ArrayList<>();
+            int n = 0;
+            for (long d = start; d < end; d += anHour) {
+                docs.add(List.of(
+                    new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
+                    new SortedNumericDocValuesField("n", n % 100)
+                ));
+                n++;
+            }
+            /*
+             * Intentionally add all documents at once to put them on the
+             * same shard to make the reduce behavior consistent.
+             */
+            iw.addDocuments(docs);
+        };
+        AggregationBuilder builder = new HistogramAggregationBuilder("n").field("n").interval(1).subAggregation(
+            new AutoDateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).setNumBuckets(4).subAggregation(
+                new MaxAggregationBuilder("max").field("n")));
+        asSubAggTestCase(builder, buildIndex, (InternalHistogram histo) -> {
+            assertThat(histo.getBuckets(), hasSize(100));
+            for (int n = 0; n < 100; n ++) {
+                InternalHistogram.Bucket b = histo.getBuckets().get(n);
+                InternalAutoDateHistogram dh = b.getAggregations().get("dh");
+                assertThat(bucketCountsAsMap(dh), hasEntry(equalTo("2020-01-01T00:00:00.000Z"), either(equalTo(21)).or(equalTo(22))));
+                assertThat(bucketCountsAsMap(dh), hasEntry(equalTo("2020-04-01T00:00:00.000Z"), either(equalTo(21)).or(equalTo(22))));
+                assertThat(bucketCountsAsMap(dh), hasEntry(equalTo("2020-07-01T00:00:00.000Z"), either(equalTo(22)).or(equalTo(23))));
+                assertThat(bucketCountsAsMap(dh), hasEntry(equalTo("2020-10-01T00:00:00.000Z"), either(equalTo(22)).or(equalTo(23))));
+                Map<String, Double> expectedMax = new TreeMap<>();
+                expectedMax.put("2020-01-01T00:00:00.000Z", (double) n);
+                expectedMax.put("2020-04-01T00:00:00.000Z", (double) n);
+                expectedMax.put("2020-07-01T00:00:00.000Z", (double) n);
+                expectedMax.put("2020-10-01T00:00:00.000Z", (double) n);
+                assertThat(maxAsMap(dh), equalTo(expectedMax));
+            }
+        });
+    }
+
     public void testNoDocs() throws IOException {
         final List<ZonedDateTime> dates = Collections.emptyList();
         final Consumer<AutoDateHistogramAggregationBuilder> aggregation = agg -> agg.setNumBuckets(10).field(DATE_FIELD);
@@ -216,10 +403,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
             setNumBuckets(10).field("bogus_bogus");
 
-        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName("date_field");
+        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
         testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
@@ -233,10 +417,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
             setNumBuckets(10).field("bogus_bogus").missing("2017-12-12");
 
-        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName("date_field");
+        final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
         testCase(aggregation, DEFAULT_QUERY,
             iw -> {},
@@ -250,20 +431,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         final long start = LocalDate.of(2015, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final long end = LocalDate.of(2017, 12, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final Query rangeQuery = LongPoint.newRangeQuery(INSTANT_FIELD, start, end);
-        testSearchCase(rangeQuery, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
-            histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(5, buckets.size());
-                for (int i = 0; i < buckets.size(); i++) {
-                    final Histogram.Bucket bucket = buckets.get(i);
-                    assertEquals(DATES_WITH_TIME.get(5 + i), bucket.getKey());
-                    assertEquals(1, bucket.getDocCount());
-                }
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
-        );
-        testSearchAndReduceCase(rangeQuery, DATES_WITH_TIME,
+        testBothCases(rangeQuery, DATES_WITH_TIME,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
             histogram -> {
                 final ZonedDateTime startDate = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -288,29 +456,13 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 3, 4, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 3, 5, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 3, 6, 0, 0, 0, 0, ZoneOffset.UTC));
-        testSearchCase(DEFAULT_QUERY, datesForMonthInterval,
-            aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD), histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(datesForMonthInterval.size(), buckets.size());
-                for (int i = 0; i < buckets.size(); i++) {
-                    final Histogram.Bucket bucket = buckets.get(i);
-                    assertEquals(datesForMonthInterval.get(i), bucket.getKey());
-                    assertEquals(1, bucket.getDocCount());
-                }
-            });
-        testSearchAndReduceCase(DEFAULT_QUERY, datesForMonthInterval,
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-01-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-01T00:00:00.000Z", 2);
+        expectedDocCount.put("2017-03-01T00:00:00.000Z", 3);
+        testBothCases(DEFAULT_QUERY, datesForMonthInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
-            histogram -> {
-                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForMonthInterval.get(0).withDayOfMonth(1), 1);
-                expectedDocCount.put(datesForMonthInterval.get(1).withDayOfMonth(1), 2);
-                expectedDocCount.put(datesForMonthInterval.get(3).withDayOfMonth(1), 3);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
@@ -333,28 +485,19 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
-        final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-        expectedDocCount.put(datesForDayInterval.get(0), 1);
-        expectedDocCount.put(datesForDayInterval.get(1), 2);
-        expectedDocCount.put(datesForDayInterval.get(3), 3);
-        expectedDocCount.put(datesForDayInterval.get(6), 1);
-
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-02-01T00:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-02T00:00:00.000Z", 2);
+        expectedDocCount.put("2017-02-03T00:00:00.000Z", 3);
+        expectedDocCount.put("2017-02-05T00:00:00.000Z", 1);
         testSearchCase(DEFAULT_QUERY, datesForDayInterval,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD), histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            });
+            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+        expectedDocCount.put("2017-02-04T00:00:00.000Z", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForDayInterval,
             aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD),
-            histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(5, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
@@ -367,32 +510,20 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 3, 0, 0, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 5, 0, 0, 0, 0, ZoneOffset.UTC));
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-01-31T00:00:00.000-01:00", 1);
+        expectedDocCount.put("2017-02-01T00:00:00.000-01:00", 2);
+        expectedDocCount.put("2017-02-02T00:00:00.000-01:00", 3);
+        expectedDocCount.put("2017-02-04T00:00:00.000-01:00", 1);
         testSearchCase(DEFAULT_QUERY, datesForDayInterval,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)), histogram -> {
-                final Map<String, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put("2017-01-31T23:00:00.000-01:00", 1);
-                expectedDocCount.put("2017-02-01T23:00:00.000-01:00", 2);
-                expectedDocCount.put("2017-02-02T23:00:00.000-01:00", 3);
-                expectedDocCount.put("2017-02-04T23:00:00.000-01:00", 1);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKeyAsString(), 0).longValue(), bucket.getDocCount()));
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            });
+            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+        expectedDocCount.put("2017-02-03T00:00:00.000-01:00", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForDayInterval,
-            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)), histogram -> {
-                final Map<String, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put("2017-01-31T00:00:00.000-01:00", 1);
-                expectedDocCount.put("2017-02-01T00:00:00.000-01:00", 2);
-                expectedDocCount.put("2017-02-02T00:00:00.000-01:00", 3);
-                expectedDocCount.put("2017-02-04T00:00:00.000-01:00", 1);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(5, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKeyAsString(), 0).longValue(), bucket.getDocCount()));
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            });
+            aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+         );
     }
 
     public void testIntervalHour() throws IOException {
@@ -407,51 +538,36 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-02-01T09:00:00.000Z", 2);
+        expectedDocCount.put("2017-02-01T10:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-01T13:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-01T14:00:00.000Z", 2);
+        expectedDocCount.put("2017-02-01T15:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-01T15:00:00.000Z", 1);
+        expectedDocCount.put("2017-02-01T16:00:00.000Z", 3);
         testSearchCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
-            histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(datesForHourInterval.size(), buckets.size());
-                for (int i = 0; i < buckets.size(); i++) {
-                    final Histogram.Bucket bucket = buckets.get(i);
-                    assertEquals(datesForHourInterval.get(i), bucket.getKey());
-                    assertEquals(1, bucket.getDocCount());
-                }
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
+        expectedDocCount.put("2017-02-01T11:00:00.000Z", 0);
+        expectedDocCount.put("2017-02-01T12:00:00.000Z", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
-            histogram -> {
-                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForHourInterval.get(0).withMinute(0), 2);
-                expectedDocCount.put(datesForHourInterval.get(2).withMinute(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(3).withMinute(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(4).withMinute(0), 2);
-                expectedDocCount.put(datesForHourInterval.get(6).withMinute(0), 1);
-                expectedDocCount.put(datesForHourInterval.get(7).withMinute(0), 3);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(8, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
+        expectedDocCount.clear();
+        expectedDocCount.put("2017-02-01T09:00:00.000Z", 3);
+        expectedDocCount.put("2017-02-01T12:00:00.000Z", 3);
+        expectedDocCount.put("2017-02-01T15:00:00.000Z", 4);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
-            histogram -> {
-                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForHourInterval.get(0).withMinute(0), 3);
-                expectedDocCount.put(datesForHourInterval.get(0).plusHours(3).withMinute(0), 3);
-                expectedDocCount.put(datesForHourInterval.get(0).plusHours(6).withMinute(0), 4);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
     public void testIntervalHourWithTZ() throws IOException {
-        final List<ZonedDateTime> datesForHourInterval = Arrays.asList(
+        List<ZonedDateTime> datesForHourInterval = Arrays.asList(
             ZonedDateTime.of(2017, 2, 1, 9, 2, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 9, 35, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 10, 15, 0, 0, ZoneOffset.UTC),
@@ -462,36 +578,22 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 1, 16, 6, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 48, 0, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 16, 59, 0, 0, ZoneOffset.UTC));
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-02-01T08:00:00.000-01:00", 2);
+        expectedDocCount.put("2017-02-01T09:00:00.000-01:00", 1);
+        expectedDocCount.put("2017-02-01T12:00:00.000-01:00", 1);
+        expectedDocCount.put("2017-02-01T13:00:00.000-01:00", 2);
+        expectedDocCount.put("2017-02-01T14:00:00.000-01:00", 1);
+        expectedDocCount.put("2017-02-01T15:00:00.000-01:00", 3);
         testSearchCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
-            histogram -> {
-                final List<String> dateStrings = datesForHourInterval.stream()
-                    .map(dateTime -> DateFormatter.forPattern("strict_date_time")
-                        .format(dateTime.withZoneSameInstant(ZoneOffset.ofHours(-1)))).collect(Collectors.toList());
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(datesForHourInterval.size(), buckets.size());
-                for (int i = 0; i < buckets.size(); i++) {
-                    final Histogram.Bucket bucket = buckets.get(i);
-                    assertEquals(dateStrings.get(i), bucket.getKeyAsString());
-                    assertEquals(1, bucket.getDocCount());
-                }
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
+        expectedDocCount.put("2017-02-01T10:00:00.000-01:00", 0);
+        expectedDocCount.put("2017-02-01T11:00:00.000-01:00", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForHourInterval,
             aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD).timeZone(ZoneOffset.ofHours(-1)),
-            histogram -> {
-                final Map<String, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put("2017-02-01T08:00:00.000-01:00", 2);
-                expectedDocCount.put("2017-02-01T09:00:00.000-01:00", 1);
-                expectedDocCount.put("2017-02-01T12:00:00.000-01:00", 1);
-                expectedDocCount.put("2017-02-01T13:00:00.000-01:00", 2);
-                expectedDocCount.put("2017-02-01T14:00:00.000-01:00", 1);
-                expectedDocCount.put("2017-02-01T15:00:00.000-01:00", 3);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(8, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKeyAsString(), 0).longValue(), bucket.getDocCount()));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
@@ -691,31 +793,35 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 1, 9, 15, 37, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 9, 16, 4, 0, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 9, 16, 42, 0, ZoneOffset.UTC));
-
+        Map<String, Integer> skeletonDocCount = new TreeMap<>();
+        skeletonDocCount.put("2017-02-01T09:02:00.000Z", 2);
+        skeletonDocCount.put("2017-02-01T09:15:00.000Z", 1);
+        skeletonDocCount.put("2017-02-01T09:16:00.000Z", 2);
         testSearchCase(DEFAULT_QUERY, datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
-            histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(datesForMinuteInterval.size(), buckets.size());
-                for (int i = 0; i < buckets.size(); i++) {
-                    final Histogram.Bucket bucket = buckets.get(i);
-                    assertEquals(datesForMinuteInterval.get(i), bucket.getKey());
-                    assertEquals(1, bucket.getDocCount());
-                }
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(skeletonDocCount))
         );
+        Map<String, Integer> fullDocCount = new TreeMap<>();
+        fullDocCount.put("2017-02-01T09:02:00.000Z", 2);
+        fullDocCount.put("2017-02-01T09:07:00.000Z", 0);
+        fullDocCount.put("2017-02-01T09:12:00.000Z", 3);
+        testSearchAndReduceCase(DEFAULT_QUERY, datesForMinuteInterval,
+            aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(fullDocCount))
+        );
+
+        testSearchCase(DEFAULT_QUERY, datesForMinuteInterval,
+            aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(skeletonDocCount))
+        );
+        fullDocCount.clear();
+        fullDocCount.putAll(skeletonDocCount);
+        for (int minute = 3; minute < 15; minute++) {
+            fullDocCount.put(String.format(Locale.ROOT, "2017-02-01T09:%02d:00.000Z", minute), 0);    
+        }
         testSearchAndReduceCase(DEFAULT_QUERY, datesForMinuteInterval,
             aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
-            histogram -> {
-                final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-                expectedDocCount.put(datesForMinuteInterval.get(0).withSecond(0), 2);
-                expectedDocCount.put(datesForMinuteInterval.get(2).withSecond(0), 1);
-                expectedDocCount.put(datesForMinuteInterval.get(3).withSecond(0), 2);
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(15, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(fullDocCount))
         );
     }
 
@@ -727,27 +833,21 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 688, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 210, ZoneOffset.UTC),
             ZonedDateTime.of(2017, 2, 1, 0, 0, 11, 380, ZoneOffset.UTC));
-        final ZonedDateTime startDate = datesForSecondInterval.get(0).withNano(0);
-        final Map<ZonedDateTime, Integer> expectedDocCount = new HashMap<>();
-        expectedDocCount.put(startDate, 1);
-        expectedDocCount.put(startDate.plusSeconds(2), 2);
-        expectedDocCount.put(startDate.plusSeconds(6), 3);
-
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2017-02-01T00:00:05.000Z", 1);
+        expectedDocCount.put("2017-02-01T00:00:07.000Z", 2);
+        expectedDocCount.put("2017-02-01T00:00:11.000Z", 3);
         testSearchCase(DEFAULT_QUERY, datesForSecondInterval,
-            aggregation -> aggregation.setNumBuckets(7).field(DATE_FIELD), histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(expectedDocCount.size(), buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            });
+            aggregation -> aggregation.setNumBuckets(7).field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+        expectedDocCount.put("2017-02-01T00:00:06.000Z", 0);
+        expectedDocCount.put("2017-02-01T00:00:08.000Z", 0);
+        expectedDocCount.put("2017-02-01T00:00:09.000Z", 0);
+        expectedDocCount.put("2017-02-01T00:00:10.000Z", 0);
         testSearchAndReduceCase(DEFAULT_QUERY, datesForSecondInterval,
             aggregation -> aggregation.setNumBuckets(7).field(DATE_FIELD),
-            histogram -> {
-                final List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(7, buckets.size());
-                buckets.forEach(bucket ->
-                    assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount()));
-            }
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
     }
 
@@ -829,18 +929,12 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(aggregationBuilder.field());
+                final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggregationBuilder.field());
 
-                MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                instantFieldType.setName(INSTANT_FIELD);
-                instantFieldType.setHasDocValues(true);
-
-                MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                numericFieldType.setName(NUMERIC_FIELD);
-                numericFieldType.setHasDocValues(true);
+                MappedFieldType instantFieldType
+                    = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
+                MappedFieldType numericFieldType
+                    = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram;
                 if (reduced) {
@@ -869,6 +963,25 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             document.clear();
             i += 1;
         }
+    }
+
+    private Map<String, Integer> bucketCountsAsMap(InternalAutoDateHistogram result) {
+        LinkedHashMap<String, Integer> map = new LinkedHashMap<>(result.getBuckets().size());
+        result.getBuckets().stream().forEach(b -> {
+            Object old = map.put(b.getKeyAsString(), Math.toIntExact(b.getDocCount()));
+            assertNull(old);
+        });
+        return map;
+    }
+
+    private Map<String, Double> maxAsMap(InternalAutoDateHistogram result) {
+        LinkedHashMap<String, Double> map = new LinkedHashMap<>(result.getBuckets().size());
+        result.getBuckets().stream().forEach(b -> {
+            InternalMax max = b.getAggregations().get("max");
+            Object old = map.put(b.getKeyAsString(), max.getValue());
+            assertNull(old);
+        });
+        return map;
     }
 
     @Override

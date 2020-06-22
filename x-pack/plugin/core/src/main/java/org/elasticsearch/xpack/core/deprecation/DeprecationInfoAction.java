@@ -188,7 +188,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
             }
 
-            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);
+            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, true, indices);
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {

@@ -1023,7 +1023,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testProjectUnresolvedAliasWithSameNameInFilter() {
-        assertEquals("1:31: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
     }
 
     public void testGeoShapeInWhereClause() {

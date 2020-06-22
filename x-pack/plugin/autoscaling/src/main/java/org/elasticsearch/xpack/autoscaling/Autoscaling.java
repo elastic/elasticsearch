@@ -157,7 +157,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
                 AlwaysAutoscalingDecider::parse
             ),
             new NamedXContentRegistry.Entry(
-                ReactiveStorageDecider.class,
+                AutoscalingDecider.class,
                 new ParseField(ReactiveStorageDecider.NAME),
                 ReactiveStorageDecider::parse
             )

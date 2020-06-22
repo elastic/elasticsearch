@@ -143,7 +143,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new),
-            new NamedWriteableRegistry.Entry(ReactiveStorageDecider.class, ReactiveStorageDecider.NAME, ReactiveStorageDecider::new)
+            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, ReactiveStorageDecider.NAME, ReactiveStorageDecider::new)
         );
     }
 

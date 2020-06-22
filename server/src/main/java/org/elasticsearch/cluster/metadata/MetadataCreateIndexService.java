@@ -507,6 +507,13 @@ public class MetadataCreateIndexService {
         final Map<String, Map<String, Object>> mappings = resolveV2Mappings(sourceMappings,
             currentState, templateName, xContentRegistry);
 
+        if (request.dataStreamName() != null) {
+            DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
+            if (dataStream != null) {
+                dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
+            }
+        }
+
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),

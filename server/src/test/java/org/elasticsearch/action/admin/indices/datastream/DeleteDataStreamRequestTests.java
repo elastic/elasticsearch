@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -162,7 +163,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
+            DataStream ds = new DataStream(dsTuple.v1(), createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }

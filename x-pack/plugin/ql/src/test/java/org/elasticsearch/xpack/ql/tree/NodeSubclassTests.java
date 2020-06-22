@@ -200,7 +200,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newCollection = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
 
-                    // Now merge that list of thildren into the original list of children
+                    // Now merge that list of children into the original list of children
                     List<B> originalChildren = node.children();
                     List<B> newChildren = new ArrayList<>(originalChildren.size());
                     int originalOffset = 0;
@@ -559,7 +559,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
-        int maxCollectionLength = 10;
+        int maxCollectionLength = 3;
 
         if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;

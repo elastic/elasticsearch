@@ -29,11 +29,14 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 class Mapper extends RuleExecutor<PhysicalPlan> {
 
@@ -68,10 +71,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 }
 
                 return new SequenceExec(p.source(),
-                        keys,
-                        matches,
-                        Expressions.asAttributes(s.until().keys()),
-                        map(s.until().child()),
+                        CollectionUtils.combine(matches, map(s.until().child())),
+                        CollectionUtils.combine(keys, singletonList(Expressions.asAttributes(s.until().keys()))),
                         s.timestampField());
             }
 

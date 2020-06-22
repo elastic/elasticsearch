@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.optimizer;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -136,7 +137,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan nonMatchingFilter(Filter filter) {
-            return new LocalRelation(filter.source(), filter.output());
+            return new LocalRelation(filter.source(), new EmptyExecutable(filter.output(), Results.Type.SEARCH_HIT));
         }
     }
 
@@ -149,7 +150,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
             if ((plan instanceof KeyedFilter) == false && plan.child() instanceof LocalRelation) {
-                return new LocalRelation(plan.source(), plan.output(), Results.Type.SEARCH_HIT);
+                return new LocalRelation(plan.source(), new EmptyExecutable(plan.output(), Results.Type.SEARCH_HIT));
             }
             return plan;
         }
@@ -162,7 +163,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
                 if (filter.child() instanceof LocalRelation) {
-                    return new LocalRelation(plan.source(), plan.output(), Results.Type.SEQUENCE);
+                    return new LocalRelation(plan.source(), new EmptyExecutable(plan.output(), Results.Type.SEQUENCE));
                 }
             }
             return plan;

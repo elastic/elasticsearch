@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.tree;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -37,7 +35,7 @@ public abstract class AbstractNodeTestCase<T extends B, B extends Node<B>> exten
      * Test this subclass's implementation of {@link Node#replaceChildren}.
      */
     public abstract void testReplaceChildren();
-    @Seed("D26AC8DDC5AA4181")
+
     public final void testHashCodeAndEquals() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomInstance(), this::copy, this::mutate);
     }

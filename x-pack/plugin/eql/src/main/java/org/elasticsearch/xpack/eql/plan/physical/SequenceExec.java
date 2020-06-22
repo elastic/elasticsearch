@@ -16,29 +16,17 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static java.util.Collections.singletonList;
 
 public class SequenceExec extends PhysicalPlan {
 
     private final List<List<Attribute>> keys;
     private final Attribute timestamp;
 
-    public SequenceExec(Source source,
-                        List<List<Attribute>> keys,
-                        List<PhysicalPlan> matches,
-                        List<Attribute> untilKeys,
-                        PhysicalPlan until,
-                        Attribute timestampField) {
-        this(source, CollectionUtils.combine(matches, until), CollectionUtils.combine(keys, singletonList(untilKeys)), timestampField);
-    }
-
-    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute timestampField) {
+    public SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute timestampField) {
         super(source, children);
         this.keys = keys;
         this.timestamp = timestampField;

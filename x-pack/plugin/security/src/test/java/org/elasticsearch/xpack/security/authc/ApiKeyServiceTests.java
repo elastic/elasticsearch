@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -634,7 +635,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         mockSourceDocument(creds.getId(), sourceMap);
         final ExecutorService mockExecutorService = mock(ExecutorService.class);
         when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
-        Mockito.doThrow(new EsRejectedExecutionException("rejected")).when(mockExecutorService).execute(any(Runnable.class));
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -664,7 +669,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Now force the hashing thread pool to saturate so that any un-cached keys cannot be validated
         final ExecutorService mockExecutorService = mock(ExecutorService.class);
         when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
-        Mockito.doThrow(new EsRejectedExecutionException("rejected")).when(mockExecutorService).execute(any(Runnable.class));
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
 
         // A new API key trying to connect that must go through full hash computation
         final String apiKey2 = randomAlphaOfLength(16);

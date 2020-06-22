@@ -110,7 +110,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected RepositoryData getRepositoryData(String repository) {
-        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
+        return getRepositoryData(internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -224,9 +224,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
-    public static void blockNodeOnControlFiles(String repository, String nodeName) {
+    public static void blockNodeOnAnyFiles(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
-                .repository(repository)).setBlockOnControlFiles(true);
+                .repository(repository)).setBlockOnAnyFiles(true);
     }
 
     public static void blockDataNode(String repository, String nodeName) {

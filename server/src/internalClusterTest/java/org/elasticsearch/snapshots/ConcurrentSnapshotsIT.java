@@ -50,6 +50,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -94,6 +95,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
                 .build();
+    }
+
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testLongRunningSnapshotAllowsConcurrentSnapshot() throws Exception {
@@ -569,13 +579,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
         final String masterNode = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(
-                        Collections.singleton(masterNode),
-                        Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
-                                .collect(Collectors.toSet())),
-                new NetworkDisruption.NetworkDisconnect());
-        internalCluster().setDisruptionScheme(networkDisruption);
+        NetworkDisruption networkDisruption = disconnectMasterDisruption();
 
         blockNodeOnAnyFiles(repoName, masterNode);
         ActionFuture<AcknowledgedResponse> firstDeleteFuture = client(masterNode).admin().cluster()
@@ -604,7 +608,45 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(RepositoryException.class, createThirdSnapshot::actionGet);
 
         awaitNoMoreRunningOperations();
+    }
+
+    public void testQueuedOperationsOnMasterDisconnectAndRepoFailure() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+        createNSnapshots(repoName, randomIntBetween(2, 5));
+
+        final String masterNode = internalCluster().getMasterName();
+        NetworkDisruption networkDisruption = disconnectMasterDisruption();
+
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final ActionFuture<CreateSnapshotResponse> firstFailedSnapshotFuture =
+                startFullSnapshotFromMasterClient(repoName, "failing-snapshot-1");
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<CreateSnapshotResponse> secondFailedSnapshotFuture =
+                startFullSnapshotFromMasterClient(repoName, "failing-snapshot-2");
+        awaitClusterState(state -> {
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress != null && snapshotsInProgress.entries().size() == 2;
+        });
+
+        final ActionFuture<AcknowledgedResponse> failedDeleteFuture =
+                client(masterNode).admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+        awaitNDeletionsInProgress(1);
+
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+        unblockNode(repoName, masterNode);
         networkDisruption.stopDisrupting();
+
+        logger.info("--> make sure all failing requests get a response");
+        expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
+        expectThrows(RepositoryException.class, secondFailedSnapshotFuture::actionGet);
+        expectThrows(RepositoryException.class, failedDeleteFuture::actionGet);
+
+        awaitNoMoreRunningOperations();
     }
 
     public void testQueuedOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
@@ -940,5 +982,17 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, firstSnapshot);
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
         return fut;
+    }
+
+    private static NetworkDisruption disconnectMasterDisruption() {
+        final String masterNode = internalCluster().getMasterName();
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+                new NetworkDisruption.TwoPartitions(
+                        Collections.singleton(masterNode),
+                        Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
+                                .collect(Collectors.toSet())),
+                new NetworkDisruption.NetworkDisconnect());
+        internalCluster().setDisruptionScheme(networkDisruption);
+        return networkDisruption;
     }
 }

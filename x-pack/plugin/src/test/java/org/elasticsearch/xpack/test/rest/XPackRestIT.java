@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpStatus;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /** Runs rest tests against external cluster */
+// TODO: Remove this timeout increase once this test suite is broken up
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE =
             basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
@@ -123,6 +127,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             final Map<String, Object> settings = new HashMap<>();
             settings.put("xpack.monitoring.collection.enabled", true);
             settings.put("xpack.monitoring.collection.interval", "1s");
+            settings.put("xpack.monitoring.exporters._local.type", "local");
             settings.put("xpack.monitoring.exporters._local.enabled", true);
 
             awaitCallApi("cluster.put_settings", emptyMap(),

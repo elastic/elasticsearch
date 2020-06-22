@@ -23,11 +23,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -425,6 +429,24 @@ public class SimpleSearchIT extends ESIntegTestCase {
             assertThat(ex.getRootCause().getMessage(),
                 containsString("Can only use regexp queries on keyword and text fields"));
         }
+    }
+
+    public void testTermQueryBigInt() throws Exception {
+        prepareCreate("idx").setMapping("field", "type=keyword").get();
+        ensureGreen("idx");
+
+        client().prepareIndex("idx")
+            .setId("1")
+            .setSource("{\"field\" : 80315953321748200608 }", XContentType.JSON)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
+
+        String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
+        parser.nextToken();
+        TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {

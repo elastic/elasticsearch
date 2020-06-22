@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,21 +41,11 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
     public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
 
     /** Create a default constructed fieldtype */
-    protected abstract T createDefaultFieldType();
-
-    T createNamedDefaultFieldType() {
-        T fieldType = createDefaultFieldType();
-        fieldType.setName("foo");
-        return fieldType;
-    }
+    protected abstract T createDefaultFieldType(String name, Map<String, String> meta);
 
     @SuppressWarnings("unchecked")
     private final List<EqualsHashCodeTestUtils.MutateFunction<T>> modifiers = new ArrayList<>(List.of(
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setName(t.name() + "-mutated");
-            return (T) copy;
-        },
+        t -> createDefaultFieldType(t.name() + "-mutated", t.meta()),
         t -> {
             MappedFieldType copy = t.clone();
             copy.setBoost(t.boost() + 1);
@@ -82,20 +73,13 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
         },
         t -> {
             MappedFieldType copy = t.clone();
-            copy.setNullValue(new Object());
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
             copy.setEagerGlobalOrdinals(t.eagerGlobalOrdinals() == false);
             return (T) copy;
         },
         t -> {
-            MappedFieldType copy = t.clone();
             Map<String, String> meta = new HashMap<>(t.meta());
             meta.put("bogus", "bogus");
-            copy.setMeta(meta);
-            return (T) copy;
+            return createDefaultFieldType(t.name(), meta);
         }
     ));
 
@@ -114,14 +98,14 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
     }
 
     public void testClone() {
-        MappedFieldType fieldType = createNamedDefaultFieldType();
+        MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(fieldType, MappedFieldType::clone);
     }
 
     @SuppressWarnings("unchecked")
     public void testEquals() {
         for (EqualsHashCodeTestUtils.MutateFunction<T> modifier : modifiers) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createNamedDefaultFieldType(),
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createDefaultFieldType("foo", Collections.emptyMap()),
                 t -> (T) t.clone(), modifier);
         }
     }

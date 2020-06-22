@@ -257,9 +257,10 @@ public class CsvProcessorTests extends ESTestCase {
         if (ingestDocument.hasField(fieldName)) {
             ingestDocument.removeField(fieldName);
         }
-        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', true, null);
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), null, fieldName, new String[]{"a"}, false, ',', '"', true, null);
         processor.execute(ingestDocument);
-        CsvProcessor processor2 = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[]{"a"}, false, ',', '"', false, null);
+        CsvProcessor processor2 = new CsvProcessor(randomAlphaOfLength(5), null, fieldName, new String[]{"a"}, false,
+            ',', '"', false, null);
         expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument));
     }
 
@@ -269,7 +270,7 @@ public class CsvProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "abc,abc");
         HashMap<String, Object> metadata = new HashMap<>(ingestDocument.getSourceAndMetadata());
 
-        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, new String[0], false, ',', '"', false, null);
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), null, fieldName, new String[0], false, ',', '"', false, null);
 
         processor.execute(ingestDocument);
 
@@ -291,7 +292,7 @@ public class CsvProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue(fieldName, csv);
 
         char quoteChar = quote.isEmpty() ? '"' : quote.charAt(0);
-        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, headers, trim, separator, quoteChar, false,
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), null, fieldName, headers, trim, separator, quoteChar, false,
             emptyValue);
 
         processor.execute(ingestDocument);

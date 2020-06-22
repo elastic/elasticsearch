@@ -244,7 +244,8 @@ class DatafeedJob {
            .setJobId(jobId)
            .setModifiedTime(currentTime)
            .setModifiedUsername(XPackUser.NAME)
-           .setType("annotation")
+           .setType(Annotation.Type.ANNOTATION)
+           .setEvent(Annotation.Event.DELAYED_DATA)
            .build();
     }
 

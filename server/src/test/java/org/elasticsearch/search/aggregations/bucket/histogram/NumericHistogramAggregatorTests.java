@@ -300,13 +300,11 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = keywordField("field");
-            fieldType.setHasDocValues(true);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 expectThrows(IllegalArgumentException.class, () -> {
-                    search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
                 });
             }
         }
@@ -390,8 +388,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .field("field")
                     .interval(5)
                     .extendedBounds(-12, 13);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));

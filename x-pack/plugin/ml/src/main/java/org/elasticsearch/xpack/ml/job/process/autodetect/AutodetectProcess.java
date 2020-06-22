@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -49,6 +50,14 @@ public interface AutodetectProcess extends NativeProcess {
      * @throws IOException If the write fails
      */
     void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException;
+
+    /**
+     * Update the per-partition categorization configuration
+     *
+     * @param perPartitionCategorizationConfig New per-partition categorization config
+     * @throws IOException If the write fails
+     */
+    void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig) throws IOException;
 
     /**
      * Write message to update the detector rules

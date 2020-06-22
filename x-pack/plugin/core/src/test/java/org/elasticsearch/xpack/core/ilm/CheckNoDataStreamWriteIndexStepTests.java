@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
@@ -75,7 +76,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).put(new DataStream(dataStreamName,
-                createTimestampField("@timestamp"), List.of(indexMetadata.getIndex()))).build()
+                createTimestampField("@timestamp"), Arrays.asList(indexMetadata.getIndex()))).build()
         ).build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);

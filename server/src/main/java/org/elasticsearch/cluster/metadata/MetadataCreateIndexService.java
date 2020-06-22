@@ -510,7 +510,9 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
-                dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
+                @SuppressWarnings("unchecked")
+                Map _mappings = mappings; // type erasure for java8 generics :(
+                dataStream.getTimeStampField().insertTimestampFieldMapping(_mappings);
             }
         }
 

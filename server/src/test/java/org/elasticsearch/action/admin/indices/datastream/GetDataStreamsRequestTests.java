@@ -81,8 +81,10 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         IndexMetadata idx1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[0]).build();
         IndexMetadata idx2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[1]).build();
 
-        DataStream ds1 = new DataStream(dataStreamNames[0], createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx1.getIndex()));
-        DataStream ds2 = new DataStream(dataStreamNames[1], createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx2.getIndex()));
+        DataStream ds1 = new DataStream(dataStreamNames[0], createTimestampField("@timestamp"),
+            org.elasticsearch.common.collect.List.of(idx1.getIndex()));
+        DataStream ds2 = new DataStream(dataStreamNames[1], createTimestampField("@timestamp"),
+            org.elasticsearch.common.collect.List.of(idx2.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(
                 Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())

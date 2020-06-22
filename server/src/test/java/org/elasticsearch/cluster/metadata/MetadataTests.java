@@ -979,7 +979,8 @@ public class MetadataTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build(), false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -994,7 +995,8 @@ public class MetadataTests extends ESTestCase {
             .build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -1011,7 +1013,8 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
             .put(invalidIdx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(validIdx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(validIdx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
@@ -1026,7 +1029,8 @@ public class MetadataTests extends ESTestCase {
             .build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +

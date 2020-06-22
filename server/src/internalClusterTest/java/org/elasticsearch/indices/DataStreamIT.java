@@ -50,6 +50,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -63,9 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Optional;
-import java.util.Map;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
@@ -129,14 +129,14 @@ public class DataStreamIT extends ESIntegTestCase {
             client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        java.util.Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).get("_doc").getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp2.type", mappings), is("date"));
 
         backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 1);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        mappings = getIndexResponse.getMappings().get(backingIndex).get("_doc").getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp1.type", mappings), is("date"));
 
         int numDocsBar = randomIntBetween(2, 16);
@@ -159,14 +159,14 @@ public class DataStreamIT extends ESIntegTestCase {
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        mappings = getIndexResponse.getMappings().get(backingIndex).get("_doc").getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp1.type", mappings), is("date"));
 
         backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 2);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        mappings = getIndexResponse.getMappings().get(backingIndex).get("_doc").getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp2.type", mappings), is("date"));
 
         int numDocsBar2 = randomIntBetween(2, 16);
@@ -573,7 +573,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
-        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
+        java.util.Map<?, ?> expectedTimestampMapping =
+            Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
 
@@ -593,12 +594,12 @@ public class DataStreamIT extends ESIntegTestCase {
         assertBackingIndex(backingIndex, timestampFieldPathInMapping, Map.of("type", "date"));
     }
 
-    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
+    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, java.util.Map<?, ?> expectedMapping) {
         GetIndexResponse getIndexResponse =
             client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
-        Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        java.util.Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).get("_doc").getSourceAsMap();
         assertThat(ObjectPath.eval(timestampFieldPathInMapping, mappings), is(expectedMapping));
     }
 
@@ -661,7 +662,7 @@ public class DataStreamIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
 
-        List<String> expectedIndices = new ArrayList<>();
+        java.util.List<String> expectedIndices = new ArrayList<>();
         for (long k = minGeneration; k <= maxGeneration; k++) {
             expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
         }
@@ -676,12 +677,17 @@ public class DataStreamIT extends ESIntegTestCase {
             "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
-    public static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns) throws IOException {
+    public static void putComposableIndexTemplate(String id,
+                                                  String timestampFieldName,
+                                                  java.util.List<String> patterns) throws IOException {
         String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns);
     }
 
-    static void putComposableIndexTemplate(String id, String timestampFieldName, String mapping, List<String> patterns) throws IOException {
+    static void putComposableIndexTemplate(String id,
+                                           String timestampFieldName,
+                                           String mapping,
+                                           java.util.List<String> patterns) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(

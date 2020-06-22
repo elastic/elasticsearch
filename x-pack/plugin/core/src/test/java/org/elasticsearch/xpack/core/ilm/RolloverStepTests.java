@@ -25,6 +25,7 @@ import org.mockito.Mockito;
 import java.util.Collections;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
@@ -134,7 +135,8 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(
-                        dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L)
+                        dataStreamName, createTimestampField("timestamp"),
+                        org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L)
                     )
                     .put(indexMetadata, true)
             )

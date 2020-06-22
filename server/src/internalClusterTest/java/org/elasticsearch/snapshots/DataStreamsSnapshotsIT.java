@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.indices.DataStreamIT;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -39,7 +40,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -59,7 +59,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
-        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
+        DataStreamIT.putComposableIndexTemplate("t1", "@timestamp", List.of("ds", "other-ds"));
 
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
@@ -89,7 +89,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
 
         GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
-        List<SnapshotInfo> snap = snapshot.getSnapshots();
+        java.util.List<SnapshotInfo> snap = snapshot.getSnapshots();
         assertEquals(1, snap.size());
         assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
 

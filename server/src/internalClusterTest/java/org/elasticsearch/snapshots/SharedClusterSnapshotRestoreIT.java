@@ -2427,7 +2427,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
 
         String dataStream = "test-ds";
-        DataStreamIT.createIndexTemplate("dst", "@timestamp", dataStream);
+        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", org.elasticsearch.common.collect.List.of(dataStream));
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {

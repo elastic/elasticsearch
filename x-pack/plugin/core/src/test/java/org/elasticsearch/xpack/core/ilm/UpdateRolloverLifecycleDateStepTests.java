@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Collections;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<UpdateRolloverLifecycleDateStep> {
@@ -95,7 +96,8 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
+                    .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                        org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
                         rolledIndexMeta.getIndex()), 2L))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)

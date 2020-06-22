@@ -81,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -167,10 +168,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(dataStreamIndex1, true)
                 .put(dataStreamIndex2, true)
                 .put(dataStreamIndex3, true)
-                .put(new DataStream(dataStreamName, "ts",
-                    org.elasticsearch.common.collect.List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
-                .put(new DataStream(otherDataStreamName, "ts",
-                    org.elasticsearch.common.collect.List.of(dataStreamIndex3.getIndex())))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                    Arrays.asList(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
+                .put(new DataStream(otherDataStreamName, createTimestampField("@timestamp"),
+                    Arrays.asList(dataStreamIndex3.getIndex())))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {

@@ -845,8 +845,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Alias> aliases = new ArrayList<>();
             named.forEach(n -> {
                 if (n instanceof Alias) {
-                    Alias a = (Alias) n;
-                    aliases.add(a);
+                    aliases.add((Alias) n);
                 }
             });
 
@@ -854,7 +853,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
                     // don't replace field with their own aliases (it creates infine cycles)
-                    if (u != alias.child() && 
+                    if (u != alias.child() &&
                             (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name()))) {
                         return alias;
                     }

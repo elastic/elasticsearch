@@ -825,7 +825,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public final TransportStats getStats() {
-        final MeanMetric writeBytesMetric = statsTracker.getWriteBytes();
         final long bytesWritten = statsTracker.getBytesWritten();
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();

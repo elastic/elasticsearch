@@ -138,8 +138,8 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         assertThat(testDocsCount, equalTo(9L));
     }
 
-    private CrossValidationSplitter createSplitter(double trainingPercent, long cardinality) {
-        return new SingleClassReservoirCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, cardinality);
+    private CrossValidationSplitter createSplitter(double trainingPercent, long classCount) {
+        return new SingleClassReservoirCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, classCount);
     }
 
     private void incrementTrainingDocsCount() {

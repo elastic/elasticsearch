@@ -83,12 +83,12 @@ public class CrossValidationSplitterFactory {
                 searchRequestBuilder::get);
             Aggregations aggs = searchResponse.getAggregations();
             Terms terms = aggs.get(aggName);
-            Map<String, Long> classCardinalities = new HashMap<>();
+            Map<String, Long> classCounts = new HashMap<>();
             for (Terms.Bucket bucket : terms.getBuckets()) {
-                classCardinalities.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
+                classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
             }
 
-            return new StratifiedCrossValidationSplitter(fieldNames, classification.getDependentVariable(), classCardinalities,
+            return new StratifiedCrossValidationSplitter(fieldNames, classification.getDependentVariable(), classCounts,
                 classification.getTrainingPercent(), classification.getRandomizeSeed());
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());

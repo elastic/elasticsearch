@@ -49,13 +49,13 @@ abstract class AbstractReservoirCrossValidationSplitter implements CrossValidati
 
         SampleInfo sample = getSampleInfo(row);
 
-        // We ensure the target sample count is at least 1 as if the cardinality
+        // We ensure the target sample count is at least 1 as if the class count
         // is too low we might get a target of zero and, thus, no samples of the whole class
-        long targetSampleCount = (long) Math.max(1.0, samplingRatio * sample.cardinality);
+        long targetSampleCount = (long) Math.max(1.0, samplingRatio * sample.classCount);
 
         // The idea here is that the probability increases as the chances we have to get the target proportion
         // for a class decreases.
-        double p = (double) (targetSampleCount - sample.training) / (sample.cardinality - sample.observed);
+        double p = (double) (targetSampleCount - sample.training) / (sample.classCount - sample.observed);
 
         boolean isTraining = random.nextDouble() <= p;
 
@@ -76,16 +76,16 @@ abstract class AbstractReservoirCrossValidationSplitter implements CrossValidati
     protected abstract SampleInfo getSampleInfo(String[] row);
 
     /**
-     * Cardinality, count of docs picked for training, and count of observed
+     * Class count, count of docs picked for training, and count of observed
      */
     static class SampleInfo {
 
-        private final long cardinality;
+        private final long classCount;
         private long training;
         private long observed;
 
-        SampleInfo(long cardinality) {
-            this.cardinality = cardinality;
+        SampleInfo(long classCount) {
+            this.classCount = classCount;
         }
     }
 }

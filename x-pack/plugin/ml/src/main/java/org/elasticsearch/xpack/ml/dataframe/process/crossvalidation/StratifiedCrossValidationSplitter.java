@@ -18,11 +18,11 @@ public class StratifiedCrossValidationSplitter extends AbstractReservoirCrossVal
 
     private final Map<String, SampleInfo> classSamples;
 
-    public StratifiedCrossValidationSplitter(List<String> fieldNames, String dependentVariable, Map<String, Long> classCardinalities,
+    public StratifiedCrossValidationSplitter(List<String> fieldNames, String dependentVariable, Map<String, Long> classCounts,
                                              double trainingPercent, long randomizeSeed) {
         super(fieldNames, dependentVariable, trainingPercent, randomizeSeed);
         this.classSamples = new HashMap<>();
-        classCardinalities.entrySet().forEach(entry -> classSamples.put(entry.getKey(), new SampleInfo(entry.getValue())));
+        classCounts.entrySet().forEach(entry -> classSamples.put(entry.getKey(), new SampleInfo(entry.getValue())));
     }
 
     @Override

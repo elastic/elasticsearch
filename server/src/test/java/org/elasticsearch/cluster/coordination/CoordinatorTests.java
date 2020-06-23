@@ -818,7 +818,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat(value(cn.getLastAppliedClusterState()), is(finalValue));
                 assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
                     postPublishStats.get(cn).getFullClusterStateReceivedCount());
-                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + (cn == leader ? 0 : 1),
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
                 assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
@@ -1209,7 +1209,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 

@@ -360,11 +360,16 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof TransportException;
-                final TransportException exp = (TransportException) e;
-                logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
-                assert ((TransportException) e).getRootCause() instanceof Exception;
-                setFailed((Exception) exp.getRootCause());
+                final Exception rootCause;
+                if (e instanceof TransportException) {
+                    final TransportException transportException = (TransportException) e;
+                    assert ((TransportException) e).getRootCause() instanceof Exception;
+                    rootCause = (Exception) transportException.getRootCause();
+                } else {
+                    rootCause = e;
+                }
+                logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
+                setFailed(rootCause);
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }

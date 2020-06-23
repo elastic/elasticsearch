@@ -35,7 +35,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         return new ClassificationInferenceResults(randomDouble(),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null :
-                Stream.generate(ClassificationInferenceResultsTests::createRandomClassEntry)
+                Stream.generate(TopClassEntryTests::createRandomTopClassEntry)
                     .limit(randomIntBetween(0, 10))
                     .collect(Collectors.toList()),
             randomBoolean() ? null :
@@ -43,10 +43,6 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
             ClassificationConfigTests.randomClassificationConfig());
-    }
-
-    private static ClassificationInferenceResults.TopClassEntry createRandomClassEntry() {
-        return new ClassificationInferenceResults.TopClassEntry(randomAlphaOfLength(10), randomDouble(), randomDouble());
     }
 
     public void testWriteResultsWithClassificationLabel() {
@@ -71,10 +67,10 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
 
     @SuppressWarnings("unchecked")
     public void testWriteResultsWithTopClasses() {
-        List<ClassificationInferenceResults.TopClassEntry> entries = Arrays.asList(
-            new ClassificationInferenceResults.TopClassEntry("foo", 0.7, 0.7),
-            new ClassificationInferenceResults.TopClassEntry("bar", 0.2, 0.2),
-            new ClassificationInferenceResults.TopClassEntry("baz", 0.1, 0.1));
+        List<TopClassEntry> entries = Arrays.asList(
+            new TopClassEntry("foo", 0.7, 0.7),
+            new TopClassEntry("bar", 0.2, 0.2),
+            new TopClassEntry("baz", 0.1, 0.1));
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
             "foo",
             entries,
@@ -144,14 +140,19 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         String expected = "{\"predicted_value\":1.0}";
         assertEquals(expected, stringRep);
 
+        ClassificationConfig boolFieldConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.BOOLEAN);
+        result = new ClassificationInferenceResults(1.0, null, null, boolFieldConfig);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":true}";
+        assertEquals(expected, stringRep);
+
         result = new ClassificationInferenceResults(1.0, "label1", null, config);
         stringRep = Strings.toString(result);
         expected = "{\"predicted_value\":1.0,\"label\":\"label1\"}";
         assertEquals(expected, stringRep);
 
         FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
-        ClassificationInferenceResults.TopClassEntry tp =
-            new ClassificationInferenceResults.TopClassEntry("class", 1.0, 1.0);
+        TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
             Collections.singletonList(fi), config);
         stringRep = Strings.toString(result);
@@ -159,4 +160,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}]}";
         assertEquals(expected, stringRep);
     }
+
+
+    // TODO test write to map
 }

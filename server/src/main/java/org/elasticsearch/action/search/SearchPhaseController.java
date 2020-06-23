@@ -697,10 +697,12 @@ public final class SearchPhaseController {
 
         @Override
         public void consumeResult(SearchPhaseResult result) {
+            long start = System.currentTimeMillis();
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeInternal(queryResult);
             progressListener.notifyQueryResult(queryResult.getShardIndex());
+            logger.info("=====> batched reduce shard elapsed: {}", System.currentTimeMillis() - start);
         }
 
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
@@ -764,8 +766,10 @@ public final class SearchPhaseController {
         public ReducedQueryPhase reduce() {
             aggsMaxBufferSize = Math.max(aggsMaxBufferSize, aggsCurrentBufferSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, aggsMaxBufferSize);
+            long start = System.currentTimeMillis();
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
                     topDocsStats, numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
+            logger.info("=====> batched final reduce time: {}", System.currentTimeMillis() - start);
             progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
@@ -843,10 +847,12 @@ public final class SearchPhaseController {
 
         @Override
         void consumeResult(SearchPhaseResult result) {
+            long start = System.currentTimeMillis();
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeParallel(queryResult);
             progressListener.notifyQueryResult(queryResult.getShardIndex());
+            logger.info("=====> parallel reduce shard elapsed: {}", System.currentTimeMillis() - start);
         }
 
         private void consumeParallel(QuerySearchResult querySearchResult) {
@@ -907,11 +913,15 @@ public final class SearchPhaseController {
 
         @Override
         ReducedQueryPhase reduce() {
+            long start = System.currentTimeMillis();
             waitForAllParallelsDone();
+            logger.info("=====> parallel wait to final reduce: {}", System.currentTimeMillis() - start);
             lastPartialResult = intermediateReducedResultsQueue.remove();
             logger.trace("aggs final reduction [{}] max [{}]", lastPartialResult.aggs.ramBytesUsed(), aggsMaxSize);
+            start = System.currentTimeMillis();
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
                 topDocsStats, numReducePhases.get(), false, aggReduceContextBuilder, performFinalReduce);
+            logger.info("=====> parallel final reduce time: {}", System.currentTimeMillis() - start);
             progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             return reducePhase;
@@ -935,8 +945,8 @@ public final class SearchPhaseController {
             public void run() {
                 runningParallelReduceCount.incrementAndGet();
                 int fetches = 0;
-                List<DelayableWriteable.Serialized<InternalAggregations>> aggsFetches = new ArrayList<>(fetches);
-                List<TopDocs> topDocsFetches = new ArrayList<>(fetches);
+                List<DelayableWriteable.Serialized<InternalAggregations>> aggsFetches = new ArrayList<>();
+                List<TopDocs> topDocsFetches = new ArrayList<>();
                 synchronized (intermediateReducedResultsQueue) {
                     /*
                      * other tasks may fetch from queue to change the queue size when current task check queue size to
@@ -1027,15 +1037,19 @@ public final class SearchPhaseController {
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             void consumeResult(SearchPhaseResult result) {
+                long start = System.currentTimeMillis();
                 super.consumeResult(result);
                 listener.notifyQueryResult(result.queryResult().getShardIndex());
+                logger.info("=====> default reduce shard elapsed: {}", System.currentTimeMillis() - start);
             }
 
             @Override
             ReducedQueryPhase reduce() {
                 List<SearchPhaseResult> resultList = results.asList();
+                long start = System.currentTimeMillis();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, aggReduceContextBuilder, request.isFinalReduce());
+                logger.info("=====> default final reduce time: {}", System.currentTimeMillis() - start);
                 listener.notifyFinalReduce(SearchProgressListener.buildSearchShards(resultList),
                     reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
                 return reducePhase;

@@ -34,11 +34,9 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -240,13 +238,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    /**
-     * {@link NumericTermsAggregator} is the first complex bucking aggregation
-     * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
-     * so this tests that nested works properly inside of it.
-     */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56529")
-    public void testNestedUnderLongTerms() throws IOException {
+    public void testNestedUnderTerms() throws IOException {
         int numProducts = scaledRandomIntBetween(1, 100);
         int numResellers = scaledRandomIntBetween(1, 100);
 

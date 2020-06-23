@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -231,7 +232,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
                                         boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             if (splitQueriesOnWhitespace == false) {
                 setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -482,7 +483,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
                                        boolean splitQueriesOnWhitespace) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             if (splitQueriesOnWhitespace) {

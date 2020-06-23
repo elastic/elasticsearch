@@ -311,8 +311,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    a -> a.new StandardTermsResults(),
-                    valuesSource,
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
+                    a -> a.new StandardTermsResults(valuesSource),
                     order,
                     format,
                     bucketCountThresholds,

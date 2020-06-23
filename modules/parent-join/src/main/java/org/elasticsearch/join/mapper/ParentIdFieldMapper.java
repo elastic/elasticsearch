@@ -32,13 +32,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -89,13 +89,13 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
             return new ParentIdFieldMapper(name, parent, children, fieldType,
-                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta), context.indexSettings());
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
         }
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
         ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
-            super(name, true, true, meta);
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
@@ -142,9 +142,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
                                   String parentName,
                                   Set<String> children,
                                   FieldType fieldType,
-                                  MappedFieldType mappedFieldType,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+                                  MappedFieldType mappedFieldType) {
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
     }

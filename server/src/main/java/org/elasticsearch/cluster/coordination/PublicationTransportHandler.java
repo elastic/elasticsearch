@@ -142,7 +142,6 @@ public class PublicationTransportHandler {
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
                     throw e;
                 }
-                assert incomingState.nodes().isLocalNodeElectedMaster() == false : "should not be deserializing state from local node";
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
@@ -181,7 +180,7 @@ public class PublicationTransportHandler {
     }
 
     private PublishWithJoinResponse acceptState(ClusterState incomingState) {
-        assert transportService.getLocalNode().equals(incomingState.nodes().getMasterNode()) == false
+        assert incomingState.nodes().isLocalNodeElectedMaster() == false
             : "should handle local publications locally, but got " + incomingState;
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }

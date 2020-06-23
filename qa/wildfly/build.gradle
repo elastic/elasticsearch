@@ -50,7 +50,7 @@ dependencies {
 }
 
 war {
-  archiveName 'example-app.war'
+  archiveFileName = 'example-app.war'
 }
 
 elasticsearch_distributions {

@@ -68,6 +68,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
     private final TopDocsStats topDocsStats;
     private volatile int numReducePhases;
     private List<SearchShard> processedShards = new ArrayList<>();
+    private boolean hasPartialReduce;
     private volatile TopDocs reducedTopDocs;
     private volatile Serialized<InternalAggregations> reducedAggs;
 
@@ -133,7 +134,9 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
                 processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
                 result.consumeAll();
             } else {
-                if (buffer.size() == bufferSize) {
+                int size = buffer.size() + (hasPartialReduce ? 1 : 0);
+                if (size == bufferSize) {
+                    hasPartialReduce = true;
                     shouldExecuteImmediatly = false;
                     MergeTask task = new MergeTask(buffer, next);
                     buffer.clear();

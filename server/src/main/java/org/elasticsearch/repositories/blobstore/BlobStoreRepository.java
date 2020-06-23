@@ -1579,7 +1579,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 "Tried to update from unexpected pending repo generation [" + meta.pendingGeneration() +
                                     "] after write to generation [" + newGen + "]");
                         }
-                        return updateRepositoryGenerations(stateFilter.apply(ClusterState.builder(currentState)
+                        return updateRepositoryGenerationsIfNecessary(stateFilter.apply(ClusterState.builder(currentState)
                                 .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE,
                                         currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
                                                 .withUpdatedGeneration(metadata.name(), newGen, newGen))).build()), expectedGen, newGen);
@@ -1625,7 +1625,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param newGen new safe repository generation
      * @return updated cluster state
      */
-    private ClusterState updateRepositoryGenerations(ClusterState state, long oldGen, long newGen) {
+    private ClusterState updateRepositoryGenerationsIfNecessary(ClusterState state, long oldGen, long newGen) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final String repoName = metadata.name();
         final SnapshotsInProgress updatedSnapshotsInProgress;

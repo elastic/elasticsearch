@@ -808,7 +808,7 @@ public final class SearchPhaseController {
         private final AtomicInteger runningParallelReduceCount;
         private final AtomicInteger shardResultConsumeCount;
         private final CountDownLatch finalReduce = new CountDownLatch(1);
-        private PartialReduceResult lastPartialResult;
+        private final List<PartialReduceResult> remainningResults;
 
         /**
          * Creates a new {@link QueryPhaseParallelResultConsumer}
@@ -843,6 +843,7 @@ public final class SearchPhaseController {
             this.reduceExecutor = threadPool.executor(ThreadPool.Names.REDUCE_PARTIAL_PARALLEL);
             this.runningParallelReduceCount = new AtomicInteger(0);
             this.shardResultConsumeCount = new AtomicInteger(0);
+            this.remainningResults = new ArrayList<>();
         }
 
         @Override
@@ -891,7 +892,6 @@ public final class SearchPhaseController {
 
         private boolean checkParitalReduceAggsDone() {
             return runningParallelReduceCount.get() == 0 &&
-                   intermediateReducedResultsQueue.size() == 1 &&
                    shardResultConsumeCount.get() == numShards;
         }
 
@@ -903,12 +903,16 @@ public final class SearchPhaseController {
             }
         }
 
+        private void drainToIntermediateResultQueue() {
+            intermediateReducedResultsQueue.drainTo(remainningResults);
+        }
+
         private synchronized List<DelayableWriteable<InternalAggregations>> getRemainingAggs() {
-            return hasAggs ? Arrays.asList((DelayableWriteable<InternalAggregations>) lastPartialResult.aggs) : null;
+            return hasAggs ? remainningResults.stream().map(PartialReduceResult::getAggs).collect(Collectors.toList()) : null;
         }
 
         private synchronized List<TopDocs> getRemainingTopDocs() {
-            return hasTopDocs ? Arrays.asList(lastPartialResult.topDocs) : null;
+            return hasTopDocs ? remainningResults.stream().map(PartialReduceResult::getTopDocs).collect(Collectors.toList()) : null;
         }
 
         @Override
@@ -916,14 +920,15 @@ public final class SearchPhaseController {
             long start = System.currentTimeMillis();
             waitForAllParallelsDone();
             logger.info("=====> parallel wait to final reduce: {}", System.currentTimeMillis() - start);
-            lastPartialResult = intermediateReducedResultsQueue.remove();
-            logger.trace("aggs final reduction [{}] max [{}]", lastPartialResult.aggs.ramBytesUsed(), aggsMaxSize);
+            drainToIntermediateResultQueue();
+            logger.trace("aggs final reduction [{}] max [{}]", remainningResults.stream().mapToLong(PartialReduceResult::ramUsed).sum(), aggsMaxSize);
             start = System.currentTimeMillis();
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
                 topDocsStats, numReducePhases.get(), false, aggReduceContextBuilder, performFinalReduce);
             logger.info("=====> parallel final reduce time: {}", System.currentTimeMillis() - start);
             progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
+            remainningResults.clear();
             return reducePhase;
         }
 
@@ -937,6 +942,18 @@ public final class SearchPhaseController {
             public PartialReduceResult(DelayableWriteable.Serialized<InternalAggregations> aggs, TopDocs topDocs) {
                 this.aggs = aggs;
                 this.topDocs = topDocs;
+            }
+
+            public DelayableWriteable.Serialized<InternalAggregations> getAggs() {
+                return aggs;
+            }
+
+            public TopDocs getTopDocs() {
+                return topDocs;
+            }
+
+            public long ramUsed() {
+                return aggs != null ? aggs.ramBytesUsed() : 0;
             }
         }
 
@@ -995,9 +1012,6 @@ public final class SearchPhaseController {
                 // re-enqueue
                 PartialReduceResult reducedResult = new PartialReduceResult(reducedAggs, reducedTopDocs);
                 putInQueue(reducedResult);
-                if (intermediateReducedResultsQueue.size() > 1) {
-                    reduceExecutor.execute(new PartialReduceTask());
-                }
                 runningParallelReduceCount.decrementAndGet();
                 // check to notify final reduce to begin
                 if (checkParitalReduceAggsDone()) {

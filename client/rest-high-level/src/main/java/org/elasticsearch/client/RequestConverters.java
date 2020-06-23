@@ -521,13 +521,17 @@ final class RequestConverters {
         return request;
     }
 
-    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
+        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME  : HttpGet.METHOD_NAME;
+        Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
         Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
         params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
         request.addParameters(params.asMap());
+        if (fieldCapabilitiesRequest.indexFilter() != null) {
+            request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 

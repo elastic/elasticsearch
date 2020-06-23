@@ -20,11 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,13 +47,13 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
 
         for (SDeclaration declaration : declarationNodes) {
-            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
+            declarationOutputs.add(declaration.analyze(classNode, semanticScope, new Input()));
         }
 
         output.statementCount = declarationNodes.size();

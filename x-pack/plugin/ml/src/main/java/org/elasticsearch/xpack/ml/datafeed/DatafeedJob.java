@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -172,8 +173,8 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
+            return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
     }
@@ -382,9 +383,9 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
             }
         }
 

@@ -50,7 +50,7 @@ NOTE: The `op_type` parameter defaults to `create` when adding new documents.
 .*Example: Index API request*
 [%collapsible]
 ====
-The following <<docs-index_,index API>> adds a new document to the `logs` data
+The following index API request adds a new document to the `logs` data
 stream.
 
 [source,console]
@@ -77,7 +77,7 @@ NOTE: Data streams do not support other bulk actions, such as `index`.
 .*Example: Bulk API request*
 [%collapsible]
 ====
-The following <<docs-bulk,bulk API>> index request adds several new documents to
+The following bulk API request adds several new documents to
 the `logs` data stream. Note that only the `create` action is used.
 
 [source,console]
@@ -134,6 +134,69 @@ GET /logs/_search
           "message": "login successful"
         }
       }
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
+You can use a comma-separated list or wildcard (`*`) expression to search
+multiple data streams, indices, and index aliases in the same request.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+PUT /_data_stream/logs_alt
+----
+// TEST[continued]
+////
+
+The following request searches the `logs` and `logs_alt` data streams, which are
+specified as a comma-separated list in the request path.
+
+[source,console]
+----
+GET /logs,logs_alt/_search
+{
+  "query": {
+    "match": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following request uses the `logs*` wildcard expression to search any data
+stream, index, or index alias beginning with `logs`.
+
+[source,console]
+----
+GET /logs*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "vlb44hny"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following search request omits a target in the request path. The request
+searches all data streams and indices in the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "user.id": "l7gk7f82"
     }
   }
 }
@@ -480,6 +543,8 @@ PUT /_bulk?refresh
 [source,console]
 ----
 DELETE /_data_stream/logs
+
+DELETE /_data_stream/logs_alt
 
 DELETE /_index_template/logs_data_stream
 ----

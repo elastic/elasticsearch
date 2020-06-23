@@ -21,6 +21,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.index.query.QueryBuilder;
 
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,
@@ -39,6 +40,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
 
     public FieldCapabilitiesRequestBuilder setIncludeUnmapped(boolean includeUnmapped) {
         request().includeUnmapped(includeUnmapped);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
+        request().indexFilter(indexFilter);
         return this;
     }
 }

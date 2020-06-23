@@ -20,10 +20,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
@@ -55,6 +55,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setDimensions(7, 4, Integer.BYTES);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         FIELD_TYPE.setOmitNorms(true);
         FIELD_TYPE.freeze();
     }
@@ -80,7 +81,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
             return new GeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), context.indexSettings(),
+                ignoreZValue(), orientation(),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -119,9 +120,9 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     public GeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
             multiFields, copyTo);
     }
 

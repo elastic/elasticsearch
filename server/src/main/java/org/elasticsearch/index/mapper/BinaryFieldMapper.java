@@ -99,7 +99,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {

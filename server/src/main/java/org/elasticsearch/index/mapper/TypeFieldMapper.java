@@ -101,7 +101,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public static final TypeFieldType INSTANCE = new TypeFieldType();
 
         private TypeFieldType() {
-            super(NAME, true, false, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected TypeFieldType(TypeFieldType ref) {

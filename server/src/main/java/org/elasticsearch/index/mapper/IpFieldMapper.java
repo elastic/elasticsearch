@@ -141,7 +141,7 @@ public class IpFieldMapper extends FieldMapper {
     public static final class IpFieldType extends SimpleMappedFieldType {
 
         public IpFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public IpFieldType(String name) {

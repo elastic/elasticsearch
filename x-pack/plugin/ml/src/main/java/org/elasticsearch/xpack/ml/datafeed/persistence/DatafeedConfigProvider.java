@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 /**
  * This class implements CRUD operation for the
@@ -107,12 +108,9 @@ public class DatafeedConfigProvider {
 
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
-            DatafeedConfig.Builder builder = new DatafeedConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
-            config = builder.build();
+            config = new DatafeedConfig.Builder(config)
+                .setHeaders(filterSecurityHeaders(headers))
+                .build();
         }
 
         final String datafeedId = config.getId();

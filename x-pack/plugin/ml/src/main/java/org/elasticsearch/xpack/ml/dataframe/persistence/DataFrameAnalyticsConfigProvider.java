@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 public class DataFrameAnalyticsConfigProvider {
 
@@ -73,12 +74,9 @@ public class DataFrameAnalyticsConfigProvider {
 
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
-            DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
-            config = builder.build();
+            config = new DataFrameAnalyticsConfig.Builder(config)
+                .setHeaders(filterSecurityHeaders(headers))
+                .build();
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));

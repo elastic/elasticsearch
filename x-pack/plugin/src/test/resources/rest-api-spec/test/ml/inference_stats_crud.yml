@@ -131,6 +131,11 @@ setup:
   - match: { count: 1 }
 
   - do:
+      cluster.health:
+        wait_for_status: yellow
+        index: .ml-stats*
+
+  - do:
       ml.get_trained_models_stats:
         model_id: "_all"
   - match: { count: 4 }

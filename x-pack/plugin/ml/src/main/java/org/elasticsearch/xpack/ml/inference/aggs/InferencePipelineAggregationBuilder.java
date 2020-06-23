@@ -160,7 +160,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         InferenceConfigUpdate update;
         if (inferenceConfig == null) {
-            update = new EmptyConfigUpdate(DEFAULT_RESULT_FIELD);
+            update = new EmptyConfigUpdate();
         } else {
             // error if the results field is set and not equal to the only acceptable value
             if (Strings.isNullOrEmpty(inferenceConfig.getResultsField()) == false &&

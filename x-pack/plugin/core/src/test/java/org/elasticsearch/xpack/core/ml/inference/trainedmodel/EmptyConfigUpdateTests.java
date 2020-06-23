@@ -25,15 +25,6 @@ public class EmptyConfigUpdateTests extends AbstractSerializingTestCase<EmptyCon
 
     @Override
     protected EmptyConfigUpdate createTestInstance() {
-        return new EmptyConfigUpdate(randomBoolean() ? null : randomAlphaOfLength(5));
-    }
-
-    public void testDuplicateWithResultsField() {
-        EmptyConfigUpdate update = createTestInstance();
-        String newFieldName = update.getResultsField() + "_value";
-        EmptyConfigUpdate updateWithField = (EmptyConfigUpdate)update.duplicateWithResultsField(newFieldName);
-
-        assertNotSame(updateWithField, update);
-        assertEquals(newFieldName, updateWithField.getResultsField());
+        return new EmptyConfigUpdate();
     }
 }

@@ -189,7 +189,9 @@ public class PublicationTransportHandler {
                     if (publishRequest == null || publishRequest.getAcceptedState().stateUUID().equals(incomingUUID) == false) {
                         throw new IllegalStateException("publication to self failed for " + publishRequest);
                     }
-                    return handlePublishRequest.apply(publishRequest);
+                    response = handlePublishRequest.apply(publishRequest);
+                    lastSeenClusterState.set(publishRequest.getAcceptedState());
+                    return response;
 
                 default:
                     throw new AssertionError("impossible");

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -201,26 +200,14 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         public Response(StreamInput in) throws IOException {
             super(in);
             flushed = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                lastFinalizedBucketEnd = in.readOptionalInstant();
-            } else {
-                long epochMillis = in.readVLong();
-                // Older versions will be storing zero when the desired behaviour was null
-                lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
-            }
+            lastFinalizedBucketEnd = in.readOptionalInstant();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(flushed);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalInstant(lastFinalizedBucketEnd);
-            } else {
-                // Older versions cannot tolerate null on the wire even though the rest of the class is designed to cope with null
-                long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
-                out.writeVLong(epochMillis);
-            }
+            out.writeOptionalInstant(lastFinalizedBucketEnd);
         }
 
         public boolean isFlushed() {

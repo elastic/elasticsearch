@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,25 +55,13 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            lastFinalizedBucketEnd = in.readOptionalInstant();
-        } else {
-            long epochMillis = in.readVLong();
-            // Older versions will be storing zero when the desired behaviour was null
-            lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
-        }
+        lastFinalizedBucketEnd = in.readOptionalInstant();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalInstant(lastFinalizedBucketEnd);
-        } else {
-            // Older versions cannot tolerate null on the wire even though the rest of the class is designed to cope with null
-            long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
-            out.writeVLong(epochMillis);
-        }
+        out.writeOptionalInstant(lastFinalizedBucketEnd);
     }
 
     public String getId() {

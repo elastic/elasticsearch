@@ -1815,9 +1815,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshotDeletionsInProgress new value for {@link SnapshotDeletionsInProgress} or {@code null} if it's unchanged
      * @return updated cluster state
      */
-    private static ClusterState updateWithSnapshots(ClusterState state,
-                                                    @Nullable SnapshotsInProgress snapshotsInProgress,
-                                                    @Nullable SnapshotDeletionsInProgress snapshotDeletionsInProgress) {
+    public static ClusterState updateWithSnapshots(ClusterState state,
+                                                   @Nullable SnapshotsInProgress snapshotsInProgress,
+                                                   @Nullable SnapshotDeletionsInProgress snapshotDeletionsInProgress) {
         if (snapshotsInProgress == null && snapshotDeletionsInProgress == null) {
             return state;
         }

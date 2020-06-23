@@ -1628,36 +1628,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private ClusterState updateRepositoryGenerations(ClusterState state, long oldGen, long newGen) {
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final String repoName = metadata.name();
-        final List<SnapshotsInProgress.Entry> snapshotEntries;
+        final SnapshotsInProgress updatedSnapshotsInProgress;
         if (snapshotsInProgress == null) {
-            snapshotEntries = List.of();
+            updatedSnapshotsInProgress = null;
         } else {
-            snapshotEntries = new ArrayList<>();
+            boolean changed = false;
+            final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
                     snapshotEntries.add(entry.withRepoGen(newGen));
+                    changed = true;
                 } else {
                     snapshotEntries.add(entry);
                 }
             }
+            updatedSnapshotsInProgress = changed ? new SnapshotsInProgress(List.copyOf(snapshotEntries)) : null;
         }
         final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        final List<SnapshotDeletionsInProgress.Entry> deletionEntries;
+        final SnapshotDeletionsInProgress updatedDeletionsInProgress;
         if (snapshotDeletionsInProgress == null) {
-            deletionEntries = List.of();
+            updatedDeletionsInProgress = null;
         } else {
-            deletionEntries = new ArrayList<>();
+            boolean changed = false;
+            final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
-                if (entry.repositoryStateId() == oldGen) {
+                if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
                     deletionEntries.add(entry.withRepoGen(newGen));
+                    changed = true;
                 } else {
                     deletionEntries.add(entry);
                 }
             }
+            updatedDeletionsInProgress = changed ? new SnapshotDeletionsInProgress(List.copyOf(deletionEntries)) : null;
         }
-        return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.copyOf(snapshotEntries)))
-                .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(List.copyOf(deletionEntries)))
-                .build();
+        return SnapshotsService.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress);
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {

@@ -826,10 +826,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitClusterState(state -> {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
             final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotDeletionsInProgress == null) {
-                return false;
-            }
-            return snapshotsInProgress.entries().isEmpty() && snapshotDeletionsInProgress.hasDeletionsInProgress() == false;
+            return (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) &&
+                    (snapshotDeletionsInProgress == null || snapshotDeletionsInProgress.hasDeletionsInProgress() == false);
         });
     }
 

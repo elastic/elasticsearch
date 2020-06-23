@@ -36,6 +36,8 @@ import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -159,6 +161,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
         }
 
         logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, aggsMaxBufferSize);
+        Collections.sort(buffer, Comparator.comparingInt(QuerySearchResult::getShardIndex));
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), consumeAggs(buffer),
             consumeTopDocs(buffer), topDocsStats, numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
         progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),

@@ -16,6 +16,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -23,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -98,6 +102,38 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
                 assertEquals("b", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(3L, result.getBuckets().get(1).getDocCount());
                 assertEquals("c", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            },
+            wildcardFieldType);
+    }
+
+    public void testCompositeTermsAggregation() throws IOException {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(
+                new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME)
+            )
+        );
+
+        testCase(aggregationBuilder,
+            iwc, new MatchAllDocsQuery(),
+            iw -> {
+                indexStrings(iw, "a");
+                indexStrings(iw, "c");
+                indexStrings(iw, "a");
+                indexStrings(iw, "d");
+                indexStrings(iw, "c");
+            },
+            (Consumer<InternalComposite>) result -> {
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{terms_key=d}", result.afterKey().toString());
+                assertEquals("{terms_key=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{terms_key=c}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             },
             wildcardFieldType);

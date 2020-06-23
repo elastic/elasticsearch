@@ -21,8 +21,8 @@ import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.Names.NULL_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -228,7 +228,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
 
-        Object nullValue = ((PointFieldMapper) fieldMapper).fieldType().nullValue();
+        Object nullValue = ((PointFieldMapper) fieldMapper).getNullValue();
         assertThat(nullValue, equalTo(new CartesianPoint(1, 2)));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
@@ -239,7 +239,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("location"), notNullValue());
-        BytesRef defaultValue = doc.rootDoc().getField("location").binaryValue();
+        BytesRef defaultValue = doc.rootDoc().getBinaryValue("location");
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -248,7 +248,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, equalTo(doc.rootDoc().getField("location").binaryValue()));
+        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("location")));
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -257,7 +257,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("location"))));
     }
 
     /**

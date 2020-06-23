@@ -118,7 +118,7 @@ public class SliceBuilderTests extends ESTestCase {
 
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
                                                  String fieldName, DocValuesType dvType, int numShards, int shardId) {
-        MappedFieldType fieldType = new MappedFieldType() {
+        MappedFieldType fieldType = new MappedFieldType(fieldName, true, dvType != null, Collections.emptyMap()) {
             @Override
             public MappedFieldType clone() {
                 return null;
@@ -138,7 +138,6 @@ public class SliceBuilderTests extends ESTestCase {
                 return null;
             }
         };
-        fieldType.setName(fieldName);
         QueryShardContext context = mock(QueryShardContext.class);
         when(context.fieldMapper(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
@@ -146,8 +145,6 @@ public class SliceBuilderTests extends ESTestCase {
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated, numShards);
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
-            fieldType.setHasDocValues(true);
-            fieldType.setDocValuesType(dvType);
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
             when(context.getForField(fieldType)).thenReturn(fd);
         }

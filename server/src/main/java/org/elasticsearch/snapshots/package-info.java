@@ -28,7 +28,7 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress}. All nodes consume the state of the {@code SnapshotsInProgress} and will start or
  * abort relevant shard snapshot tasks accordingly.</li>
  * <li>Nodes that are executing shard snapshot tasks report either success or failure of their snapshot task by submitting a
- * {@link org.elasticsearch.snapshots.SnapshotShardsService.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
+ * {@link org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest} to the master node that will update the
  * snapshot's entry in the cluster state accordingly.</li>
  * </ul>
  *

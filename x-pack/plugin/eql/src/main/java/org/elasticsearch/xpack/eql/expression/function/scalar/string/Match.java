@@ -36,9 +36,13 @@ public class Match extends BaseSurrogateFunction {
     private final List<Expression> patterns;
 
     public Match(Source source, Expression field, List<Expression> patterns) {
-        super(source, CollectionUtils.combine(singletonList(field), patterns));
-        this.field = field;
-        this.patterns = patterns;
+        this(source, CollectionUtils.combine(singletonList(field), patterns));
+    }
+
+    private Match(Source source, List<Expression> children) {
+        super(source, children);
+        this.field = children().get(0);
+        this.patterns = children().subList(1, children().size());
     }
 
     @Override
@@ -51,7 +55,7 @@ public class Match extends BaseSurrogateFunction {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new Match(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return new Match(source(), newChildren);
     }
 
     @Override

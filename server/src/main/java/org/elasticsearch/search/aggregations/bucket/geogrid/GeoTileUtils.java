@@ -251,6 +251,14 @@ public final class GeoTileUtils {
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 
+    /**
+     * Decode a string bucket key in "zoom/x/y" format to a bounding box of the tile corners
+     */
+    public static Rectangle toBoundingBox(String hash) {
+        int[] hashAsInts = parseHash(hash);
+        return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
+    }
+
     public static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
         final double tiles = validateZXY(precision, xTile, yTile);
         final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;

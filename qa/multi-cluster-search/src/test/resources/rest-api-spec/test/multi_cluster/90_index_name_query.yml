@@ -17,6 +17,9 @@ teardown:
 
 ---
 "Test that queries on _index match against the correct indices.":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
 
   - do:
       bulk:
@@ -59,6 +62,9 @@ teardown:
 
 ---
 "Test that queries on _index that don't match are skipped":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
 
   - do:
       bulk:

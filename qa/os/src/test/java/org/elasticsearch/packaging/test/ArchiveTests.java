@@ -41,7 +41,6 @@ import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNot
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
@@ -250,7 +249,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
-        final Path tempConf = getTempDir().resolve("esconf-alternate");
+        final Path tempConf = createTempDir("esconf-alternate");
 
         try {
             mkdir(tempConf);
@@ -339,7 +338,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test80RelativePathConf() throws Exception {
 
-        final Path temp = getTempDir().resolve("esconf-alternate");
+        final Path temp = createTempDir("esconf-alternate");
         final Path tempConf = temp.resolve("config");
 
         try {
@@ -420,7 +419,7 @@ public class ArchiveTests extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        sh.setWorkingDirectory(getTempDir());
+        sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();
         stopElasticsearch();
@@ -432,7 +431,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
         final Installation.Executables bin = installation.executables();
         // Run the cli tools from the tmp dir
-        sh.setWorkingDirectory(getTempDir());
+        sh.setWorkingDirectory(getRootTempDir());
 
         Platforms.PlatformAction action = () -> {
             Result result = sh.run(bin.certutilTool + " -h");

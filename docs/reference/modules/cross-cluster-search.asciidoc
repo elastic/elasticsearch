@@ -269,7 +269,7 @@ wanted, the seed nodes for a cluster can be a subset of these gateway nodes.
 
 [discrete]
 [[ccs-proxy-mode]]
-=== {ccs} in proxy mode
+=== {ccs-cap} in proxy mode
 
 <<proxy-mode,Proxy mode>> remote cluster connections support {ccs}. All remote
 connections connect to the configured `proxy_address`. Any desired connection

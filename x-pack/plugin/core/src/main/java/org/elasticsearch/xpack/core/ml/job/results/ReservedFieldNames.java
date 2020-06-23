@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -242,6 +243,7 @@ public final class ReservedFieldNames {
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(),
             AnalysisConfig.LATENCY.getPreferredName(),
             AnalysisConfig.SUMMARY_COUNT_FIELD_NAME.getPreferredName(),
             AnalysisConfig.DETECTORS.getPreferredName(),
@@ -277,6 +279,9 @@ public final class ReservedFieldNames {
 
             ModelPlotConfig.ENABLED_FIELD.getPreferredName(),
             ModelPlotConfig.TERMS_FIELD.getPreferredName(),
+            ModelPlotConfig.ANNOTATIONS_ENABLED_FIELD.getPreferredName(),
+
+            PerPartitionCategorizationConfig.STOP_ON_WARN.getPreferredName(),
 
             DatafeedConfig.ID.getPreferredName(),
             DatafeedConfig.QUERY_DELAY.getPreferredName(),
@@ -304,6 +309,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
             DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
             DataFrameAnalyticsConfig.VERSION.getPreferredName(),
+            DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),

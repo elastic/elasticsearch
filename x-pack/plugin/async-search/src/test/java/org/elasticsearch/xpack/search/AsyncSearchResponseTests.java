@@ -36,7 +36,7 @@ import java.util.Date;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.search.GetAsyncSearchRequestTests.randomSearchId;
+import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
 public class AsyncSearchResponseTests extends ESTestCase {
     private SearchResponse searchResponse = randomSearchResponse();
@@ -121,7 +121,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         long tookInMillis = randomNonNegativeLong();
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
-        int skippedShards = totalShards - successfulShards;
+        int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
         return new SearchResponse(internalSearchResponse, null, totalShards,
             successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);

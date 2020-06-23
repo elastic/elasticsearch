@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.rule.RuleExecutionException;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -60,6 +59,34 @@ public final class OptimizerRules {
         @Override
         public Expression rule(Expression e) {
             return e.foldable() ? Literal.of(e) : e;
+        }
+    }
+
+    /**
+     * This rule must always be placed after {@link BooleanLiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
+     * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
+     */
+    public static final class BooleanEqualsSimplification extends OptimizerExpressionRule {
+
+        public BooleanEqualsSimplification() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Equals || e instanceof NotEquals) {
+                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
+                BinaryComparison bc = (BinaryComparison) e;
+
+                if (TRUE.equals(bc.right())) {
+                    return e instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
+                }
+                if (FALSE.equals(bc.right())) {
+                    return e instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
+                }
+            }
+
+            return e;
         }
     }
     
@@ -255,7 +282,7 @@ public final class OptimizerRules {
                                     if (comp != null) {
                                         // var cannot be equal to two different values at the same time
                                         if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                            return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                         }
                                     }
                                 }
@@ -263,7 +290,7 @@ public final class OptimizerRules {
                         equals.add(otherEq);
                     } else {
                         exps.add(otherEq);
-                        }
+                    }
                 } else if (ex instanceof GreaterThan || ex instanceof GreaterThanOrEqual ||
                     ex instanceof LessThan || ex instanceof LessThanOrEqual) {
                     BinaryComparison bc = (BinaryComparison) ex;
@@ -1019,7 +1046,7 @@ public final class OptimizerRules {
         }
     }
     
-    public static final class PruneFilters extends OptimizerRule<Filter> {
+    public abstract static class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
@@ -1030,9 +1057,7 @@ public final class OptimizerRules {
                     return filter.child();
                 }
                 if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    //TODO: re-visit this branch when it's decided if EQL needs a LocalRelation-like class
-                    //return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
-                    throw new RuleExecutionException("Does not know how to handle a local relation");
+                    return nonMatchingFilter(filter);
                 }
             }
 
@@ -1041,6 +1066,8 @@ public final class OptimizerRules {
             }
             return filter;
         }
+
+        protected abstract LogicalPlan nonMatchingFilter(Filter filter);
 
         private static Expression foldBinaryLogic(Expression expression) {
             if (expression instanceof Or) {

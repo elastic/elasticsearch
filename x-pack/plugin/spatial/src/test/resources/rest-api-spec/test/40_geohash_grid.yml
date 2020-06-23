@@ -60,6 +60,9 @@
 
 ---
 "Test geohash_grid aggregation circuit breaker":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/56257"
   - do:
       indices.create:
         index: locations

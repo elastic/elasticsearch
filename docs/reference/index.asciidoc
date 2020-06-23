@@ -2,21 +2,25 @@
 = Elasticsearch Reference
 
 :include-xpack:         true
-:es-test-dir:           {docdir}/../src/test
-:plugins-examples-dir:  {docdir}/../../plugins/examples
-:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
-:es-repo-dir:           {docdir}
+:es-test-dir:           {elasticsearch-root}/docs/src/test
+:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
+:es-repo-dir:           {elasticsearch-root}/docs/reference
 
 
 include::../Versions.asciidoc[]
 
 include::intro.asciidoc[]
 
+include::release-notes/highlights.asciidoc[]
+
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
+
+include::data-streams/data-streams.asciidoc[]
 
 include::search/index.asciidoc[]
 
@@ -35,8 +39,6 @@ include::scripting.asciidoc[]
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
-
-include::modules.asciidoc[]
 
 include::index-modules.asciidoc[]
 
@@ -71,8 +73,6 @@ include::how-to.asciidoc[]
 include::glossary.asciidoc[]
 
 include::rest-api/index.asciidoc[]
-
-include::release-notes/highlights.asciidoc[]
 
 include::migration/index.asciidoc[]
 

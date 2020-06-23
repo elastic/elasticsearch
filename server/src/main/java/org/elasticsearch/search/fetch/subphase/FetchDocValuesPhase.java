@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -112,7 +111,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                                 // by default nanoseconds are cut to milliseconds within aggregations
                                 // however for doc value fields we need the original nanosecond longs
                                 if (isNanosecond) {
-                                    longValues = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+                                    longValues = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
                                 } else {
                                     longValues = ((LeafNumericFieldData) data).getLongValues();
                                 }
@@ -122,13 +121,12 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                             binaryValues = data.getBytesValues();
                         }
                     }
-                    if (hit.fieldsOrNull() == null) {
-                        hit.fields(new HashMap<>(2));
-                    }
-                    DocumentField hitField = hit.getFields().get(field);
+                    DocumentField hitField = hit.field(field);
                     if (hitField == null) {
                         hitField = new DocumentField(field, new ArrayList<>(2));
-                        hit.setField(field, hitField);
+                        // even if we request a doc values of a meta-field (e.g. _routing),
+                        // docValues fields will still be document fields, and put under "fields" section of a hit.
+                        hit.setDocumentField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();
 

@@ -21,6 +21,19 @@ policy execution waits until the leader index rolls over (or is
 then converts the follower index into a regular index with the 
 <<ilm-unfollow-action,the Unfollow action>> before performing the shrink operation.
 
+If the managed index is part of a <<data-streams, data stream>>,
+the shrunken index replaces the original index in the data stream.
+
+[NOTE]
+This action cannot be performed on a data stream's write index. Attempts to do
+so will fail. To shrink the index, first
+<<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
+creates a new write index. Because the index is no longer the stream's write
+index, the action can resume shrinking it.
+Using a policy that makes use of the <<ilm-rollover, rollover>> action
+in the hot phase will avoid this situation and the need for a manual rollover for future
+managed indices.
+
 [[ilm-shrink-options]]
 ==== Shrink options
 `number_of_shards`::

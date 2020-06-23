@@ -31,6 +31,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -80,7 +81,15 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions());
+        return concreteIndices(state, request, false);
+    }
+
+    /**
+     * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request and resolves data streams.
+     */
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        Context context = new Context(state, request.indicesOptions(), false, false, includeDataStreams);
         return concreteIndices(context, request.indices());
     }
 
@@ -106,6 +115,15 @@ public class IndexNameExpressionResolver {
                                        String... indexExpressions) {
         Context context = new Context(state, options, false, false, includeDataStreams);
         return concreteIndexNames(context, indexExpressions);
+    }
+
+    public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options, false, false, true);
+        return Arrays.stream(indexExpressions)
+            .flatMap(expression -> WildcardExpressionResolver.matches(context, state.metadata(), expression).values().stream())
+            .filter(i -> i.getType() == IndexAbstraction.Type.DATA_STREAM)
+            .map(IndexAbstraction::getName)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -307,7 +325,7 @@ public class IndexNameExpressionResolver {
      * @return the concrete index obtained as a result of the index resolution
      */
     public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
-        String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
+        String indexExpression = CollectionUtils.isEmpty(request.indices()) ? null : request.indices()[0];
         Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
             throw new IllegalArgumentException("unable to return a single index as the index and options" +
@@ -359,11 +377,12 @@ public class IndexNameExpressionResolver {
     }
 
     /**
-     * @return whether the specified alias or index exists. If the alias or index contains datemath then that is resolved too.
+     * @return whether the specified index, data stream or alias exists.
+     *         If the data stream, index or alias contains date math then that is resolved too.
      */
-    public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen());
-        String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
+    public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true);
+        String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(indexAbstraction, context);
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 

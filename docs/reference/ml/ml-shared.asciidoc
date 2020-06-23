@@ -183,15 +183,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -270,11 +270,11 @@ time chunks are calculated and is an advanced configuration option.
 ====
 `mode`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
 
 `time_span`:::
 (<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
 
@@ -362,15 +362,14 @@ example, it can contain custom URL information as shown in
 end::custom-settings[]
 
 tag::daily-model-snapshot-retention-after-days[]
-Advanced configuration option. Specifies a number of days between 0 and the
-value of `model_snapshot_retention_days`. After this period of time, only the first
-model snapshot per day is retained for this job. Age is calculated relative to
-the timestamp of the newest model snapshot. For new jobs, the default value is
-`1`, which means that all snapshots are retained for one day. Older snapshots
-are thinned out such that only one per day is retained. For jobs that were
-created before this setting was available, the default value matches the 
-`model_snapshot_retention_days` value, which preserves the original behavior
-and no thinning out of model snapshots occurs.
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies a period of time (in days) after which only
+the first snapshot per day is retained. This period is relative to the timestamp
+of the most recent snapshot for this job. Valid values range from `0` to
+`model_snapshot_retention_days`. For new jobs, the default value is `1`. For
+jobs created before version 7.8.0, the default value matches 
+`model_snapshot_retention_days`. For more information, refer to
+{ml-docs}/ml-model-snapshots.html[Model snapshots].
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
@@ -392,7 +391,7 @@ for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 
@@ -989,6 +988,11 @@ must be disabled if performance issues are experienced.
 --
 end::model-plot-config[]
 
+tag::model-plot-config-annotations-enabled[]
+If true, enables calculation and storage of the model change annotations
+for each entity that is being analyzed. Defaults to `enabled`.
+end::model-plot-config-annotations-enabled[]
+
 tag::model-plot-config-enabled[]
 If true, enables calculation and storage of the model bounds for each entity
 that is being analyzed. By default, this is not enabled.
@@ -1007,10 +1011,12 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-Advanced configuration option. The period of time (in days) that model snapshots 
-are retained. Age is calculated relative to the timestamp of the newest model 
-snapshot. The default value is `10`, which means snapshots that are ten days 
-older than the newest snapshot are deleted.
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies the maximum period of time (in days) that
+snapshots are retained. This period is relative to the timestamp of the most
+recent snapshot for this job. The default value is `10`, which means snapshots
+ten days older than the newest snapshot are deleted. For more information, refer
+to {ml-docs}/ml-model-snapshots.html[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]
@@ -1106,6 +1112,25 @@ tag::partition-field-name[]
 The field used to segment the analysis. When you use this property, you have 
 completely independent baselines for each value of this field.
 end::partition-field-name[]
+
+tag::per-partition-categorization[]
+Settings related to how categorization interacts with partition fields.
+end::per-partition-categorization[]
+
+tag::per-partition-categorization-enabled[]
+To enable this setting, you must also set the partition_field_name property to
+the same value in every detector that uses the keyword mlcategory. Otherwise,
+job creation fails.
+end::per-partition-categorization-enabled[]
+
+tag::per-partition-categorization-stop-on-warn[]
+This setting can be set to true only if per-partition categorization is enabled.
+If true, both categorization and subsequent anomaly detection stops for
+partitions where the categorization status changes to `warn`. This setting makes
+it viable to have a job where it is expected that categorization works well for
+some partitions but not others; you do not pay the cost of bad categorization
+forever in the partitions where it works badly.
+end::per-partition-categorization-stop-on-warn[]
 
 tag::prediction-field-name[]
 Defines the name of the prediction field in the results. 

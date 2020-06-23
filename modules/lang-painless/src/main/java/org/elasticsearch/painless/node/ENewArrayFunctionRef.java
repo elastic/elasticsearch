@@ -21,7 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
@@ -30,7 +31,6 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -40,36 +40,38 @@ import java.util.Objects;
  */
 public class ENewArrayFunctionRef extends AExpression {
 
-    protected final String type;
+    private final String canonicalTypeName;
 
-    public ENewArrayFunctionRef(Location location, String type) {
-        super(location);
+    public ENewArrayFunctionRef(int identifier, Location location, String canonicalTypeName) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "cannot assign a value to new array function reference with target type [ + " + type  + "]"));
+                    "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
         }
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                    "not a statement: new array function reference with target type [" + type + "] not used"));
+                    "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
         }
+
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        String name = scriptRoot.getNextSyntheticName("newarray");
-        scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+        String name = scriptScope.getNextSyntheticName("newarray");
+        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
         if (input.expected == null) {
             output.actual = String.class;
@@ -77,19 +79,19 @@ public class ENewArrayFunctionRef extends AExpression {
 
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
 
-            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setLocation(getLocation());
             defInterfaceReferenceNode.setExpressionType(output.actual);
             defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
 
             output.expressionNode = defInterfaceReferenceNode;
         } else {
-            FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, input.expected, "this", name, 0);
+            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
+                    getLocation(), input.expected, "this", name, 0);
             output.actual = input.expected;
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
 
-            typedInterfaceReferenceNode.setLocation(location);
+            typedInterfaceReferenceNode.setLocation(getLocation());
             typedInterfaceReferenceNode.setExpressionType(output.actual);
             typedInterfaceReferenceNode.setReference(ref);
 
@@ -97,19 +99,19 @@ public class ENewArrayFunctionRef extends AExpression {
         }
 
         VariableNode variableNode = new VariableNode();
-        variableNode.setLocation(location);
+        variableNode.setLocation(getLocation());
         variableNode.setExpressionType(int.class);
         variableNode.setName("size");
 
         NewArrayNode newArrayNode = new NewArrayNode();
-        newArrayNode.setLocation(location);
+        newArrayNode.setLocation(getLocation());
         newArrayNode.setExpressionType(clazz);
         newArrayNode.setInitialize(false);
 
         newArrayNode.addArgumentNode(variableNode);
 
         ReturnNode returnNode = new ReturnNode();
-        returnNode.setLocation(location);
+        returnNode.setLocation(getLocation());
         returnNode.setExpressionNode(newArrayNode);
 
         BlockNode blockNode = new BlockNode();

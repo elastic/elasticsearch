@@ -35,7 +35,7 @@ import java.util.Set;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
-    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_8_0_0;
+    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
 
     private BulkItemRequest[] items;
 

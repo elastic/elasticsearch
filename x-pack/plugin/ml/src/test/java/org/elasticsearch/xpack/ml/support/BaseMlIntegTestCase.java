@@ -251,10 +251,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(logger, index, "type", numDocs, start, end);
+    }
+
+    public static void indexDocs(Logger logger, String index, String type, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
+            IndexRequest indexRequest = new IndexRequest(index, type);
             long timestamp = start + randomIntBetween(0, maxDelta);
             assert timestamp >= start && timestamp < end;
             indexRequest.source("time", timestamp).opType(DocWriteRequest.OpType.CREATE);

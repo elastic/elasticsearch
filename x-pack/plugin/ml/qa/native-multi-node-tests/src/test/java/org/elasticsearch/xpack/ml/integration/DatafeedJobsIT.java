@@ -114,7 +114,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
         long twoWeeksAgo = oneWeekAgo - 604800000;
-        indexDocs(logger, "datafeed_data_stream", numDocs, twoWeeksAgo, oneWeekAgo);
+        indexDocs(logger, "datafeed_data_stream", "_doc", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().cluster().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
 

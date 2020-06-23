@@ -73,7 +73,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
     static class FakeFieldType extends TermBasedFieldType {
 
         FakeFieldType(String name) {
-            super(name, true, true, Collections.emptyMap());
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         FakeFieldType(FakeFieldType other) {

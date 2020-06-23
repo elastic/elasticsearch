@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNestedTests;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNestedTests;
@@ -127,6 +128,7 @@ public class AggregationsTests extends ESTestCase {
             new InternalHistogramTests(),
             new InternalDateHistogramTests(),
             new InternalAutoDateHistogramTests(),
+            new InternalVariableWidthHistogramTests(),
             new LongTermsTests(),
             new DoubleTermsTests(),
             new StringTermsTests(),

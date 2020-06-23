@@ -67,6 +67,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
+            hasDocValues = false;
             builder = this;
         }
 
@@ -98,7 +99,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -205,6 +206,16 @@ public class BinaryFieldMapper extends FieldMapper {
             createFieldNamesField(context);
         }
 
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

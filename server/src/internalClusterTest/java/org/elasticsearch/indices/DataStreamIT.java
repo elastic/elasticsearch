@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
@@ -63,6 +64,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
@@ -96,11 +98,11 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testBasicScenario() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
+        putComposableIndexTemplate("id1", "@timestamp1", List.of("metrics-foo*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
+        putComposableIndexTemplate("id2", "@timestamp2", List.of("metrics-bar*"));
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
@@ -109,12 +111,14 @@ public class DataStreamIT extends ESIntegTestCase {
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("metrics-bar"));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField(), equalTo("@timestamp2"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp2"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(),
             equalTo(DataStream.getDefaultBackingIndexName("metrics-bar", 1)));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getName(), equalTo("metrics-foo"));
-        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField(), equalTo("@timestamp1"));
+        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getName(), equalTo("@timestamp1"));
+        assertThat(getDataStreamResponse.getDataStreams().get(1).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(1).getIndices().get(0).getName(),
             equalTo(DataStream.getDefaultBackingIndexName("metrics-foo", 1)));
@@ -124,11 +128,15 @@ public class DataStreamIT extends ESIntegTestCase {
             client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
+        Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        assertThat(ObjectPath.eval("properties.@timestamp2.type", mappings), is("date"));
 
         backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 1);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
+        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        assertThat(ObjectPath.eval("properties.@timestamp1.type", mappings), is("date"));
 
         int numDocsBar = randomIntBetween(2, 16);
         indexDocs("metrics-bar", numDocsBar);
@@ -150,11 +158,15 @@ public class DataStreamIT extends ESIntegTestCase {
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
+        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        assertThat(ObjectPath.eval("properties.@timestamp1.type", mappings), is("date"));
 
         backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 2);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
+        mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        assertThat(ObjectPath.eval("properties.@timestamp2.type", mappings), is("date"));
 
         int numDocsBar2 = randomIntBetween(2, 16);
         indexDocs("metrics-bar", numDocsBar2);
@@ -184,7 +196,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        putComposableIndexTemplate("id", "@timestamp1", List.of("metrics-foobar*"));
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -270,7 +282,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo(dataStreamName));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField(), equalTo("@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(), equalTo(backingIndex));
 
@@ -350,7 +362,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
-        createIndexTemplate("id", "logs-*", "ts");
+        putComposableIndexTemplate("id", "ts", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(request).actionGet();
@@ -411,7 +423,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        putComposableIndexTemplate("id", "@timestamp1", List.of("metrics-foobar*"));
         String dataStreamName = "metrics-foobar-baz";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -431,6 +443,162 @@ public class DataStreamIT extends ESIntegTestCase {
             err.getMessage().contains("unable to remove composable templates [id] " +
                 "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
         assertTrue(maybeE.isPresent());
+    }
+
+    public void testAliasActionsFailOnDataStreams() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp1", List.of("metrics-foo*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(dataStreamName).aliases("foo");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        expectFailure(dataStreamName, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+    }
+
+    public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp1", List.of("metrics-foo*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index(backingIndex).aliases("first_gen");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("The provided expressions [" + backingIndex
+            + "] match a backing index belonging to data stream [" + dataStreamName + "]. Data streams and their backing indices don't " +
+            "support aliases."));
+    }
+
+    public void testChangeTimestampFieldInComposableTemplatePriorToRollOver() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp", List.of("logs-foo*"));
+
+        // Index doc that triggers creation of a data stream
+        IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp");
+
+        // Rollover data stream
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
+        assertTrue(rolloverResponse.isRolledOver());
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp");
+
+        // Index another doc into a data stream
+        indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
+
+        // Change the template to have a different timestamp field
+        putComposableIndexTemplate("id1", "@timestamp2", List.of("logs-foo*"));
+
+        // Rollover again, eventhough there is no mapping in the template, the timestamp field mapping in data stream
+        // should be applied in the new backing index
+        rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
+        assertTrue(rolloverResponse.isRolledOver());
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 3), "properties.@timestamp");
+
+        // Index another doc into a data stream
+        indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
+    public void testNestedTimestampField() throws Exception {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"event\": {\n" +
+            "          \"properties\": {\n" +
+            "            \"@timestamp\": {\n" +
+            "              \"type\": \"date\"" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";;
+        putComposableIndexTemplate("id1", "event.@timestamp", mapping, List.of("logs-foo*"));
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("event.@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(Map.of("type", "date")));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.event.properties.@timestamp");
+
+        // Change the template to have a different timestamp field
+        putComposableIndexTemplate("id1", "@timestamp2", List.of("logs-foo*"));
+
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).actionGet();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
+        assertTrue(rolloverResponse.isRolledOver());
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.event.properties.@timestamp");
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
+    public void testTimestampFieldCustomAttributes() throws Exception {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\",\n" +
+            "          \"format\": \"yyyy-MM\",\n" +
+            "          \"meta\": {\n" +
+            "            \"x\": \"y\"\n" +
+            "          },\n" +
+            "          \"store\": true\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        putComposableIndexTemplate("id1", "@timestamp", mapping, List.of("logs-foo*"));
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
+
+        // Change the template to have a different timestamp field
+        putComposableIndexTemplate("id1", "@timestamp2", List.of("logs-foo*"));
+
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).actionGet();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
+        assertTrue(rolloverResponse.isRolledOver());
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp", expectedTimestampMapping);
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
+    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {
+        assertBackingIndex(backingIndex, timestampFieldPathInMapping, Map.of("type", "date"));
+    }
+
+    private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
+        GetIndexResponse getIndexResponse =
+            client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
+        assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
+        Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
+        assertThat(ObjectPath.eval(timestampFieldPathInMapping, mappings), is(expectedMapping));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
@@ -507,13 +675,17 @@ public class DataStreamIT extends ESIntegTestCase {
             "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
-    static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
+    public static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns) throws IOException {
+        String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
+        putComposableIndexTemplate(id, timestampFieldName, mapping, patterns);
+    }
+
+    static void putComposableIndexTemplate(String id, String timestampFieldName, String mapping, List<String> patterns) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
-                List.of(pattern),
-                new Template(null,
-                    new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
+                patterns,
+                new Template(null, new CompressedXContent(mapping), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
         );

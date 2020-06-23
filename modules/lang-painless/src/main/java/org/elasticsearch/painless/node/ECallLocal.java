@@ -21,7 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
@@ -31,7 +32,6 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -63,11 +63,13 @@ public class ECallLocal extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to function call [" + methodName + "/" + argumentNodes.size() + "]"));
         }
+
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
         FunctionTable.LocalFunction localFunction = null;
         PainlessMethod importedMethod = null;
@@ -78,7 +80,7 @@ public class ECallLocal extends AExpression {
 
         Output output = new Output();
 
-        localFunction = scriptRoot.getFunctionTable().getFunction(methodName, argumentNodes.size());
+        localFunction = scriptScope.getFunctionTable().getFunction(methodName, argumentNodes.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
         if (localFunction != null && localFunction.isInternal()) {
@@ -86,14 +88,14 @@ public class ECallLocal extends AExpression {
         }
 
         if (localFunction == null) {
-            importedMethod = scriptRoot.getPainlessLookup().lookupImportedPainlessMethod(methodName, argumentNodes.size());
+            importedMethod = scriptScope.getPainlessLookup().lookupImportedPainlessMethod(methodName, argumentNodes.size());
 
             if (importedMethod == null) {
-                classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size());
+                classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size());
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
-                        classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
+                        classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
                     classBinding = null;
                 }
 
@@ -104,11 +106,11 @@ public class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = scriptRoot.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size() + 1);
+                    classBinding = scriptScope.getPainlessLookup().lookupPainlessClassBinding(methodName, argumentNodes.size() + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
-                                classBinding.typeParameters.get(0) == scriptRoot.getScriptClassInfo().getBaseClass()) {
+                                classBinding.typeParameters.get(0) == scriptScope.getScriptClassInfo().getBaseClass()) {
                             classBindingOffset = 1;
                         } else {
                             classBinding = null;
@@ -116,7 +118,7 @@ public class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = scriptRoot.getPainlessLookup().lookupPainlessInstanceBinding(methodName, argumentNodes.size());
+                        instanceBinding = scriptScope.getPainlessLookup().lookupPainlessInstanceBinding(methodName, argumentNodes.size());
 
                         if (instanceBinding == null) {
                             throw createError(new IllegalArgumentException(
@@ -133,14 +135,14 @@ public class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
             output.actual = localFunction.getReturnType();
         } else if (importedMethod != null) {
-            scriptRoot.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
+            scriptScope.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             output.actual = importedMethod.returnType;
         } else if (classBinding != null) {
-            scriptRoot.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
+            scriptScope.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             output.actual = classBinding.returnType;
-            bindingName = scriptRoot.getNextSyntheticName("class_binding");
+            bindingName = scriptScope.getNextSyntheticName("class_binding");
 
             FieldNode fieldNode = new FieldNode();
             fieldNode.setLocation(getLocation());
@@ -152,7 +154,7 @@ public class ECallLocal extends AExpression {
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
             output.actual = instanceBinding.returnType;
-            bindingName = scriptRoot.getNextSyntheticName("instance_binding");
+            bindingName = scriptScope.getNextSyntheticName("instance_binding");
 
             FieldNode fieldNode = new FieldNode();
             fieldNode.setLocation(getLocation());
@@ -162,7 +164,7 @@ public class ECallLocal extends AExpression {
 
             classNode.addFieldNode(fieldNode);
 
-            scriptRoot.addStaticConstant(bindingName, instanceBinding.targetInstance);
+            scriptScope.addStaticConstant(bindingName, instanceBinding.targetInstance);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -178,7 +180,7 @@ public class ECallLocal extends AExpression {
             Input argumentInput = new Input();
             argumentInput.expected = typeParameters.get(argument + classBindingOffset);
             argumentInput.internal = true;
-            Output argumentOutput = analyze(expression, classNode, scriptRoot, scope, argumentInput);
+            Output argumentOutput = analyze(expression, classNode, semanticScope, argumentInput);
             argumentOutputs.add(argumentOutput);
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     argumentOutput.actual, argumentInput.expected, argumentInput.explicit, argumentInput.internal));

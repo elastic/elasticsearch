@@ -104,6 +104,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58353")
     public void testCollectsFromManyBuckets() {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
             // Test a few explicit values
@@ -183,7 +184,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -192,7 +193,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

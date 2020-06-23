@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -159,7 +160,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
-            settings = Settings.readSettingsFromStream(in);
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                settings = Settings.readSettingsFromStream(in);
+            }
             parameters = new FollowParameters(in);
         }
 
@@ -170,7 +173,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            Settings.writeSettingsToStream(settings, out);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             parameters.writeTo(out);
         }
 

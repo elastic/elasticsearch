@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -173,7 +174,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
-            this.settings = Settings.readSettingsFromStream(in);
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                this.settings = Settings.readSettingsFromStream(in);
+            }
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
         }
@@ -184,7 +187,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
-            Settings.writeSettingsToStream(settings, out);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
         }

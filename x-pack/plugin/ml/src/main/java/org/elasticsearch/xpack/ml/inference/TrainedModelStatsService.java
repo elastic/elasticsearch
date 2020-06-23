@@ -58,12 +58,14 @@ public class TrainedModelStatsService {
         "    ctx._source.{0} += params.{0};\n" +
         "    ctx._source.{1} += params.{1};\n" +
         "    ctx._source.{2} += params.{2};\n" +
-        "    ctx._source.{3} = params.{3};";
+        "    ctx._source.{3} += params.{3};\n" +
+        "    ctx._source.{4} = params.{4};";
     // Script to only update if stats have increased since last persistence
     private static final String STATS_UPDATE_SCRIPT = Messages.getMessage(STATS_UPDATE_SCRIPT_TEMPLATE,
         InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(),
         InferenceStats.INFERENCE_COUNT.getPreferredName(),
         InferenceStats.FAILURE_COUNT.getPreferredName(),
+        InferenceStats.CACHE_MISS_COUNT.getPreferredName(),
         InferenceStats.TIMESTAMP.getPreferredName());
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
@@ -224,6 +226,7 @@ public class TrainedModelStatsService {
             params.put(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(), stats.getMissingAllFieldsCount());
             params.put(InferenceStats.TIMESTAMP.getPreferredName(), stats.getTimeStamp().toEpochMilli());
             params.put(InferenceStats.INFERENCE_COUNT.getPreferredName(), stats.getInferenceCount());
+            params.put(InferenceStats.CACHE_MISS_COUNT.getPreferredName(), stats.getCacheMissCount());
             stats.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.upsert(builder)

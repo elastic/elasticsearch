@@ -12,6 +12,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.sameInstance;
+
 public class EmptyConfigUpdateTests extends AbstractSerializingTestCase<EmptyConfigUpdate> {
     @Override
     protected EmptyConfigUpdate doParseInstance(XContentParser parser) throws IOException {
@@ -26,5 +28,21 @@ public class EmptyConfigUpdateTests extends AbstractSerializingTestCase<EmptyCon
     @Override
     protected EmptyConfigUpdate createTestInstance() {
         return new EmptyConfigUpdate();
+    }
+
+    public void testIsSupported() {
+        InferenceConfig config = randomBoolean() ? ClassificationConfigTests.randomClassificationConfig()
+            : RegressionConfigTests.randomRegressionConfig();
+
+        EmptyConfigUpdate update = new EmptyConfigUpdate();
+        assertTrue(update.isSupported(config));
+    }
+
+    public void testApply() {
+        InferenceConfig config = randomBoolean() ? ClassificationConfigTests.randomClassificationConfig()
+            : RegressionConfigTests.randomRegressionConfig();
+
+        EmptyConfigUpdate update = new EmptyConfigUpdate();
+        assertThat(config, sameInstance(update.apply(config)));
     }
 }

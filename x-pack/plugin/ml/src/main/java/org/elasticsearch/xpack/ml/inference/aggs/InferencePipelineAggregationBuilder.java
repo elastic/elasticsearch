@@ -22,17 +22,13 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -160,7 +156,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         InferenceConfigUpdate update;
         if (inferenceConfig == null) {
-            update = new EmptyConfigUpdate();
+            update = new ResultsFieldUpdate(DEFAULT_RESULT_FIELD);
         } else {
             // error if the results field is set and not equal to the only acceptable value
             if (Strings.isNullOrEmpty(inferenceConfig.getResultsField()) == false &&

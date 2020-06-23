@@ -184,7 +184,7 @@ setup:
                 }
               }
             }
-  - match: { aggregations.date_histo.buckets.0.regression_agg.regression-value: 2.0 }
+  - match: { aggregations.date_histo.buckets.0.regression_agg.value: 2.0 }
 
 ---
 "Test all fields missing warning":

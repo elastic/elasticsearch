@@ -86,7 +86,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     @Override
     public boolean equals(Object o) {
         // Equal if o is not null and the same class
-        return (o == null || getClass() != o.getClass()) == false;
+        return o != null && getClass() == o.getClass();
     }
 
     @Override

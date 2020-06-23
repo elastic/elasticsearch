@@ -2,7 +2,7 @@
 "Create data stream":
   - skip:
       version: "all"
-      reason:  https://github.com/elastic/elasticsearch/issues/58406
+      reason: data streams not supported in 7.8 and earlier
 
   - do:
       indices.create_data_stream:
@@ -63,7 +63,7 @@
 "Create data stream with invalid name":
   - skip:
       version: "all"
-      reason:  https://github.com/elastic/elasticsearch/issues/58406
+      reason: data streams not supported in 7.8 and earlier
 
   - do:
       catch: bad_request
@@ -79,7 +79,7 @@
 "Get data stream":
   - skip:
       version: "all"
-      reason:  https://github.com/elastic/elasticsearch/issues/58406
+      reason: data streams not supported in 7.8 and earlier
 
   - do:
       indices.create_data_stream:
@@ -148,7 +148,7 @@
 "Delete data stream with backing indices":
   - skip:
       version: "all"
-      reason:  https://github.com/elastic/elasticsearch/issues/58406
+      reason: data streams not supported in 7.8 and earlier
 
   - do:
       indices.create_data_stream:

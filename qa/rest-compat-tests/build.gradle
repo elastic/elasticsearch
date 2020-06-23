@@ -15,7 +15,14 @@ task copyRestTestsResources(type: Copy) {
   dependsOn ':distribution:bwc:minor:checkoutBwcBranch'
 }
 
-integTest.dependsOn(copyRestTestsResources)
+task copyOverrides(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from new File(project(':qa:rest-compat-tests').projectDir, 'test/resources/rest-api-spec/')
+  include 'override/**'
+}
+
+copyOverrides.dependsOn(copyRestTestsResources)
+integTest.dependsOn(copyOverrides)
 
 dependencies {
   compile project(':test:framework')

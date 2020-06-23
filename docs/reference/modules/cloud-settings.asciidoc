@@ -20,6 +20,7 @@ The following {es} settings are supported on {ess}:
 * <<cloud-realm-settings,Realm settings>>
 * <<cloud-kerberos-settings,Kerberos realm settings>>
 * <<cloud-openid-connect-realm-settings,OpenID Connect realm settings>>
+* <<cloud-openid-connect-ssl-settings,OpenID Connect SSL settings>>
 * <<cloud-saml-realm-settings,SAML realm settings>>
 * <<cloud-saml-realm-encryption-settings,SAML realm encryption settings>>
 * <<cloud-saml-realm-signing-settings,SAML realm signing settings>>
@@ -158,6 +159,37 @@ include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-read-ti
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-max-connections-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-max-endpoint-connections-tag]
 include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-http-socket-timeout]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-op-auth-endpoint-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-endsession-endpoint-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-op-issuer-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-op-jwkset-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-token-endpoint-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-userinfo-endpoint-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-client-id-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-post-logout-redirect-url-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-redirect-uri-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-response-type-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-requested-scopes-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=rp-signature-algorithm-tag]
+
+<<cloud-settings,Back to top>>
+
+[[cloud-openid-connect-ssl-settings]]
+===== OpenID Connect SSL settings
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-description-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-certificate-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-cipher-suites-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-certificate-authorities-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-key-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-key-passphrase-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-keystore-password-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-keystore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-keystore-type-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-supported-protocols-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-truststore-path-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-truststore-password-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-truststore-type-tag]
+include::{es-repo-dir}/settings/security-settings.asciidoc[tag=oidc-ssl-verification-mode-tag]
 
 <<cloud-settings,Back to top>>
 

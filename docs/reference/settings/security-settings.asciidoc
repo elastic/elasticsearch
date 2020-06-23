@@ -1329,31 +1329,42 @@ In addition to the <<ref-realm-settings,settings that are valid for all realms>>
 can specify the following settings.
 // end::oidc-description-tag[]
 
-`op.issuer`::
+// tag::oidc-op-issuer-tag[]
+`op.issuer` {ess-icon}::
 A verifiable Identifier for your OpenID Connect Provider. An Issuer
 Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. The value for this setting should be provided by your OpenID
 Connect Provider.
+// end::oidc-op-issuer-tag[]
 
-`op.authorization_endpoint`::
+// tag::oidc-op-auth-endpoint-tag[]
+`op.authorization_endpoint` {ess-icon}::
 The URL for the Authorization Endpoint at the
 OpenID Connect Provider. The value for this setting should be provided by your OpenID
 Connect Provider.
+// end::oidc-op-auth-endpoint-tag[]
 
-`op.token_endpoint`::
+// tag::oidc-token-endpoint-tag[]
+`op.token_endpoint` {ess-icon}::
 The URL for the Token Endpoint at the OpenID Connect Provider.
 The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-token-endpoint-tag[]
 
-`op.userinfo_endpoint`::
+// tag::oidc-userinfo-endpoint-tag[]
+`op.userinfo_endpoint` {ess-icon}::
 The URL for the User Info Endpoint at the OpenID Connect Provider.
 The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-userinfo-endpoint-tag[]
 
-`op.endsession_endpoint`::
+// tag::oidc-endsession-endpoint-tag[]
+`op.endsession_endpoint` {ess-icon}::
 The URL for the End Session Endpoint at the OpenID Connect
 Provider. The value for this setting should be provided by your OpenID Connect Provider.
+// end::oidc-endsession-endpoint-tag[]
 
-`op.jwkset_path`::
+// tag::oidc-op-jwkset-path-tag[]
+`op.jwkset_path` {ess-icon}::
 The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
 Provider uses for signing tokens and claims responses.
 If a path is provided, then it is resolved relative to the {es} config
@@ -1363,40 +1374,53 @@ If a URL is provided, then it must be either a `file` URL or a `https` URL.
 requests but will attempt to refresh the JWK upon signature verification
 failure, as this might indicate that the OpenID Connect Provider has
 rotated the signing keys.
-
-File based resources are polled at a frequency determined by the global {es}
++
+File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
+// end::oidc-op-jwkset-path-tag[]
 
-`rp.client_id`::
+// tag::rp-client-id-tag[]
+`rp.client_id` {ess-icon}::
 The OAuth 2.0 Client Identifier that was assigned to {es} during registration
-at the OpenID Connect Provider
+at the OpenID Connect Provider.
+// end::rp-client-id-tag[]
 
 `rp.client_secret`(<<secure-settings,Secure>>)::
 The OAuth 2.0 Client Secret that was assigned to {es} during registration
-at the OpenID Connect Provider
+at the OpenID Connect Provider.
 
-`rp.redirect_uri`::
+// tag::rp-redirect-uri-tag[]
+`rp.redirect_uri` {ess-icon}::
 The Redirect URI within {kib}. If you want to use the authorization code flow, this is the
-"api/security/oidc/callback" endpoint of your {kib} server. If you want to use the implicit flow,  it is the "api/security/oidc/implicit" endpoint.
+`api/security/oidc/callback` endpoint of your {kib} server. If you want to use the implicit flow,  it is the `api/security/oidc/implicit` endpoint.
 For example, `https://kibana.example.com/api/security/oidc/callback`.
+// end::rp-redirect-uri-tag[]
 
-`rp.response_type`::
+// tag::rp-response-type-tag[]
+`rp.response_type` {ess-icon}::
 OAuth 2.0 Response Type value that determines the authorization
 processing flow to be used. Can be `code` for authorization code grant flow,
 or one of `id_token`, `id_token token` for the implicit flow.
+// end::rp-response-type-tag[]
 
-`rp.signature_algorithm`::
+// tag::rp-signature-algorithm-tag[]
+`rp.signature_algorithm` {ess-icon}::
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`
+Defaults to `RSA256`.
+// end::rp-signature-algorithm-tag[]
 
-`rp.requested_scopes`::
+// tag::rp-requested-scopes-tag[]
+`rp.requested_scopes` {ess-icon}::
 The scope values that will be requested by the OpenID Connect Provider as
 part of the Authentication Request. Optional, defaults to `openid`
+// end::rp-requested-scopes-tag[]
 
-`rp.post_logout_redirect_uri`::
+// tag::rp-post-logout-redirect-url-tag[]
+`rp.post_logout_redirect_uri` {ess-icon}::
 The Redirect URI (usually within {kib}) that the OpenID Connect Provider
 should redirect the browser to after a successful Single Logout.
+// end::rp-post-logout-redirect-url-tag[]
 
 // tag::oidc-claims-principal-tag[]
 `claims.principal`::
@@ -1524,53 +1548,54 @@ connections allowed per endpoint.
 [float]
 [[ref-oidc-ssl-settings]]
 ===== OpenID Connect realm SSL settings
-
+// tag::oidc-ssl-description-tag[]
 The following settings can be used to configure SSL for all outgoing http connections
 to the OpenID Connect Provider endpoints.
 
 NOTE: These settings are _only_ used for the back-channel communication between
 {es} and the OpenID Connect Provider
 
-`ssl.key`::
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
-+
-If HTTP client authentication is required, it uses this file. You cannot use
-this setting and `ssl.keystore.path` at the same time.
+// end::oidc-ssl-description-tag[]
 
-`ssl.key_passphrase`::
+// tag::oidc-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::oidc-ssl-key-tag[]
+
+// tag::oidc-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
-+
-You cannot use this setting and `ssl.secure_key_passphrase` at the same
-time.
+// end::oidc-ssl-key-passphrase-tag[]
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 +
 You cannot use this setting and `ssl.key_passphrase` at the same time.
 
-`ssl.certificate`::
+// tag::oidc-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
-+
-This setting can be used only if `ssl.key` is set.
+// end::oidc-ssl-certificate-tag[]
 
-`ssl.certificate_authorities`::
+// tag::oidc-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
-+
-This setting and `ssl.truststore.path` cannot be used at the same time.
+// end::oidc-ssl-certificate-authorities-tag[]
 
-`ssl.keystore.path`::
+// tag::oidc-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
-+
-It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this
-setting and `ssl.key` at the same time.
+// end::oidc-ssl-keystore-path-tag[]
 
-`ssl.keystore.type`::
+// tag::oidc-ssl-keystore-type-tag[]
+`ssl.keystore.type` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::oidc-ssl-keystore-type-tag[]
 
-`ssl.keystore.password`::
+// tag::oidc-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
-+
-You cannot use this setting and `ssl.keystore.secure_password` at the same time.
+// end::oidc-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
@@ -1588,34 +1613,41 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key
 +
 You cannot use this setting and `ssl.keystore.key_password` at the same time.
 
-`ssl.truststore.path`::
+// tag::oidc-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
-+
-You cannot use this setting and `ssl.certificate_authorities` at the same time.
+// end::oidc-ssl-truststore-path-tag[]
 
-`ssl.truststore.type`::
+// tag::oidc-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::oidc-ssl-truststore-type-tag[]
 
-`ssl.truststore.password`::
+// tag::oidc-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
-+
-You cannot use this setting and `ssl.truststore.secure_password` at the same
-time.
+// end::oidc-ssl-truststore-password-tag[]
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 +
 You cannot use this setting and `ssl.truststore.password` at the same time.
 
-`ssl.verification_mode`::
+// tag::oidc-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
 Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::oidc-ssl-verification-mode-tag[]
 
-`ssl.supported_protocols`::
+// tag::oidc-ssl-supported-protocols-tag[]
+`ssl.supported_protocols` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::oidc-ssl-supported-protocols-tag[]
 
-`ssl.cipher_suites`::
+// tag::oidc-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::oidc-ssl-cipher-suites-tag[]
 
 [float]
 [[load-balancing]]

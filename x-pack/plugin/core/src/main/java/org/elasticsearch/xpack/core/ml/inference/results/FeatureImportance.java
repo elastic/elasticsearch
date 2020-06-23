@@ -5,17 +5,24 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class FeatureImportance implements Writeable, ToXContentObject {
 
@@ -32,6 +39,23 @@ public class FeatureImportance implements Writeable, ToXContentObject {
 
     public static FeatureImportance forClassification(String featureName, Map<String, Double> classImportance) {
         return new FeatureImportance(featureName, classImportance.values().stream().mapToDouble(Math::abs).sum(), classImportance);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<FeatureImportance, Void> PARSER =
+        new ConstructingObjectParser<>("feature_importance",
+            a -> new FeatureImportance((String) a[0], (Double) a[1], (Map<String, Double>) a[2])
+        );
+
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(FeatureImportance.FEATURE_NAME));
+        PARSER.declareDouble(constructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
+            new ParseField(FeatureImportance.CLASS_IMPORTANCE));
+    }
+
+    public static FeatureImportance fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     FeatureImportance(String featureName, double importance, Map<String, Double> classImportance) {

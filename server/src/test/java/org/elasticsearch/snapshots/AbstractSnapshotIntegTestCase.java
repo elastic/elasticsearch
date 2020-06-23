@@ -86,6 +86,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
     private String skipRepoConsistencyCheckReason;
 
     @After

@@ -574,7 +574,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private final Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
 
-            private List<SnapshotDeletionsInProgress.Entry> deletionsToExecute = List.of();
+            private final Collection<SnapshotDeletionsInProgress.Entry> deletionsToExecute = new ArrayList<>();
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -631,12 +631,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         updatedSnapshotEntries.add(snapshot);
                     }
                 }
-                final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(
+                final ClusterState res = readyDeletions(
                         changed ? ClusterState.builder(currentState).putCustom(
                                 SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(updatedSnapshotEntries))).build() :
-                                currentState);
-                deletionsToExecute = res.v2();
-                return res.v1();
+                                currentState).v1();
+                final SnapshotDeletionsInProgress newDeletionsInProgress = res.custom(SnapshotDeletionsInProgress.TYPE);
+                if (newDeletionsInProgress != null) {
+                    for (SnapshotDeletionsInProgress.Entry delete : newDeletionsInProgress.getEntries()) {
+                        if (delete.state() == SnapshotDeletionsInProgress.State.META_DATA) {
+                            deletionsToExecute.add(delete);
+                        }
+                    }
+                }
+                return res;
             }
 
             @Override
@@ -665,7 +672,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 // run newly ready deletes
                 for (SnapshotDeletionsInProgress.Entry entry : deletionsToExecute) {
-                    deleteSnapshotsFromRepository(entry, entry.repositoryStateId(), newState.nodes().getMinNodeVersion());
+                    deleteSnapshotsFromRepository(entry, newState.nodes().getMinNodeVersion());
                 }
             }
         });
@@ -872,7 +879,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             logger.debug(() -> new ParameterizedMessage(
                 "[{}] failed to update cluster state during snapshot finalization", snapshot), e);
             failSnapshotCompletionListeners(snapshot,
-                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e));
+                    new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e));
+            failAllListenersOnMasterFailOver(e);
         } else {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
             removeSnapshotFromClusterState(snapshot, e, repositoryData);
@@ -921,17 +929,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(currentState);
-                assert res.v1() == currentState : "Deletes should have been set to ready by finished snapshot deletes and finalizations";
-                for (SnapshotDeletionsInProgress.Entry entry : res.v2()) {
-                    if (entry.repository().equals(repository)) {
-                        deletionToRun = entry;
-                        break;
+                assert readyDeletions(currentState).v1() == currentState :
+                        "Deletes should have been set to ready by finished snapshot deletes and finalizations";
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                if (deletionsInProgress != null) {
+                    for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
+                        if (entry.repository().equals(repository) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
+                            deletionToRun = entry;
+                            break;
+                        }
                     }
                 }
-                assert res.v2().stream().filter(entry -> entry.repository().equals(repository)).count() <= 1
-                    : "More than one deletion for [" + repository + "] in " + res.v2();
-                return res.v1();
+                return currentState;
             }
 
             @Override
@@ -979,9 +988,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 readyDeletions.add(newEntry);
                 newDeletes.add(newEntry);
             } else {
-                if (entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
-                    readyDeletions.add(entry);
-                }
                 newDeletes.add(entry);
             }
         }
@@ -1055,8 +1061,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
-        failListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), e);
         endingSnapshots.remove(snapshot);
+        failListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), e);
     }
 
     /**
@@ -1490,22 +1496,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /** Deletes snapshot from repository
      *
      * @param deleteEntry       delete entry in cluster state
-     * @param repoGen           the unique id representing the state of the repository at the time the deletion began
      * @param minNodeVersion    minimum node version in the cluster
      */
-    private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
-                                               long repoGen, Version minNodeVersion) {
+    private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry, Version minNodeVersion) {
+        final long expectedRepoGen = deleteEntry.repositoryStateId();
         repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
-                assert repositoryData.getGenId() == repoGen;
+                assert repositoryData.getGenId() == expectedRepoGen :
+                        "Repository generation should not change as long as a ready delete is found in the cluster state but found ["
+                                + expectedRepoGen + "] in cluster state and [" + repositoryData.getGenId() + "] in the repository";
                 deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
             }
 
             @Override
             public void onFailure(Exception e) {
                 clusterService.submitStateUpdateTask("fail repo tasks for [" + deleteEntry.repository() + "]",
-                    new FailPendingRepoTasksTask(deleteEntry.repository(), e));
+                        new FailPendingRepoTasksTask(deleteEntry.repository(), e));
             }
         });
     }
@@ -1643,9 +1650,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         private List<SnapshotDeletionsInProgress.Entry> readyDeletions = Collections.emptyList();
 
-        protected final RepositoryData repositoryData;
-
         protected final SnapshotDeletionsInProgress.Entry deleteEntry;
+
+        private final RepositoryData repositoryData;
 
         RemoveSnapshotDeletionAndContinueTask(SnapshotDeletionsInProgress.Entry deleteEntry, RepositoryData repositoryData) {
             this.deleteEntry = deleteEntry;

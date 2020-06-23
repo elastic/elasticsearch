@@ -50,7 +50,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -95,15 +94,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
                 .build();
-    }
-
-    @After
-    public void verifyNoLeakedListeners() throws Exception {
-        assertBusy(() -> {
-            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
-                assertTrue(snapshotsService.assertAllListenersResolved());
-            }
-        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testLongRunningSnapshotAllowsConcurrentSnapshot() throws Exception {

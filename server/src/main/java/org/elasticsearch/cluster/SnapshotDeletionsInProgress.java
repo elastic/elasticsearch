@@ -328,6 +328,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public long repositoryStateId() {
             return repositoryStateId;
         }
+
+        @Override
+        public String toString() {
+            return "SnapshotDeletionsInProgress.Entry[[" + uuid + "][" + state + "]" + snapshots + "]";
+        }
     }
 
     public enum State {

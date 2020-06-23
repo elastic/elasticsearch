@@ -41,10 +41,12 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,6 +79,15 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
             .build();
+    }
+
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     public void testDisruptionAfterFinalization() throws Exception {

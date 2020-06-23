@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -31,39 +32,54 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     public static final ParseField LAST_FINALIZED_BUCKET_END = new ParseField("last_finalized_bucket_end");
 
     public static final ConstructingObjectParser<FlushAcknowledgement, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), a -> new FlushAcknowledgement((String) a[0], (Date) a[1]));
+            TYPE.getPreferredName(), a -> new FlushAcknowledgement((String) a[0], (Instant) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, LAST_FINALIZED_BUCKET_END.getPreferredName()),
+                p -> TimeUtils.parseTimeFieldToInstant(p, LAST_FINALIZED_BUCKET_END.getPreferredName()),
                 LAST_FINALIZED_BUCKET_END, ObjectParser.ValueType.VALUE);
     }
 
-    private String id;
-    private Date lastFinalizedBucketEnd;
+    private final String id;
+    private final Instant lastFinalizedBucketEnd;
 
-    public FlushAcknowledgement(String id, Date lastFinalizedBucketEnd) {
+    public FlushAcknowledgement(String id, Instant lastFinalizedBucketEnd) {
         this.id = id;
-        this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
+        // The C++ passes 0 when last finalized bucket end is not available
+        long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
+        // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
+        this.lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
     }
 
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
-        lastFinalizedBucketEnd = new Date(in.readVLong());
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            lastFinalizedBucketEnd = in.readOptionalInstant();
+        } else {
+            long epochMillis = in.readVLong();
+            // Older versions will be storing zero when the desired behaviour was null
+            lastFinalizedBucketEnd = (epochMillis > 0) ? Instant.ofEpochMilli(epochMillis) : null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeVLong(lastFinalizedBucketEnd.getTime());
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalInstant(lastFinalizedBucketEnd);
+        } else {
+            // Older versions cannot tolerate null on the wire even though the rest of the class is designed to cope with null
+            long epochMillis = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd.toEpochMilli() : 0;
+            out.writeVLong(epochMillis);
+        }
     }
 
     public String getId() {
         return id;
     }
 
-    public Date getLastFinalizedBucketEnd() {
+    public Instant getLastFinalizedBucketEnd() {
         return lastFinalizedBucketEnd;
     }
 
@@ -73,7 +89,7 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
         builder.field(ID.getPreferredName(), id);
         if (lastFinalizedBucketEnd != null) {
             builder.timeField(LAST_FINALIZED_BUCKET_END.getPreferredName(), LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
-                    lastFinalizedBucketEnd.getTime());
+                    lastFinalizedBucketEnd.toEpochMilli());
         }
         builder.endObject();
         return builder;
@@ -97,4 +113,3 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
                 Objects.equals(lastFinalizedBucketEnd, other.lastFinalizedBucketEnd);
     }
 }
-

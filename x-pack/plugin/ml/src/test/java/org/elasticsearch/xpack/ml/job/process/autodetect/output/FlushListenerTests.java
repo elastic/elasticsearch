@@ -34,7 +34,7 @@ public class FlushListenerTests extends ESTestCase {
         }).start();
         assertBusy(() -> assertTrue(listener.awaitingFlushed.containsKey("_id")));
         assertNull(flushAcknowledgementHolder.get());
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", Instant.ofEpochMilli(12345678L));
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", 12345678L);
         listener.acknowledgeFlush(flushAcknowledgement, null);
         assertBusy(() -> assertNotNull(flushAcknowledgementHolder.get()));
         assertEquals(1, listener.awaitingFlushed.size());

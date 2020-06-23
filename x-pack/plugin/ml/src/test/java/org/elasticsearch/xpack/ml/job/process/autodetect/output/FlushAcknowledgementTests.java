@@ -21,8 +21,11 @@ public class FlushAcknowledgementTests extends AbstractSerializingTestCase<Flush
 
     @Override
     protected FlushAcknowledgement createTestInstance() {
-        return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20),
-            randomFrom(Instant.ofEpochMilli(randomNonNegativeLong()), Instant.ofEpochMilli(0), null));
+        if (randomBoolean()) {
+            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomNonNegativeLong(), 0L, null));
+        } else {
+            return new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomFrom(randomInstant(), Instant.EPOCH, null));
+        }
     }
 
     @Override

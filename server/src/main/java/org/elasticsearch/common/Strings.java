@@ -746,6 +746,10 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
+    public static boolean isAllOrWildcard(String data) {
+        return "_all".equals(data) || "*".equals(data);
+    }
+
     /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed

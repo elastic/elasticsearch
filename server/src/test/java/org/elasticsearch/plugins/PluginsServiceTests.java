@@ -35,6 +35,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
@@ -765,12 +766,26 @@ public class PluginsServiceTests extends ESTestCase {
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
         });
 
         assertThat(e,
-            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
+            hasToString(containsString("signature of constructor for extension [" + TooManyParametersConstructorExtension.class.getName() +
                 "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + ")")));
+    }
+
+    public void testThrowingConstructor() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("failed to create extension [" + ThrowingConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "]")));
+        assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
@@ -810,4 +825,9 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    public static class ThrowingConstructorExtension implements TestExtensionPoint {
+        public ThrowingConstructorExtension() {
+            throw new IllegalArgumentException("test constructor failure");
+        }
+    }
 }

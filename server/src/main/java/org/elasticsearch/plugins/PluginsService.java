@@ -499,7 +499,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
-                "failed to load extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
+                "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
             );
         }
     }

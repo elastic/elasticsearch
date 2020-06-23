@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.DriverManager;
@@ -43,16 +45,25 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testJustThePrefix() throws Exception {
-       Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es:"));
-       assertEquals("Expected [jdbc:es://] url, received [jdbc:es:]", e.getMessage());
+        Exception e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es:"));
+        assertEquals("Expected [jdbc:es://] url, received [jdbc:es:]", e.getMessage());
     }
 
     public void testJustTheHost() throws Exception {
         assertThat(ci("jdbc:es://localhost").baseUri().toString(), is("http://localhost:9200/"));
+        assertThat(ci("jdbc:elasticsearch://localhost").baseUri().toString(), is("http://localhost:9200/"));
     }
 
     public void testHostAndPort() throws Exception {
         assertThat(ci("jdbc:es://localhost:1234").baseUri().toString(), is("http://localhost:1234/"));
+    }
+
+    public void testPropertiesEscaping() throws Exception {
+        String pass = randomUnicodeOfLengthBetween(1, 500);
+        String encPass = URLEncoder.encode(pass, StandardCharsets.UTF_8).replace("+", "%20");
+        String url = "jdbc:es://test?password=" + encPass;
+        JdbcConfiguration ci = ci(url);
+        assertEquals(pass, ci.authPass());
     }
 
     public void testTrailingSlashForHost() throws Exception {

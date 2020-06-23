@@ -459,7 +459,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                                                                    MergeReason reason) {
         boolean hasNested = this.hasNested;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
-        FieldTypeLookup fieldTypes = this.fieldTypes;
 
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
 
@@ -474,6 +473,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         DocumentMapper newMapper = null;
+        FieldTypeLookup newFieldTypes = null;
         if (mapper != null) {
             // check naming
             validateTypeName(mapper.type());
@@ -494,11 +494,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
-            MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers, fieldTypes);
+            MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
-            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
+            newFieldTypes = new FieldTypeLookup(fieldMappers, fieldAliasMappers);
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -513,9 +513,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-                fullPathObjectMappers, fieldTypes);
+                fullPathObjectMappers, newFieldTypes);
 
-            ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
+            ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
             if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
                 // this check will only be performed on the master node when there is
@@ -563,8 +563,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (newMapper != null) {
             this.mapper = newMapper;
+            this.fieldTypes = newFieldTypes;
         }
-        this.fieldTypes = fieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
 

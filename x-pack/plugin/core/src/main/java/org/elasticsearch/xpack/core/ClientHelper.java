@@ -85,8 +85,8 @@ public final class ClientHelper {
      * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
-        ThreadContext threadContext, String origin, Request request, ActionListener<Response> listener,
-        BiConsumer<Request, ActionListener<Response>> consumer) {
+            ThreadContext threadContext, String origin, Request request, ActionListener<Response> listener,
+            BiConsumer<Request, ActionListener<Response>> consumer) {
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
             consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
@@ -98,7 +98,7 @@ public final class ClientHelper {
      * is wrapped to ensure the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse,
-        RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
+            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
         Client client, String origin, ActionType<Response> action, Request request,
         ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
@@ -123,7 +123,7 @@ public final class ClientHelper {
      * @return An instance of the response class
      */
     public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
-                                                                  Supplier<T> supplier) {
+            Supplier<T> supplier) {
         Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for

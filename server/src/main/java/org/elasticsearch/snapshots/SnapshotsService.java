@@ -871,6 +871,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    /**
+     * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and stopped
+     * being the master node, then fail all snapshot create and delete listeners executing on this node by delegating to
+     * {@link #failAllListenersOnMasterFailOver}. Otherwise, i.e. as a result of failing to write to the snapshot repository for some
+     * reason, remove the snapshot's {@link SnapshotsInProgress.Entry} from the cluster state and move on with other queued snapshot
+     * operations if there are any.
+     *
+     * @param e              exception encountered
+     * @param entry          snapshot entry that failed to finalize
+     * @param repositoryData current repository data for the snapshot's repository
+     */
     private void handleFinalizationFailure(Exception e, SnapshotsInProgress.Entry entry, RepositoryData repositoryData) {
         Snapshot snapshot = entry.snapshot();
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
@@ -883,7 +894,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             failAllListenersOnMasterFailOver(e);
         } else {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot", snapshot), e);
-            removeSnapshotFromClusterState(snapshot, e, repositoryData);
+            removeFailedSnapshotFromClusterState(snapshot, e, repositoryData);
         }
     }
 
@@ -1024,11 +1035,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Removes record of running snapshot from cluster state and notifies the listener when this action is complete
-     * @param snapshot   snapshot
-     * @param failure    exception if snapshot failed
+     * Removes record of running snapshot from cluster state and notifies the listener when this action is complete. This method is only
+     * used when the snapshot fails for some reason. During normal operation the snapshot repository will remove the
+     * {@link SnapshotsInProgress.Entry} from the cluster state once it's done finalizing the snapshot.
+     *
+     * @param snapshot snapshot that failed
+     * @param failure  exception that failed the snapshot
      */
-    private void removeSnapshotFromClusterState(Snapshot snapshot, Exception failure, RepositoryData repositoryData) {
+    private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, RepositoryData repositoryData) {
         assert failure != null : "Failure must be supplied";
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 

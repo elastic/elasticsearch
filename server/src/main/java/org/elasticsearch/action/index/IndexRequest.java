@@ -119,7 +119,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public IndexRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
@@ -699,6 +703,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void writeTo(StreamOutput out) throws IOException {
         checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
         // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
         // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeOptionalString(type());

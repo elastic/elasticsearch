@@ -36,8 +36,15 @@ public class TextSearchInfo {
 
     /**
      * Defines indexing information for fields that support only simple match text queries
+     *
+     * Note that the results of {@link #isStored()} for this may not be accurate
      */
     public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE);
+
+    /**
+     * Specifies that this field does not support text searching of any kind
+     */
+    public static final TextSearchInfo NONE = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE);
 
     private final FieldType luceneFieldType;
 

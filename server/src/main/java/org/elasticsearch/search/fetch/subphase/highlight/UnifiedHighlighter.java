@@ -218,14 +218,12 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
-        if (tsi != null) {
-            if (tsi.hasOffsets()) {
-                return tsi.termVectors() != TextSearchInfo.TermVector.NONE
-                    ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
-            }
-            if (tsi.termVectors() == TextSearchInfo.TermVector.OFFSETS) {
-                return OffsetSource.TERM_VECTORS;
-            }
+        if (tsi.hasOffsets()) {
+            return tsi.termVectors() != TextSearchInfo.TermVector.NONE
+                ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+        }
+        if (tsi.termVectors() == TextSearchInfo.TermVector.OFFSETS) {
+            return OffsetSource.TERM_VECTORS;
         }
         return OffsetSource.ANALYSIS;
     }

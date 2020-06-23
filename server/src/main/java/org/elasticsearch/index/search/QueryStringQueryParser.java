@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -517,7 +518,7 @@ public class QueryStringQueryParser extends XQueryParser {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = context.fieldMapper(field);
-            if (currentFieldType == null || currentFieldType.getTextSearchInfo() == null) {
+            if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);

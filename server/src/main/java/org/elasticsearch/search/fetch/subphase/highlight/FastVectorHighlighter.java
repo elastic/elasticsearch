@@ -81,7 +81,6 @@ public class FastVectorHighlighter implements Highlighter {
         }
 
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
-        assert tsi != null;     // should be enforced in canHighlight
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
@@ -214,9 +213,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     @Override
     public boolean canHighlight(MappedFieldType ft) {
-        if (ft.getTextSearchInfo() == null) {
-            return false;
-        }
         return ft.getTextSearchInfo().termVectors() == TextSearchInfo.TermVector.OFFSETS;
     }
 

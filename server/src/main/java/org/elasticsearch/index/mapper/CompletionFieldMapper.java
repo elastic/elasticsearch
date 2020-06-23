@@ -199,7 +199,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         public CompletionFieldType(String name) {
-            this(name, null, Collections.emptyMap());
+            this(name, Defaults.FIELD_TYPE, Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {

@@ -37,7 +37,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,7 +52,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     public StringFieldType(String name, boolean isSearchable, boolean hasDocValues,
                            TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        super(name, isSearchable, hasDocValues, Objects.requireNonNull(textSearchInfo), meta);
+        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
     protected StringFieldType(MappedFieldType ref) {

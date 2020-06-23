@@ -91,7 +91,7 @@ public abstract class MappedFieldType {
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.docValues = hasDocValues;
-        this.textSearchInfo = textSearchInfo;
+        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
     }
 
@@ -412,9 +412,10 @@ public abstract class MappedFieldType {
     /**
      * Returns information on how any text in this field is indexed
      *
-     * Fields that do not support any text-based queries should return {@code null}.
-     * Some fields (eg numeric) may support only simple match queries, and can
-     * return {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     * Fields that do not support any text-based queries should return
+     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * only simple match queries, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;

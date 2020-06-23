@@ -94,28 +94,24 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name").isSearchable());
-        assertNotNull(mapperService.fieldType("name").getTextSearchInfo());
         assertTrue(mapperService.fieldType("name").getTextSearchInfo().isStored());
         assertTrue(mapperService.fieldType("name").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name.indexed").isSearchable());
-        assertNotNull(mapperService.fieldType("name.indexed").getTextSearchInfo());
         assertFalse(mapperService.fieldType("name.indexed").getTextSearchInfo().isStored());
         assertTrue(mapperService.fieldType("name.indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertFalse(mapperService.fieldType("name.not_indexed").isSearchable());
-        assertNotNull(mapperService.fieldType("name.not_indexed").getTextSearchInfo());
         assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isStored());
         assertTrue(mapperService.fieldType("name.not_indexed").getTextSearchInfo().isTokenized());
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
         assertTrue(mapperService.fieldType("name.test1").isSearchable());
-        assertNotNull(mapperService.fieldType("name.test1").getTextSearchInfo());
         assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isStored());
         assertTrue(mapperService.fieldType("name.test1").getTextSearchInfo().isTokenized());
         assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));

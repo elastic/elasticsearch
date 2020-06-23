@@ -37,6 +37,7 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -88,6 +89,23 @@ public class DeprecationLoggerTests extends ESTestCase {
         } finally {
             LogManager.setFactory(originalFactory);
         }
+    }
+
+
+    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
+        org.apache.logging.log4j.core.LoggerContext context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
+
+        DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DeprecationLoggerTests.class));
+        int numberOfLoggersBefore = context.getLoggers().size();
+
+        class LoggerTest{
+        }
+        DeprecationLogger deprecationLogger2 = new DeprecationLogger(LogManager.getLogger(LoggerTest.class));
+
+        context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
+        int numberOfLoggersAfter = context.getLoggers().size();
+
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore+1));
     }
 
 }

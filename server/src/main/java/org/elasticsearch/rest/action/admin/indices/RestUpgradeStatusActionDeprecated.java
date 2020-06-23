@@ -38,9 +38,6 @@ import static org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDepre
 
 public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestUpgradeStatusActionDeprecated.class));
-
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
         return List.of(

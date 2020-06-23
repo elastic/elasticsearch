@@ -39,8 +39,7 @@ public abstract class FieldScript {
 
     public static final String[] PARAMETERS = {};
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate("field-script_doc",

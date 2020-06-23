@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,8 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(SignificantTermsAggregationBuilder.NAME,

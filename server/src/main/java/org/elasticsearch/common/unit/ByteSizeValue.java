@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +41,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ByteSizeValue.class));
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);

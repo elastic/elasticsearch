@@ -75,7 +75,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     static final String CONTEXT_PRECISION = "precision";
     static final String CONTEXT_NEIGHBOURS = "neighbours";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoContextMapping.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoContextMapping.class);
 
     private final int precision;
     private final String fieldName;

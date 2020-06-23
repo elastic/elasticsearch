@@ -1439,7 +1439,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
             final long workerId = Long.valueOf(workerIdStr);
             assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-            startAt = Math.floorMod(workerId - 1, 223) + 1;
+            startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);

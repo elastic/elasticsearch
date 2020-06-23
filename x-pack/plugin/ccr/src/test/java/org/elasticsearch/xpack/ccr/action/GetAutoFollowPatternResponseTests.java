@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,7 +35,9 @@ public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTe
                 "remote",
                 Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
-                true, randomIntBetween(0, Integer.MAX_VALUE),
+                Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
+                true,
+                randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),

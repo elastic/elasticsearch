@@ -326,7 +326,7 @@ thirdPartyAudit.ignoreMissingClasses(
 
 thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||

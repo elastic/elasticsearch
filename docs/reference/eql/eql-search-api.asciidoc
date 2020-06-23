@@ -81,6 +81,68 @@ Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
+`keep_alive`::
++
+--
+(Optional, <<time-units,time value>>)
+Period for which the search and its results are stored on the cluster. Defaults
+to `5d` (five days).
+
+When this period expires, the search and its results are deleted, even if the
+search is still ongoing.
+
+If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
+`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+complete within the period set by the
+<<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter, regardless of this value.
+
+[IMPORTANT]
+====
+You can also specify this value using the `keep_alive` request body parameter.
+If both parameters are specified, only the query parameter is used.
+====
+--
+
+`keep_on_completion`::
++
+--
+(Optional, boolean)
+If `true`, the search and its results are stored on the cluster.
+
+If `false`, the search and its results are stored on the cluster only if the
+request does not complete during the period set by the
+<<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter. Defaults to `false`.
+
+[IMPORTANT]
+====
+You can also specify this value using the `keep_on_completion` request body
+parameter. If both parameters are specified, only the query parameter is used.
+====
+--
+
+`wait_for_completion_timeout`::
++
+--
+(Optional, <<time-units,time value>>)
+Timeout duration to wait for the request to finish. Defaults to no
+timeout, meaning the request waits for complete search results.
+
+If this parameter is specified and the request completes during this period,
+complete search results are returned.
+
+If the request does not complete during this period, the search becomes an
+<<eql-search-async,async search>>.
+
+[IMPORTANT]
+====
+You can also specify this value using the `wait_for_completion_timeout` request
+body parameter. If both parameters are specified, only the query parameter is
+used.
+====
+--
+
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
@@ -106,6 +168,48 @@ runs.
 `implicit_join_key_field`::
 (Optional, string)
 Reserved for future use.
+
+`keep_alive`::
++
+--
+(Optional, <<time-units,time value>>)
+Period for which the search and its results are stored on the cluster. Defaults
+to `5d` (five days).
+
+When this period expires, the search and its results are deleted, even if the
+search is still ongoing.
+
+If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
+`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+complete within the period set by the
+<<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter, regardless of this value.
+
+[IMPORTANT]
+====
+You can also specify this value using the `keep_alive` query parameter.
+If both parameters are specified, only the query parameter is used.
+====
+--
+
+[[eql-search-api-keep-on-completion]]
+`keep_on_completion`::
++
+--
+(Optional, boolean)
+If `true`, the search and its results are stored on the cluster.
+
+If `false`, the search and its results are stored on the cluster only if the
+request does not complete during the period set by the
+<<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter. Defaults to `false`.
+
+[IMPORTANT]
+====
+You can also specify this value using the `keep_on_completion` query parameter.
+If both parameters are specified, only the query parameter is used.
+====
+--
 
 [[eql-search-api-request-query-param]]
 `query`::
@@ -145,9 +249,71 @@ milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in
 ascending order.
 --
 
+[[eql-search-api-wait-for-completion-timeout]]
+`wait_for_completion_timeout`::
++
+--
+(Optional, <<time-units,time value>>)
+Timeout duration to wait for the request to finish. Defaults to no
+timeout, meaning the request waits for complete search results.
+
+If this parameter is specified and the request completes during this period,
+complete search results are returned.
+
+If the request does not complete during this period, the search becomes an
+<<eql-search-async,async search>>.
+
+[IMPORTANT]
+====
+You can also specify this value using the `wait_for_completion_timeout` query
+parameter. If both parameters are specified, only the query parameter is used.
+====
+--
+
 [role="child_attributes"]
 [[eql-search-api-response-body]]
 ==== {api-response-body-title}
+
+[[eql-search-api-response-body-search-id]]
+`id`::
++
+--
+Identifier for the search.
+
+This search ID is only provided if one of the following conditions is met:
+
+* A search request does not return complete results during the
+  <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+  parameter's timeout period, becoming an <<eql-search-async,async search>>.
+  
+* The search request's <<eql-search-api-keep-on-completion,`keep_on_completion`>>
+  parameter is `true`.
+
+You can use this ID with the <<get-async-eql-search-api,get async EQL search
+API>> to get the current status and available results for the search.
+--
+
+`is_partial`::
+(boolean)
+If `true`, the response does not contain complete search results.
+
+`is_running`::
++
+--
+(boolean)
+If `true`, the search request is still executing.
+
+[IMPORTANT]
+====
+If this parameter and the `is_partial` parameter are `true`, the search is an
+<<eql-search-async,ongoing async search>>. If the `keep_alive` period does not
+pass, the complete search results will be available when the search completes.
+
+If `is_partial` is `true` but `is_running` is `false`, the search returned
+partial results due to a failure. Only some shards returned results or the node
+coordinating the search failed.
+====
+--
 
 `took`::
 +
@@ -332,6 +498,8 @@ in ascending order.
 [source,console-result]
 ----
 {
+  "is_partial": false,
+  "is_running": false,
   "took": 6,
   "timed_out": false,
   "hits": {
@@ -445,6 +613,8 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 [source,console-result]
 ----
 {
+  "is_partial": false,
+  "is_running": false,
   "took": 6,
   "timed_out": false,
   "hits": {

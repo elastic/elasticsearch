@@ -115,7 +115,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     private NestedPathFieldMapper(Settings settings) {
-        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings), settings);
+        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings));
     }
 
     @Override

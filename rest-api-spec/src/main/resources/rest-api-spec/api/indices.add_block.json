@@ -1,5 +1,5 @@
 {
-  "indices.add_blocks":{
+  "indices.add_block":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-blocks.html",
       "description":"Adds a block to an index."
@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/{index}/_blocks/{block}",
+          "path":"/{index}/_block/{block}",
           "methods":[
             "PUT"
           ],

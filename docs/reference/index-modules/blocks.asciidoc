@@ -56,7 +56,7 @@ adding the write block.
 
 [source,console]
 --------------------------------------------------
-PUT /twitter/_blocks/write
+PUT /twitter/_block/write
 --------------------------------------------------
 // TEST[setup:twitter]
 
@@ -67,7 +67,7 @@ and `metadata`, and their meaning is described above in the settings section.
 [[add-index-block-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_blocks/<block>`
+`PUT /<index>/_block/<block>`
 
 
 [[add-index-block-api-desc]]
@@ -113,7 +113,7 @@ The following example shows how to add an index block:
 
 [source,console]
 --------------------------------------------------
-PUT /my_index/_blocks/write
+PUT /my_index/_block/write
 --------------------------------------------------
 // TEST[s/^/PUT my_index\n/]
 

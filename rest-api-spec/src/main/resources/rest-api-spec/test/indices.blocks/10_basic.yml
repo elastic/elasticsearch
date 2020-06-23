@@ -11,7 +11,7 @@
             number_of_replicas: 0
 
   - do:
-      indices.add_blocks:
+      indices.add_block:
         index: test_index
         block: write
   - is_true: acknowledged

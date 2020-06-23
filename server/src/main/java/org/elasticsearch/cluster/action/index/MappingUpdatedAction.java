@@ -20,7 +20,8 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -108,19 +109,13 @@ public class MappingUpdatedAction {
 
     // can be overridden by tests
     protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
-        client.preparePutMapping().setConcreteIndex(index).setSource(mappingUpdate.toString(), XContentType.JSON)
-            .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        PutMappingRequest putMappingRequest = new PutMappingRequest();
+        putMappingRequest.setConcreteIndex(index);
+        putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
+        putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
+        putMappingRequest.timeout(TimeValue.ZERO);
+        client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest,
+            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
     }
 
     static class AdjustableSemaphore extends Semaphore {

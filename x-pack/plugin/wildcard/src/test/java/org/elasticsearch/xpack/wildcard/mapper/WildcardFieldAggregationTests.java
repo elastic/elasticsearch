@@ -41,6 +41,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
+        // These settings are lifted out of WildcardFieldMapperTests
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         this.iwc = Optional.of(iwc);

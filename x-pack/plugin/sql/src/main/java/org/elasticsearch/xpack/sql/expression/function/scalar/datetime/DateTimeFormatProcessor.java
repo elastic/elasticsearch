@@ -44,11 +44,8 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         public String getJavaPattern(final Object pattern) {
             String javaDateFormat = (String) pattern;
             if (this == FORMAT) {
-
                 for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
-                    if (javaDateFormat.contains(replacement[0])) {
-                        javaDateFormat = javaDateFormat.replace(replacement[0], replacement[1]);
-                    }
+                    javaDateFormat = javaDateFormat.replace(replacement[0], replacement[1]);
                 }
             }
             return javaDateFormat;

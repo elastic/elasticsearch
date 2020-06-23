@@ -719,6 +719,60 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(((TestExtension2) extensiblePlugin.extensions.get(1)).plugin, sameInstance(testPlugin));
     }
 
+    public void testNoExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        class TestExtension implements TestExtensionPoint {
+            private TestExtension() {
+            }
+        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e, hasToString(containsString("no public constructor for extension [" + TestExtension.class.getName() +
+            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+    }
+
+    public void testMultipleExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        class TestExtension implements TestExtensionPoint {
+            public TestExtension() {
+            }
+            public TestExtension(TestPlugin plugin) {
+
+            }
+        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e, hasToString(containsString("no unique public constructor for extension [" + TestExtension.class.getName() +
+            "] of type [" + TestExtensionPoint.class.getName() + "]")));
+    }
+
+    public void testBadSingleParameterConstructor() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + "), not (" +
+                String.class.getName() + ")")));
+    }
+
+    public void testTooManyParametersExtensionConstructors() {
+        TestPlugin plugin = new TestPlugin();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
+
+        assertThat(e,
+            hasToString(containsString("signature of constructor for extension [" + BadSingleParameterConstructorExtension.class.getName() +
+                "] of type [" + TestExtensionPoint.class.getName() + "] must be either () or (" + TestPlugin.class.getName() + ")")));
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
 
@@ -745,4 +799,15 @@ public class PluginsServiceTests extends ESTestCase {
             this.plugin = plugin;
         }
     }
+
+    public static class BadSingleParameterConstructorExtension implements TestExtensionPoint {
+        public BadSingleParameterConstructorExtension(String bad) {
+        }
+    }
+
+    public static class TooManyParametersConstructorExtension implements TestExtensionPoint {
+        public TooManyParametersConstructorExtension(String bad) {
+        }
+    }
+
 }

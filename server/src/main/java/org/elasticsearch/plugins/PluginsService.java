@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceConfigurationError;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -465,28 +464,53 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();
-            extensions.add(createExtension(extensionClass, plugin, extensionPointType));
+            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
         }
         return extensions.stream();
     }
 
-    private static <T> T createExtension(Class<? extends T> extensionClass, Plugin plugin, Class<T> extensionPointType) {
+    // package-private for test visibility
+    static <T> T createExtension(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
+        //noinspection unchecked
+        Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+        if (constructors.length == 0) {
+            throw new IllegalStateException("no public " + extensionConstructorMessage(extensionClass, extensionPointType));
+        }
+
+        if (constructors.length > 1) {
+            throw new IllegalStateException("no unique public " + extensionConstructorMessage(extensionClass, extensionPointType));
+        }
+
+        final Constructor<T> constructor = constructors[0];
+        if (constructor.getParameterCount() > 1) {
+            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
+        }
+
+        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+            throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin) +
+                ", not (" + constructor.getParameterTypes()[0].getName() + ")");
+        }
+
         try {
-            try {
-                return extensionClass.getConstructor(plugin.getClass()).newInstance(plugin);
-            } catch (NoSuchMethodException e) {
-                try {
-                    return extensionClass.getConstructor().newInstance();
-                } catch (NoSuchMethodException ex) {
-                    ex.addSuppressed(e);
-                    throw ex;
-                }
+            if (constructor.getParameterCount() == 0) {
+                return constructor.newInstance();
+            } else {
+                return constructor.newInstance(plugin);
             }
-        } catch (Exception e) {
-            throw new ServiceConfigurationError(
-                "failed to load [" + extensionPointType.getName() + "] extension [" + extensionClass.getName() + "]", e
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                "failed to load extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]", e
             );
         }
+    }
+
+    private static <T> String extensionSignatureMessage(Class<? extends T> extensionClass, Class<T> extensionPointType, Plugin plugin) {
+        return "signature of " + extensionConstructorMessage(extensionClass, extensionPointType) +
+            " must be either () or (" + plugin.getClass().getName() + ")";
+    }
+
+    private static <T> String extensionConstructorMessage(Class<? extends T> extensionClass, Class<T> extensionPointType) {
+        return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
     // jar-hell check the bundle against the parent classloader and extended plugins

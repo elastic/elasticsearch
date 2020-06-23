@@ -194,12 +194,12 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, meta);
+        public CompletionFieldType(String name, FieldType luceneFieldType, Map<String, String> meta) {
+            super(name, true, false, new TextSearchInfo(luceneFieldType), meta);
         }
 
         public CompletionFieldType(String name) {
-            this(name, Collections.emptyMap());
+            this(name, Defaults.FIELD_TYPE, Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {
@@ -395,7 +395,7 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), meta);
+            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), this.fieldType, meta);
             ft.setContextMappings(contextMappings);
             ft.setPreservePositionIncrements(preservePositionIncrements);
             ft.setPreserveSep(preserveSeparators);

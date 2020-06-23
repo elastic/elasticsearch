@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -79,6 +80,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testRestCancellation() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/58270", Constants.WINDOWS);
         assertAcked(client().admin().indices().prepareCreate("test")
             .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
             .get());

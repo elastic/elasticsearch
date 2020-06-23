@@ -9,13 +9,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -112,17 +107,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             "        }" +
             "      }\n" +
             "    }";
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("data_template")
-                .indexTemplate(new ComposableIndexTemplate(Collections.singletonList("datafeed_data_*"),
-                    new Template(null, new CompressedXContent(mapping), null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate("time"))))
-            .actionGet();
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request("datafeed_data_stream")).actionGet();
+        createDataStreamAndTemplate("datafeed_data_stream", "time", mapping);
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;

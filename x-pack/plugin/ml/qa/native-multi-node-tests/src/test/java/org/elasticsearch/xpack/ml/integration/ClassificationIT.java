@@ -142,6 +142,61 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    public void testWithDatastreams() throws Exception {
+        initialize("classification_with_datastreams", true);
+        String predictedClassField = KEYWORD_FIELD + "_prediction";
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Classification(
+                KEYWORD_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null));
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
+            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [classification]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+    }
+
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
         initialize("classification_only_training_data_and_training_percent_is_100");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -362,9 +417,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Index enough documents to have more classes than the allowed limit
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
-            IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                .source(KEYWORD_FIELD, "fox-" + i)
-                .opType(DocWriteRequest.OpType.CREATE);
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -386,7 +439,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Index one more document with a class different than the two already used.
         client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
             .source(KEYWORD_FIELD, "fox")
-            .opType(DocWriteRequest.OpType.CREATE)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
         QueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(KEYWORD_FIELD, KEYWORD_FIELD_VALUES));
@@ -459,7 +511,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
 
-        createIndex(sourceIndex, true);
+        createIndex(sourceIndex);
         // We use 100 rows as we can't set this too low. If too low it is possible
         // we only train with rows of one of the two classes which leads to a failure.
         indexData(sourceIndex, 100, 0, dependentVariable);
@@ -599,17 +651,21 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     private void initialize(String jobId) {
+        initialize(jobId, false);
+    }
+
+    private void initialize(String jobId, boolean isDatastream) {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
         this.analysisUsesExistingDestIndex = randomBoolean();
-        createIndex(sourceIndex, true);
+        createIndex(sourceIndex, isDatastream);
         if (analysisUsesExistingDestIndex) {
             createIndex(destIndex, false);
         }
     }
 
-    private static void createIndex(String index, boolean isSource) {
+    private static void createIndex(String index, boolean isDatastream) {
         String mapping = "{\n" +
             "      \"properties\": {\n" +
             "        \"time\": {\n" +
@@ -643,7 +699,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "        }" +
             "      }\n" +
             "    }";
-        if (randomBoolean() && isSource) {
+        if (isDatastream) {
             try {
                 createDataStreamAndTemplate(index, "time", mapping);
             } catch (IOException ex) {

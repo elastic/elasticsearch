@@ -229,16 +229,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // check if the snapshot name already exists in the repository
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots == null ? List.of() : snapshots.entries();
-                if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName)) ||
-                        runningSnapshots.stream().anyMatch(s -> {
-                            final Snapshot running = s.snapshot();
-                            return running.getRepository().equals(repositoryName)
-                                    && running.getSnapshotId().getName().equals(snapshotName);
-                        })) {
+                if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                     throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
+                }
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots == null ? List.of() : snapshots.entries();
+                if (runningSnapshots.stream().anyMatch(s -> {
+                    final Snapshot running = s.snapshot();
+                    return running.getRepository().equals(repositoryName) && running.getSnapshotId().getName().equals(snapshotName);
+                })) {
+                    throw new InvalidSnapshotNameException(
+                            repository.getMetadata().name(), snapshotName, "snapshot with the same name is already in-progress");
                 }
                 validate(repositoryName, snapshotName, currentState);
                 final Version minNodeVersion = currentState.nodes().getMinNodeVersion();

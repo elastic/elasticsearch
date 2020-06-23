@@ -65,5 +65,9 @@ public class SuggestPhase implements SearchPhase {
             throw new ElasticsearchException("I/O exception during suggest phase", e);
         }
     }
+
+    static class SortedHits {
+        int[] docs;
+    }
 }
 

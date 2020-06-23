@@ -234,6 +234,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasProfileResults;
     }
 
+    public void consumeAll() {
+        if (hasProfileResults()) {
+            consumeProfileResult();
+        }
+        if (hasConsumedTopDocs() == false) {
+            consumeTopDocs();
+        }
+        if (hasAggs()) {
+            consumeAggs();
+        }
+    }
+
     /**
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile

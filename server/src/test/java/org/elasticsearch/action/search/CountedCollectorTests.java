@@ -35,10 +35,10 @@ import java.util.concurrent.Executor;
 
 public class CountedCollectorTests extends ESTestCase {
     public void testCollect() throws InterruptedException {
-        AtomicArray<SearchPhaseResult> results = new AtomicArray<>(randomIntBetween(1, 100));
+        ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
         List<Integer> state = new ArrayList<>();
-        int numResultsExpected = randomIntBetween(1, results.length());
-        MockSearchPhaseContext context = new MockSearchPhaseContext(results.length());
+        int numResultsExpected = randomIntBetween(1, consumer.getAtomicArray().length());
+        MockSearchPhaseContext context = new MockSearchPhaseContext(consumer.getAtomicArray().length());
         CountDownLatch latch = new CountDownLatch(1);
         boolean maybeFork = randomBoolean();
         Executor executor = (runnable) -> {
@@ -49,7 +49,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(r -> results.set(r.getShardIndex(), r), numResultsExpected,
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected,
             latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
@@ -78,7 +78,7 @@ public class CountedCollectorTests extends ESTestCase {
         }
         latch.await();
         assertEquals(numResultsExpected, state.size());
-
+        AtomicArray<SearchPhaseResult> results = consumer.getAtomicArray();
         for (int i = 0; i < numResultsExpected; i++) {
             switch (state.get(i)) {
                 case 0:

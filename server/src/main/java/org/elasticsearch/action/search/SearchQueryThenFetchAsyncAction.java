@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -59,11 +60,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                                     final SearchRequest request, final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
+                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters,
+                                    Consumer<Exception> onPartialMergeFailure) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
-                request.getMaxConcurrentShardRequests(), clusters);
+                searchPhaseController.newSearchPhaseResults(executor, task.getProgressListener(),
+                    request, shardsIts.size(), onPartialMergeFailure), request.getMaxConcurrentShardRequests(), clusters);
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;

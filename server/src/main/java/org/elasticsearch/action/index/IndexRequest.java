@@ -116,7 +116,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public IndexRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readOptionalString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
@@ -612,6 +616,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void writeTo(StreamOutput out) throws IOException {
         checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }

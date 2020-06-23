@@ -14,6 +14,7 @@ import org.elasticsearch.index.Index;
 
 import java.util.List;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -73,8 +74,8 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(indexMetadata, true).put(new DataStream(dataStreamName, "timestamp",
-                List.of(indexMetadata.getIndex()))).build()
+            Metadata.builder().put(indexMetadata, true).put(new DataStream(dataStreamName,
+                createTimestampField("@timestamp"), List.of(indexMetadata.getIndex()))).build()
         ).build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
@@ -105,7 +106,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             Metadata.builder()
                 .put(indexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                 .build()
         ).build();
 

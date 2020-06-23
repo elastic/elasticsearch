@@ -559,13 +559,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
         results.getSuccessfulResults().forEach((entry) -> {
-            try {
-                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
-            } catch (Exception inner) {
-                inner.addSuppressed(exception);
-                logger.trace("failed to release context", inner);
+            if (entry.getContextId() != null) {
+                try {
+                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                } catch (Exception inner) {
+                    inner.addSuppressed(exception);
+                    logger.trace("failed to release context", inner);
+                }
             }
         });
         listener.onFailure(exception);

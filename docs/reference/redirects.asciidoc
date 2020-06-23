@@ -912,5 +912,10 @@ See <<paginate-search-results>>.
 [role="exclude",id="request-body-search-source-filtering"]
 ==== Source filtering
 
-See <<search-fields>>.
+See <<source-filtering, source filtering>>.
+
+[role="exclude",id="request-body-search-docvalue-fields"]
+==== Doc value fields
+
+See <<docvalue-fields, doc value fields>>.
 ////

@@ -30,7 +30,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: ':plugins:discovery-ec2', configuration: 'runtime')
+  testImplementation project(path: ':plugins:discovery-ec2', configuration: 'runtime')
 }
 
 restResources {

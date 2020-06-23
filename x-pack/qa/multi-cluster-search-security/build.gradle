@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 restResources {

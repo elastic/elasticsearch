@@ -30,7 +30,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
 }
 

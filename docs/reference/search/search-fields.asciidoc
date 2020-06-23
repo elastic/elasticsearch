@@ -1,12 +1,43 @@
 [discrete]
 [[search-fields]]
-=== Return fields in a search
+=== Retrieve selected fields
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
-provided when indexing the document. If you only need certain fields in the
-search response, you can use the `_source` parameter to restrict what parts of
-the source are returned. This is called _source filtering_.
+provided when indexing the document. If you only need certain source fields in
+the search response, you can use the <<source-filtering,source filtering>> to
+restrict what parts of the source are returned.
+
+Returning fields using only the document source has some limitations:
+
+* The `_source` field does not include <<multi-fields, multi-fields>> or
+<<alias, field aliases>>. Likewise, a field in the source does not contain
+values copied using the <<copy-to,`copy_to`>> mapping parameter.
+* Since the `_source` is stored as a single field in Lucene, the whole source
+object must be loaded and parsed, even if only a small number of fields are
+needed.
+
+To avoid these limitations, you can:
+
+* Use the <<docvalue-fields, `docvalue_fields`>>
+parameter to get values for selected fields. This can be a good
+choice when returning a fairly small number of fields that support doc values,
+such as keywords and dates.
+* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to get the values for specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping option.)
+
+You can find more detailed information on each of these methods in the 
+following sections:
+
+* <<source-filtering>>
+* <<docvalue-fields>>
+* <<stored-fields>>
+
+[discrete]
+[[source-filtering]]
+=== Source filtering
+
+You can use the `_source` parameter to select what fields of the source are
+returned. This is called _source filtering_.
 
 .*Example*
 [%collapsible]
@@ -91,23 +122,74 @@ GET /_search
 ----
 ====
 
-Returning fields using only the document source has some limitations:
 
-* The `_source` field does not include <<multi-fields, multi-fields>> or
-<<alias, field aliases>>. Likewise, a field in the source does not contain
-values copied using the <<copy-to,`copy_to`>> mapping parameter.
-* Since the `_source` is stored as a single field in Lucene, the whole source
-object must be loaded and parsed, even if only a small number of fields are
-needed.
+[discrete]
+[[docvalue-fields]]
+=== Doc value fields
 
-{es} supports some alternative methods for returning fields that help avoid
-these downsides:
+You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
+<<doc-values,doc values>> for one or more fields in the search response.
 
-* The <<request-body-search-docvalue-fields, `docvalue_fields`>>
-parameter allows for loading fields from their doc values. This can be a good
-choice when returning a fairly small number of fields that support doc values,
-such as keywords and dates.
-* It's also possible to store an individual field's values by using the
+Doc values store the same values as the `_source` but in an on-disk,
+column-based structure that's optimized for sorting and aggregations. Since each
+field is stored separately, {es} only reads the field values that were requested
+and can avoid loading the whole document `_source`.
+
+Doc values are stored for supported fields by default. However, doc values are
+not supported for <<text,`text`>> or
+{plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
+
+.*Example*
+[%collapsible]
+====
+The following search request uses the `docvalue_fields` parameter to
+retrieve doc values for the following fields:
+
+* Fields with names starting with `my_ip`
+* `my_keyword_field`
+* Fields with names ending with `_date_field`
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "docvalue_fields": [
+    "my_ip*",                     <1>
+    {
+      "field": "my_keyword_field" <2>
+    },
+    {
+      "field": "*_date_field",
+      "format": "epoch_millis"    <3>
+    }
+  ]
+}
+----
+
+<1> Wildcard patten used to match field names, specified as a string.
+<2> Wildcard patten used to match field names, specified as an object.
+<3> With the object notation, you can use the `format` parameter to specify a
+    format for the field's returned doc values. <<date,Date fields>> support a
+    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
+    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+    pattern]. Other field datatypes do not support the `format` parameter.
+====
+
+TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
+nested objects. If you specify a nested object, the search returns an empty
+array (`[ ]`) for the field. To access nested fields, use the
+<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+property.
+
+
+[discrete]
+[[stored-fields]]
+=== Stored fields
+
+It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to return
+<<request-body-search-stored-fields, `stored_fields`>> parameter to include
 these stored values in the search response.

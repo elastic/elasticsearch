@@ -91,7 +91,7 @@ normalization {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 

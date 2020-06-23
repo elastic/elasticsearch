@@ -43,7 +43,7 @@ dependencies {
   compile project('spi')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
@@ -195,4 +195,3 @@ task regen {
     }
   }
 }
-

@@ -34,7 +34,7 @@ dependencies {
   compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   runtimeOnly 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
-  testCompile project(':test:fixtures:azure-fixture')
+  testImplementation project(':test:fixtures:azure-fixture')
 }
 
 restResources {
@@ -44,7 +44,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'

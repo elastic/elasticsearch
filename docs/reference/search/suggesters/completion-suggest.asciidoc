@@ -218,7 +218,7 @@ The configured weight for a suggestion is returned as `_score`. The
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
 To save some network overhead, filter out unnecessary fields from the `_source`
-using <<search-fields, source filtering>> to minimize
+using <<source-filtering, source filtering>> to minimize
 `_source` size. Note that the _suggest endpoint doesn't support source
 filtering but using suggest on the `_search` endpoint does:
 

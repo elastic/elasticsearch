@@ -255,12 +255,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                 DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
                             StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
                             if (status == StoredFieldVisitor.Status.YES) {
-                                if (indexableField.binaryValue() != null) {
+                                if (indexableField.numericValue() != null) {
+                                    fieldVisitor.objectField(fieldInfo, indexableField.numericValue());
+                                } else if (indexableField.binaryValue() != null) {
                                     fieldVisitor.binaryField(fieldInfo, indexableField.binaryValue());
                                 } else if (indexableField.stringValue() != null) {
                                     fieldVisitor.objectField(fieldInfo, indexableField.stringValue());
-                                } else if (indexableField.numericValue() != null) {
-                                    fieldVisitor.objectField(fieldInfo, indexableField.numericValue());
                                 }
                             } else if (status == StoredFieldVisitor.Status.STOP) {
                                 break;

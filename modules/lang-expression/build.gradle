@@ -37,7 +37,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /asm-.*/, to: 'asm'
 }

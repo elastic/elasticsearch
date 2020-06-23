@@ -52,7 +52,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 

@@ -27,11 +27,11 @@ restResources {
 }
 
 dependencies {
-  testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
-  testCompile project(path: ':modules:ingest-geoip', configuration: 'runtime')
-  testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
-  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
+  testImplementation project(path: ':modules:ingest-common', configuration: 'runtime')
+  testImplementation project(path: ':modules:ingest-geoip', configuration: 'runtime')
+  testImplementation project(path: ':modules:lang-mustache', configuration: 'runtime')
+  testImplementation project(path: ':modules:lang-painless', configuration: 'runtime')
+  testImplementation project(path: ':modules:reindex', configuration: 'runtime')
 }
 
 testingConventions {

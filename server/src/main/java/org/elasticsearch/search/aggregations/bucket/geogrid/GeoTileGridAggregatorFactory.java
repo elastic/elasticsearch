@@ -72,18 +72,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config, GeoTileGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
+        return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), precision, geoBoundingBox,
             requiredSize, shardSize, searchContext, parent, collectsFromSingleBucket, metadata);
     }
 

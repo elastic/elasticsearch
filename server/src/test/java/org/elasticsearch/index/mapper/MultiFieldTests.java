@@ -93,35 +93,35 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fieldType("name").indexOptions());
-        assertThat(mapperService.fieldType("name").stored(), equalTo(true));
-        assertThat(mapperService.fieldType("name").tokenized(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name").indexOptions());
+        assertThat(mapperService.getLuceneFieldType("name").stored(), equalTo(true));
+        assertThat(mapperService.getLuceneFieldType("name").tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fieldType("name.indexed").indexOptions());
-        assertThat(mapperService.fieldType("name.indexed").stored(), equalTo(false));
-        assertThat(mapperService.fieldType("name.indexed").tokenized(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name.indexed").indexOptions());
+        assertThat(mapperService.getLuceneFieldType("name.indexed").stored(), equalTo(false));
+        assertThat(mapperService.getLuceneFieldType("name.indexed").tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertEquals(IndexOptions.NONE, mapperService.fieldType("name.not_indexed").indexOptions());
-        assertThat(mapperService.fieldType("name.not_indexed").stored(), equalTo(true));
-        assertThat(mapperService.fieldType("name.not_indexed").tokenized(), equalTo(true));
+        assertEquals(IndexOptions.NONE, mapperService.getLuceneFieldType("name.not_indexed").indexOptions());
+        assertThat(mapperService.getLuceneFieldType("name.not_indexed").stored(), equalTo(true));
+        assertThat(mapperService.getLuceneFieldType("name.not_indexed").tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fieldType("name.test1").indexOptions());
-        assertThat(mapperService.fieldType("name.test1").stored(), equalTo(true));
-        assertThat(mapperService.fieldType("name.test1").tokenized(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name.test1").indexOptions());
+        assertThat(mapperService.getLuceneFieldType("name.test1").stored(), equalTo(true));
+        assertThat(mapperService.getLuceneFieldType("name.test1").tokenized(), equalTo(true));
         assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
         assertThat(mapperService.fieldType("object1.multi1"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.fieldType("object1.multi1.string").indexOptions());
-        assertThat(mapperService.fieldType("object1.multi1.string").tokenized(), equalTo(false));
+        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("object1.multi1.string").indexOptions());
+        assertThat(mapperService.getLuceneFieldType("object1.multi1.string").tokenized(), equalTo(false));
     }
 
     public void testBuildThenParse() throws Exception {

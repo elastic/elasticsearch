@@ -71,6 +71,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         if (in.getVersion().before(Version.V_7_0_0)) {

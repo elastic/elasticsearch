@@ -57,12 +57,11 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
 
     @Override
     protected DateTimeFormatProcessor mutateInstance(DateTimeFormatProcessor instance) {
-        Formatter replaced = randomValueOtherThan(instance.formatter(), () -> randomFrom(Formatter.values()));
         return new DateTimeFormatProcessor(
             new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             randomZone(),
-            replaced
+            randomValueOtherThan(instance.formatter(), () -> randomFrom(Formatter.values()))
         );
     }
 

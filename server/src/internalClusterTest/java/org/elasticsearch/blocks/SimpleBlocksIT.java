@@ -183,9 +183,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     enableIndexBlock("test", block.settingName());
 
                     // Adding a block is not blocked
-                    AcknowledgedResponse closeIndexResponse = client().admin().indices()
+                    AcknowledgedResponse addBlockResponse = client().admin().indices()
                         .prepareAddBlock(otherBlock, "test").get();
-                    assertAcked(closeIndexResponse);
+                    assertAcked(addBlockResponse);
                 } finally {
                     disableIndexBlock("test", otherBlock.settingName());
                     disableIndexBlock("test", block.settingName());

@@ -98,7 +98,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Service responsible for submitting open/close index requests
+ * Service responsible for submitting open/close index requests as well as for adding index blocks
  */
 public class MetadataIndexStateService {
     private static final Logger logger = LogManager.getLogger(MetadataIndexStateService.class);
@@ -310,8 +310,15 @@ public class MetadataIndexStateService {
         return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build();
     }
 
-    static ClusterState addIndexBlock(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
-                                      final ClusterState currentState, APIBlock block) {
+    /**
+     * Updates the cluster state for the given indices with the given index block,
+     * and also returns the updated indices (and their blocks) in a map.
+     * @param indices The indices to add blocks to if needed
+     * @param currentState The current cluster state
+     * @param block The type of block to add
+     * @return a tuple of the updated cluster state, as well as the blocks that got added
+     */
+    static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(final Index[] indices, final ClusterState currentState, APIBlock block) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
         final Set<Index> indicesToAddBlock = new HashSet<>();
@@ -325,11 +332,12 @@ public class MetadataIndexStateService {
         }
 
         if (indicesToAddBlock.isEmpty()) {
-            return currentState;
+            return Tuple.tuple(currentState, Collections.emptyMap());
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
             ClusterBlock indexBlock = null;
@@ -362,11 +370,24 @@ public class MetadataIndexStateService {
             }
         }
 
-        logger.info(() -> new ParameterizedMessage("adding block {} to indices {}", block.name,
-            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))));
-        return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build();
+        logger.info("adding block {} to indices {}", block.name,
+            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(",")));
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata)
+                .routingTable(routingTable.build()).build(), blockedIndices);
     }
 
+    /**
+     * Adds an index block based on the given request, and notifies the listener upon completion.
+     * Adding blocks is done in three steps:
+     * - First, a temporary UUID-based block is added to the index
+     *   (see {@link #addIndexBlock(Index[], ClusterState, APIBlock)}.
+     * - Second, shards are checked to have properly applied the UUID-based block.
+     *   (see {@link WaitForBlocksApplied}).
+     * - Third, the temporary UUID-based block is turned into a full block
+     *   (see {@link #finalizeBlock(ClusterState, Map, Map, APIBlock)}.
+     * Using this three-step process ensures non-interference by other operations in case where
+     * we notify successful completion here.
+     */
     public void addIndexBlock(AddIndexBlockClusterStateUpdateRequest request,
                               ActionListener<AddIndexBlockResponse> listener) {
         final Index[] concreteIndices = request.indices();
@@ -386,14 +407,16 @@ public class MetadataIndexStateService {
                 Strings.collectionToCommaDelimitedString(writeIndices) + "]");
         }
 
-        clusterService.submitStateUpdateTask("add-index-block " + Arrays.toString(concreteIndices),
+        clusterService.submitStateUpdateTask("add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
             new ClusterStateUpdateTask(Priority.URGENT) {
 
-                private final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
+                private Map<Index, ClusterBlock> blockedIndices;
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    return addIndexBlock(concreteIndices, blockedIndices, currentState, request.getBlock());
+                    final Tuple<ClusterState, Map<Index, ClusterBlock>> tup = addIndexBlock(concreteIndices, currentState, request.getBlock());
+                    blockedIndices = tup.v2();
+                    return tup.v1();
                 }
 
                 @Override
@@ -406,7 +429,9 @@ public class MetadataIndexStateService {
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(new WaitForBlocksApplied(blockedIndices, request,
                                     ActionListener.wrap(verifyResults ->
-                                            clusterService.submitStateUpdateTask("finalize-index-block",
+                                            clusterService.submitStateUpdateTask("finalize-index-block-[" + request.getBlock().name + "]-[" +
+                                                    blockedIndices.keySet().stream().map(Index::getName)
+                                                        .collect(Collectors.joining(", ")) + "]",
                                                 new ClusterStateUpdateTask(Priority.URGENT) {
                                                 private final List<AddBlockResult> indices = new ArrayList<>();
 
@@ -578,6 +603,10 @@ public class MetadataIndexStateService {
         }
     }
 
+    /**
+     * Helper class that coordinates with shards to ensure that blocks have been properly applied to all shards using
+     * {@link TransportVerifyShardIndexBlockAction}.
+     */
     class WaitForBlocksApplied extends ActionRunnable<Map<Index, AddBlockResult>> {
 
         private final Map<Index, ClusterBlock> blockedIndices;
@@ -869,6 +898,14 @@ public class MetadataIndexStateService {
         return ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
     }
 
+    /**
+     * Finalizes the addition of blocks by turning the temporary UUID-based blocks into full blocks.
+     * @param currentState the cluster state to update
+     * @param blockedIndices the indices and their temporary UUID-based blocks to convert
+     * @param verifyResult the index-level results for adding the block
+     * @param block the full block to convert to
+     * @return the updated cluster state, as well as the (failed and successful) index-level results for adding the block
+     */
     static Tuple<ClusterState, Collection<AddBlockResult>> finalizeBlock(final ClusterState currentState,
                                                                          final Map<Index, ClusterBlock> blockedIndices,
                                                                          final Map<Index, AddBlockResult> verifyResult,

@@ -46,6 +46,12 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Action used to verify whether shards have properly applied a given index block,
+ * and are no longer executing any operations in violation of that block. This action
+ * requests all operation permits of the shard in order to wait for all write operations
+ * to complete.
+ */
 public class TransportVerifyShardIndexBlockAction extends TransportReplicationAction<
     TransportVerifyShardIndexBlockAction.ShardRequest, TransportVerifyShardIndexBlockAction.ShardRequest, ReplicationResponse> {
 

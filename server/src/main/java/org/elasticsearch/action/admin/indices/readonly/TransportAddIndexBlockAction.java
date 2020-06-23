@@ -43,7 +43,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * Close index action
+ * Add index block action
  */
 public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 

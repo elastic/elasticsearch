@@ -29,15 +29,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to close an index.
+ * A request to add a block to an index.
  */
 public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockRequest> implements IndicesRequest.Replaceable {
 
-    private APIBlock block;
+    private final APIBlock block;
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
@@ -48,15 +49,12 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
         block = APIBlock.readFrom(in);
     }
 
-    public AddIndexBlockRequest() {
-    }
-
     /**
-     * Constructs a new close index request for the specified index.
+     * Constructs a new request for the specified block and indices
      */
     public AddIndexBlockRequest(APIBlock block, String... indices) {
-        this.block = block;
-        this.indices = indices;
+        this.block = Objects.requireNonNull(block);
+        this.indices = Objects.requireNonNull(indices);
     }
 
     @Override
@@ -69,8 +67,7 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
     }
 
     /**
-     * The indices to be closed
-     * @return the indices to be closed
+     * Returns the indices to be blocked
      */
     @Override
     public String[] indices() {
@@ -78,13 +75,13 @@ public class AddIndexBlockRequest extends AcknowledgedRequest<AddIndexBlockReque
     }
 
     /**
-     * Sets the indices to be closed
-     * @param indices the indices to be closed
+     * Sets the indices to be blocked
+     * @param indices the indices to be blocked
      * @return the request itself
      */
     @Override
     public AddIndexBlockRequest indices(String... indices) {
-        this.indices = indices;
+        this.indices = Objects.requireNonNull(indices);
         return this;
     }
 

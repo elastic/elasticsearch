@@ -25,23 +25,19 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
- * Builder for close index request
+ * Builder for add index block request
  */
 public class AddIndexBlockRequestBuilder
     extends AcknowledgedRequestBuilder<AddIndexBlockRequest, AddIndexBlockResponse, AddIndexBlockRequestBuilder> {
-
-    public AddIndexBlockRequestBuilder(ElasticsearchClient client, AddIndexBlockAction action) {
-        super(client, action, new AddIndexBlockRequest());
-    }
 
     public AddIndexBlockRequestBuilder(ElasticsearchClient client, AddIndexBlockAction action, APIBlock block, String... indices) {
         super(client, action, new AddIndexBlockRequest(block, indices));
     }
 
     /**
-     * Sets the indices to be closed
+     * Sets the indices to be blocked
      *
-     * @param indices the indices to be closed
+     * @param indices the indices to be blocked
      * @return the request itself
      */
     public AddIndexBlockRequestBuilder setIndices(String... indices) {

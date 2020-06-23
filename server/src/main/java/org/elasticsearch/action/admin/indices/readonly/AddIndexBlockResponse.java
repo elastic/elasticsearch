@@ -151,7 +151,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
                         ElasticsearchException.generateFailureXContent(builder, params, exception, true);
                         builder.endObject();
                     } else {
-                        builder.startObject("failedShards");
+                        builder.startObject("failed_shards");
                         for (AddBlockShardResult shard : shards) {
                             if (shard.hasFailures()) {
                                 shard.toXContent(builder, params);

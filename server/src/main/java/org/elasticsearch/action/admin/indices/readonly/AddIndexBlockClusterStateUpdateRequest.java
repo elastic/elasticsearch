@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
- * Cluster state update request that allows to close one or more indices
+ * Cluster state update request that allows to add a block to one or more indices
  */
 public class AddIndexBlockClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<AddIndexBlockClusterStateUpdateRequest> {
 

@@ -353,6 +353,42 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
     }
 
+    public void testToXContentEmptyFields() throws IOException {
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", Collections.emptyList()));
+        fields.put("bar", new DocumentField("bar", Collections.emptyList()));
+        SearchHit hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(0));
+        }
+
+        fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", Collections.emptyList()));
+        fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
+        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+        }
+
+    }
+
     static Explanation createExplanation(int depth) {
         String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();

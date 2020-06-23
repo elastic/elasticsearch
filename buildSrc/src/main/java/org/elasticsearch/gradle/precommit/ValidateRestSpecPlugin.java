@@ -39,6 +39,16 @@ public class ValidateRestSpecPlugin implements Plugin<Project> {
                 }));
                 task.setJsonSchema(new File(project.getRootDir(), "rest-api-spec/src/main/resources/schema.json"));
             });
-        project.getTasks().named("precommit").configure(t -> t.dependsOn(validateRestSpecTask));
+
+        Provider<ValidateJsonNoKeywordsTask> validateNoKeywordsTask = project.getTasks()
+            .register("validateNoKeywords", ValidateJsonNoKeywordsTask.class, task -> {
+                task.setInputFiles(Util.getJavaTestAndMainSourceResources(project, filter -> {
+                    filter.include(DOUBLE_STAR + "/rest-api-spec/api/" + DOUBLE_STAR + "/*.json");
+                    filter.exclude(DOUBLE_STAR + "/_common.json");
+                }));
+                task.setJsonKeywords(new File(project.getRootDir(), "rest-api-spec/src/main/resources/keywords.json"));
+            });
+
+        project.getTasks().named("precommit").configure(t -> t.dependsOn(validateRestSpecTask).dependsOn(validateNoKeywordsTask));
     }
 }

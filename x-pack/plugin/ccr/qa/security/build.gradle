@@ -5,10 +5,18 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ccr'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+task resolve {
+  doLast {
+    configurations.testCompileClasspath.files.each {
+      println it
+    }
+    println "configurations.testCompileClasspath.files " + configurations.testCompileClasspath.files.size()
+  }
+}
 task 'leader-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   runner {

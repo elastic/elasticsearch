@@ -7,9 +7,9 @@ ext.licenseFile = file("LICENSE")
 ext.noticeFile = file("NOTICE")
 
 dependencies {
-  compile "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit}"
   // missing classes in thirdparty audit
-  compile 'org.hamcrest:hamcrest-core:1.3'
+  api 'org.hamcrest:hamcrest-core:1.3'
 }
 
 repositories {

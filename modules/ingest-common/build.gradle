@@ -25,8 +25,8 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless')
-  compile project(':libs:elasticsearch-grok')
-  compile project(':libs:elasticsearch-dissect')
+  api project(':libs:elasticsearch-grok')
+  api project(':libs:elasticsearch-dissect')
 }
 
 restResources {

@@ -42,6 +42,7 @@ import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -83,7 +84,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // apply global test task failure listener
         project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
 
-        project.getPluginManager().apply(JavaPlugin.class);
+        project.getPluginManager().apply(JavaLibraryPlugin.class);
 
         configureConfigurations(project);
         configureRepositories(project);
@@ -141,7 +142,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         };
-        disableTransitiveDeps.accept(JavaPlugin.COMPILE_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.API_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);

@@ -5,8 +5,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('eql'), configuration: 'runtime')
-  testImplementation project(path: xpackModule('eql:qa:common'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('eql:qa:common'))
 }
 
 testClusters.integTest {

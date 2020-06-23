@@ -23,7 +23,7 @@ description = 'Fixture for Azure external service'
 test.enabled = false
 
 dependencies {
-  compile project(':server')
+  api project(':server')
 }
 
 preProcessFixture {

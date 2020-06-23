@@ -21,8 +21,8 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
-  compile project(':libs:elasticsearch-core')
+  api 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  api project(':libs:elasticsearch-core')
 }
 
 test.enabled = false

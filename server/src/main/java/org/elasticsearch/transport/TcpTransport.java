@@ -105,6 +105,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
+    
+    // this code is a take on guava's HostAndPort, like a HostAndPortRange
+
+    // pattern for validating ipv6 bracket addresses.
+    // not perfect, but PortsRange should take care of any port range validation, not a regex
+    private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     protected final Settings settings;
     private final Version version;
@@ -482,12 +488,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             )
         ).ports();
     }
-
-    // this code is a take on guava's HostAndPort, like a HostAndPortRange
-
-    // pattern for validating ipv6 bracket addresses.
-    // not perfect, but PortsRange should take care of any port range validation, not a regex
-    private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     /**
      * parse a hostname+port spec into its equivalent addresses

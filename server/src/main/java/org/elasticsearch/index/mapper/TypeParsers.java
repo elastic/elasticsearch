@@ -172,12 +172,7 @@ public class TypeParsers {
     /**
      * Parse the {@code meta} key of the mapping.
      */
-    public static void parseMeta(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode) {
-        Object metaObject = fieldNode.remove("meta");
-        if (metaObject == null) {
-            // no meta
-            return;
-        }
+    public static Map<String, String> parseMeta(String name, Object metaObject) {
         if (metaObject instanceof Map == false) {
             throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
                     "[" + metaObject + "] for field [" + name +"]");
@@ -210,17 +205,18 @@ public class TypeParsers {
         }
         final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
         final Function<Object, String> stringCast = String.class::cast;
-        Map<String, String> checkedMeta = meta.entrySet().stream()
+        return meta.entrySet().stream()
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast)));
-        builder.meta(checkedMeta);
     }
+
+
 
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
     public static void parseField(FieldMapper.Builder<?> builder, String name, Map<String, Object> fieldNode,
                                   Mapper.TypeParser.ParserContext parserContext) {
-        parseMeta(builder, name, fieldNode);
+        builder.meta(parseMeta(name, fieldNode));
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();

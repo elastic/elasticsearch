@@ -300,7 +300,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
         if (mergeWith instanceof FieldMapper == false) {

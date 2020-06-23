@@ -67,6 +67,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
+            hasDocValues = false;
             builder = this;
         }
 
@@ -205,6 +206,16 @@ public class BinaryFieldMapper extends FieldMapper {
             createFieldNamesField(context);
         }
 
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

@@ -44,6 +44,10 @@ PUT /my_source_index/_settings
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n/]
 
+The current write index on a data stream cannot be cloned. In order to clone
+the current write index, the data stream must first be
+<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+and then the previous write index can be cloned.
 
 [[clone-index-api-desc]]
 ==== {api-description-title}

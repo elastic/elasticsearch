@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Collections;
@@ -38,11 +39,11 @@ import java.util.Set;
  * its parent. As a scope is no longer necessary, it's dropped automatically
  * since parent scopes contain no references to child scopes.
  */
-public abstract class Scope {
+public abstract class SemanticScope {
 
     /**
      * Tracks information about both user-defined and internally-defined
-     * variables. Each {@link Scope} tracks its own set of defined
+     * variables. Each {@link SemanticScope} tracks its own set of defined
      * variables available for use.
      */
     public static class Variable {
@@ -84,12 +85,12 @@ public abstract class Scope {
      * This scope stores the return type for semantic validation of all
      * return statements within this function.
      */
-    public static class FunctionScope extends Scope {
+    public static class FunctionScope extends SemanticScope {
 
         protected final Class<?> returnType;
 
-        public FunctionScope(Class<?> returnType) {
-            super(new HashSet<>());
+        public FunctionScope(ScriptScope scriptScope, Class<?> returnType) {
+            super(scriptScope, new HashSet<>());
             this.returnType = Objects.requireNonNull(returnType);
         }
 
@@ -139,14 +140,14 @@ public abstract class Scope {
      * stores the return type for semantic validation of all return statements
      * within this lambda.
      */
-    public static class LambdaScope extends Scope {
+    public static class LambdaScope extends SemanticScope {
 
-        protected final Scope parent;
+        protected final SemanticScope parent;
         protected final Class<?> returnType;
         protected final Set<Variable> captures = new HashSet<>();
 
-        protected LambdaScope(Scope parent, Class<?> returnType) {
-            super(parent.usedVariables);
+        protected LambdaScope(SemanticScope parent, Class<?> returnType) {
+            super(parent.scriptScope, parent.usedVariables);
             this.parent = parent;
             this.returnType = returnType;
         }
@@ -207,12 +208,12 @@ public abstract class Scope {
      * a function or lambda, thus uses its parents return type when semantically
      * validating a return statement.
      */
-    public static class BlockScope extends Scope {
+    public static class BlockScope extends SemanticScope {
 
-        protected final Scope parent;
+        protected final SemanticScope parent;
 
-        protected BlockScope(Scope parent) {
-            super(parent.usedVariables);
+        protected BlockScope(SemanticScope parent) {
+            super(parent.scriptScope, parent.usedVariables);
             this.parent = parent;
         }
 
@@ -260,15 +261,18 @@ public abstract class Scope {
      * Returns a new function scope as the top-level scope with the
      * specified return type.
      */
-    public static FunctionScope newFunctionScope(Class<?> returnType) {
-        return new FunctionScope(returnType);
+    public static FunctionScope newFunctionScope(ScriptScope scriptScope, Class<?> returnType) {
+        return new FunctionScope(scriptScope, returnType);
     }
+
+    protected final ScriptScope scriptScope;
 
     protected final Map<String, Variable> variables = new HashMap<>();
     protected final Set<String> usedVariables;
 
-    protected Scope(Set<String> usedVariables) {
-        this.usedVariables = usedVariables;
+    protected SemanticScope(ScriptScope scriptScope, Set<String> usedVariables) {
+        this.scriptScope = Objects.requireNonNull(scriptScope);
+        this.usedVariables = Objects.requireNonNull(usedVariables);
     }
 
     /**
@@ -285,6 +289,10 @@ public abstract class Scope {
      */
     public BlockScope newLocalScope() {
         return new BlockScope(this);
+    }
+
+    public ScriptScope getScriptScope() {
+        return scriptScope;
     }
 
     public abstract Class<?> getReturnType();

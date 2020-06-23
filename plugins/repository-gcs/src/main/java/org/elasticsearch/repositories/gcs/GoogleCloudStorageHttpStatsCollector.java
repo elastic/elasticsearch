@@ -40,15 +40,15 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         List.of(
             (bucket) ->
                 HttpRequestTracker.get(format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
-                    GoogleCloudStorageOperationsStats::trackGetObjectOperation),
+                    GoogleCloudStorageOperationsStats::trackGetOperation),
 
             (bucket) ->
                 HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
-                    GoogleCloudStorageOperationsStats::trackGetObjectOperation),
+                    GoogleCloudStorageOperationsStats::trackGetOperation),
 
             (bucket) ->
                 HttpRequestTracker.get(format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
-                    GoogleCloudStorageOperationsStats::trackListObjectsOperation)
+                    GoogleCloudStorageOperationsStats::trackListOperation)
             );
 
     private final GoogleCloudStorageOperationsStats gcsOperationStats;

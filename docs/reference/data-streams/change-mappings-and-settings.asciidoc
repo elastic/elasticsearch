@@ -1,0 +1,527 @@
+[[data-streams-change-mappings-and-settings]]
+== Change mappings and settings of backing indices
+++++
+<titleabbrev>Change mappings and settings</titleabbrev>
+++++
+
+Each data stream has an <<create-a-data-stream-template,associated composable
+template>>. Mappings and index settings from this template are applied to new
+backing indices created for the stream. This includes the stream's first
+backing index, which is auto-generated when the stream is created.
+
+Before creating a data stream, we recommend you carefully consider which
+mappings and settings to include in this template. However, if you later need to
+change the mappings or settings of a data stream's backing indices, you have a
+couple options:
+
+* To apply changes to future backing indices, simply update the composable
+template associated with the data stream. Mapping and setting changes will be
+automatically applied to any backing indices created after the update.
++
+.*Example*
+[%collapsible]
+====
+`logs_data_stream` is an existing composable template associated with the
+`logs` data stream.
+
+The following <<indices-templates,put composable template API>> makes several
+changes to the `logs_data_stream` template:
+
+* It changes the `@timestamp` field mapping from the `date` field datatype to
+  the `date_nanos` datatype.
+* It adds new `sort.field` and `sort.order` index settings.
+
+////
+[source,console]
+----
+PUT /_ilm/policy/logs_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/logs_data_stream
+{
+  "index_patterns": [ "logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    },
+    "settings": {
+      "index.lifecycle.name": "logs_policy"
+    }
+  }
+}
+
+PUT /logs/_bulk?refresh
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-08T11:04:05.000Z" }
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-08T11:06:07.000Z" }
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-09T11:07:08.000Z" }
+----
+////
+
+[source,console]
+----
+PUT /_index_template/logs_data_stream
+{
+  "index_patterns": [ "logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date_nanos"                 <1>
+        }
+      }
+    },
+    "settings": {
+      "index.lifecycle.name": "logs_policy",
+      "sort.field" : [ "@timestamp"],          <2>
+      "sort.order" : [ "desc"]                 <3>
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` datatype.
+<2>  Adds the `sort.field` index setting.
+<3>  Adds the `sort.order` index setting.
+====
++
+If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
+stream>> to immediately apply the new mappings and settings to the data stream's
+write index. This affects any new data added to the stream after the rollover.
++
+.*Example*
+[%collapsible]
+====
+The following <<indices-rollover-index,rollover API>> request rolls over the
+`logs` data stream. This creates a new write index with mappings and index
+settings from the recently updated `logs_data_stream` template.
+
+[source,console]
+----
+POST /logs/_rollover/
+----
+// TEST[continued]
+====
+
+* To apply mapping and setting changes to all existing backing indices and
+future ones, you must create a new data stream and reindex your data into it.
+See <<data-streams-use-reindex-to-change-mappings-settings>>.
+
+[discrete]
+[[data-streams-use-reindex-to-change-mappings-settings]]
+=== Use reindex to change mappings or settings
+
+To change the mappings or settings for every backing index in a data stream, you
+must first create or update a composable template so that it contains the
+changes. You can then reindex the existing data stream into a new one associated
+with the template. This applies the mapping and setting changes in the template
+to each document and backing index of the data stream destination. These changes
+also affect any future backing index created by the new stream.
+
+Follow these steps:
+
+. Choose a name or wildcard (`*`) pattern for a new data stream. This new data
+stream will contain data from your existing stream.
++
+You can use the resolve index API to check if the name or pattern matches any
+existing indices, index aliases, or data streams. If so, you should consider
+using another name or pattern.
++
+.*Example*
+[%collapsible]
+====
+The following resolve index API request checks for any existing indices, index
+aliases, or data streams that start with `new_logs`. If not, the `new_logs*`
+wildcard pattern can be used to create a new data stream.
+
+[source,console]
+----
+GET /_resolve/index/new_logs*
+----
+// TEST[continued]
+
+The API returns the following response, indicating no existing targets match
+this pattern.
+
+[source,console-result]
+----
+{
+  "indices" : [ ],
+  "aliases" : [ ],
+  "data_streams" : [ ]
+}
+----
+====
+
+. Create or update a composable template. This template should contain the
+mappings and settings you'd like to apply to the new data stream's backing
+indices.
++
+This composable template must meet the
+<<create-a-data-stream-template,requirements for a data stream template>>. It
+should also contain your previously chosen name or wildcard pattern in the
+`index_patterns` property.
++
+TIP: If you are only adding or changing a few things, we recommend you create a
+new template by copying an existing one and modifying it as needed.
++
+.*Example*
+[%collapsible]
+====
+`logs_data_stream` is an existing composable template associated with the
+`logs` data stream.
+
+The following <<indices-templates,put composable template API>> request creates
+a new composable template, `new_logs_data_stream`. `new_logs_data_stream`
+uses the `logs_data_stream` template as its basis, with the following changes:
+
+* The `index_patterns` wildcard pattern matches any index or data stream
+  starting with `new_logs`.
+* The `@timestamp` field mapping uses the `date_nanos` field datatype rather
+  than the `date` datatype.
+* The template includes `sort.field` and `sort.order` index settings, which were
+  not in the original `logs_data_stream` template.
+
+[source,console]
+----
+PUT /_index_template/new_logs_data_stream
+{
+  "index_patterns": [ "new_logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date_nanos"                 <1>
+        }
+      }
+    },
+    "settings": {
+      "index.lifecycle.name": "logs_policy",
+      "sort.field" : [ "@timestamp"],          <2>
+      "sort.order" : [ "desc"]                 <3>
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` field datatype.
+<2>  Adds the `sort.field` index setting.
+<3>  Adds the `sort.order` index setting.
+====
+
+. Use the <<indices-create-data-stream,create data stream API>> to manually
+create the new data stream. The name of the data stream must match the name or
+wildcard pattern defined in the new template's `index_patterns` property.
++
+We do not recommend <<index-documents-to-create-a-data-stream,indexing new data
+to create this data stream>>. Later, you will reindex older data from an
+existing data stream into this new stream. This could result in one or more
+backing indices that contains a mix of new and old data.
++
+[[data-stream-mix-new-old-data]]
+.Mixing new and old data in a data stream
+[IMPORTANT]
+====
+While mixing new and old data is safe, it could interfere with data retention.
+If you delete older indices, you could accidentally delete a backing index that
+contains both new and old data. To prevent premature data loss, you would need
+to retain such a backing index until you are ready to delete its newest data.
+====
++
+.*Example*
+[%collapsible]
+====
+The following create data stream API request targets `new_logs`, which matches
+the wildcard pattern for the `new_logs_data_stream` template. Because no
+existing index or data stream uses this name, this request creates the
+`new_logs` data stream.
+
+[source,console]
+----
+PUT /_data_stream/new_logs
+----
+// TEST[continued]
+====
+
+. If you do not want to mix new and old data in your new data stream, pause the
+indexing of new documents. While mixing old and new data is safe, it could
+interfere with data retention. See <<data-stream-mix-new-old-data,Mixing new and
+old data in a data stream>>.
+
+. If you use {ilm-init} to <<getting-started-index-lifecycle-management,automate
+rollover>>, reduce the {ilm-init} poll interval. This ensures the current write
+index doesn’t grow too large while waiting for the rollover check. By default,
+{ilm-init} checks rollover conditions every 10 minutes.
++
+.*Example*
+[%collapsible]
+====
+The following <<cluster-update-settings,update cluster settings API>> request
+lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": "1m"
+  }
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_data_stream/logs
+
+DELETE /_data_stream/new_logs
+
+DELETE /_index_template/logs_data_stream
+
+DELETE /_index_template/new_logs_data_stream
+
+DELETE /_ilm/policy/logs_policy
+----
+// TEST[continued]
+////
+====
+
+. Reindex your data to the new data stream using an `op_type` of `create`.
++
+If you want to partition the data in the order in which it was originally
+indexed, you can run separate reindex requests. These reindex requests can use
+individual backing indices as the source. You can use the
+<<indices-get-data-stream,get data stream API>> to retrieve a list of backing
+indices.
++
+.*Example*
+[%collapsible]
+====
+You plan to reindex data from the `logs` data stream into the newly created
+`new_logs` data stream. However, you want to submit a separate reindex request
+for each backing index in the `logs` data stream, starting with the oldest
+backing index. This preserves the order in which the data was originally
+indexed.
+
+The following get data stream API request retrieves information about the `logs`
+data stream, including a list of its backing indices.
+
+[source,console]
+----
+GET /_data_stream/logs
+----
+// TEST[skip: shard failures]
+
+The API returns the following response. Note the `indices` property contains an
+array of the stream's current backing indices. The oldest backing index,
+`.ds-logs-000001`, is the first item in the array.
+
+[source,console-result]
+----
+[
+  {
+    "name": "logs",
+    "timestamp_field": "@timestamp",
+    "indices": [
+      {
+        "index_name": ".ds-logs-000001",
+        "index_uuid": "DXAE-xcCQTKF93bMm9iawA"
+      },
+      {
+        "index_name": ".ds-logs-000002",
+        "index_uuid": "Wzxq0VhsQKyPxHhaK3WYAg"
+      }
+    ],
+    "generation": 2
+  }
+]
+----
+// TESTRESPONSE[skip:unable to assert responses with top level array]
+
+The following <<docs-reindex,reindex API>> request copies documents from
+`.ds-logs-000001` to the `new_logs` data stream. Note the request's `op_type` is
+`create`.
+
+////
+[source,console]
+----
+PUT /_index_template/logs_data_stream
+{
+  "index_patterns": [ "logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/new_logs_data_stream
+{
+  "index_patterns": [ "new_logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_data_stream/logs
+
+PUT /_data_stream/new_logs
+----
+////
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": ".ds-logs-000001"
+  },
+  "dest": {
+    "index": "new_logs",
+    "op_type": "create"
+  }
+}
+----
+// TEST[continued]
+====
++
+You can also use a query to reindex only a subset of documents with each
+request.
++
+.*Example*
+[%collapsible]
+====
+The following <<docs-reindex,reindex API>> request copies documents from the
+`logs` data stream to the `new_logs` data stream. The request uses a
+<<query-dsl-range-query,`range` query>> to only reindex documents with a
+timestamp within the last week. Note the request's `op_type` is `create`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "logs",
+    "query": {
+      "range": {
+        "@timestamp": {
+          "gte": "now-7d/d",
+          "lte": "now/d"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "new_logs",
+    "op_type": "create"
+  }
+}
+----
+// TEST[continued]
+====
+
+. If you previously changed your {ilm-init} poll interval, change it back to its
+original value when reindexing is complete. This prevents unnecessary load on
+the master node.
++
+.*Example*
+[%collapsible]
+====
+The following update cluster settings API request resets the
+`indices.lifecycle.poll_interval` setting to its default value, 10 minutes.
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": null
+  }
+}
+----
+// TEST[continued]
+====
+
+. Resume indexing using the new data stream. Searches on this stream will now
+query your new data and the reindexed data.
+
+. Once you have verified that all reindexed data is available in the new
+data stream, you can safely remove the old stream.
++
+.*Example*
+[%collapsible]
+====
+The following <<indices-delete-data-stream,delete data stream API>> request
+deletes the `logs` data stream. This request also deletes the stream's backing
+indices and any data they contain.
+
+[source,console]
+----
+DELETE /_data_stream/logs
+----
+// TEST[continued]
+====
+
+////
+[source,console]
+----
+DELETE /_data_stream/new_logs
+
+DELETE /_index_template/logs_data_stream
+
+DELETE /_index_template/new_logs_data_stream
+----
+// TEST[continued]
+////

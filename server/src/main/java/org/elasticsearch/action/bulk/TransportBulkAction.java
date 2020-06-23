@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -90,6 +91,8 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -271,6 +274,40 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+        if (indexAbstraction == null) {
+            return;
+        }
+        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+            return;
+        }
+        if (indexAbstraction.getParentDataStream() == null) {
+            return;
+        }
+
+        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+
+        // At this point with write op is targeting a backing index of a data stream directly,
+        // so checking if write op is append-only and if so fail.
+        // (Updates and deletes are allowed to target a backing index)
+
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        // CREATE op_type is considered append-only and
+        // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
+        // (the latter maybe an update, but at this stage we can't determine that. In order to determine
+        // that an engine level change is needed and for now this check is sufficient.)
+        if (opType == DocWriteRequest.OpType.CREATE) {
+            throw new IllegalArgumentException("index request with op_type=create targeting backing indices is disallowed, " +
+                "target corresponding data stream [" + dataStream.getName() + "] instead");
+        }
+        if (opType == DocWriteRequest.OpType.INDEX && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM &&
+            writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("index request with op_type=index and no if_primary_term and if_seq_no set " +
+                "targeting backing indices is disallowed, target corresponding data stream [" + dataStream.getName() + "] instead");
+        }
+    }
+
     static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final Metadata metadata) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
@@ -414,7 +451,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
-        private final BulkRequest bulkRequest;
+        private BulkRequest bulkRequest; // set to null once all requests are sent out
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;
@@ -433,6 +470,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         @Override
         protected void doRun() {
+            assert bulkRequest != null;
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;
@@ -453,6 +491,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
+                            prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();
@@ -551,6 +590,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 });
             }
+            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
         private boolean handleBlockExceptions(ClusterState state) {

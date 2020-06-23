@@ -28,7 +28,7 @@ public class AsyncExecutionIdTests extends ESTestCase {
         }
     }
 
-    private static AsyncExecutionId randomAsyncId() {
+    public static AsyncExecutionId randomAsyncId() {
         return new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
     }
 

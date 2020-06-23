@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
+import java.util.Map;
+
+public class DenseVectorFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new DenseVectorFieldMapper.DenseVectorFieldType();
+    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new DenseVectorFieldMapper.DenseVectorFieldType(name, 4, meta);
     }
 }

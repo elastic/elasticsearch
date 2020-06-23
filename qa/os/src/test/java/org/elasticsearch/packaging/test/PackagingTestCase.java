@@ -47,9 +47,12 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
 
@@ -112,18 +115,18 @@ public abstract class PackagingTestCase extends Assert {
     public final TestName testNameRule = new TestName();
 
     @BeforeClass
-    public static void filterCompatible() {
+    public static void init() throws Exception {
         assumeTrue("only compatible distributions", distribution.packaging.compatible);
-    }
 
-    @BeforeClass
-    public static void cleanup() throws Exception {
-        installation = null;
-        cleanEverything();
-    }
+        // make sure temp dir exists
+        if (Files.exists(getRootTempDir()) == false) {
+            Files.createDirectories(getRootTempDir());
+        }
 
-    @BeforeClass
-    public static void createShell() throws Exception {
+        // cleanup from previous test
+        cleanup();
+
+        // create shell
         if (distribution().isDocker()) {
             ensureImageIsLoaded(distribution);
             sh = new Docker.DockerShell();
@@ -155,18 +158,24 @@ public abstract class PackagingTestCase extends Assert {
     public void teardown() throws Exception {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
-        if (installation != null && Files.exists(installation.logs)) {
-            Path logFile = installation.logs.resolve("elasticsearch.log");
-            String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
-            if (Files.exists(logFile)) {
-                Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
-                FileUtils.mv(logFile, newFile);
+        if (installation != null) {
+            if (Files.exists(installation.logs)) {
+                Path logFile = installation.logs.resolve("elasticsearch.log");
+                String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
+                if (Files.exists(logFile)) {
+                    Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
+                    FileUtils.mv(logFile, newFile);
+                }
+                for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
+                    Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
+                    FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+                }
             }
-            for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
-                Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
-                FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+            if (Files.exists(Archives.getPowershellErrorPath(installation))) {
+                FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
             }
         }
+
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -195,12 +204,17 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    protected static void cleanup() throws Exception {
+        installation = null;
+        cleanEverything();
+    }
+
     /**
      * Starts and stops elasticsearch, and performs assertions while it is running.
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand());
+            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -232,14 +246,27 @@ public abstract class PackagingTestCase extends Assert {
      * Run the command to start Elasticsearch, but don't wait or test for success.
      * This method is useful for testing failure conditions in startup. To await success,
      * use {@link #startElasticsearch()}.
+     * @param password Password for password-protected keystore, null for no password;
+     *                 this option will fail for non-archive distributions
+     * @param daemonize Run Elasticsearch in the background
+     * @param useTty Use a tty for inputting the password rather than standard input;
+     *               this option will fail for non-archive distributions
      * @return Shell results of the startup command.
      * @throws Exception when command fails immediately.
      */
-    public Shell.Result runElasticsearchStartCommand() throws Exception {
+    public Shell.Result runElasticsearchStartCommand(String password, boolean daemonize, boolean useTty) throws Exception {
+        if (password != null) {
+            assertTrue("Only archives support user-entered passwords", distribution().isArchive());
+        }
+
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                return Archives.runElasticsearchStartCommand(installation, sh, "");
+                if (useTty) {
+                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                } else {
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                }
             case DEB:
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
@@ -290,21 +317,11 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
-     * the start command, use {@link #runElasticsearchStartCommand()}.
+     * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand());
-    }
-
-    public Shell.Result startElasticsearchStandardInputPassword(String password) {
-        assertTrue("Only archives support passwords on standard input", distribution().isArchive());
-        return Archives.runElasticsearchStartCommand(installation, sh, password);
-    }
-
-    public Shell.Result startElasticsearchTtyPassword(String password) throws Exception {
-        assertTrue("Only archives support passwords on TTY", distribution().isArchive());
-        return Archives.startElasticsearchWithTty(installation, sh, password);
+        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
@@ -330,7 +347,7 @@ public abstract class PackagingTestCase extends Assert {
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, anyOf(stringMatchers));
 
-        } else if (Platforms.WINDOWS) {
+        } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
@@ -348,6 +365,31 @@ public abstract class PackagingTestCase extends Assert {
             // Otherwise, error should be on shell stderr
             assertThat(result.stderr, anyOf(stringMatchers));
         }
+    }
+
+    public static Path getRootTempDir() {
+        if (distribution().isPackage()) {
+            // The custom config directory is not under /tmp or /var/tmp because
+            // systemd's private temp directory functionally means different
+            // processes can have different views of what's in these directories
+            return Paths.get("/var/test-tmp").toAbsolutePath();
+        } else {
+            // vagrant creates /tmp for us in windows so we use that to avoid long paths
+            return Paths.get("/tmp").toAbsolutePath();
+        }
+    }
+
+    private static final FileAttribute<?>[] NEW_DIR_PERMS;
+    static {
+        if (Platforms.WINDOWS) {
+            NEW_DIR_PERMS = new FileAttribute<?>[0];
+        } else {
+            NEW_DIR_PERMS = new FileAttribute<?>[] { PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxr-xr-x")) };
+        }
+    }
+
+    public static Path createTempDir(String prefix) throws IOException {
+        return Files.createTempDirectory(getRootTempDir(), prefix, NEW_DIR_PERMS);
     }
 
 }

@@ -68,7 +68,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
     }
 
     public void testRemove_TimedOut() {
-        remover.remove(listener, () -> true);
+        remover.remove(1.0f, listener, () -> true);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(listener).onResponse(false);
@@ -79,7 +79,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         when(indicesStatsResponse.getIndices()).thenReturn(Map.of());
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(any(), any(), any());
 
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
@@ -96,7 +96,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
                 ".ml-state-d", indexStats(".ml-state-d", 2))).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
@@ -120,7 +120,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         AcknowledgedResponse deleteIndexResponse = new AcknowledgedResponse(acknowledged);
         doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(DeleteIndexAction.INSTANCE), any(), any());
 
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
@@ -148,7 +148,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-a" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());

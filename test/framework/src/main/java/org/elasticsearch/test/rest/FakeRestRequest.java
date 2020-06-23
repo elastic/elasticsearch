@@ -54,12 +54,19 @@ public class FakeRestRequest extends RestRequest {
         private final String uri;
         private final BytesReference content;
         private final Map<String, List<String>> headers;
+        private final Exception inboundException;
 
         private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
+            this(method, uri, content, headers, null);
+        }
+
+        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers,
+                                Exception inboundException) {
             this.method = method;
             this.uri = uri;
             this.content = content;
             this.headers = headers;
+            this.inboundException = inboundException;
         }
 
         @Override
@@ -122,6 +129,11 @@ public class FakeRestRequest extends RestRequest {
         public HttpRequest releaseAndCopy() {
             return this;
         }
+
+        @Override
+        public Exception getInboundException() {
+            return inboundException;
+        }
     }
 
     private static class FakeHttpChannel implements HttpChannel {
@@ -178,6 +190,8 @@ public class FakeRestRequest extends RestRequest {
 
         private InetSocketAddress address = null;
 
+        private Exception inboundException;
+
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
         }
@@ -215,8 +229,13 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
+        public Builder withInboundException(Exception exception) {
+            this.inboundException = exception;
+            return this;
+        }
+
         public FakeRestRequest build() {
-            FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers);
+            FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
             return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }

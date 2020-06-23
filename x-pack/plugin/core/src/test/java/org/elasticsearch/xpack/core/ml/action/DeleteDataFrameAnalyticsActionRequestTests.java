@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction.Request;
 
@@ -18,6 +19,9 @@ public class DeleteDataFrameAnalyticsActionRequestTests extends AbstractWireSeri
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLength(10));
         request.setForce(randomBoolean());
+        if (randomBoolean()) {
+            request.timeout(TimeValue.parseTimeValue(randomTimeValue(), "test"));
+        }
         return request;
     }
 

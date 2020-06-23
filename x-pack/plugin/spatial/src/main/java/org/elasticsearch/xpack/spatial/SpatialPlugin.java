@@ -24,9 +24,8 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSuppli
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
-import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -106,17 +105,15 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
-                -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
-                wrapLongitude, metadata));
+            (GeoBoundsAggregatorSupplier) GeoShapeBoundsAggregator::new);
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
+            (MetricAggregatorSupplier) (name, valuesSourceConfig, aggregationContext, parent, metadata)
                 -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             });
@@ -125,7 +122,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, metadata) -> {
+                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -135,7 +132,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, metadata);
+                        aggregationContext, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
@@ -145,7 +142,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
         builder.register(GeoTileGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, metadata) -> {
+                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -155,7 +152,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, metadata);
+                        aggregationContext, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
@@ -166,8 +163,8 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata)
-                -> new ValueCountAggregator(name, valuesSource, context, parent, metadata));
+            (MetricAggregatorSupplier) ValueCountAggregator::new
+        );
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {

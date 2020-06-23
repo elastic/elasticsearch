@@ -68,14 +68,14 @@ public class PublicationTransportHandler {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
-    private AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
+    private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
 
     // the master needs the original non-serialized state as the cluster state contains some volatile information that we
     // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
     // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
     // snapshot code).
     // TODO: look into these and check how to get rid of them
-    private AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
+    private final AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
 
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();

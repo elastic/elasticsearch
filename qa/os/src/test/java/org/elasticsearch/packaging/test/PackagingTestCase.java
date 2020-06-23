@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -394,12 +395,14 @@ public abstract class PackagingTestCase extends Assert {
         return Files.createTempDirectory(getRootTempDir(), prefix, NEW_DIR_PERMS);
     }
 
-    @FunctionalInterface
-    public interface ThrowingConsumer<T> {
-        void accept(T t) throws Exception;
-    }
-
-    public void withCustomConfig(ThrowingConsumer<Path> action) throws Exception {
+    /**
+     * Run the given action with a temporary copy of the config directory.
+     *
+     * Files under the path passed to the action may be modified as necessary for the
+     * test to execute, and running Elasticsearch with {@link #startElasticsearch()} will
+     * use the temporary directory.
+     */
+    public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {
         Path tempDir = Files.createTempDirectory(getRootTempDir(), "custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);

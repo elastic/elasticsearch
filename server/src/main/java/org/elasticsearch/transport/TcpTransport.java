@@ -497,7 +497,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         String host;
         String portString = null;
 
-        if (hostPortString.startsWith("[")) {
+        if (hostPortString.charAt(0) == '[') {
             // Parse a bracketed host, typically an IPv6 literal.
             Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
             if (!matcher.matches()) {

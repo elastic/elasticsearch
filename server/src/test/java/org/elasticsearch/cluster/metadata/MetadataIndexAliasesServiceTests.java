@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -497,7 +498,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(new DataStream(dataStreamName, "@timestamp", singletonList(indexMetadata.getIndex()))))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex()))))
             .build();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,

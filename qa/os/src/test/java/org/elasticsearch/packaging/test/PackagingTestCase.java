@@ -419,7 +419,7 @@ public abstract class PackagingTestCase extends Assert {
         action.accept(tempConf);
         if (distribution.isPackage()) {
             IOUtils.rm(installation.envFile);
-            Files.copy(tempConf.resolve("elasticsearch.bk"), installation.envFile);
+            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile);
         } else {
             sh.getEnv().remove("ES_PATH_CONF");
         }

@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -82,7 +83,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     public InferencePipelineAggregationBuilder(String name, SetOnce<ModelLoadingService> modelLoadingService,
                                                Map<String, String> bucketsPath) {
-        super(name, NAME, bucketsPath.values().toArray(new String[] {}));
+        super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         this.modelLoadingService = modelLoadingService;
         this.bucketPathMap = bucketsPath;
     }

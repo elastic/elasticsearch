@@ -230,7 +230,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                this.state = State.fromValue(in.readByte());
+                this.state = State.readFrom(in);
                 this.uuid = in.readString();
             } else {
                 this.state = State.META_DATA;
@@ -314,7 +314,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
             if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
-                out.writeByte(state.value);
+                state.writeTo(out);
                 out.writeString(uuid);
             }
         }
@@ -335,7 +335,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
     }
 
-    public enum State {
+    public enum State implements Writeable {
 
         /**
          * Delete is waiting to execute because there are snapshots and or a delete operation that has to complete before this delete may
@@ -354,7 +354,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.value = value;
         }
 
-        public static State fromValue(byte value) {
+        public static State readFrom(StreamInput in) throws IOException {
+            final byte value = in.readByte();
             switch (value) {
                 case 0:
                     return WAITING;
@@ -363,6 +364,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 default:
                     throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(value);
         }
     }
 }

@@ -1081,7 +1081,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class).collect(Collectors.toList()));
+        securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {

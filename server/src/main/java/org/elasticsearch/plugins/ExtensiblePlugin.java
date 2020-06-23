@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.stream.Stream;
+import java.util.List;
 
 /**
  * An extension point for {@link Plugin} implementations to be themselves extensible.
@@ -35,9 +35,9 @@ public interface ExtensiblePlugin {
          * or a single-arg constructor accepting the specific plugin class.
          * @param extensionPointType the extension point type
          * @param <T> extension point type
-         * @return stream of all implementing extensions.
+         * @return all implementing extensions.
          */
-        <T> Stream<T> loadExtensions(Class<T> extensionPointType);
+        <T> List<T> loadExtensions(Class<T> extensionPointType);
     }
 
     /**

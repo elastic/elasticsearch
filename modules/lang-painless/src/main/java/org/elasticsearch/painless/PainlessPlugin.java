@@ -129,7 +129,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        loader.loadExtensions(PainlessExtension.class)
+        loader.loadExtensions(PainlessExtension.class).stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
                 List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),

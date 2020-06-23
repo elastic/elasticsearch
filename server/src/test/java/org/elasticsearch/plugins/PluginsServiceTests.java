@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -794,7 +793,9 @@ public class PluginsServiceTests extends ESTestCase {
         @Override
         public void loadExtensions(ExtensionLoader loader) {
             assert extensions == null;
-            extensions = loader.loadExtensions(TestExtensionPoint.class).collect(Collectors.toList());
+            extensions = loader.loadExtensions(TestExtensionPoint.class);
+            // verify unmodifiable.
+            expectThrows(UnsupportedOperationException.class, () -> extensions.add(new TestExtension1()));
         }
     }
 

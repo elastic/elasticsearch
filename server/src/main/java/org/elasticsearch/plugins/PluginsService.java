@@ -63,7 +63,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -444,29 +443,37 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, List<Plugin>> extendingPlugins = plugins.stream()
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
-        plugins.stream().filter(t -> t.v2() instanceof ExtensiblePlugin).forEach(t -> loadExtensionsForPlugin((ExtensiblePlugin) t.v2(),
-            extendingPlugins.getOrDefault(t.v1().getName(), List.of())));
+        for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
+            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+                loadExtensionsForPlugin((ExtensiblePlugin) pluginTuple.v2(),
+                    extendingPlugins.getOrDefault(pluginTuple.v1().getName(), List.of()));
+            }
+        }
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {
         ExtensiblePlugin.ExtensionLoader extensionLoader = new ExtensiblePlugin.ExtensionLoader() {
             @Override
-            public <T> Stream<T> loadExtensions(Class<T> extensionPointType) {
-                return extendingPlugins.stream().flatMap(plugin -> createExtensions(extensionPointType, plugin));
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<T> result = new ArrayList<>();
+                for (Plugin extendingPlugin : extendingPlugins) {
+                    result.addAll(createExtensions(extensionPointType, extendingPlugin));
+                }
+                return Collections.unmodifiableList(result);
             }
         };
 
         extensiblePlugin.loadExtensions(extensionLoader);
     }
 
-    private static <T> Stream<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+    private static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
         SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();
             extensions.add(createExtension(extensionClass, extensionPointType, plugin));
         }
-        return extensions.stream();
+        return extensions;
     }
 
     // package-private for test visibility

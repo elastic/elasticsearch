@@ -27,6 +27,7 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -175,7 +177,29 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
-    public void test42KeystorePasswordOnTty() throws Exception {
+    /**
+     * This test simulates a user starting Elasticsearch on the command line without daemonizing
+     */
+    public void test42KeystorePasswordOnTtyRunningInForeground() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
+        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
+        assumeThat(installation, is(notNullValue()));
+
+        String password = "keystorepass";
+
+        rmKeystoreIfExists();
+        createKeystore(password);
+
+        assertPasswordProtectedKeystore();
+
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, false, true));
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
+    }
+
+    @Ignore // awaits fix: https://github.com/elastic/elasticsearch/issues/49340
+    public void test43KeystorePasswordOnTtyDaemonized() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
@@ -193,7 +217,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    public void test43WrongKeystorePasswordOnTty() throws Exception {
+    public void test44WrongKeystorePasswordOnTty() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
@@ -201,7 +225,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
+        // daemonization shouldn't matter for this test
+        boolean daemonize = randomBoolean();
+        Shell.Result result = runElasticsearchStartCommand("wrong", daemonize, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
@@ -210,7 +236,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * If we have an encrypted keystore, we shouldn't require a password to
      * view help information.
      */
-    public void test44EncryptedKeystoreAllowsHelpMessage() throws Exception {
+    public void test45EncryptedKeystoreAllowsHelpMessage() throws Exception {
         assumeTrue("users call elasticsearch directly in archive case", distribution.isArchive());
 
         String password = "keystorepass";

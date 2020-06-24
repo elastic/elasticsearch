@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -131,7 +132,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         private byte[] byteToWrite;
 
         FsHealthMonitor(){
-            this.byteToWrite = UUIDs.randomBase64UUID().getBytes();
+            this.byteToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
         }
 
         @Override

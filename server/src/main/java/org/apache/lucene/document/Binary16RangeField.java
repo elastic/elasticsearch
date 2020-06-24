@@ -60,11 +60,14 @@ public class Binary16RangeField extends Field {
 
     /** encode the min/max range into the provided byte array */
     private static void encode(final BytesRef min, final BytesRef max, final byte[] bytes) {
-        if (FutureArrays.compareUnsigned(min.bytes, 0, BYTES, max.bytes, 0, BYTES) > 0) {
+        int minBytesLength = Math.min(min.length, BYTES);
+        int maxBytesLength = Math.min(max.length, BYTES);
+        if (FutureArrays.compareUnsigned(min.bytes, min.offset, min.offset + minBytesLength,
+            max.bytes,  max.offset, max.offset + maxBytesLength) > 0) {
             throw new IllegalArgumentException("min value cannot be greater than max value for version field");
         }
-        System.arraycopy(min.bytes, 0 + min.offset, bytes, 0, BYTES);
-        System.arraycopy(max.bytes, 0 + max.offset, bytes, BYTES, BYTES);
+        System.arraycopy(min.bytes, 0 + min.offset, bytes, 0, minBytesLength);
+        System.arraycopy(max.bytes, 0 + max.offset, bytes, BYTES, maxBytesLength);
     }
 
     /** encode the min/max range and return the byte array */

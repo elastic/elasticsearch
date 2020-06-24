@@ -31,6 +31,9 @@ import static org.elasticsearch.index.mapper.VersionEncoder.decodeVersion;
 public class VersionEncoderTests extends ESTestCase {
 
     public void testEncodingOrderingSemver() {
+        assertTrue(encSemver("1").compareTo(encSemver("1.0")) < 0);
+        assertTrue(encSemver("1.0").compareTo(encSemver("1.0.0.0.0.0.0.0.0.1")) < 0);
+        assertTrue(encSemver("1.0.0").compareTo(encSemver("1.0.0.0.0.0.0.0.0.1")) < 0);
         assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0.0")) < 0);
         assertTrue(encSemver("2.0.0").compareTo(encSemver("11.0.0")) < 0);
         assertTrue(encSemver("2.0.0").compareTo(encSemver("2.1.0")) < 0);

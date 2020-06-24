@@ -124,7 +124,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         client().prepareIndex("test")
             .setId("1")
-            .setSource("{\"versionrange\":{\"gte\":\"1.1.0.0.0.0.0.0.0.0.1\",\"lte\":\"2.2.3\"}}", XContentType.JSON)
+            .setSource("{\"versionrange\":{\"gt\":\"1.1.0\",\"lte\":\"2.2.3\"}}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -194,11 +194,31 @@ public class SimpleSearchIT extends ESIntegTestCase {
             .get();
 
         assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+            .setQuery(rangeQuery("versionrange").gte("1.0.0").lte("1.1.0").relation("intersects"))
+            .get();
+
+        assertHitCount(search, 0L);
+
+        search = client().prepareSearch()
+            .setQuery(rangeQuery("versionrange").gte("1.0.0").lte("1.1.0.0").relation("intersects"))
+            .get();
+
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+            .setQuery(rangeQuery("versionrange").gte("2.2.3").lte("3.0.0").relation("intersects"))
+            .get();
+
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+            .setQuery(rangeQuery("versionrange").gt("2.2.3").lte("3.0.0").relation("intersects"))
+            .get();
+
+        assertHitCount(search, 0L);
     }
-
-
-
-
 
     public void testIpCidr() throws Exception {
         createIndex("test");

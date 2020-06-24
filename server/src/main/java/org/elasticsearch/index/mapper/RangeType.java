@@ -70,12 +70,13 @@ public enum RangeType {
         public BytesRef parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
                 throws IOException {
             BytesRef version = VersionEncoder.encodeVersion(parser.text(), SortMode.SEMVER);
-            return version;
+            return included ? version : nextUp(version);
         }
         @Override
         public BytesRef parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
                 throws IOException {
-            return parseFrom(fieldType, parser, coerce, included);
+            BytesRef version = VersionEncoder.encodeVersion(parser.text(), SortMode.SEMVER);
+            return included ? version : nextDown(version);
         }
         @Override
         public BytesRef parse(Object value, boolean coerce) {
@@ -95,13 +96,17 @@ public enum RangeType {
         }
         @Override
         public BytesRef nextUp(Object value) {
-            // TODO currently no up/down
-            return (BytesRef) value;
+            BytesRef nextUp = BytesRef.deepCopyOf(((BytesRef) value));
+            // adding 1 to last byte should not overflow since values 128-255 are reserved for lengths and cannot come last
+            nextUp.bytes[nextUp.offset + nextUp.length - 1] = (byte) (nextUp.bytes[nextUp.offset + nextUp.length - 1] + 1);
+            return nextUp;
         }
         @Override
         public BytesRef nextDown(Object value) {
-            // TODO currently no up/down
-            return (BytesRef) value;
+            BytesRef nextDown = BytesRef.deepCopyOf(((BytesRef) value));
+            // subtracting 1 from last byte should not underflow since 0 shouldn't be last byte in encoded version
+            nextDown.bytes[nextDown.offset + nextDown.length - 1] = (byte) (nextDown.bytes[nextDown.offset + nextDown.length - 1] - 1);
+            return nextDown;
         }
 
         @Override
@@ -144,16 +149,15 @@ public enum RangeType {
         @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
+            BytesRef encodedFrom = (BytesRef) from;
+            BytesRef encodedTo = (BytesRef) to;
             if (includeFrom == false) {
-                from = nextUp(from);
+                encodedFrom = nextUp(encodedFrom);
             }
 
             if (includeTo == false) {
-                to = nextDown(to);
+                encodedTo = nextDown(encodedTo);
             }
-
-            BytesRef encodedFrom = (BytesRef) from;
-            BytesRef encodedTo = (BytesRef) to;
             return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FULL_BYTE, encodedFrom, encodedTo, from, to);
         }
 
@@ -216,18 +220,18 @@ public enum RangeType {
             boolean includeTo,
             BiFunction<BytesRef, BytesRef, Query> querySupplier
         ) {
-            byte[] lowerBytes = lower.bytes;
-            byte[] upperBytes = upper.bytes;
-//            if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
-//                throw new IllegalArgumentException(
-//                        "Range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")");
-//            }
-//            BytesRef correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
-//            BytesRef correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);;
-//            lowerBytes = InetAddressPoint.encode(correctedFrom);
-//            upperBytes = InetAddressPoint.encode(correctedTo);
+            if (lower.compareTo(upper) > 0) {
+                throw new IllegalArgumentException(
+                    "Version range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")"
+                );
+            }
+            BytesRef correctedFrom = includeFrom ? lower : nextUp(lower);
+            BytesRef correctedTo = includeTo ? upper : nextDown(upper);
+            ;
+            byte[] lowerBytes = correctedFrom.bytes;
+            byte[] upperBytes = correctedTo.bytes;
             if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
-                return new MatchNoDocsQuery("float range didn't intersect anything");
+                return new MatchNoDocsQuery("version range didn't intersect anything");
             } else {
                 return querySupplier.apply(lower, upper);
             }

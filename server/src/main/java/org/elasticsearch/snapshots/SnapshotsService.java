@@ -146,7 +146,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Listeners for snapshot deletion keyed by delete uuid as returned from {@link SnapshotDeletionsInProgress.Entry#uuid()}
      */
-    private final Map<String, List<ActionListener<RepositoryData>>> snapshotDeletionListeners = new HashMap<>();
+    private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new HashMap<>();
 
     //Set of repositories currently running either a snapshot finalization or a snapshot delete.
     private final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
@@ -1408,7 +1408,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                addDeleteListener(newDelete.uuid(), ActionListener.map(listener, r -> null));
+                addDeleteListener(newDelete.uuid(), listener);
                 if (newDelete.state() == SnapshotDeletionsInProgress.State.META_DATA) {
                     deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
                 } else {
@@ -1455,7 +1455,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return shardsBuilder.build();
     }
 
-    private void addDeleteListener(String deleteUUID, ActionListener<RepositoryData> listener) {
+    private void addDeleteListener(String deleteUUID, ActionListener<Void> listener) {
         snapshotDeletionListeners.computeIfAbsent(deleteUUID, k -> new CopyOnWriteArrayList<>()).add(listener);
     }
 
@@ -1597,11 +1597,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 @Override
-                protected void handleListeners(List<ActionListener<RepositoryData>> deleteListeners) {
+                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
                     assert repositoryData.getSnapshotIds().stream().noneMatch(deleteEntry.getSnapshots()::contains)
                             : "Repository data contained snapshot ids " + repositoryData.getSnapshotIds()
                             + " that should should been deleted by [" + deleteEntry + "]";
-                    completeListenersIgnoringException(deleteListeners, repositoryData);
+                    completeListenersIgnoringException(deleteListeners, null);
                 }
             };
         } else {
@@ -1609,7 +1609,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // with it.
             clusterStateUpdateTask = new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
                 @Override
-                protected void handleListeners(List<ActionListener<RepositoryData>> deleteListeners) {
+                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
                     failListenersIgnoringException(deleteListeners, failure);
                 }
             };
@@ -1636,9 +1636,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     iterator.remove();
                     failListenersIgnoringException(listeners, wrapped);
                 }
-                for (Iterator<List<ActionListener<RepositoryData>>> iterator = snapshotDeletionListeners.values().iterator();
+                for (Iterator<List<ActionListener<Void>>> iterator = snapshotDeletionListeners.values().iterator();
                      iterator.hasNext(); ) {
-                    final List<ActionListener<RepositoryData>> listeners = iterator.next();
+                    final List<ActionListener<Void>> listeners = iterator.next();
                     iterator.remove();
                     failListenersIgnoringException(listeners, wrapped);
                 }
@@ -1703,7 +1703,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            final List<ActionListener<RepositoryData>> deleteListeners;
+            final List<ActionListener<Void>> deleteListeners;
             synchronized (currentlyFinalizing) {
                 runningDeletions.remove(deleteEntry.uuid());
                 deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
@@ -1729,7 +1729,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
          *
          * @param deleteListeners delete snapshot listeners or {@code null} if there weren't any for {@link #deleteEntry}.
          */
-        protected abstract void handleListeners(@Nullable List<ActionListener<RepositoryData>> deleteListeners);
+        protected abstract void handleListeners(@Nullable List<ActionListener<Void>> deleteListeners);
 
         /**
          * Computes an updated {@link SnapshotsInProgress} that takes into account an updated version of

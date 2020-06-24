@@ -955,7 +955,7 @@ public class IndexNameExpressionResolver {
                                         dateFormatterPattern = dateFormatterPatternAndTimeZoneId;
                                         timeZone = defaultTimeZone;
                                     }
-                                    dateFormatter = DateFormatters.forPattern(dateFormatterPattern);
+                                    dateFormatter = DateFormatter.forPattern(dateFormatterPattern);
                                 }
                                 DateFormatter formatter = dateFormatter.withZone(timeZone);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();

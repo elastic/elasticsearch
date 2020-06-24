@@ -1676,23 +1676,27 @@ public class DateFormatters {
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
             return getLocaldate(accessor).atStartOfDay(zoneId);
+        } else if (accessor.isSupported(WeekFields.SUNDAY_START.weekBasedYear()) || accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
+            return localDateFromWeekBasedDate(WeekFields.SUNDAY_START, accessor).atStartOfDay(zoneId);
         } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
-            if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(WeekFields.ISO.weekOfWeekBasedYear(), accessor.getLong(WeekFields.ISO.weekOfWeekBasedYear()))
-                    .atStartOfDay(zoneId);
-            } else {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(TemporalAdjusters.firstInMonth(DayOfWeek.MONDAY))
-                    .atStartOfDay(zoneId);
-            }
+            return localDateFromWeekBasedDate(WeekFields.ISO, accessor).atStartOfDay(zoneId);
         }
 
         // we should not reach this piece of code, everything being parsed we should be able to
         // convert to a zoned date time! If not, we have to extend the above methods
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
+    private static LocalDate localDateFromWeekBasedDate(WeekFields WEEK_FIELDS, TemporalAccessor accessor) {
+        if (accessor.isSupported(WEEK_FIELDS.weekOfWeekBasedYear())) {
+            return LocalDate.ofEpochDay(0)
+                .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                .with(WEEK_FIELDS.weekOfWeekBasedYear(), accessor.get(WEEK_FIELDS.weekOfWeekBasedYear()))
+                .with(ChronoField.DAY_OF_WEEK, WeekFields.ISO.getFirstDayOfWeek().getValue());
+        } else {
+            return LocalDate.ofEpochDay(0)
+                .with(WEEK_FIELDS.weekBasedYear(), accessor.get(WEEK_FIELDS.weekBasedYear()))
+                .with(ChronoField.DAY_OF_WEEK, WeekFields.ISO.getFirstDayOfWeek().getValue());
+        }
     }
 
     private static LocalDate getLocaldate(TemporalAccessor accessor) {

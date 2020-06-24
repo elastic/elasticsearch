@@ -6,11 +6,8 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -131,6 +128,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return classificationLabel == null ? super.valueAsString() : classificationLabel;
     }
 
+    public Object transformedPredictedValue() {
+        return predictionFieldType.transformPredictedValue(value(), valueAsString());
+    }
+
     @Override
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
@@ -152,7 +153,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public Map<String, Object> writeResultToMap() {
         Map<String, Object> results = new HashMap<>();
-        results.put(resultsField, value());
+        results.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (classificationLabel != null) {
             results.put(LABEL, classificationLabel);
         }
@@ -162,7 +163,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (getFeatureImportance().size() > 0) {
             results.put(FEATURE_IMPORTANCE, getFeatureImportance());
         }
-
         return results;
     }
 
@@ -173,10 +173,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(resultsField, value());
-        if (classificationLabel != null) {
-            builder.field(LABEL, classificationLabel);
-        }
+        builder.field(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.size() > 0) {
             builder.field(topNumClassesField, topClasses);
         }

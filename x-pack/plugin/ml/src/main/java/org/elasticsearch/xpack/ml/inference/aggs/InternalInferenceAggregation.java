@@ -33,6 +33,10 @@ public class InternalInferenceAggregation extends InternalAggregation {
         inferenceResult = in.readNamedWriteable(InferenceResults.class);
     }
 
+    public InferenceResults getInferenceResult() {
+        return inferenceResult;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(inferenceResult);

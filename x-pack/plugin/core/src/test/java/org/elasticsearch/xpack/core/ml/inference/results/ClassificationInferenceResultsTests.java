@@ -134,10 +134,16 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     }
 
     public void testToXContent() {
-        ClassificationConfig config = new ClassificationConfig(1);
-        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, null, config);
+        ClassificationConfig toStringConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.STRING);
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, null, toStringConfig);
         String stringRep = Strings.toString(result);
-        String expected = "{\"predicted_value\":1.0}";
+        String expected = "{\"predicted_value\":\"1.0\"}";
+        assertEquals(expected, stringRep);
+
+        ClassificationConfig toDoubleConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.NUMBER);
+        result = new ClassificationInferenceResults(1.0, null, null, toDoubleConfig);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":1.0}";
         assertEquals(expected, stringRep);
 
         ClassificationConfig boolFieldConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.BOOLEAN);
@@ -146,9 +152,10 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         expected = "{\"predicted_value\":true}";
         assertEquals(expected, stringRep);
 
+        ClassificationConfig config = new ClassificationConfig(1);
         result = new ClassificationInferenceResults(1.0, "label1", null, config);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":1.0,\"label\":\"label1\"}";
+        expected = "{\"predicted_value\":\"label1\"}";
         assertEquals(expected, stringRep);
 
         FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
@@ -156,11 +163,8 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
             Collections.singletonList(fi), config);
         stringRep = Strings.toString(result);
-        expected = "{\"predicted_value\":1.0,\"label\":\"label1\"," +
+        expected = "{\"predicted_value\":\"label1\"," +
             "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}]}";
         assertEquals(expected, stringRep);
     }
-
-
-    // TODO test write to map
 }

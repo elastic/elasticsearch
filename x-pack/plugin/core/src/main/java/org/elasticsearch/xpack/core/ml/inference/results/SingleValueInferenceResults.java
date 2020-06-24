@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 
 public abstract class SingleValueInferenceResults implements InferenceResults {
 
-    static final String FEATURE_IMPORTANCE = "feature_importance";
+    public static final String FEATURE_IMPORTANCE = "feature_importance";
 
     private final double value;
     private final List<FeatureImportance> featureImportance;

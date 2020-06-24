@@ -99,6 +99,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58491")
     public void testLookbackOnlyDataStream() throws Exception {
         String mapping = "{\n" +
             "      \"properties\": {\n" +

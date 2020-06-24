@@ -81,7 +81,7 @@ public class TransportInfo implements ReportingService.Info {
         } else {
             out.writeVInt(0);
         }
-        if (profileAddresses != null && profileAddresses.size() > 0) {
+        if (profileAddresses != null && profileAddresses.isEmpty() == false) {
             for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
@@ -116,7 +116,7 @@ public class TransportInfo implements ReportingService.Info {
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
-        if (profileAddresses != null && profileAddresses.size() > 0) {
+        if (profileAddresses != null && profileAddresses.isEmpty() == false) {
             for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());

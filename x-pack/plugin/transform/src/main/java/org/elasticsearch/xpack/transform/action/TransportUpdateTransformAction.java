@@ -367,6 +367,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             String[] src = indexNameExpressionResolver.concreteIndexNames(
                 clusterState,
                 IndicesOptions.lenientExpandOpen(),
+                true,
                 config.getSource().getIndex()
             );
             // If we are running, we should verify that the destination index exists and create it if it does not

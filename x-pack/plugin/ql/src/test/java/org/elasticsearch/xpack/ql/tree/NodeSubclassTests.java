@@ -559,7 +559,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
-        int maxCollectionLength = 3;
+        int maxCollectionLength = 10;
 
         if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;

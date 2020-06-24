@@ -85,7 +85,7 @@ public class ConcatFunctionPipe extends Pipe {
         return new ConcatFunctionProcessor(processors);
     }
 
-    public List<Pipe> values() {
+    List<Pipe> values() {
         return values;
     }
 

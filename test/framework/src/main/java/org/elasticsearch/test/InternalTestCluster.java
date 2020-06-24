@@ -712,16 +712,18 @@ public final class InternalTestCluster extends TestCluster {
      */
     private static String getRoleSuffix(Settings settings) {
         String suffix = "";
-        if (settings.hasValue("node.roles") && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
-            suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
-        }
-        if (settings.hasValue("node.roles") && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)) {
-            suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
-        }
-        if (settings.hasValue("node.roles")
-            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
-            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) == false) {
-            suffix = suffix + "c";
+        // only add the suffixes if roles are explicitly defined
+        if (settings.hasValue("nodes.roles")) {
+            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
+                suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
+            }
+            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)) {
+                suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
+            }
+            if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
+                && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) == false) {
+                suffix = suffix + "c";
+            }
         }
         return suffix;
     }

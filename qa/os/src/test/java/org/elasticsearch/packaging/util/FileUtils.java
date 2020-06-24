@@ -32,10 +32,13 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileOwnerAttributeView;
@@ -361,5 +364,26 @@ public class FileUtils {
             return path.toString().replace('\\', '/');
         }
         return path.toString();
+    }
+
+    /**
+     * Recursively copy the the source directory to the target directory, preserving permissions.
+     */
+    public static void copyDirectory(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                // this won't copy the directory contents, only the directory itself, but we use
+                // copy to allow copying attributes
+                Files.copy(dir, target.resolve(source.relativize(dir)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

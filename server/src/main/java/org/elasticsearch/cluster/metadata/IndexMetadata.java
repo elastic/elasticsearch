@@ -96,7 +96,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         new ClusterBlock(9, "index metadata (api)", false, false, false,
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
-        new ClusterBlock(12, "index read-only / allow delete (api)", false, false,
+        new ClusterBlock(12, "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block", false, false,
             true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {

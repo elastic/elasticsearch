@@ -435,14 +435,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .prepareDeleteSnapshot(repoName, snapshotName).execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
         });
 
-        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
-            if (snapshotDeleteResponded.get() == false) {
-                return false;
-            }
-            final SnapshotDeletionsInProgress snapshotDeletionsInProgress =
-                master.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
-            return snapshotDeletionsInProgress == null || snapshotDeletionsInProgress.getEntries().isEmpty();
-        }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
+        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> snapshotDeleteResponded.get() &&
+            master.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .getEntries().isEmpty()).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
@@ -477,8 +472,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         masterNode.clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
+                if (event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() == false) {
                     client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
                     masterNode.clusterService.removeListener(this);
                 }
@@ -899,16 +893,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (createdSnapshot.get() == false) {
                 return false;
             }
-            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty();
+            return master.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
         assertTrue(createdSnapshot.get());
-        final SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNodeSafe()
-            .clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertThat(finalSnapshotsInProgress.entries(), empty());
+        assertThat(testClusterNodes.randomDataNodeSafe().clusterService.state()
+            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries(), empty());
         final Repository repository = testClusterNodes.randomMasterNodeSafe().repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));

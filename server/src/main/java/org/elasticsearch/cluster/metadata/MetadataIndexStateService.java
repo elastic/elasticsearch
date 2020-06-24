@@ -318,7 +318,8 @@ public class MetadataIndexStateService {
      * @param block The type of block to add
      * @return a tuple of the updated cluster state, as well as the blocks that got added
      */
-    static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(final Index[] indices, final ClusterState currentState, APIBlock block) {
+    static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(final Index[] indices, final ClusterState currentState,
+                                                                       final APIBlock block) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
 
         final Set<Index> indicesToAddBlock = new HashSet<>();
@@ -414,7 +415,8 @@ public class MetadataIndexStateService {
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    final Tuple<ClusterState, Map<Index, ClusterBlock>> tup = addIndexBlock(concreteIndices, currentState, request.getBlock());
+                    final Tuple<ClusterState, Map<Index, ClusterBlock>> tup =
+                        addIndexBlock(concreteIndices, currentState, request.getBlock());
                     blockedIndices = tup.v2();
                     return tup.v1();
                 }
@@ -429,8 +431,8 @@ public class MetadataIndexStateService {
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(new WaitForBlocksApplied(blockedIndices, request,
                                     ActionListener.wrap(verifyResults ->
-                                            clusterService.submitStateUpdateTask("finalize-index-block-[" + request.getBlock().name + "]-[" +
-                                                    blockedIndices.keySet().stream().map(Index::getName)
+                                            clusterService.submitStateUpdateTask("finalize-index-block-[" + request.getBlock().name +
+                                                    "]-[" + blockedIndices.keySet().stream().map(Index::getName)
                                                         .collect(Collectors.joining(", ")) + "]",
                                                 new ClusterStateUpdateTask(Priority.URGENT) {
                                                 private final List<AddBlockResult> indices = new ArrayList<>();

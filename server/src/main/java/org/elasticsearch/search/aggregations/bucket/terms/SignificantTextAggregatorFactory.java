@@ -19,52 +19,56 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
+import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
-import org.elasticsearch.common.lucene.index.FreqTermsEnum;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator.CollectConsumer;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
-public class SignificantTextAggregatorFactory extends AggregatorFactory
-        implements Releasable {
+public class SignificantTextAggregatorFactory extends AggregatorFactory {
+    private static final int MEMORY_GROWTH_REPORTING_INTERVAL_BYTES = 5000;
 
     private final IncludeExclude includeExclude;
-    private String indexedFieldName;
-    private MappedFieldType fieldType;
+    private final String indexedFieldName;
+    private final MappedFieldType fieldType;
     private final String[] sourceFieldNames;
-    private FilterableTermsEnum termsEnum;
-    private int numberOfAggregatorsCreated;
-    private final Query filter;
-    private final int supersetNumDocs;
+    private final QueryBuilder backgroundFilter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
-    private final DocValueFormat format = DocValueFormat.RAW;
     private final boolean filterDuplicateText;
 
     public SignificantTextAggregatorFactory(String name,
                                                 IncludeExclude includeExclude,
-                                                QueryBuilder filterBuilder,
+                                                QueryBuilder backgroundFilter,
                                                 TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                                 SignificanceHeuristic significanceHeuristic,
                                                 QueryShardContext queryShardContext,
@@ -84,97 +88,18 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
                 "requires an analyzed field");
         }
         this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;
-        this.sourceFieldNames = sourceFieldNames == null
-            ? new String[] { indexedFieldName }
-            : sourceFieldNames;
+        this.sourceFieldNames = sourceFieldNames == null ? new String[] { indexedFieldName } : sourceFieldNames;
 
         this.includeExclude = includeExclude;
-        this.filter = filterBuilder == null
-                ? null
-                : filterBuilder.toQuery(queryShardContext);
+        this.backgroundFilter = backgroundFilter;
         this.filterDuplicateText = filterDuplicateText;
-        IndexSearcher searcher = queryShardContext.searcher();
-        // Important - need to use the doc count that includes deleted docs
-        // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
-        this.supersetNumDocs = filter == null
-                ? searcher.getIndexReader().maxDoc()
-                : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-    }
-
-    /**
-     * Get the number of docs in the superset.
-     */
-    public long getSupersetNumDocs() {
-        return supersetNumDocs;
-    }
-
-    private FilterableTermsEnum getTermsEnum(String field) throws IOException {
-        if (termsEnum != null) {
-            return termsEnum;
-        }
-        IndexReader reader = queryShardContext.getIndexReader();
-        if (numberOfAggregatorsCreated > 1) {
-            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());
-        } else {
-            termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
-        }
-        return termsEnum;
-    }
-
-    private long getBackgroundFrequency(String value) throws IOException {
-        // fieldType can be null if the field is unmapped, but theoretically this method should only be called
-        // when constructing buckets.  Assert to ensure this is the case
-        // TODO this is a bad setup and it should be refactored
-        assert fieldType != null;
-        Query query = fieldType.termQuery(value, queryShardContext);
-        if (query instanceof TermQuery) {
-            // for types that use the inverted index, we prefer using a caching terms
-            // enum that will do a better job at reusing index inputs
-            Term term = ((TermQuery) query).getTerm();
-            FilterableTermsEnum termsEnum = getTermsEnum(term.field());
-            if (termsEnum.seekExact(term.bytes())) {
-                return termsEnum.docFreq();
-            } else {
-                return 0;
-            }
-        }
-        // otherwise do it the naive way
-        if (filter != null) {
-            query = new BooleanQuery.Builder()
-                    .add(query, Occur.FILTER)
-                    .add(filter, Occur.FILTER)
-                    .build();
-        }
-        return queryShardContext.searcher().count(query);
-    }
-
-    public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
-        String value = format.format(termBytes).toString();
-        return getBackgroundFrequency(value);
-    }
-
-
-    @Override
-    public void close() {
-        try {
-            if (termsEnum instanceof Releasable) {
-                ((Releasable) termsEnum).close();
-            }
-        } finally {
-            termsEnum = null;
-        }
     }
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                         Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
-        numberOfAggregatorsCreated++;
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection.
@@ -194,8 +119,166 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
         IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        return new SignificantTextAggregator(name, factories, searchContext, parent, bucketCountThresholds,
-                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metadata);
+        MapStringTermsAggregator.CollectorSource collectorSource = new SignificantTextCollectorSource(
+            queryShardContext.lookup().source(),
+            queryShardContext.bigArrays(),
+            fieldType,
+            sourceFieldNames,
+            filterDuplicateText
+        );
+        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, fieldType, DocValueFormat.RAW, backgroundFilter);
+        return new MapStringTermsAggregator(
+            name,
+            factories,
+            collectorSource,
+            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+            null,
+            DocValueFormat.RAW,
+            bucketCountThresholds,
+            incExcFilter,
+            searchContext,
+            parent,
+            SubAggCollectionMode.BREADTH_FIRST,
+            false,
+            collectsFromSingleBucket,
+            metadata
+        );
+    }
 
+    private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
+        private final SourceLookup sourceLookup;
+        private final BigArrays bigArrays;
+        private final MappedFieldType fieldType;
+        private final String[] sourceFieldNames;
+        private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
+
+        SignificantTextCollectorSource(
+            SourceLookup sourceLookup,
+            BigArrays bigArrays,
+            MappedFieldType fieldType,
+            String[] sourceFieldNames,
+            boolean filterDuplicateText
+        ) {
+            this.sourceLookup = sourceLookup;
+            this.bigArrays = bigArrays;
+            this.fieldType = fieldType;
+            this.sourceFieldNames = sourceFieldNames;
+            dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(
+            StringFilter includeExclude,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException {
+            return new LeafBucketCollectorBase(sub, null) {
+                private final BytesRefBuilder scratch = new BytesRefBuilder();
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (dupSequenceSpotters == null) {
+                        collectFromSource(doc, owningBucketOrd, null);
+                        return;
+                    }
+                    dupSequenceSpotters = bigArrays.grow(dupSequenceSpotters, owningBucketOrd + 1);
+                    DuplicateByteSequenceSpotter spotter = dupSequenceSpotters.get(owningBucketOrd);
+                    if (spotter == null) {
+                        spotter = new DuplicateByteSequenceSpotter();
+                        dupSequenceSpotters.set(owningBucketOrd, spotter);
+                    }
+                    collectFromSource(doc, owningBucketOrd, spotter);
+                    spotter.startNewSequence();
+                }
+
+                private void collectFromSource(int doc, long owningBucketOrd, DuplicateByteSequenceSpotter spotter) throws IOException {
+                    sourceLookup.setSegmentAndDocument(ctx, doc);
+                    BytesRefHash inDocTerms = new BytesRefHash(256, bigArrays);
+
+                    try {
+                        for (String sourceField : sourceFieldNames) {
+                            Iterator<String> itr = sourceLookup.extractRawValues(sourceField).stream()
+                                .map(obj -> {
+                                    if (obj == null) {
+                                        return null;
+                                    }
+                                    if (obj instanceof BytesRef) {
+                                        return fieldType.valueForDisplay(obj).toString();
+                                    }
+                                    return obj.toString();
+                                })
+                                .iterator();
+                            Analyzer analyzer = fieldType.indexAnalyzer();
+                            while (itr.hasNext()) {
+                                TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());
+                                processTokenStream(doc, owningBucketOrd, ts, inDocTerms, spotter);
+                            }
+                        }
+                    } finally {
+                        Releasables.close(inDocTerms);
+                    }
+                }
+
+                private void processTokenStream(
+                    int doc,
+                    long owningBucketOrd,
+                    TokenStream ts,
+                    BytesRefHash inDocTerms,
+                    DuplicateByteSequenceSpotter spotter
+                ) throws IOException {
+                    long lastTrieSize = 0;
+                    if (spotter != null) {
+                        lastTrieSize = spotter.getEstimatedSizeInBytes();
+                        ts = new DeDuplicatingTokenFilter(ts, spotter);
+                    }
+                    CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+                    ts.reset();
+                    try {
+                        while (ts.incrementToken()) {
+                            if (spotter != null) {
+                                long newTrieSize = spotter.getEstimatedSizeInBytes();
+                                long growth = newTrieSize - lastTrieSize;
+                                // Only update the circuitbreaker after
+                                if (growth > MEMORY_GROWTH_REPORTING_INTERVAL_BYTES) {
+                                    addRequestCircuitBreakerBytes.accept(growth);
+                                    lastTrieSize = newTrieSize;
+                                }
+                            }
+
+                            scratch.clear();
+                            scratch.copyChars(termAtt);
+                            BytesRef bytes = scratch.get();
+                            if (includeExclude != null && includeExclude.accept(bytes)) {
+                                continue;
+                            }
+                            if (inDocTerms.add(bytes) < 0) {
+                                continue;
+                            }
+                            consumer.accept(sub, doc, owningBucketOrd, bytes);
+                        }
+                    } finally {
+                        ts.close();
+                    }
+                    if (spotter != null) {
+                        long growth = spotter.getEstimatedSizeInBytes() - lastTrieSize;
+                        if (growth > 0) {
+                            addRequestCircuitBreakerBytes.accept(growth);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(dupSequenceSpotters);
+        }
     }
 }

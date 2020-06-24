@@ -390,7 +390,8 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
             MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(indexService.mapperService().fieldType("release_date"), notNullValue());
-        assertFalse(indexService.mapperService().getLuceneFieldType("release_date").stored());
+        assertFalse(indexService.mapperService().fieldType("release_date")
+            .getTextSearchInfo().isStored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")

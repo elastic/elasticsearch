@@ -327,7 +327,7 @@ public class MatchQuery {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.hasPositions()) {
+            if (fieldType.getTextSearchInfo().hasPositions()) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -799,7 +799,7 @@ public class MatchQuery {
         }
 
         private void checkForPositions(String field) {
-            if (fieldType.hasPositions() == false) {
+            if (fieldType.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }

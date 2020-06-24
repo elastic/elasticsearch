@@ -34,30 +34,30 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-default-mappings";
-    public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-default-settings";
-    public static final String LOGS_ILM_POLICY_NAME = "logs-default-policy";
-    public static final String LOGS_INDEX_TEMPLATE_NAME = "logs-default-template";
+    public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
+    public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
+    public static final String LOGS_ILM_POLICY_NAME = "logs";
+    public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
 
     public static final IndexTemplateConfig LOGS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
         LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/logs-default-mappings.json",
+        "/logs-mappings.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
     public static final IndexTemplateConfig LOGS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
         LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-        "/logs-default-settings.json",
+        "/logs-settings.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
     public static final LifecyclePolicyConfig LOGS_ILM_POLICY = new LifecyclePolicyConfig(
         LOGS_ILM_POLICY_NAME,
-        "/logs-default-policy.json"
+        "/logs-policy.json"
     );
     public static final IndexTemplateConfig LOGS_INDEX_TEMPLATE = new IndexTemplateConfig(
         LOGS_INDEX_TEMPLATE_NAME,
-        "/logs-default-template.json",
+        "/logs-template.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
@@ -65,30 +65,30 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-default-mappings";
-    public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-default-settings";
-    public static final String METRICS_ILM_POLICY_NAME = "metrics-default-policy";
-    public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics-default-template";
+    public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-mappings";
+    public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
+    public static final String METRICS_ILM_POLICY_NAME = "metrics";
+    public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
     public static final IndexTemplateConfig METRICS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
         METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/metrics-default-mappings.json",
+        "/metrics-mappings.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
     public static final IndexTemplateConfig METRICS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
         METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-        "/metrics-default-settings.json",
+        "/metrics-settings.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
     public static final LifecyclePolicyConfig METRICS_ILM_POLICY = new LifecyclePolicyConfig(
         METRICS_ILM_POLICY_NAME,
-        "/metrics-default-policy.json"
+        "/metrics-policy.json"
     );
     public static final IndexTemplateConfig METRICS_INDEX_TEMPLATE = new IndexTemplateConfig(
         METRICS_INDEX_TEMPLATE_NAME,
-        "/metrics-default-template.json",
+        "/metrics-template.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );

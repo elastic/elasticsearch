@@ -3,7 +3,7 @@
     "settings": {
       "index": {
         "lifecycle": {
-          "name": "metrics-default-policy"
+          "name": "logs"
         },
         "codec": "best_compression",
         "query": {
@@ -13,7 +13,7 @@
     }
   },
   "_meta": {
-    "description": "default settings for the metrics index template installed by x-pack"
+    "description": "default settings for the logs index template installed by x-pack"
   },
   "version": ${xpack.stack.template.version}
 }

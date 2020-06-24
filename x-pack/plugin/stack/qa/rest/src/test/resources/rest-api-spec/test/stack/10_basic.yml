@@ -8,35 +8,35 @@ setup:
 "Test stack template installation":
   - do:
       ilm.get_lifecycle:
-        policy: "logs-default-policy"
+        policy: "logs"
 
   - do:
       ilm.get_lifecycle:
-        policy: "metrics-default-policy"
+        policy: "metrics"
 
   - do:
       cluster.get_component_template:
-        name: logs-default-mappings
+        name: logs-mappings
 
   - do:
       cluster.get_component_template:
-        name: logs-default-settings
+        name: logs-settings
 
   - do:
       cluster.get_component_template:
-        name: metrics-default-mappings
+        name: metrics-mappings
 
   - do:
       cluster.get_component_template:
-        name: metrics-default-settings
+        name: metrics-settings
 
   - do:
       indices.get_index_template:
-        name: logs-default-template
+        name: logs
 
   - do:
       indices.get_index_template:
-        name: metrics-default-template
+        name: metrics
 
 ---
 "Test logs index auto creation":
@@ -63,7 +63,7 @@ setup:
 
   - is_true: \.ds-logs-foo-bar-000001.settings
   - is_true: \.ds-logs-foo-bar-000001.mappings
-  - match: { \.ds-logs-foo-bar-000001.settings.index.lifecycle.name: "logs-default-policy" }
+  - match: { \.ds-logs-foo-bar-000001.settings.index.lifecycle.name: "logs" }
   - is_true: \.ds-logs-foo-bar-000001.mappings.properties.message
   - match: { \.ds-logs-foo-bar-000001.data_stream: "logs-foo-bar" }
 
@@ -96,7 +96,7 @@ setup:
 
   - is_true: \.ds-metrics-foo-bar-000001.settings
   - is_true: \.ds-metrics-foo-bar-000001.mappings
-  - match: { \.ds-metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics-default-policy" }
+  - match: { \.ds-metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics" }
   - is_true: \.ds-metrics-foo-bar-000001.mappings.properties.message
   - match: { \.ds-metrics-foo-bar-000001.data_stream: "metrics-foo-bar" }
 

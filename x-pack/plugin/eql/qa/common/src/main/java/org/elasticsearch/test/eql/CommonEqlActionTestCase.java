@@ -65,8 +65,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         }
 
         CreateIndexRequest request = new CreateIndexRequest(testIndexName)
-                .mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-default.json")),
-                        XContentType.JSON);
+                .mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-default.json")), XContentType.JSON);
 
         tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
 

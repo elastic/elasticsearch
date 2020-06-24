@@ -848,31 +848,31 @@ registry where bytes_written_string_list[1] == 'EN'
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+localgroup\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+localgroup\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+\w+\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+\w+\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 expected_event_ids  = [98]
 query = '''
-process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where match(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+[localgrup]{4,15}\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+[localgrup]{4,15}\s+.*?')
 '''
 expected_event_ids  = [98]
 
@@ -947,14 +947,14 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
+file where opcode=0 and indexOf(file_name, 'plore') == 2 and indexOf(file_name, '.pf') == null
 '''
 expected_event_ids  = [88]
 description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.') and indexOf(file_name, 'plore', 100)
+file where opcode=0 and indexOf(file_name, 'explorer.') != null and indexOf(file_name, 'plore', 100) != null
 '''
 expected_event_ids = []
 description = "check built-in string functions"
@@ -967,19 +967,19 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2)'''
+file where opcode=0 and indexOf(file_name, 'plorer.', 2) != null'''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 4)'''
+file where opcode=0 and indexOf(file_name, 'plorer.', 4) != null'''
 expected_event_ids = []
 description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'thing that never happened')'''
+file where opcode=0 and indexOf(file_name, 'thing that never happened') != null'''
 expected_event_ids = []
 description = "check built-in string functions"
 
@@ -1067,13 +1067,14 @@ process where serial_event_id == number('32', 16)'''
 
 [[queries]]
 query = '''
-process where number(serial_event_id) == number(5)'''
+process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+'''
 expected_event_ids  = [5]
-description = "test string/number conversions"
+description = "test string concatenation"
 
 [[queries]]
 query = '''
-process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+process where concat(serial_event_id, ':', process_name, opcode) == '5:wininit.exe3'
 '''
 expected_event_ids  = [5]
 description = "test string concatenation"
@@ -1178,6 +1179,13 @@ network where safe(divide(process_name, process_name))
 [[queries]]
 query = '''
 file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))
+'''
+expected_event_ids  = [82]
+description = "nested set comparisons"
+
+[[queries]]
+query = '''
+file where serial_event_id == 82 and (true == (process_name in ('svchost.exe', 'bad.exe', 'bad2.exe')))
 '''
 expected_event_ids  = [82]
 description = "nested set comparisons"

@@ -667,31 +667,31 @@ registry where bytes_written_string_list[1] == 'EN'
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+localgroup\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+localgroup\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+\w+\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+\w+\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
 expected_event_ids  = [98]
 query = '''
-process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+process where match(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 
 [[queries]]
 query = '''
-process where matchLite(?'.*?net1\s+[localgrup]{4,15}\s+.*?', command_line)
+process where matchLite(command_line, ?'.*?net1\s+[localgrup]{4,15}\s+.*?')
 '''
 expected_event_ids  = [98]
 
@@ -727,38 +727,6 @@ expected_event_ids  = [88]
 description = "check built-in string functions"
 
 [[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
-'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.') and indexOf(file_name, 'plore', 100)
-'''
-expected_event_ids = []
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2)'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 4)'''
-expected_event_ids = []
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'thing that never happened')'''
-expected_event_ids = []
-description = "check built-in string functions"
-
-[[queries]]
 # This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
 expected_event_ids = [82]
 query = "file where serial_event_id / 2 == 41"
@@ -769,14 +737,6 @@ query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]
 description = "test built-in math functions"
-
-
-# this should be removed and the number function should be updated to take only strings
-[[queries]]
-query = '''
-process where number(serial_event_id) == number(5)'''
-expected_event_ids  = [5]
-description = "test string/number conversions"
 
 [[queries]]
 query = '''
@@ -916,17 +876,5 @@ file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
 expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
-'''
-
-[[queries]]
-expected_event_ids = [7, 14, 22, 29, 44]
-query = '''
-process where length(between(process_name, 'g', 'e')) > 0
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-process where length(between(process_name, 'g', 'z')) > 0
 '''
 

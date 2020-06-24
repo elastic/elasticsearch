@@ -52,6 +52,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,6 +66,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
+import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /**
@@ -113,28 +116,37 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             builder.indexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.searchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
             builder.searchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
-            parseTextField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 final Map.Entry<String, Object> entry = iterator.next();
                 final String fieldName = entry.getKey();
                 final Object fieldNode = entry.getValue();
-
+                checkNull(fieldName, fieldNode);
                 if (fieldName.equals("max_shingle_size")) {
                     builder.maxShingleSize(nodeIntegerValue(fieldNode));
+                    iterator.remove();
+                } else if (fieldName.equals("similarity")) {
+                    SimilarityProvider similarityProvider = TypeParsers.resolveSimilarity(parserContext, fieldName, fieldNode.toString());
+                    builder.similarity(similarityProvider);
                     iterator.remove();
                 }
                 // TODO should we allow to configure the prefix field
             }
+            parseTextField(builder, name, node, parserContext);
             return builder;
         }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
         private int maxShingleSize = Defaults.MAX_SHINGLE_SIZE;
+        private SimilarityProvider similarity;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
             this.builder = this;
+        }
+
+        public void similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
         }
 
         public Builder maxShingleSize(int maxShingleSize) {
@@ -157,11 +169,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, meta);
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity, meta);
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setSearchAnalyzer(searchAnalyzer);
             ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
-            ft.setSimilarity(similarity);
 
             // set up the prefix field
             FieldType prefixft = new FieldType(fieldType);
@@ -235,8 +246,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixField;
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
-        SearchAsYouTypeFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, new TextSearchInfo(fieldType), meta);
+        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity, Map<String, String> meta) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, new TextSearchInfo(fieldType, similarity), meta);
         }
 
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {
@@ -382,7 +393,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, FieldType fieldType, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, new TextSearchInfo(fieldType), Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -535,7 +546,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, FieldType fieldType) {
-            super(name, true, false, new TextSearchInfo(fieldType), Collections.emptyMap());
+            super(name, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 
@@ -689,7 +700,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(m.shingleFields[i]);
             }
         }
-        if (Objects.equals(this.fieldType().similarity(), other.fieldType().similarity()) == false) {
+        if (Objects.equals(this.fieldType().getTextSearchInfo().getSimilarity(),
+            other.fieldType().getTextSearchInfo().getSimilarity()) == false) {
             conflicts.add("mapper [" + name() + "] has different [similarity] settings");
         }
     }
@@ -719,6 +731,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
+        if (fieldType().getTextSearchInfo().getSimilarity() != null) {
+            builder.field("similarity", fieldType().getTextSearchInfo().getSimilarity().name());
+        } else if (includeDefaults) {
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
+        }
         builder.field("max_shingle_size", maxShingleSize);
     }
 

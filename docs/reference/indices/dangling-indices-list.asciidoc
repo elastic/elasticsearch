@@ -26,7 +26,7 @@ The API returns the following response:
     "index_name": "twitter",
     "index_uuid": "zmM4e0JtBkeUjiHD-MihPQ",
     "creation_date_millis": 1589414451372,
-    "node_ids: [
+    "node_ids": [
       "pL47UN3dAb2d5RCWP6lQ3e"
     ]
   ]

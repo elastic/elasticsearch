@@ -1,4 +1,4 @@
-[[dangling-indices-import]]
+[[dangling-index-import]]
 === Import dangling index API
 ++++
 <titleabbrev>Import dangling index</titleabbrev>
@@ -8,18 +8,26 @@ When {es} finds an index on disk that is not present in the current cluster
 state, that index is considerd to be "dangling". This API imports a
 single dangling index so that it becomes known to the cluster.
 
-[[dangling-indices-import-api-request]]
+[[dangling-index-import-api-request]]
 ==== {api-request-title}
 
 [source,console]
 --------------------------------------------------
-POST /_dangling/zmM4e0JtBkeUjiHD-MihPQ
+POST /_dangling/<index-uuid>
 {
   "accept_data_loss": true
 }
 --------------------------------------------------
 
-[[dangling-indices-import-request-body]]
+[[dangling-index-import-api-path-params]]
+==== {api-path-parms-title}
+
+`<index-uuid>`::
+(Required, string)
+UUID of the index to import. You can find this using the
+<<dangling-indices-list,dangling indices list API>>.
+
+[[dangling-index-import-request-body]]
 ==== {api-request-body-title}
 
 `accept_data_loss`::

@@ -111,7 +111,8 @@ If {es} encounters index data that is absent from the current cluster
 state, those indices are considered to be dangling. For example, copying a
 data directory between clusters, or deleting more than
 `cluster.indices.tombstones.size` indices while an {es} node is offline.
-You can use the [[dangling-indices]] API to manage this situation.
+You can use the <<dangling-indices-api,Dangling indices API>> to manage
+this situation.
 
 [[cluster-logger]]
 ===== Logger

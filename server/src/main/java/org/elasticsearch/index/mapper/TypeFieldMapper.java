@@ -92,7 +92,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new TypeFieldMapper(Defaults.FIELD_TYPE, indexSettings);
+            return new TypeFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
@@ -101,7 +101,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public static final TypeFieldType INSTANCE = new TypeFieldType();
 
         private TypeFieldType() {
-            super(NAME, true, false, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected TypeFieldType(TypeFieldType ref) {
@@ -284,8 +284,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TypeFieldMapper(FieldType fieldType, IndexSettings indexSettings) {
-        super(fieldType, new TypeFieldType(), indexSettings.getSettings());
+    private TypeFieldMapper(FieldType fieldType) {
+        super(fieldType, new TypeFieldType());
     }
 
     @Override

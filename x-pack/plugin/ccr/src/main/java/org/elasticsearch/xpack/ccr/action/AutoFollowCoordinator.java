@@ -560,6 +560,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
+            request.setSettings(pattern.getSettings());
             request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
             request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
             request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());

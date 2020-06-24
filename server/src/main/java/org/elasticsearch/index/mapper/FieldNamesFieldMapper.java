@@ -86,7 +86,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public FieldNamesFieldMapper build(BuilderContext context) {
             FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType();
             fieldNamesFieldType.setEnabled(enabled);
-            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType, context.indexSettings());
+            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType);
         }
     }
 
@@ -119,7 +119,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, fieldType, indexSettings);
+                return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, fieldType);
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -132,7 +132,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            super(Defaults.NAME, true, false, Collections.emptyMap());
+            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
@@ -187,8 +187,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings) {
-        super(fieldType, mappedFieldType, indexSettings);
+    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(fieldType, mappedFieldType);
     }
 
     @Override

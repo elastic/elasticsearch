@@ -72,7 +72,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, context.indexSettings());
+            return new RoutingFieldMapper(fieldType, required);
         }
     }
 
@@ -97,7 +97,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new RoutingFieldMapper(Defaults.FIELD_TYPE, Defaults.REQUIRED, indexSettings);
+                return new RoutingFieldMapper(Defaults.FIELD_TYPE, Defaults.REQUIRED);
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -110,7 +110,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
-            super(NAME, true, false, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
@@ -137,8 +137,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     private final boolean required;
 
-    private RoutingFieldMapper(FieldType fieldType, boolean required, Settings indexSettings) {
-        super(fieldType, RoutingFieldType.INSTANCE, indexSettings);
+    private RoutingFieldMapper(FieldType fieldType, boolean required) {
+        super(fieldType, RoutingFieldType.INSTANCE);
         this.required = required;
     }
 

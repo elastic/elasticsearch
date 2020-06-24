@@ -115,14 +115,14 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SeqNoFieldMapper(indexSettings);
+            return new SeqNoFieldMapper();
         }
     }
 
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
-            super(NAME, true, true, Collections.emptyMap());
+            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected SeqNoFieldType(SeqNoFieldType ref) {
@@ -210,8 +210,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     }
 
-    public SeqNoFieldMapper(Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE, indexSettings);
+    public SeqNoFieldMapper() {
+        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE);
     }
 
     @Override

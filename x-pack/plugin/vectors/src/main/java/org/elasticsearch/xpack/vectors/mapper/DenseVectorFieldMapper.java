@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -99,7 +100,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, TextSearchInfo.NONE, meta);
             this.dims = dims;
         }
 
@@ -144,10 +145,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private final Version indexCreatedVersion;
+
     private DenseVectorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions() == IndexOptions.NONE;
+        this.indexCreatedVersion = Version.indexCreated(indexSettings);
     }
 
     @Override

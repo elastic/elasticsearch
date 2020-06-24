@@ -79,7 +79,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATETIME string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
+            "Invalid datetime string [2020-04-07] or pattern [invalid] is received; Unknown pattern letter: i",
             siae.getMessage()
         );
 
@@ -88,7 +88,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATETIME string [2020-04-07] or pattern [MM/dd] is received; Text '2020-04-07' could not be parsed at index 2",
+            "Invalid datetime string [2020-04-07] or pattern [MM/dd] is received; Text '2020-04-07' could not be parsed at index 2",        
             siae.getMessage()
         );
 
@@ -97,7 +97,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATETIME string [07/05/2020] or pattern [dd/MM/uuuu] is received; Unable to convert parsed text into [DATETIME]",
+            "Invalid datetime string [07/05/2020] or pattern [dd/MM/uuuu] is received; Unable to convert parsed text into [datetime]",
             siae.getMessage()
         );
 
@@ -106,8 +106,8 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 Source.EMPTY, l("10:20:30.123456789"), l("HH:mm:ss.SSSSSSSSS"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATETIME string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
-                + "Unable to convert parsed text into [DATETIME]",
+            "Invalid datetime string [10:20:30.123456789] or pattern [HH:mm:ss.SSSSSSSSS] is received; "
+                + "Unable to convert parsed text into [datetime]",
             siae.getMessage()
         );
     }
@@ -130,7 +130,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid TIME string [11:04:07] or pattern [invalid] is received; Unknown pattern letter: i",
+            "Invalid time string [11:04:07] or pattern [invalid] is received; Unknown pattern letter: i",
             siae.getMessage()
         );
         
@@ -139,7 +139,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("HH:mm"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid TIME string [11:04:07] or pattern [HH:mm] is received; " +
+            "Invalid time string [11:04:07] or pattern [HH:mm] is received; " +
                 "Text '11:04:07' could not be parsed, unparsed text found at index 5",
             siae.getMessage()
         );
@@ -149,7 +149,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new TimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid TIME string [07/05/2020] or pattern [dd/MM/uuuu] is received; Unable to convert parsed text into [TIME]",
+            "Invalid time string [07/05/2020] or pattern [dd/MM/uuuu] is received; Unable to convert parsed text into [time]",
             siae.getMessage()
         );
     }
@@ -172,7 +172,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateParse(Source.EMPTY, l("07/05/2020"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATE string [07/05/2020] or pattern [invalid] is received; Unknown pattern letter: i",
+            "Invalid date string [07/05/2020] or pattern [invalid] is received; Unknown pattern letter: i",
                 siae.getMessage()
         );
 
@@ -181,7 +181,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
              () -> new DateParse(Source.EMPTY, l("07/05/2020"), l("dd/MM"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-           "Invalid DATE string [07/05/2020] or pattern [dd/MM] is received; " +
+           "Invalid date string [07/05/2020] or pattern [dd/MM] is received; " +
                 "Text '07/05/2020' could not be parsed, unparsed text found at index 5",
            siae.getMessage()
         );
@@ -191,7 +191,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateParse(Source.EMPTY, l("11:04:07"), l("HH:mm:ss"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid DATE string [11:04:07] or pattern [HH:mm:ss] is received; Unable to convert parsed text into [DATE]",
+            "Invalid date string [11:04:07] or pattern [HH:mm:ss] is received; Unable to convert parsed text into [date]",
             siae.getMessage()
         );
         
@@ -203,7 +203,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .process(null)
         );
         assertEquals(
-            "Invalid DATE string [05/2020 11:04:07] or pattern [MM/uuuu HH:mm:ss] is received; Unable to convert parsed text into [DATE]",
+            "Invalid date string [05/2020 11:04:07] or pattern [MM/uuuu HH:mm:ss] is received; Unable to convert parsed text into [date]",
             siae.getMessage()
         );
     }

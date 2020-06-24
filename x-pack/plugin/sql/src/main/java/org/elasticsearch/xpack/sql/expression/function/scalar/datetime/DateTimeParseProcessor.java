@@ -40,11 +40,10 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         
         private final BiFunction<String, String, TemporalAccessor> parser;
         
-        private final DataType parseType;
+        private final String parseType;
 
         Parser(DataType parseType, TemporalQuery<?>... queries) {
-            this.parseType = parseType;
-            // queries's length must must be greater than one
+            this.parseType = parseType.typeName();
             this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
                     .parseBest(timestampStr, queries);
         }

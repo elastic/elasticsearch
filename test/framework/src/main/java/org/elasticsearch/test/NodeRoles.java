@@ -23,9 +23,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.util.List;
+import java.util.Collections;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,7 +38,7 @@ public class NodeRoles {
     }
 
     public static Settings onlyRole(final Settings settings, final DiscoveryNodeRole role) {
-        return onlyRoles(settings, Set.of(role));
+        return onlyRoles(settings, Collections.singleton(role));
     }
 
     public static Settings onlyRoles(final Set<DiscoveryNodeRole> roles) {
@@ -51,7 +50,7 @@ public class NodeRoles {
             .put(settings)
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList()))
+                Collections.unmodifiableList(roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())))
             .build();
     }
 
@@ -63,11 +62,12 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+            Collections.unmodifiableList(NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
                 .stream()
-                .filter(Predicate.not(roles::contains))
+                .filter(r -> roles.contains(r) == false)
                 .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toUnmodifiableList())
+                .collect(Collectors.toList())
+            )
         );
         return builder.build();
     }
@@ -80,10 +80,11 @@ public class NodeRoles {
         final Settings.Builder builder = Settings.builder().put(settings);
         builder.putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-            Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
+            Collections.unmodifiableList(Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
                 .map(DiscoveryNodeRole::roleName)
                 .distinct()
-                .collect(Collectors.toUnmodifiableList())
+                .collect(Collectors.toList())
+            )
         );
         return builder.build();
     }
@@ -93,7 +94,7 @@ public class NodeRoles {
     }
 
     public static Settings noRoles(final Settings settings) {
-        return Settings.builder().put(settings).putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of()).build();
+        return Settings.builder().put(settings).putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.emptyList()).build();
     }
 
     public static Settings dataNode() {
@@ -101,7 +102,7 @@ public class NodeRoles {
     }
 
     public static Settings dataNode(final Settings settings) {
-        return addRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
     }
 
     public static Settings dataOnlyNode() {
@@ -117,7 +118,7 @@ public class NodeRoles {
     }
 
     public static Settings nonDataNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
     }
 
     public static Settings ingestNode() {
@@ -125,7 +126,7 @@ public class NodeRoles {
     }
 
     public static Settings ingestNode(final Settings settings) {
-        return addRoles(settings, Set.of(DiscoveryNodeRole.INGEST_ROLE));
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.INGEST_ROLE));
     }
 
     public static Settings ingestOnlyNode() {
@@ -141,7 +142,7 @@ public class NodeRoles {
     }
 
     public static Settings nonIngestNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.INGEST_ROLE));
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.INGEST_ROLE));
     }
 
     public static Settings masterNode() {
@@ -149,7 +150,7 @@ public class NodeRoles {
     }
 
     public static Settings masterNode(final Settings settings) {
-        return addRoles(settings, Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     public static Settings masterOnlyNode() {
@@ -165,7 +166,7 @@ public class NodeRoles {
     }
 
     public static Settings nonMasterNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     public static Settings remoteClusterClientNode() {
@@ -173,7 +174,7 @@ public class NodeRoles {
     }
 
     public static Settings remoteClusterClientNode(final Settings settings) {
-        return addRoles(settings, Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        return addRoles(settings, Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
     }
 
     public static Settings nonRemoteClusterClientNode() {
@@ -181,7 +182,7 @@ public class NodeRoles {
     }
 
     public static Settings nonRemoteClusterClientNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
     }
 
 }

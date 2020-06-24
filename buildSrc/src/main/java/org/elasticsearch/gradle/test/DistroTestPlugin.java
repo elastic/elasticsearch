@@ -317,8 +317,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
         DependencyHandler deps = project.getDependencies();
-        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings",
-            "configuration", "zip");
+        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
         return examplePlugin;
     }

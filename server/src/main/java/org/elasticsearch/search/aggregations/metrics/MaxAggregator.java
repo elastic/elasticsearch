@@ -66,7 +66,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.formatter = config.format();
-        this.pointConverter = getPointReaderOrNull(context, parent, config);
+        this.pointConverter = getPointReaderOrNull(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {
@@ -94,7 +94,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
             if (segMax != null) {
                 /*
-                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
+                 * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
                 assert maxes.size() == 1;

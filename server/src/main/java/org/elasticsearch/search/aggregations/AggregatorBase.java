@@ -115,12 +115,9 @@ public abstract class AggregatorBase extends Aggregator {
      * Returns a converter for point values if early termination is applicable to
      * the context or <code>null</code> otherwise.
      *
-     * @param context The {@link SearchContext} of the aggregation.
-     * @param parent The parent aggregator.
      * @param config The config for the values source metric.
      */
-    protected static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                         ValuesSourceConfig config) {
+    protected Function<byte[], Number> getPointReaderOrNull(ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
             return null;

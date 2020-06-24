@@ -43,7 +43,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -695,43 +694,31 @@ public class MinAggregatorTests extends AggregatorTestCase {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             assertNotNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(new MatchAllDocsQuery()),
-                    null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNotNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
-                    null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
                     mockNumericValuesSourceConfig("number", type, false)
                 )
             );
@@ -739,29 +726,21 @@ public class MinAggregatorTests extends AggregatorTestCase {
         for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(new MatchAllDocsQuery()),
-                    mockAggregator(),
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
-                    null,
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
                 AggregatorBase.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
                     mockDateValuesSourceConfig("number", false, resolution)
                 )
             );
@@ -772,16 +751,12 @@ public class MinAggregatorTests extends AggregatorTestCase {
         LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
         assertThat(
             AggregatorBase.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
-                null,
                 mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.MILLISECONDS)
             ).apply(scratch), equalTo(expected.toEpochMilli())
         );
         LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
         assertThat(
             AggregatorBase.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
-                null,
                 mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.NANOSECONDS)
             ).apply(scratch), equalTo(expected.toEpochMilli())
         );

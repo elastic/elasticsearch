@@ -86,7 +86,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
 
         public FakeStringFieldType(String name) {
-            super(name, true, true, Collections.emptyMap());
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
             setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
         }

@@ -11,22 +11,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
-import org.junit.BeforeClass;
 
 import java.util.Collections;
 
 import static java.util.Collections.emptySet;
 
 public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase {
-
-    @BeforeClass
-    public static void setPossibleRolesWithVotingOnly() {
-        DiscoveryNode.setPossibleRoles(
-            Sets.union(DiscoveryNodeRole.BUILT_IN_ROLES, Sets.newHashSet(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
-    }
 
     @Override
     protected TransportInterceptor getTransportInterceptor(DiscoveryNode localNode, ThreadPool threadPool) {

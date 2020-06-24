@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -334,8 +335,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         try {
             DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
                 Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
-            Settings settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).put(
-                Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_NAME_SETTING.getKey(), "test").build();
+            Settings settings = Settings.builder()
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
+                .put(nonMasterNode())
+                .put(Node.NODE_NAME_SETTING.getKey(), "test")
+                .build();
             final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
             cleanup.add(gateway);
             final TransportService transportService = mock(TransportService.class);

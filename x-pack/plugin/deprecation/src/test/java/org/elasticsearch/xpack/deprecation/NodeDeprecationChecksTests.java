@@ -245,7 +245,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "the setting [%s] is currently set to [%b], instead set [%s] to [%2$b]",
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
                 value,
-                Node.NODE_REMOTE_CLUSTER_CLIENT.getKey()
+                "node.remote_cluster_client"
             ));
         assertThat(issues, contains(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});

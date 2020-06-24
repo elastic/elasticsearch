@@ -169,7 +169,7 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
-            String command = path + " " + args;
+            String command = "\"" + path + "\" " + args;
             if (distribution.isArchive() && Platforms.WINDOWS == false) {
                 command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
             }

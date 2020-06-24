@@ -41,6 +41,7 @@ load $BATS_UTILS/packages.bash
 
 # Cleans everything for the 1st execution
 setup() {
+    echo "SETTING UP"
     skip_not_dpkg_or_rpm
 
     sameVersion="false"
@@ -58,7 +59,9 @@ setup() {
 }
 
 @test "[UPGRADE] install old version" {
+    echo "CLEANING UP"
     clean_before_test
+    echo "INSTALLING"
     install_package -v $(cat $BATS_UPGRADE/upgrade_from_version) -d $BATS_UPGRADE
 }
 

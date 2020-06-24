@@ -72,7 +72,8 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
             ClusterBlockException e = expectThrows(ClusterBlockException.class, () ->
                 client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get());
-            assertEquals("index [test] blocked by: [TOO_MANY_REQUESTS/12/index read-only / allow delete (api)];", e.getMessage());
+            assertEquals("index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, " +
+                "index has read-only-allow-delete block];", e.getMessage());
         } finally {
             assertAcked(client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build()).get());

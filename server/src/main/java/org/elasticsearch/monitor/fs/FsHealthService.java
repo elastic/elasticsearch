@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -40,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -131,7 +131,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         private byte[] byteToWrite;
 
         FsHealthMonitor(){
-            this.byteToWrite = new byte[20];
+            this.byteToWrite = UUIDs.randomBase64UUID().getBytes();
         }
 
         @Override
@@ -155,7 +155,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         Path tempDataPath = path.resolve(TEMP_FILE_NAME);
                         Files.deleteIfExists(tempDataPath);
                         try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                            new Random().nextBytes(byteToWrite);
                             os.write(byteToWrite);
                             IOUtils.fsync(tempDataPath, false);
                         }

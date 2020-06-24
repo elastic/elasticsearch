@@ -26,6 +26,8 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker;
@@ -60,6 +62,7 @@ import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -392,4 +395,34 @@ public abstract class PackagingTestCase extends Assert {
         return Files.createTempDirectory(getRootTempDir(), prefix, NEW_DIR_PERMS);
     }
 
+    /**
+     * Run the given action with a temporary copy of the config directory.
+     *
+     * Files under the path passed to the action may be modified as necessary for the
+     * test to execute, and running Elasticsearch with {@link #startElasticsearch()} will
+     * use the temporary directory.
+     */
+    public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {
+        Path tempDir = Files.createTempDirectory(getRootTempDir(), "custom-config");
+        Path tempConf = tempDir.resolve("elasticsearch");
+        FileUtils.copyDirectory(installation.config, tempConf);
+
+        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
+
+        if (distribution.isPackage()) {
+            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"));// backup
+            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+        } else {
+            sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
+        }
+
+        action.accept(tempConf);
+        if (distribution.isPackage()) {
+            IOUtils.rm(installation.envFile);
+            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile);
+        } else {
+            sh.getEnv().remove("ES_PATH_CONF");
+        }
+        IOUtils.rm(tempDir);
+    }
 }

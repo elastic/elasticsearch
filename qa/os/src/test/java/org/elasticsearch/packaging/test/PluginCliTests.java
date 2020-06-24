@@ -56,7 +56,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     private Shell.Result assertWithPlugin(Installation.Executable pluginTool, Path pluginZip, String pluginName, PluginAction action)
         throws Exception {
-        Shell.Result installResult = pluginTool.run("install --batch \"file://" + pluginZip.toString() + "\"");
+        Shell.Result installResult = pluginTool.run("install --batch \"" + pluginZip.toUri().toString() + "\"");
         action.run(installResult);
         return pluginTool.run("remove " + pluginName);
     }

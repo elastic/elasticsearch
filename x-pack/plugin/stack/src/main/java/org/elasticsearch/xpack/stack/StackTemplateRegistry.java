@@ -51,10 +51,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
     );
-    public static final LifecyclePolicyConfig LOGS_ILM_POLICY = new LifecyclePolicyConfig(
-        LOGS_ILM_POLICY_NAME,
-        "/logs-policy.json"
-    );
+    public static final LifecyclePolicyConfig LOGS_ILM_POLICY = new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs-policy.json");
     public static final IndexTemplateConfig LOGS_INDEX_TEMPLATE = new IndexTemplateConfig(
         LOGS_INDEX_TEMPLATE_NAME,
         "/logs-template.json",

@@ -2485,6 +2485,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+        out.close();
     }
 
     Engine getEngine() {

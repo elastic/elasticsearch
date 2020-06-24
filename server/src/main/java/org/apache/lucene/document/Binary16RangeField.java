@@ -25,10 +25,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.index.mapper.VersionEncoder;
-import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
 
-public class VersionRangeField extends Field {
+public class Binary16RangeField extends Field {
 
     public static final int BYTES = 16;
 
@@ -39,7 +37,7 @@ public class VersionRangeField extends Field {
         TYPE.freeze();
     }
 
-    public VersionRangeField(String name, final BytesRef min, final BytesRef max) {
+    public Binary16RangeField(String name, final BytesRef min, final BytesRef max) {
         super(name, TYPE);
         setRangeValues(min, max);
     }
@@ -65,8 +63,8 @@ public class VersionRangeField extends Field {
         if (FutureArrays.compareUnsigned(min.bytes, 0, BYTES, max.bytes, 0, BYTES) > 0) {
             throw new IllegalArgumentException("min value cannot be greater than max value for version field");
         }
-        System.arraycopy(min.bytes, 0, bytes, 0, BYTES);
-        System.arraycopy(max.bytes, 0, bytes, BYTES, BYTES);
+        System.arraycopy(min.bytes, 0 + min.offset, bytes, 0, BYTES);
+        System.arraycopy(max.bytes, 0 + max.offset, bytes, BYTES, BYTES);
     }
 
     /** encode the min/max range and return the byte array */
@@ -99,7 +97,7 @@ public class VersionRangeField extends Field {
         RangeFieldQuery rangeFieldQuery = new RangeFieldQuery(field, encode(min, max), 1, relation) {
             @Override
             protected String toString(byte[] ranges, int dimension) {
-                return VersionRangeField.toString(ranges, dimension);
+                return Binary16RangeField.toString(ranges, dimension);
             }
         };
         BooleanQuery conjunctionQuery = new BooleanQuery.Builder().add(new BooleanClause(rangeFieldQuery, Occur.MUST))
@@ -118,11 +116,7 @@ public class VersionRangeField extends Field {
       System.arraycopy(ranges, 0, min, 0, BYTES);
       byte[] max = new byte[BYTES];
       System.arraycopy(ranges, BYTES, max, 0, BYTES);
-      return "["
-          + VersionEncoder.decodeVersion(new BytesRef(min), SortMode.SEMVER)
-          + " : "
-          + VersionEncoder.decodeVersion(new BytesRef(max), SortMode.SEMVER)
-          + "]";
+      return "[" + new BytesRef(min) + " : " + new BytesRef(max) + "]";
     }
 
 }

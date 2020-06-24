@@ -36,7 +36,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -81,7 +80,6 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         private Explicit<Boolean> ignoreMalformed = new Explicit<Boolean>(false, false);
         protected String nullValue = Defaults.NULL_VALUE;
-        protected int ignoreAbove = Defaults.IGNORE_ABOVE;
         private SortMode mode = SortMode.SEMVER;
 
         public Builder(String name) {
@@ -109,16 +107,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             return builder;
         }
 
-        public Builder ignoreAbove(int ignoreAbove) {
-            if (ignoreAbove < 0) {
-                throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
-            }
-            this.ignoreAbove = ignoreAbove;
-            return this;
-        }
-
         private VersionStringFieldType buildFieldType(BuilderContext context) {
-            return new VersionStringFieldType(buildFullName(context), indexed, hasDocValues, meta, boost, mode);
+            return new VersionStringFieldType(buildFullName(context), indexed, hasDocValues, meta, boost, mode, fieldType);
         }
 
         public void mode(SortMode mode) {
@@ -132,9 +122,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 fieldType,
                 buildFieldType(context),
                 ignoreMalformed,
-                ignoreAbove,
                 nullValue,
-                context.indexSettings(),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 mode
@@ -185,9 +173,10 @@ public class VersionStringFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Map<String, String> meta,
             float boost,
-            SortMode mode
+            SortMode mode,
+            FieldType fieldType
         ) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, new TextSearchInfo(fieldType), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
@@ -245,13 +234,14 @@ public class VersionStringFieldMapper extends FieldMapper {
                 // encoded string, need to re-encode
                 return encodeVersion(((BytesRef) value).utf8ToString(), mode);
             } else {
-                throw new IllegalArgumentException("Illegal value type: " + value.getClass());
+                throw new IllegalArgumentException("Illegal value type: " + value.getClass() + ", value: " + value);
             }
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
+            // TODO adrien "we'll need to extend it to return proper version strings in scripts".
             return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
@@ -260,9 +250,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            // keywords are internally stored as utf8 bytes
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
+            return mode.docValueFormat().format((BytesRef) value);
         }
 
         @Override
@@ -284,6 +272,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                         ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
             }
             failIfNotIndexed();
+            // TODO adrien: run the range on points and doc values
             return new TermRangeQuery(name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -292,7 +281,6 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     private Explicit<Boolean> ignoreMalformed;
-    private int ignoreAbove;
     private String nullValue;
     private SortMode mode;
 
@@ -301,15 +289,12 @@ public class VersionStringFieldMapper extends FieldMapper {
             FieldType fieldType,
             MappedFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
-            int ignoreAbove,
             String nullValue,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo,
             SortMode mode) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
-        this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.mode = mode;
     }
@@ -359,6 +344,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             }
         }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
+            // TODO adrien: encode the first 16 bytes as points for efficient range query
             Field field = new Field(fieldType().name(), encodedVersion, fieldType);
             context.doc().add(field);
 
@@ -381,7 +367,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (mergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = mergeWith.ignoreMalformed;
         }
-        this.ignoreAbove = mergeWith.ignoreAbove;
         this.nullValue = mergeWith.nullValue;
         this.mode = mergeWith.mode;
     }
@@ -397,5 +382,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
+
+        builder.field("mode", mode);
     }
 }

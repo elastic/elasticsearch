@@ -408,12 +408,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value, SortMode.HONOUR_NUMERALS);
+            return VersionEncoder.decodeVersion(value, SortMode.NATURAL);
         }
 
         @Override
         public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value, SortMode.HONOUR_NUMERALS);
+            return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
         }
 
         @Override

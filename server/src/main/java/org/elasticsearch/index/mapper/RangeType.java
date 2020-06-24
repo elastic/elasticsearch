@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Binary16RangeField;
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatRange;
@@ -27,7 +28,6 @@ import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.VersionRangeField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -59,12 +59,12 @@ public enum RangeType {
     VERSION("version_range", LengthType.VARIABLE) {
 
         // TODO check if these are really safe min/max values
-        private BytesRef MIN_VALUE = new BytesRef(0);
+        private BytesRef MIN_VALUE = new BytesRef();
         private BytesRef MAX_VALUE = new BytesRef(new byte[] {-1});
 
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new VersionRangeField(name, (BytesRef) r.from, (BytesRef) r.to);
+            return new Binary16RangeField(name, (BytesRef) r.from, (BytesRef) r.to);
         }
         @Override
         public BytesRef parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
@@ -152,10 +152,9 @@ public enum RangeType {
                 to = nextDown(to);
             }
 
-            byte[] encodedFrom = ((BytesRef) from).bytes;
-            byte[] encodedTo = ((BytesRef) to).bytes;
-            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FULL_BYTE,
-                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+            BytesRef encodedFrom = (BytesRef) from;
+            BytesRef encodedTo = (BytesRef) to;
+            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FULL_BYTE, encodedFrom, encodedTo, from, to);
         }
 
         @Override
@@ -166,7 +165,7 @@ public enum RangeType {
                 (BytesRef) to,
                 includeFrom,
                 includeTo,
-                (f, t) -> VersionRangeField.newWithinQuery(
+                (f, t) -> Binary16RangeField.newWithinQuery(
                     field,
                     f,
                     t,
@@ -183,7 +182,7 @@ public enum RangeType {
                 (BytesRef) to,
                 includeFrom,
                 includeTo,
-                (f, t) -> VersionRangeField.newContainsQuery(
+                (f, t) -> Binary16RangeField.newContainsQuery(
                     field,
                     f,
                     t,
@@ -200,7 +199,7 @@ public enum RangeType {
                 (BytesRef) to,
                 includeFrom,
                 includeTo,
-                (f, t) -> VersionRangeField.newIntersectsQuery(
+                (f, t) -> Binary16RangeField.newIntersectsQuery(
                     field,
                     f,
                     t,
@@ -914,7 +913,10 @@ public enum RangeType {
         public abstract int readLength(byte[] bytes, int offset);
 
         /**
-         * Return the number of positions the offset needs to be advances after reading the length
+         * {@link #readLength(byte[], int)} may read the length of the following range from the offset position or return
+         * a fixed value, in which case {@link BinaryRangeUtil#decodeRanges(BytesRef, RangeType, org.elasticsearch.common.TriFunction)}
+         * doesn't need to advance its position in the bytes[]. For other LengthType this may need to be adjusted.
+         * @return the number of positions the offset needs to be advances after reading the length
          */
         public int advanceBy() {
             return 0;

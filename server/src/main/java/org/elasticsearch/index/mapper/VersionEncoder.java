@@ -48,7 +48,7 @@ import java.util.regex.Pattern;
  *  lexically in ASCII sort order. Numeric identifiers always have lower precedence than non-numeric identifiers.
  * </ul>
  *
- * The sorting for the main version part in {@link SortMode#HONOUR_NUMERALS} is the same except that in the pre-release part,
+ * The sorting for the main version part in {@link SortMode#NATURAL} is the same except that in the pre-release part,
  * mixed alpha-numerical identifiers are compared grouping all consecutive digits and treating them as a number with numerical ordering.
  * For example, "alpha2" would sort _before" "alpha11" in this mode.
  */
@@ -88,12 +88,17 @@ public class VersionEncoder {
                 return DocValueFormat.VERSION_SEMVER;
             }
 
+            @Override
+            public String toString() {
+                return "semver";
+            }
+
         },
         /**
          * This mode will order mixed strings so that the numeric parts are treated with numeric ordering,
          * e.g. "rc2" &lt; "rc11", "alpha523" &lt; "alpha1234"
          */
-        HONOUR_NUMERALS
+        NATURAL
         {
             @Override
             public void encode(String part, BytesRefBuilder result) {
@@ -104,6 +109,11 @@ public class VersionEncoder {
             public DocValueFormat docValueFormat() {
                 return DocValueFormat.VERSION_NUMERIC;
             }
+
+            @Override
+            public String toString() {
+                return "natural";
+            }
         };
 
         public abstract void encode(String part, BytesRefBuilder result);
@@ -113,8 +123,8 @@ public class VersionEncoder {
             switch (mode) {
                 case "semver":
                     return SEMVER;
-                case "numeric":
-                    return HONOUR_NUMERALS;
+                case "natural":
+                    return NATURAL;
                 default:
                     throw new IllegalArgumentException("Unknown version field mode: " + mode);
             }
@@ -196,6 +206,9 @@ public class VersionEncoder {
                         pos++;
                     }
                     int length = pos - start;
+                    if (length >= 128) {
+                        throw new IllegalArgumentException("Groups of digits cannot be longer than 127, but found: " + length);
+                    }
                     result.append(NUMERIC_MARKER_BYTE); // ensure length byte does cause higher sort order comparing to other byte[]
                     result.append((byte) (length | 0x80)); // add upper bit to mark as length
                     result.append(number);
@@ -221,7 +234,8 @@ public class VersionEncoder {
 
         // add build part if present
         if (pos < version.length && version.bytes[pos] == BUILD_SEPARATOR_BYTE) {
-            sb.append(new BytesRef(Arrays.copyOfRange(version.bytes, pos, version.length)).utf8ToString());
+            sb.append(new BytesRef(version.bytes, pos, version.length - pos).utf8ToString());
+            //sb.append(new BytesRef(Arrays.copyOfRange(version.bytes, pos, version.length)).utf8ToString());
         }
         return sb.toString();
     }

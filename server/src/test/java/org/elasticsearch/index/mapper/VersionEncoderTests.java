@@ -97,7 +97,7 @@ public class VersionEncoderTests extends ESTestCase {
     }
 
     private BytesRef encNumeric(String s) {
-        return VersionEncoder.encodeVersion(s, SortMode.HONOUR_NUMERALS);
+        return VersionEncoder.encodeVersion(s, SortMode.NATURAL);
     };
 
     public void testDecodingHonourNumeral() {
@@ -112,9 +112,18 @@ public class VersionEncoderTests extends ESTestCase {
             "1.0.0-beta+someBuildNumber-123456-open",
             "1.3.0+build1234567"
         )) {
-            String decoded = decodeVersion(encSemver(version), SortMode.HONOUR_NUMERALS);
+            String decoded = decodeVersion(encSemver(version), SortMode.NATURAL);
             assertEquals(version, decoded);
         }
+    }
+
+    public void testMaxDigitGroupLength() {
+        String versionString = "1".repeat(128);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> decodeVersion(encSemver(versionString), SortMode.SEMVER)
+        );
+        assertEquals("Groups of digits cannot be longer than 127, but found: 128", ex.getMessage());
     }
 
     /**

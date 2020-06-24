@@ -63,6 +63,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
@@ -162,7 +163,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
         };
@@ -224,7 +226,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("Unexpected successful request [{}]", requestToString(request));
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError();
             }
 
@@ -283,7 +285,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("Unexpected successful request [{}]", requestToString(request));
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError();
             }
 
@@ -291,7 +293,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
-                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
 
@@ -344,7 +347,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("Unexpected successful request [{}]", requestToString(request));
+                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -352,7 +355,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
-                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -392,7 +396,4 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         }
     }
 
-    private String requestToString(RestRequest restRequest) {
-        return "method=" + restRequest.method() + ",path=" + restRequest.rawPath();
-    }
 }

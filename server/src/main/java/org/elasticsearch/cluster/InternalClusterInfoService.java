@@ -201,7 +201,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
 
     @Override
     public ClusterInfo getClusterInfo() {
-        final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary;
+        final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes, indicesStatsSummary.shardRoutingToDataPath, indicesStatsSummary.reservedSpace);
     }

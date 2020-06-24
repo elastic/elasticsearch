@@ -49,18 +49,14 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[index-templates]]
 === Index templates:
-* <<indices-templates>>
 * <<indices-put-template>>
 * <<indices-get-template>>
 * <<indices-delete-template>>
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-template-exists>>
-
-[float]
-[[component-template-apis]]
-=== Component templates:
-* <<indices-component-template>>
+* <<indices-simulate-index>>
+* <<indices-simulate-template>>
 
 [float]
 [[monitoring]]
@@ -131,8 +127,6 @@ include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 
-include::indices/index-templates.asciidoc[]
-
 include::indices/component-templates.asciidoc[]
 
 include::indices/templates.asciidoc[]
@@ -144,6 +138,10 @@ include::indices/refresh.asciidoc[]
 include::indices/rollover-index.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
+
+include::indices/simulate-index.asciidoc[]
+
+include::indices/simulate-template.asciidoc[]
 
 include::indices/split-index.asciidoc[]
 

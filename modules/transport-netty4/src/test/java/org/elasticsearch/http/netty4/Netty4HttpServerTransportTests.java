@@ -273,6 +273,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58433")
     public void testCorsRequest() throws InterruptedException {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 

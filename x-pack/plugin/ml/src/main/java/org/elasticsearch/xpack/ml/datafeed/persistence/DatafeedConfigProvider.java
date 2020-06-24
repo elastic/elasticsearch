@@ -46,6 +46,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -116,7 +117,7 @@ public class DatafeedConfigProvider {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName())
                     .id(DatafeedConfig.documentId(datafeedId))
                     .source(source)
                     .opType(DocWriteRequest.OpType.CREATE)
@@ -151,7 +152,7 @@ public class DatafeedConfigProvider {
      * @param datafeedConfigListener The config listener
      */
     public void getDatafeedConfig(String datafeedId, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -188,7 +189,7 @@ public class DatafeedConfigProvider {
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSize(jobIds.size())
                 .setSource(sourceBuilder).request();
@@ -218,7 +219,7 @@ public class DatafeedConfigProvider {
      * @param actionListener Deleted datafeed listener
      */
     public void deleteDatafeedConfig(String datafeedId,  ActionListener<DeleteResponse> actionListener) {
-        DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+        DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
             @Override
@@ -255,7 +256,7 @@ public class DatafeedConfigProvider {
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
                                      BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
                                      ActionListener<DatafeedConfig> updatedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -311,7 +312,7 @@ public class DatafeedConfigProvider {
                                     ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName())
                     .id(DatafeedConfig.documentId(updatedConfig.getId()))
                     .source(updatedSource)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -364,7 +365,7 @@ public class DatafeedConfigProvider {
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
@@ -416,7 +417,7 @@ public class DatafeedConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)

@@ -33,6 +33,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"K", "v"},
         {"g", "G"},
         {"f", "S"},
+        {"F", "S"}
     };
     private final Formatter formatter;
 

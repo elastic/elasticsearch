@@ -222,6 +222,9 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("K"), zoneId).makePipe().asProcessor().process(null));
 
+        assertEquals("1", new Format(Source.EMPTY, dateTime, l("F"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("12", new Format(Source.EMPTY, dateTime, l("FF"), zoneId).makePipe().asProcessor().process(null));
+
         zoneId = ZoneId.of("America/Sao_Paulo");
         assertEquals("-0300", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("BRT", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));

@@ -408,9 +408,10 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             shardSizes.put(shardIdentifier, size);
 
             if (reserved != StoreStats.UNKNOWN_RESERVED_BYTES) {
-                reservedSpaceByShard.computeIfAbsent(
+                final ClusterInfo.ReservedSpace.Builder reservedSpaceBuilder = reservedSpaceByShard.computeIfAbsent(
                     new ClusterInfo.NodeAndPath(shardRouting.currentNodeId(), s.getDataPath()),
-                    t -> new ClusterInfo.ReservedSpace.Builder()).add(shardRouting.shardId(), reserved);
+                    t -> new ClusterInfo.ReservedSpace.Builder());
+                reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
             }
         }
     }

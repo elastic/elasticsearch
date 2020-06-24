@@ -1,0 +1,122 @@
+[[create-snapshot-api]]
+=== Create index snapshot API
+++++
+<titleabbrev>Create index snapshot</titleabbrev>
+++++
+
+Takes a snapshot of one or more indices. A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names in the cluster, such as `snapshot_1`.
+
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+////
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+-----------------------------------
+
+[[create-snapshot-api-request]]
+==== {api-request-title}
+
+`POST /_snapshot/<repository>/<snapshot-name>`
+
+[[create-snapshot-api-desc]]
+==== {api-description-title}
+
+By default, a snapshot of all open and started indices in the cluster is created. You can change this behavior by specifying the list of indices in the body of the snapshot request.
+
+NOTE: You must register a snapshot before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
+
+The index snapshot process is incremental. When creating the index snapshot, {es} analyzes the list of index files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
+
+The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the index that {es} is snapshotting. Only one snapshot process can run in the cluster at any time.
+
+Because a snapshot represents the index at the moment when the snapshot was created, no records that were added to the index after the snapshot process started will be present in the snapshot.
+
+For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {es} waits for these processes to complete before taking a snapshot.
+
+IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {es} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
+
+Besides creating a copy of each index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of the snapshot.
+
+[[create-snapshot-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the repository to create a snapshot in.
+
+`<snapshot-name>`::
+(Required, string)
+Unique name of the snapshot.
+
+`wait_for_completion`::
+(Optional, boolean)
+Specifies whether the request returns immediately after snapshot initialization (default), or wait for snapshot completion. Defaults to `false`.
++
+NOTE: During snapshot initialization, information about all
+previous snapshots is loaded into memory. In large repositories, this load time can cause this command to take several seconds (or even minutes) to return, even if the `wait_for_completion` parameter is set to `false`.
+
+[[create-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+`indices`::
+(Optional, string)
+A list of indices to include in the snapshot. This parameter supports <<multi-index,multi index syntax>>, although the options that control the behavior of multi index syntax
+must be supplied in the body of the request, rather than as request parameters.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`include_global_state`::
+(Optional, boolean)
+If `false`, this parameter prevents the cluster global state from being stored as part of the snapshot. Defaults to `false`.
++
+If `true`, the snapshot's persistent settings, index templates, ingest
+pipelines, and {ilm-init} policies are restored into the current cluster. This
+overwrites any existing cluster settings, templates, pipelines and {ilm-init}
+policies whose names match those in the snapshot.
++
+IMPORTANT: By default, the entire snapshot will fail if one or more indices participating in the snapshot do not have all primary shards available. You can change this behavior by setting `partial` to `true`.
+
+`metadata`::
+(Optional, string)
+Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data.
+
+[[create-snapshot-api-example]]
+==== {api-examples-title}
+
+In the following example, `index_1` and `index_2` are the indices to take snapshots of.
+
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+{
+  "indices": "index_1,index_2",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "user123",
+    "taken_because": "backup before upgrading"
+  }
+}
+-----------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "accepted" : true
+}
+----
+// TEST[skip:cannot complete subsequent snapshot]

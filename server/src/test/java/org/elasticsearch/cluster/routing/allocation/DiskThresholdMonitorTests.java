@@ -351,24 +351,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertThat(indicesToMarkReadOnly.get(), contains("test_1"));
         assertNull(indicesToRelease.get());
 
-        // When the high watermark is not properly breached, but is breached due to reserved space, no change
-        if (reservedSpaceNode1 > 0) {
-            indicesToMarkReadOnly.set(null);
-            indicesToRelease.set(null);
-            builder = ImmutableOpenMap.builder();
-            builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(10, 10 + reservedSpaceNode1 - 1)));
-            builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(10, 100)));
-            monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
-            assertNull(indicesToMarkReadOnly.get());
-            assertNull(indicesToRelease.get());
-        }
-
-        // When free disk on node1 and node2 goes above 10% high watermark, including reserved space, then only release index block
+        // When free disk on node1 and node2 goes above 10% high watermark then release index block, ignoring reserved space
         indicesToMarkReadOnly.set(null);
         indicesToRelease.set(null);
         builder = ImmutableOpenMap.builder();
-        builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, reservedSpaceNode1 + between(10, 100 - reservedSpaceNode1)));
-        builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, reservedSpaceNode2 + between(10, 100 - reservedSpaceNode2)));
+        builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(10, 100)));
+        builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(10, 100)));
         monitor.onNewInfo(clusterInfo(builder.build(), reservedSpaces));
         assertNull(indicesToMarkReadOnly.get());
         assertThat(indicesToRelease.get(), contains("test_2"));

@@ -82,7 +82,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             () -> {
                 warningCount.incrementAndGet();
                 return new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L, electionStrategy,
-                    () -> new StatusInfo(HEALTHY, "healthy-info"));
+                    new StatusInfo(HEALTHY, "healthy-info"));
             },
             deterministicTaskQueue.getThreadPool(), logLastFailedJoinAttemptWarningCount::incrementAndGet);
 
@@ -151,21 +151,21 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .version(12L).nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info"))
+                new StatusInfo(HEALTHY, "healthy-info"))
                 .getDescription(),
             is("master not discovered yet: have discovered []; discovery will continue using [] from hosts providers " +
                 "and [] from last-known cluster state; node term 15, last-accepted version 12 in term 0"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 16L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info"))
+                new StatusInfo(HEALTHY, "healthy-info"))
                 .getDescription(),
             is("master not discovered yet: have discovered []; discovery will continue using [" + otherAddress +
                 "] from hosts providers and [] from last-known cluster state; node term 16, last-accepted version 12 in term 0"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 17L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info"))
+                new StatusInfo(HEALTHY, "healthy-info"))
                 .getDescription(),
             is("master not discovered yet: have discovered [" + otherNode + "]; discovery will continue using [] from hosts providers " +
                 "and [] from last-known cluster state; node term 17, last-accepted version 12 in term 0"));
@@ -177,9 +177,9 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .version(12L).nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L, electionStrategy,
-                () -> new StatusInfo(UNHEALTHY, "unhealthy-info"))
+                new StatusInfo(UNHEALTHY, "unhealthy-info"))
                 .getDescription(),
-            is("this node cannot form the cluster as health check has failed due to unhealthy-info"));
+            is("this node is unhealthy: unhealthy-info"));
 
         final DiscoveryNode masterNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
@@ -187,9 +187,9 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .version(12L).nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L, electionStrategy,
-                () -> new StatusInfo(UNHEALTHY, "unhealthy-info"))
+                new StatusInfo(UNHEALTHY, "unhealthy-info"))
                 .getDescription(),
-            is("this node cannot form the cluster or elect master as health check has failed due to unhealthy-info"));
+            is("this node is unhealthy: unhealthy-info"));
     }
 
     public void testDescriptionBeforeBootstrapping() {
@@ -200,7 +200,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 1L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
@@ -208,7 +208,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 2L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info"))
+                new StatusInfo(HEALTHY, "healthy-info"))
                 .getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
@@ -217,7 +217,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 3L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info"))
+                new StatusInfo(HEALTHY, "healthy-info"))
                 .getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered [" + otherNode + "]; " +
@@ -226,7 +226,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
                 clusterState, emptyList(), emptyList(), 4L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
@@ -257,7 +257,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 VotingConfiguration.MUST_JOIN_ELECTED_MASTER.getNodeIds().toArray(new String[0]));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
                 is("master not discovered yet and this node was detached from its previous cluster, " +
                         "have discovered []; " +
                         "discovery will continue using [] from hosts providers and [" + localNode +
@@ -265,7 +265,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
                 is("master not discovered yet and this node was detached from its previous cluster, " +
                         "have discovered []; " +
                         "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
@@ -273,7 +273,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
                 is("master not discovered yet and this node was detached from its previous cluster, " +
                         "have discovered [" + otherNode + "]; " +
                         "discovery will continue using [] from hosts providers and [" + localNode +
@@ -281,7 +281,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode yetAnotherNode = new DiscoveryNode("yetAnotherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(yetAnotherNode), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
                 is("master not discovered yet and this node was detached from its previous cluster, " +
                         "have discovered [" + yetAnotherNode + "]; " +
                         "discovery will continue using [] from hosts providers and [" + localNode +
@@ -295,7 +295,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final ClusterState clusterState = state(localNode, "otherNode");
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
@@ -303,7 +303,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
@@ -311,7 +311,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
                 "have discovered [" + otherNode + "] which is a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
@@ -319,49 +319,49 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode yetAnotherNode = new DiscoveryNode("yetAnotherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(yetAnotherNode), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [otherNode], " +
                 "have discovered [" + yetAnotherNode + "] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2"), emptyList(), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3"), emptyList(), emptyList(), 0L,
-                electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 2 nodes with ids from [n1, n2, n3], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", BOOTSTRAP_PLACEHOLDER_PREFIX + "n3"),
-                emptyList(), emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires 2 nodes with ids [n1, n2], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4"), emptyList(), emptyList(), 0L,
-                electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4", "n5"), emptyList(), emptyList(), 0L,
-                electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4, n5], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3", "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
-                emptyList(), emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
@@ -369,35 +369,35 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, "n1", "n2", "n3",
             BOOTSTRAP_PLACEHOLDER_PREFIX + "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"), emptyList(), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires 3 nodes with ids [n1, n2, n3], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n1"}), emptyList(),
-                emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n2"}), emptyList(),
-                emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and a node with id [n2], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n2", "n3"}), emptyList(),
-                emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and two nodes with ids [n2, n3], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, new String[]{"n1"}, new String[]{"n2", "n3", "n4"}),
-                emptyList(), emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires a node with id [n1] and " +
                 "at least 2 nodes with ids from [n2, n3, n4], " +
                 "have discovered [] which is not a quorum; " +
@@ -419,7 +419,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         assertThat(
             new ClusterFormationState(Settings.EMPTY, stateWithOtherNodes, emptyList(), emptyList(), 0L, electionStrategy,
-                () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
 
             // nodes from last-known cluster state could be in either order
             is(oneOf(
@@ -434,7 +434,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     "] from last-known cluster state; node term 0, last-accepted version 0 in term 0")));
 
         assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID), emptyList(),
-                emptyList(), 0L, electionStrategy, () -> new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
+                emptyList(), 0L, electionStrategy, new StatusInfo(HEALTHY, "healthy-info")).getDescription(),
             is("master not discovered or elected yet, an election requires one or more nodes that have already participated as " +
                 "master-eligible nodes in the cluster but this node was not master-eligible the last time it joined the cluster, " +
                 "have discovered [] which is not a quorum; " +

@@ -39,7 +39,7 @@ IMPORTANT: {es} adds and removes the read-only index block automatically when th
 
     Set to `true` to disable data write operations against the index. Unlike `read_only`,
     this setting does not affect metadata. For instance, you can close an index with a `write`
-    block, but not an index with a `read_only` block.
+    block, but you cannot close an index with a `read_only` block.
 
 `index.blocks.metadata`::
 
@@ -49,10 +49,7 @@ IMPORTANT: {es} adds and removes the read-only index block automatically when th
 [[add-index-block]]
 === Add index block API
 
-Adds an index block, and ensures that, once successfully returning to the
-user, all shards of the index are properly accounting for the block, for
-example that all in-flight writes to an index have been completed after
-adding the write block.
+Adds an index block to an index.
 
 [source,console]
 --------------------------------------------------
@@ -60,8 +57,6 @@ PUT /twitter/_block/write
 --------------------------------------------------
 // TEST[setup:twitter]
 
-The blocks available are `read_only`, `read_only_allow_delete`, `read`, `write`,
-and `metadata`, and their meaning is described above in the settings section.
 
 [discrete]
 [[add-index-block-api-request]]
@@ -69,21 +64,9 @@ and `metadata`, and their meaning is described above in the settings section.
 
 `PUT /<index>/_block/<block>`
 
-[discrete]
-[[add-index-block-api-desc]]
-==== {api-description-title}
-
-You use the add index blocks API to add an index block.
-
-include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
 
 [discrete]
-[[add-index-block-api-wait-for-active-shards]]
-===== Wait For active shards
-
-include::{es-repo-dir}/indices/open-close.asciidoc[tag=wait-for-active-shards]
-
-[discrete]
+[role="child_attributes"]
 [[add-index-block-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -94,7 +77,30 @@ of blocks to indices with `_all` or wildcard expressions,
 change the `action.destructive_requires_name` cluster setting to `true`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
+`<block>`::
+(Required, string)
+Block type to add to the index.
++
+.Valid values for `<block>`
+[%collapsible%open]
+====
+`metadata`::
+Disable metadata changes, such as closing the index.
 
+`read`::
+Disable read operations.
+
+`read_only`::
+Disable write operations and metadata changes.
+
+`read_only_allow_delete`::
+Disable write operations and metadata changes.
+Document deletion is disabled.
+However, index deletion is still allowed.
+
+`write`::
+Disable write operations. However, metadata changes are still allowed.
+====
 [discrete]
 [[add-index-block-api-query-params]]
 ==== {api-query-parms-title}
@@ -137,5 +143,4 @@ The API returns following response:
     }
 }
 --------------------------------------------------
-
 

@@ -1,0 +1,34 @@
+[[dangling-indices-list]]
+=== List dangling indices API
+++++
+<titleabbrev>List dangling indices</titleabbrev>
+++++
+
+When {es} finds an index on disk that is not present in the current cluster
+metadata, that index is considerd to be "dangling". This API looks across
+all nodes in a cluster for dangling indices, and returns information about
+them.
+
+[[dangling-indices-list-api-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+GET /_dangling
+--------------------------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "dangling_indices": [
+    "index_name": "twitter",
+    "index_uuid": "zmM4e0JtBkeUjiHD-MihPQ",
+    "creation_date_millis": 1589414451372,
+    "node_ids: [
+      "pL47UN3dAb2d5RCWP6lQ3e"
+    ]
+  ]
+}
+--------------------------------------------------

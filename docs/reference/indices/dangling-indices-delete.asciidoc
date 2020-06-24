@@ -1,0 +1,27 @@
+[[dangling-indices-delete]]
+=== Delete dangling index API
+++++
+<titleabbrev>Delete dangling index</titleabbrev>
+++++
+
+When {es} finds an index on disk that is not present in the current cluster
+state, that index is considerd to be "dangling". This API deletes a
+single dangling index and adds a tombstone for it to the cluster state.
+
+[[dangling-indices-delete-api-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+DELETE /_dangling/zmM4e0JtBkeUjiHD-MihPQ
+{
+  "accept_data_loss": true
+}
+--------------------------------------------------
+
+[[dangling-indices-delete-request-body]]
+==== {api-request-body-title}
+
+`accept_data_loss`::
+This field must be set to `true` in order to carry out the import, since it
+will no longer be possible to recover the data from the dangling index.

@@ -1,0 +1,29 @@
+[[dangling-indices-import]]
+=== Import dangling index API
+++++
+<titleabbrev>Import dangling index</titleabbrev>
+++++
+
+When {es} finds an index on disk that is not present in the current cluster
+state, that index is considerd to be "dangling". This API imports a
+single dangling index so that it becomes known to the cluster.
+
+[[dangling-indices-import-api-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+POST /_dangling/zmM4e0JtBkeUjiHD-MihPQ
+{
+  "accept_data_loss": true
+}
+--------------------------------------------------
+
+[[dangling-indices-import-request-body]]
+==== {api-request-body-title}
+
+`accept_data_loss`::
+This field must be set to `true` in order to carry out the import. {es}
+cannot know where the dangling index data came from, e.g. coping around
+data direcotries, and so can offer no guarantees about the data being
+imported.

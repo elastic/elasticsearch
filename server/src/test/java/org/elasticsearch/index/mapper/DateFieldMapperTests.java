@@ -21,19 +21,26 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -45,7 +52,9 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Builder> {
 
@@ -462,6 +471,28 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testSingletonDataStreamTimestamp() throws Exception {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("@timestamp");
+        builder.setSingletonDataStreamTimestamp(true);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
+        DateFieldMapper dateFieldMapper = builder.build(builderContext);
+
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+        XContentParser mockParser = Mockito.mock(XContentParser.class);
+        Mockito.when(mockParser.textOrNull()).thenReturn("2020-12-12");
+        SourceToParse sourceToParse = new SourceToParse("_index", "_id", new BytesArray("{}"), XContentType.JSON);
+        ParseContext context = new ParseContext.InternalParseContext(settings, null, null, sourceToParse, mockParser);
+
+        assertThat(context.doc().getField("@timestamp"), nullValue());
+        dateFieldMapper.parse(context);
+        assertThat(context.doc().getField("@timestamp"), notNullValue());
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> dateFieldMapper.parse(context));
+        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
 }

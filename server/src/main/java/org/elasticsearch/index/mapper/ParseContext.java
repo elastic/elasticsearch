@@ -413,7 +413,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
         @Override
         public MapperService mapperService() {
-            return docMapperParser.mapperService;
+            return docMapperParser.getMapperService();
         }
 
         @Override

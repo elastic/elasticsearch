@@ -206,4 +206,8 @@ public class DocumentMapperParser {
     NamedXContentRegistry getXContentRegistry() {
         return xContentRegistry;
     }
+
+    MapperService getMapperService() {
+        return mapperService;
+    }
 }

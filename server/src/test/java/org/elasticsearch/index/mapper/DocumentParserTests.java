@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -56,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -1682,5 +1685,46 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
+    }
+
+    public void testDataStreamTimestampFieldRequired() {
+        RootObjectMapper rootObjectMapper = Mockito.mock(RootObjectMapper.class);
+        {
+            DateFieldMapper.Builder builder = new DateFieldMapper.Builder("@timestamp");
+            builder.setSingletonDataStreamTimestamp(true);
+            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
+
+            DateFieldMapper dateFieldMapper = builder.build(builderContext);
+            Mockito.when(rootObjectMapper.isEnabled()).thenReturn(true);
+            Mockito.when(rootObjectMapper.nested()).thenReturn(ObjectMapper.Nested.NO);
+            Mockito.when(rootObjectMapper.getMapper(Mockito.eq("@timestamp"))).thenReturn(dateFieldMapper);
+        }
+
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
+
+        Mapping mapping = new Mapping(Version.CURRENT, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        DocumentMapper documentMapper = Mockito.mock(DocumentMapper.class);
+        Mockito.when(documentMapper.mapping()).thenReturn(mapping);
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.isMetadataField(Mockito.anyString())).thenReturn(false);
+        DocumentMapperParser documentMapperParser = Mockito.mock(DocumentMapperParser.class);
+        Mockito.when(documentMapperParser.getMapperService()).thenReturn(mapperService);
+        DocumentParser documentParser = new DocumentParser(settings, documentMapperParser, documentMapper);
+
+        SourceToParse sourceToParse = new SourceToParse("_index", "_id", new BytesArray("{}"), XContentType.JSON);
+        ParsedDocument parsedDocument = documentParser.parseDocument(sourceToParse, new MetadataFieldMapper[0], null);
+        assertThat(parsedDocument.rootDoc().getField("@timestamp"), nullValue());
+
+        sourceToParse =  new SourceToParse("_index", "_id", new BytesArray("{\"@timestamp\": \"2020-12-12\"}"), XContentType.JSON);
+        parsedDocument = documentParser.parseDocument(sourceToParse, new MetadataFieldMapper[0], "@timestamp");
+        assertThat(parsedDocument.rootDoc().getField("@timestamp"), notNullValue());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> documentParser.parseDocument(new SourceToParse("_index", "_id",
+            new BytesArray("{}"), XContentType.JSON), new MetadataFieldMapper[0], "@timestamp"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 }

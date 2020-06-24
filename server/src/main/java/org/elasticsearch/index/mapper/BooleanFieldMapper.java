@@ -30,7 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -90,7 +89,7 @@ public class BooleanFieldMapper extends FieldMapper {
         public BooleanFieldMapper build(BuilderContext context) {
             return new BooleanFieldMapper(name, fieldType,
                 new BooleanFieldType(buildFullName(context), indexed, hasDocValues, meta),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, nullValue);
+                multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -119,7 +118,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         public BooleanFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public BooleanFieldType(String name) {
@@ -220,8 +219,8 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Boolean nullValue;
 
     protected BooleanFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo, Boolean nullValue) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                 MultiFields multiFields, CopyTo copyTo, Boolean nullValue) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

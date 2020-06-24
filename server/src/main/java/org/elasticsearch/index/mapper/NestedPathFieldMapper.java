@@ -86,7 +86,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, Collections.emptyMap());
+            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected NestedPathFieldType(NestedPathFieldType ref) {
@@ -104,18 +104,13 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            return true;
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }
     }
 
     private NestedPathFieldMapper(Settings settings) {
-        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings), settings);
+        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings));
     }
 
     @Override

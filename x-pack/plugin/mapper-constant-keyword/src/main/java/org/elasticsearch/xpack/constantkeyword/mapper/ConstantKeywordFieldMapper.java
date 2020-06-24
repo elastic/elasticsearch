@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -151,6 +152,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+        
+        @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }        
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {

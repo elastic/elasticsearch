@@ -1,8 +1,5 @@
 ---
 "Test that remote indices are subject to shard skipping":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
 
   - do:
       indices.create:

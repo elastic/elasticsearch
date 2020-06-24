@@ -142,6 +142,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58491")
     public void testWithDatastreams() throws Exception {
         initialize("classification_with_datastreams", true);
         String predictedClassField = KEYWORD_FIELD + "_prediction";

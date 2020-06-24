@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 public class StartsWith extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith {
 
-    public StartsWith(Source source, Expression field, Expression pattern, Configuration configuration) {
-        super(source, field, pattern, configuration);
+    public StartsWith(Source source, Expression input, Expression pattern, Configuration configuration) {
+        super(source, input, pattern, configuration);
     }
 
     @Override

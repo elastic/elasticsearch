@@ -395,21 +395,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (bestEffortConsistency) {
-            long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
-            }
-            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries());
             }
-            final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
-                bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries());
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
@@ -1626,41 +1623,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return updated cluster state
      */
     private ClusterState updateRepositoryGenerationsIfNecessary(ClusterState state, long oldGen, long newGen) {
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         final String repoName = metadata.name();
         final SnapshotsInProgress updatedSnapshotsInProgress;
-        if (snapshotsInProgress == null) {
-            updatedSnapshotsInProgress = null;
-        } else {
-            boolean changed = false;
-            final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
-                    snapshotEntries.add(entry.withRepoGen(newGen));
-                    changed = true;
-                } else {
-                    snapshotEntries.add(entry);
-                }
+        boolean changedSnapshots = false;
+        final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
+        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+            if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
+                snapshotEntries.add(entry.withRepoGen(newGen));
+                changedSnapshots = true;
+            } else {
+                snapshotEntries.add(entry);
             }
-            updatedSnapshotsInProgress = changed ? new SnapshotsInProgress(List.copyOf(snapshotEntries)) : null;
         }
-        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
         final SnapshotDeletionsInProgress updatedDeletionsInProgress;
-        if (snapshotDeletionsInProgress == null) {
-            updatedDeletionsInProgress = null;
-        } else {
-            boolean changed = false;
-            final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
-            for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
-                if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
-                    deletionEntries.add(entry.withRepoGen(newGen));
-                    changed = true;
-                } else {
-                    deletionEntries.add(entry);
-                }
+        boolean changedDeletions = false;
+        final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
+        for (SnapshotDeletionsInProgress.Entry entry :
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
+            if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
+                deletionEntries.add(entry.withRepoGen(newGen));
+                changedDeletions = true;
+            } else {
+                deletionEntries.add(entry);
             }
-            updatedDeletionsInProgress = changed ? new SnapshotDeletionsInProgress(List.copyOf(deletionEntries)) : null;
         }
+        updatedDeletionsInProgress = changedDeletions ? SnapshotDeletionsInProgress.of(deletionEntries) : null;
         return SnapshotsService.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress);
     }
 

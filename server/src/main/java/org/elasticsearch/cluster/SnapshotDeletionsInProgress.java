@@ -47,15 +47,24 @@ import java.util.Set;
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
+    public static final SnapshotDeletionsInProgress EMPTY = new SnapshotDeletionsInProgress(List.of());
+
     public static final String TYPE = "snapshot_deletions";
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
 
-    public SnapshotDeletionsInProgress(List<Entry> entries) {
-        this.entries = Collections.unmodifiableList(entries);
+    private SnapshotDeletionsInProgress(List<Entry> entries) {
+        this.entries = entries;
         assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
         assert assertConsistency(entries);
+    }
+
+    public static SnapshotDeletionsInProgress of(List<SnapshotDeletionsInProgress.Entry> entries) {
+        if (entries.isEmpty()) {
+            return EMPTY;
+        }
+        return new SnapshotDeletionsInProgress(Collections.unmodifiableList(entries));
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
@@ -88,7 +97,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
         List<Entry> entries = new ArrayList<>(getEntries());
         entries.add(entry);
-        return new SnapshotDeletionsInProgress(entries);
+        return SnapshotDeletionsInProgress.of(entries);
     }
 
     /**
@@ -105,7 +114,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 updatedEntries.add(entry);
             }
         }
-        return removed ? new SnapshotDeletionsInProgress(updatedEntries) : this;
+        return removed ? SnapshotDeletionsInProgress.of(updatedEntries) : this;
     }
 
     /**

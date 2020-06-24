@@ -68,6 +68,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
@@ -80,6 +82,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
 
+import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
@@ -126,6 +129,7 @@ public class TextFieldMapper extends FieldMapper {
         private double fielddataMinFreq = Defaults.FIELDDATA_MIN_FREQUENCY;
         private double fielddataMaxFreq = Defaults.FIELDDATA_MAX_FREQUENCY;
         private int fielddataMinSegSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
+        private SimilarityProvider similarity;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -148,6 +152,10 @@ public class TextFieldMapper extends FieldMapper {
         public Builder indexPhrases(boolean indexPhrases) {
             this.indexPhrases = indexPhrases;
             return builder;
+        }
+
+        public void similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
         }
 
         @Override
@@ -187,12 +195,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         private TextFieldType buildFieldType(BuilderContext context) {
-            TextFieldType ft = new TextFieldType(buildFullName(context), fieldType, meta);
+            TextFieldType ft = new TextFieldType(buildFullName(context), fieldType, similarity, meta);
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setSearchAnalyzer(searchAnalyzer);
             ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals);
-            ft.setSimilarity(similarity);
             if (fielddata) {
                 ft.setFielddata(true);
                 ft.setFielddataMinFrequency(fielddataMinFreq);
@@ -275,11 +282,11 @@ public class TextFieldMapper extends FieldMapper {
             builder.indexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.searchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
             builder.searchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
-            parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
+                checkNull(propName, propNode);
                 if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     builder.positionIncrementGap(newPositionIncrementGap);
@@ -310,8 +317,13 @@ public class TextFieldMapper extends FieldMapper {
                 } else if (propName.equals("index_phrases")) {
                     builder.indexPhrases(XContentMapValues.nodeBooleanValue(propNode, "index_phrases"));
                     iterator.remove();
+                } else if (propName.equals("similarity")) {
+                    SimilarityProvider similarityProvider = TypeParsers.resolveSimilarity(parserContext, fieldName, propNode.toString());
+                    builder.similarity(similarityProvider);
+                    iterator.remove();
                 }
             }
+            parseTextField(builder, fieldName, node, parserContext);
             return builder;
         }
     }
@@ -554,9 +566,9 @@ public class TextFieldMapper extends FieldMapper {
         private boolean indexPhrases = false;
         private final FieldType indexedFieldType;
 
-        public TextFieldType(String name, FieldType indexedFieldType, Map<String, String> meta) {
+        public TextFieldType(String name, FieldType indexedFieldType, SimilarityProvider similarity, Map<String, String> meta) {
             super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
-                new TextSearchInfo(indexedFieldType), meta);
+                new TextSearchInfo(indexedFieldType, similarity), meta);
             this.indexedFieldType = indexedFieldType;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
@@ -565,13 +577,13 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
-            super(name, indexed, false, new TextSearchInfo(Defaults.FIELD_TYPE), meta);
+            super(name, indexed, false, new TextSearchInfo(Defaults.FIELD_TYPE, null), meta);
             this.indexedFieldType = Defaults.FIELD_TYPE;
             fielddata = false;
         }
 
         public TextFieldType(String name) {
-            this(name, Defaults.FIELD_TYPE, Collections.emptyMap());
+            this(name, Defaults.FIELD_TYPE, null, Collections.emptyMap());
         }
 
         protected TextFieldType(TextFieldType ref) {
@@ -888,7 +900,8 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         TextFieldMapper mw = (TextFieldMapper) other;
-        if (Objects.equals(mw.fieldType().similarity(), this.fieldType().similarity()) == false) {
+        if (Objects.equals(mw.fieldType().getTextSearchInfo().getSimilarity(),
+            this.fieldType().getTextSearchInfo().getSimilarity()) == false) {
             conflicts.add("mapper [" + name() + "] has different [similarity] settings");
         }
         if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {
@@ -931,7 +944,11 @@ public class TextFieldMapper extends FieldMapper {
             builder.field("norms", fieldType.omitNorms() == false);
         }
         doXContentAnalyzers(builder, includeDefaults);
-
+        if (fieldType().getTextSearchInfo().getSimilarity() != null) {
+            builder.field("similarity", fieldType().getTextSearchInfo().getSimilarity().name());
+        } else if (includeDefaults) {
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
+        }
         if (includeDefaults || fieldType().eagerGlobalOrdinals()) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }

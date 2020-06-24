@@ -233,8 +233,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
                 }
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots == null ? List.of() : snapshots.entries();
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 if (runningSnapshots.stream().anyMatch(s -> {
                     final Snapshot running = s.snapshot();
                     return running.getRepository().equals(repositoryName) && running.getSnapshotId().getName().equals(snapshotName);
@@ -244,21 +244,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 validate(repositoryName, snapshotName, currentState);
                 final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()
-                    && minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
+                SnapshotDeletionsInProgress deletionsInProgress =
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+                if (deletionsInProgress.hasDeletionsInProgress() && minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                         "cannot snapshot while a snapshot deletion is in-progress in [" + deletionsInProgress + "]");
                 }
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
+                final RepositoryCleanupInProgress repositoryCleanupInProgress =
+                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
+                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                         "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
                 }
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
                 // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
                 // cluster state anyway in #applyClusterState.
-                if (minNodeVersion.before(FULL_CONCURRENCY_VERSION) && snapshots != null
+                if (minNodeVersion.before(FULL_CONCURRENCY_VERSION)
                         && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
@@ -307,7 +308,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                        new SnapshotsInProgress(List.copyOf(newEntries))).build();
+                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
             }
 
             @Override
@@ -484,10 +485,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
-                SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress == null) {
-                    snapshotsInProgress = new SnapshotsInProgress();
-                }
+                SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 processExternalChanges(newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                         event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event));
@@ -500,8 +498,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private boolean assertConsistentWithClusterState(ClusterState state) {
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        if (snapshotsInProgress.entries().isEmpty() == false) {
             synchronized (endingSnapshots) {
                 final Set<Snapshot> runningSnapshots = Stream.concat(
                         snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot),
@@ -512,8 +510,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
             }
         }
-        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.getEntries().isEmpty() == false) {
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress =
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+        if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
             synchronized (runningDeletions) {
                 final Set<String> runningDeletes = Stream.concat(
                         snapshotDeletionsInProgress.getEntries().stream().map(SnapshotDeletionsInProgress.Entry::uuid),
@@ -530,26 +529,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     // Assert that there are no snapshots that have a shard that is waiting to be assigned even though the cluster state would allow for it
     // to be assigned
     private static boolean assertNoDanglingSnapshots(ClusterState state) {
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        final Set<String> reposWithRunningDelete;
-        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (snapshotDeletionsInProgress == null) {
-            reposWithRunningDelete = Collections.emptySet();
-        } else {
-            reposWithRunningDelete = snapshotDeletionsInProgress.getEntries().stream()
-                    .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.META_DATA)
-                    .map(SnapshotDeletionsInProgress.Entry::repository).collect(Collectors.toSet());
-        }
-        if (snapshotsInProgress != null) {
-            final Set<String> reposSeen = new HashSet<>();
-            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                if (reposSeen.add(entry.repository())) {
-                    for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
-                        if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_WAITING)) {
-                            assert reposWithRunningDelete.contains(entry.repository())
-                                    : "Found shard snapshot waiting to be assigned in [" + entry +
-                                    "] but it is not blocked by any running delete";
-                        }
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress =
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+        final Set<String> reposWithRunningDelete = snapshotDeletionsInProgress.getEntries().stream()
+                .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.META_DATA)
+                .map(SnapshotDeletionsInProgress.Entry::repository).collect(Collectors.toSet());
+        final Set<String> reposSeen = new HashSet<>();
+        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+            if (reposSeen.add(entry.repository())) {
+                for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
+                    if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_WAITING)) {
+                        assert reposWithRunningDelete.contains(entry.repository())
+                                : "Found shard snapshot waiting to be assigned in [" + entry +
+                                "] but it is not blocked by any running delete";
                     }
                 }
             }
@@ -581,10 +574,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                if (snapshots == null) {
-                    snapshots = new SnapshotsInProgress();
-                }
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 DiscoveryNodes nodes = currentState.nodes();
                 boolean changed = false;
                 final EnumSet<State> statesToUpdate;
@@ -635,14 +625,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 final ClusterState res = readyDeletions(
                         changed ? ClusterState.builder(currentState).putCustom(
-                                SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(updatedSnapshotEntries))).build() :
+                                SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(updatedSnapshotEntries))).build() :
                                 currentState).v1();
-                final SnapshotDeletionsInProgress newDeletionsInProgress = res.custom(SnapshotDeletionsInProgress.TYPE);
-                if (newDeletionsInProgress != null) {
-                    for (SnapshotDeletionsInProgress.Entry delete : newDeletionsInProgress.getEntries()) {
-                        if (delete.state() == SnapshotDeletionsInProgress.State.META_DATA) {
-                            deletionsToExecute.add(delete);
-                        }
+                for (SnapshotDeletionsInProgress.Entry delete
+                        : res.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
+                    if (delete.state() == SnapshotDeletionsInProgress.State.META_DATA) {
+                        deletionsToExecute.add(delete);
                     }
                 }
                 return res;
@@ -656,14 +644,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                final SnapshotDeletionsInProgress snapshotDeletionsInProgress = newState.custom(SnapshotDeletionsInProgress.TYPE);
+                final SnapshotDeletionsInProgress snapshotDeletionsInProgress =
+                        newState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
                 if (finishedSnapshots.isEmpty() == false) {
                     // If we found snapshots that should be finalized as a result of the CS update we try to initiate finalization for them
                     // unless there is an executing snapshot delete already. If there is an executing snapshot delete we don't have to
                     // enqueue the snapshot finalizations here because the ongoing delete will take care of that when removing the delete
                     // from the cluster state
-                    final Set<String> reposWithRunningDeletes = snapshotDeletionsInProgress == null ? Collections.emptySet()
-                            : snapshotDeletionsInProgress.getEntries().stream()
+                    final Set<String> reposWithRunningDeletes = snapshotDeletionsInProgress.getEntries().stream()
                             .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.META_DATA)
                             .map(SnapshotDeletionsInProgress.Entry::repository).collect(Collectors.toSet());
                     for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
@@ -944,13 +932,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) {
                 assert readyDeletions(currentState).v1() == currentState :
                         "Deletes should have been set to ready by finished snapshot deletes and finalizations";
-                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress != null) {
-                    for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                        if (entry.repository().equals(repository) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
-                            deletionToRun = entry;
-                            break;
-                        }
+                for (SnapshotDeletionsInProgress.Entry entry :
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
+                    if (entry.repository().equals(repository) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA) {
+                        deletionToRun = entry;
+                        break;
                     }
                 }
                 return currentState;
@@ -981,8 +967,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return tuple of an updated cluster state and currently executable snapshot delete operations
      */
     private static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(ClusterState currentState) {
-        final SnapshotDeletionsInProgress deletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletions == null) {
+        final SnapshotDeletionsInProgress deletions =
+                currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+        if (deletions.hasDeletionsInProgress() == false) {
             return Tuple.tuple(currentState, List.of());
         }
         final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
@@ -1005,7 +992,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         return Tuple.tuple(changed ? ClusterState.builder(currentState).putCustom(
-                SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newDeletes)).build() : currentState, readyDeletions);
+                SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes)).build() : currentState, readyDeletions);
     }
 
     /**
@@ -1016,22 +1003,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return updated cluster state
      */
     private static ClusterState stateWithoutSnapshot(ClusterState state, Snapshot snapshot) {
-        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+        SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         ClusterState result = state;
-        if (snapshots != null) {
-            boolean changed = false;
-            ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-            for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                if (entry.snapshot().equals(snapshot)) {
-                    changed = true;
-                } else {
-                    entries.add(entry);
-                }
+        boolean changed = false;
+        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+        for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
+            if (entry.snapshot().equals(snapshot)) {
+                changed = true;
+            } else {
+                entries.add(entry);
             }
-            if (changed) {
-                result = ClusterState.builder(state).putCustom(
-                        SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
-            }
+        }
+        if (changed) {
+            result = ClusterState.builder(state).putCustom(
+                    SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries))).build();
         }
         return readyDeletions(result).v1();
     }
@@ -1112,7 +1097,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new IllegalArgumentException("Deleting multiple snapshots in a single request is only supported in version [ "
                             + MULTI_DELETE_VERSION + "] but cluster contained node of version [" + minNodeVersion + "]");
                 }
-                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repositoryName);
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(
                         snapshotEntries.stream().map(e -> e.snapshot().getSnapshotId()).collect(Collectors.toList()), repositoryData,
@@ -1168,15 +1153,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failure = snapshotEntry.failure();
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                    new SnapshotsInProgress(snapshots.entries().stream()
-                        // remove init state snapshot we found from a previous master if there was one
-                        .filter(existing -> abortedDuringInit == false || existing.equals(snapshotEntry) == false)
-                        .map(existing -> {
-                            if (existing.equals(snapshotEntry)) {
-                                return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
-                            }
-                            return existing;
-                        }).collect(Collectors.toUnmodifiableList()))).build();
+                    SnapshotsInProgress.of(snapshots.entries().stream()
+                            // remove init state snapshot we found from a previous master if there was one
+                            .filter(existing -> abortedDuringInit == false || existing.equals(snapshotEntry) == false)
+                            .map(existing -> {
+                                if (existing.equals(snapshotEntry)) {
+                                    return new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
+                                }
+                                return existing;
+                            }).collect(Collectors.toUnmodifiableList()))).build();
             }
 
             @Override
@@ -1257,12 +1242,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     // Return in-progress snapshot entries by name and repository in the given cluster state or null if none is found
-    @Nullable
-    private static List<SnapshotsInProgress.Entry> findInProgressSnapshots(@Nullable SnapshotsInProgress snapshots, String[] snapshotNames,
+    private static List<SnapshotsInProgress.Entry> findInProgressSnapshots(SnapshotsInProgress snapshots, String[] snapshotNames,
                                                                            String repositoryName) {
-        if (snapshots == null) {
-            return Collections.emptyList();
-        }
         List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
         for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
             if (entry.repository().equals(repositoryName)
@@ -1302,39 +1283,36 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                SnapshotDeletionsInProgress deletionsInProgress =
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
                 final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
                 if (minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
-                    if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+                    if (deletionsInProgress.hasDeletionsInProgress()) {
                         throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
                                 "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
                     }
                 }
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
+                final RepositoryCleanupInProgress repositoryCleanupInProgress =
+                        currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
+                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
-                        "cannot delete snapshots while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+                            "cannot delete snapshots while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
                 }
-                RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                if (restoreInProgress != null) {
-                    // don't allow snapshot deletions while a restore is taking place,
-                    // otherwise we could end up deleting a snapshot that is being restored
-                    // and the files the restore depends on would all be gone
+                final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+                // don't allow snapshot deletions while a restore is taking place,
+                // otherwise we could end up deleting a snapshot that is being restored
+                // and the files the restore depends on would all be gone
 
-                    for (RestoreInProgress.Entry entry : restoreInProgress) {
-                        if (repoName.equals(entry.snapshot().getRepository()) && snapshotIds.contains(entry.snapshot().getSnapshotId())) {
-                            throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
+                for (RestoreInProgress.Entry entry : restoreInProgress) {
+                    if (repoName.equals(entry.snapshot().getRepository()) && snapshotIds.contains(entry.snapshot().getSnapshotId())) {
+                        throw new ConcurrentSnapshotExecutionException(new Snapshot(repoName, snapshotIds.get(0)),
                                 "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
-                        }
                     }
                 }
-                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final SnapshotsInProgress updatedSnapshots;
-
-                if (snapshots == null) {
-                    updatedSnapshots = new SnapshotsInProgress();
-                } else if (minNodeVersion.onOrAfter(FULL_CONCURRENCY_VERSION)) {
-                    updatedSnapshots = new SnapshotsInProgress(snapshots.entries().stream()
+                if (minNodeVersion.onOrAfter(FULL_CONCURRENCY_VERSION)) {
+                    updatedSnapshots = SnapshotsInProgress.of(snapshots.entries().stream()
                             .map(existing -> {
                                 // snapshot is started - mark every non completed shard as aborted
                                 if (existing.state() == State.STARTED && snapshotIds.contains(existing.snapshot().getSnapshotId())) {
@@ -1358,21 +1336,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     updatedSnapshots = snapshots;
                 }
-                SnapshotDeletionsInProgress.Entry replacedEntry = null;
                 // add the snapshot deletion to the cluster state
-                if (deletionsInProgress != null) {
-                    replacedEntry = deletionsInProgress.getEntries().stream().filter(entry ->
-                            entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.WAITING)
-                            .findFirst().orElse(null);
-                    if (replacedEntry == null) {
-                        final Optional<SnapshotDeletionsInProgress.Entry> foundDuplicate =
-                                deletionsInProgress.getEntries().stream().filter(entry ->
-                                entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA
-                                        && entry.getSnapshots().containsAll(snapshotIds)).findFirst();
-                        if (foundDuplicate.isPresent()) {
-                            newDelete = foundDuplicate.get();
-                            return currentState;
-                        }
+                SnapshotDeletionsInProgress.Entry replacedEntry = deletionsInProgress.getEntries().stream().filter(entry ->
+                        entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.WAITING)
+                        .findFirst().orElse(null);
+                if (replacedEntry == null) {
+                    final Optional<SnapshotDeletionsInProgress.Entry> foundDuplicate =
+                            deletionsInProgress.getEntries().stream().filter(entry ->
+                                    entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA
+                                            && entry.getSnapshots().containsAll(snapshotIds)).findFirst();
+                    if (foundDuplicate.isPresent()) {
+                        newDelete = foundDuplicate.get();
+                        return currentState;
                     }
                 }
                 if (replacedEntry == null) {
@@ -1381,24 +1356,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repoName,
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
-                        updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository()))
-                            .noneMatch(SnapshotsService::isWritingToRepository)
-                            && (deletionsInProgress == null || deletionsInProgress.getEntries().stream().noneMatch(entry ->
-                            repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA))
-                            ? SnapshotDeletionsInProgress.State.META_DATA : SnapshotDeletionsInProgress.State.WAITING
-                    );
+                            updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository())).noneMatch(
+                                    SnapshotsService::isWritingToRepository)
+                                    && deletionsInProgress.getEntries().stream().noneMatch(entry ->
+                                    repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.META_DATA)
+                                    ? SnapshotDeletionsInProgress.State.META_DATA : SnapshotDeletionsInProgress.State.WAITING);
                 } else {
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
                 }
-                if (deletionsInProgress != null) {
-                    if (replacedEntry != null) {
-                        deletionsInProgress = deletionsInProgress.withRemovedEntry(replacedEntry.uuid());
-                    }
-                    deletionsInProgress = deletionsInProgress.withAddedEntry(newDelete);
-                } else {
-                    deletionsInProgress = SnapshotDeletionsInProgress.newInstance(newDelete);
+                if (replacedEntry != null) {
+                    deletionsInProgress = deletionsInProgress.withRemovedEntry(replacedEntry.uuid());
                 }
-                return updateWithSnapshots(currentState, updatedSnapshots, deletionsInProgress);
+                return updateWithSnapshots(currentState, updatedSnapshots, deletionsInProgress.withAddedEntry(newDelete));
             }
 
             @Override
@@ -1593,7 +1562,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             updatedEntries.add(entry);
                         }
                     }
-                    return changed ? new SnapshotDeletionsInProgress(updatedEntries) : deletions;
+                    return changed ? SnapshotDeletionsInProgress.of(updatedEntries) : deletions;
                 }
 
                 @Override
@@ -1752,10 +1721,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Nullable
         private SnapshotsInProgress updatedSnapshotsInProgress(ClusterState currentState,
                                                                SnapshotDeletionsInProgress updatedDeletions) {
-            final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null) {
-                return null;
-            }
+            final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
 
             // Keep track of shardIds that we started snapshots for as a result of removing this delete so we don't assign
@@ -1804,7 +1770,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotEntries.add(entry);
                 }
             }
-            return changed ? new SnapshotsInProgress(snapshotEntries) : null;
+            return changed ? SnapshotsInProgress.of(snapshotEntries) : null;
         }
     }
 
@@ -2037,67 +2003,64 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public ClusterTasksResult<UpdateIndexShardSnapshotStatusRequest>
                         execute(ClusterState currentState, List<UpdateIndexShardSnapshotStatusRequest> tasks) {
-            final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-            if (snapshots != null) {
-                int changedCount = 0;
-                final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-                final Map<String, Set<ShardId>> reusedShardIdsByRepo = new HashMap<>();
-                for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                    ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-                    boolean updated = false;
+            int changedCount = 0;
+            final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+            final Map<String, Set<ShardId>> reusedShardIdsByRepo = new HashMap<>();
+            for (SnapshotsInProgress.Entry entry : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+                ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
+                boolean updated = false;
 
-                    for (UpdateIndexShardSnapshotStatusRequest updateSnapshotState : tasks) {
-                        final ShardId finishedShardId = updateSnapshotState.shardId();
-                        if (entry.snapshot().equals(updateSnapshotState.snapshot())) {
-                            logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot(),
-                                    finishedShardId, updateSnapshotState.status().state());
+                for (UpdateIndexShardSnapshotStatusRequest updateSnapshotState : tasks) {
+                    final ShardId finishedShardId = updateSnapshotState.shardId();
+                    if (entry.snapshot().equals(updateSnapshotState.snapshot())) {
+                        logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot(),
+                                finishedShardId, updateSnapshotState.status().state());
+                        if (updated == false) {
+                            shards.putAll(entry.shards());
+                            updated = true;
+                        }
+                        shards.put(finishedShardId, updateSnapshotState.status());
+                        changedCount++;
+                    } else {
+                        final Set<ShardId> reusedShardIds =
+                                reusedShardIdsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>());
+                        if (entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
+                                && entry.shards().keys().contains(finishedShardId)) {
+                            final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
+                            if (existingStatus.state() != ShardState.WAITING) {
+                                continue;
+                            }
                             if (updated == false) {
                                 shards.putAll(entry.shards());
                                 updated = true;
                             }
-                            shards.put(finishedShardId, updateSnapshotState.status());
-                            changedCount++;
-                        } else {
-                            final Set<ShardId> reusedShardIds =
-                                    reusedShardIdsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>());
-                            if (entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
-                                    && entry.shards().keys().contains(finishedShardId)) {
-                                final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
-                                if (existingStatus.state() != ShardState.WAITING) {
-                                    continue;
-                                }
-                                if (updated == false) {
-                                    shards.putAll(entry.shards());
-                                    updated = true;
-                                }
-                                final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
-                                logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
-                                        finishedStatus.nodeId(), finishedStatus.generation());
-                                shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
-                                reusedShardIds.add(finishedShardId);
-                            }
+                            final ShardSnapshotStatus finishedStatus = updateSnapshotState.status();
+                            logger.trace("Starting [{}] on [{}] with generation [{}]", finishedShardId,
+                                    finishedStatus.nodeId(), finishedStatus.generation());
+                            shards.put(finishedShardId, new ShardSnapshotStatus(finishedStatus.nodeId(), finishedStatus.generation()));
+                            reusedShardIds.add(finishedShardId);
                         }
                     }
+                }
 
-                    if (updated) {
-                        if (completed(shards.values()) == false) {
-                            entries.add(new SnapshotsInProgress.Entry(entry, shards.build()));
-                        } else {
-                            // Snapshot is finished - mark it as done
-                            // TODO: Add PARTIAL_SUCCESS status?
-                            SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
-                            entries.add(updatedEntry);
-                        }
+                if (updated) {
+                    if (completed(shards.values()) == false) {
+                        entries.add(new SnapshotsInProgress.Entry(entry, shards.build()));
                     } else {
-                        entries.add(entry);
+                        // Snapshot is finished - mark it as done
+                        // TODO: Add PARTIAL_SUCCESS status?
+                        SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
+                        entries.add(updatedEntry);
                     }
+                } else {
+                    entries.add(entry);
                 }
-                if (changedCount > 0) {
-                    logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);
-                    return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks)
+            }
+            if (changedCount > 0) {
+                logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);
+                return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks)
                         .build(ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                            new SnapshotsInProgress(unmodifiableList(entries))).build());
-                }
+                                SnapshotsInProgress.of(unmodifiableList(entries))).build());
             }
             return ClusterTasksResult.<UpdateIndexShardSnapshotStatusRequest>builder().successes(tasks).build(currentState);
         }
@@ -2216,10 +2179,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+            final SnapshotDeletionsInProgress deletionsInProgress =
+                    currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
             boolean changed = false;
-            final List<SnapshotDeletionsInProgress.Entry> remainingEntries =
-                    deletionsInProgress == null ? Collections.emptyList() : deletionsInProgress.getEntries();
+            final List<SnapshotDeletionsInProgress.Entry> remainingEntries = deletionsInProgress.getEntries();
             List<SnapshotDeletionsInProgress.Entry> updatedEntries = new ArrayList<>(remainingEntries.size());
             for (SnapshotDeletionsInProgress.Entry entry : remainingEntries) {
                 if (entry.repository().equals(repository)) {
@@ -2230,7 +2193,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             final SnapshotDeletionsInProgress updatedDeletions =
-                changed ? new SnapshotDeletionsInProgress(updatedEntries) : deletionsInProgress;
+                    changed ? SnapshotDeletionsInProgress.of(updatedEntries) : deletionsInProgress;
             final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
             final SnapshotsInProgress updatedSnapshotsInProgress;
             if (snapshotsInProgress == null) {
@@ -2249,7 +2212,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         snapshotEntries.add(entry);
                     }
                 }
-                updatedSnapshotsInProgress = changedSnapshots ? new SnapshotsInProgress(snapshotEntries) : null;
+                updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
             }
             return updateWithSnapshots(currentState, updatedSnapshotsInProgress, updatedDeletions);
         }

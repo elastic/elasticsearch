@@ -59,6 +59,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     private final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
     private File jsonKeywords;
+    private File report;
     private FileCollection inputFiles;
 
     @Incremental
@@ -80,9 +81,13 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
         this.jsonKeywords = jsonKeywords;
     }
 
+    public void setReport(File report) {
+        this.report = report;
+    }
+
     @OutputFile
     public File getReport() {
-        return new File(getProject().getBuildDir(), "reports/validateKeywords.txt");
+        return report;
     }
 
     @TaskAction
@@ -171,6 +176,13 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
         throw new GradleException(message);
     }
 
+    /**
+     * Loads the known keywords. Although the JSON on disk maps from language to keywords, this method
+     * inverts this to map from keyword to languages. This is because the same keywords are found in
+     * multiple languages, so it is easier and more useful to have a single map of keywords.
+     *
+     * @return a mapping from keyword to languages.
+     */
     private Map<String, Set<String>> loadKeywords() {
         Map<String, Set<String>> languagesByKeyword = new HashMap<>();
 

@@ -37,7 +37,8 @@ public class ValidateRestSpecPlugin implements Plugin<Project> {
                     filter.include(DOUBLE_STAR + "/rest-api-spec/api/" + DOUBLE_STAR + "/*.json");
                     filter.exclude(DOUBLE_STAR + "/_common.json");
                 }));
-                task.setJsonSchema(new File(project.getRootDir(), "rest-api-spec/src/main/resources/schema.json"));
+                task.setJsonSchema(project.file("src/main/resources/schema.json"));
+                task.setReport(new File(project.getBuildDir(), "reports/validateJson.txt"));
             });
 
         Provider<ValidateJsonNoKeywordsTask> validateNoKeywordsTask = project.getTasks()
@@ -46,9 +47,12 @@ public class ValidateRestSpecPlugin implements Plugin<Project> {
                     filter.include(DOUBLE_STAR + "/rest-api-spec/api/" + DOUBLE_STAR + "/*.json");
                     filter.exclude(DOUBLE_STAR + "/_common.json");
                 }));
-                task.setJsonKeywords(new File(project.getRootDir(), "rest-api-spec/src/main/resources/keywords.json"));
+                task.setJsonKeywords(project.file("keywords.json"));
+                task.setReport(new File(project.getBuildDir(), "reports/validateKeywords.txt"));
+                // There's no point running this task if the schema validation fails
+                task.mustRunAfter(validateRestSpecTask);
             });
 
-        project.getTasks().named("precommit").configure(t -> t.dependsOn(validateRestSpecTask).dependsOn(validateNoKeywordsTask));
+        project.getTasks().named("precommit").configure(t -> t.dependsOn(validateRestSpecTask, validateNoKeywordsTask));
     }
 }

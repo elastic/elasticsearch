@@ -93,7 +93,7 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(Array)
+(Array of strings)
 Array of index alias names to
 add, remove, or delete.
 +

@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -152,6 +153,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
         };
@@ -215,6 +217,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("Unexpected successful request [{}]", requestToString(request));
                 throw new AssertionError();
             }
 
@@ -222,6 +225,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
+                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
                 throw new AssertionError();
             }
 
@@ -275,6 +279,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("Unexpected successful request [{}]", requestToString(request));
                 throw new AssertionError();
             }
 
@@ -333,6 +338,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("Unexpected successful request [{}]", requestToString(request));
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -340,6 +346,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             public void dispatchBadRequest(final RestChannel channel,
                                            final ThreadContext threadContext,
                                            final Throwable cause) {
+                logger.error(new ParameterizedMessage("Unexpected bad request [{}]", requestToString(channel.request())), cause);
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
@@ -369,5 +376,9 @@ public class NioHttpServerTransportTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private String requestToString(RestRequest restRequest) {
+        return "method=" + restRequest.method() + ",path=" + restRequest.rawPath();
     }
 }

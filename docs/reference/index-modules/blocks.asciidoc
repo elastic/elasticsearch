@@ -9,7 +9,7 @@ that, once successfully returning to the user, all shards of the index are
 properly accounting for the block, for example that all in-flight writes to
 an index have been completed after adding the write block.
 
-[float]
+[discrete]
 [[index-block-settings]]
 === Index block settings
 
@@ -45,7 +45,7 @@ IMPORTANT: {es} adds and removes the read-only index block automatically when th
 
     Set to `true` to disable index metadata reads and writes.
 
-[float]
+[discrete]
 [[add-index-block]]
 === Add index block API
 
@@ -63,13 +63,13 @@ PUT /twitter/_block/write
 The blocks available are `read_only`, `read_only_allow_delete`, `read`, `write`,
 and `metadata`, and their meaning is described above in the settings section.
 
-
+[discrete]
 [[add-index-block-api-request]]
 ==== {api-request-title}
 
 `PUT /<index>/_block/<block>`
 
-
+[discrete]
 [[add-index-block-api-desc]]
 ==== {api-description-title}
 
@@ -77,7 +77,13 @@ You use the add index blocks API to add an index block.
 
 include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
 
+[discrete]
+[[add-index-block-api-wait-for-active-shards]]
+===== Wait For active shards
 
+include::{es-repo-dir}/indices/open-close.asciidoc[tag=wait-for-active-shards]
+
+[discrete]
 [[add-index-block-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -89,7 +95,7 @@ change the `action.destructive_requires_name` cluster setting to `true`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 
-
+[discrete]
 [[add-index-block-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -105,7 +111,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[discrete]
 [[add-index-block-api-example]]
 ==== {api-examples-title}
 

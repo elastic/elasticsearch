@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -92,7 +93,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
         public Murmur3FieldType(String name, Map<String, String> meta) {
-            super(name, false, true, meta);
+            super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         protected Murmur3FieldType(Murmur3FieldType ref) {

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -33,8 +34,22 @@ public final class ClientHelper {
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
+    public static final Set<String> SECURITY_HEADER_FILTERS =
+        Sets.newHashSet(
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
             AuthenticationField.AUTHENTICATION_KEY);
+
+    /**
+     * Leaves only headers that are related to security and filters out the rest.
+     *
+     * @param headers Headers to be filtered
+     * @return A portion of entries that are related to security
+     */
+    public static Map<String, String> filterSecurityHeaders(Map<String, String> headers) {
+        return Objects.requireNonNull(headers).entrySet().stream()
+            .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
     /**
      * .
@@ -109,8 +124,7 @@ public final class ClientHelper {
      */
     public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
             Supplier<T> supplier) {
-        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for
         // our execution by specifying the origin
@@ -145,8 +159,7 @@ public final class ClientHelper {
     void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
                                  ActionListener<Response> listener) {
 
-        Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         final ThreadContext threadContext = client.threadPool().getThreadContext();
 

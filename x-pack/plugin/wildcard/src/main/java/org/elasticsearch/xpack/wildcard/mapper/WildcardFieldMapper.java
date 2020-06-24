@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -175,7 +176,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
             return new WildcardFieldMapper(
-                    name, fieldType, new WildcardFieldType(buildFullName(context), meta), ignoreAbove,
+                    name, fieldType, new WildcardFieldType(buildFullName(context), fieldType, meta), ignoreAbove,
                     multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
@@ -215,8 +216,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, meta);
+        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, true, new TextSearchInfo(fieldType), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

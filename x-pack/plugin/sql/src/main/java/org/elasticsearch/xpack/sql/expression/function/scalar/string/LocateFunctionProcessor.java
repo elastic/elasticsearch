@@ -15,39 +15,39 @@ import java.util.Objects;
 
 public class LocateFunctionProcessor implements Processor {
 
-    private final Processor pattern, source, start;
+    private final Processor pattern, input, start;
     public static final String NAME = "sloc";
 
-    public LocateFunctionProcessor(Processor pattern, Processor source, Processor start) {
+    public LocateFunctionProcessor(Processor pattern, Processor input, Processor start) {
         this.pattern = pattern;
-        this.source = source;
+        this.input = input;
         this.start = start;
     }
 
     public LocateFunctionProcessor(StreamInput in) throws IOException {
         pattern = in.readNamedWriteable(Processor.class);
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         start = in.readOptionalNamedWriteable(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(pattern);
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeOptionalNamedWriteable(start);
     }
 
     @Override
     public Object process(Object input) {
-        return doProcess(pattern().process(input), source().process(input), start() == null ? null : start().process(input));
+        return doProcess(pattern().process(input), input().process(input), start() == null ? null : start().process(input));
     }
 
-    public static Integer doProcess(Object pattern, Object source, Object start) {
-        if (source == null) {
+    public static Integer doProcess(Object pattern, Object input, Object start) {
+        if (input == null) {
             return null;
         }
-        if (!(source instanceof String || source instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (!(input instanceof String || input instanceof Character)) {
+            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (pattern == null) {
             return 0;
@@ -60,12 +60,12 @@ public class LocateFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
         }
         
-        String stringSource = source instanceof Character ? source.toString() : (String) source;
+        String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
         return Integer.valueOf(1 + (start != null ? 
-                stringSource.indexOf(stringPattern, ((Number) start).intValue() - 1)
-                : stringSource.indexOf(stringPattern)));
+                stringInput.indexOf(stringPattern, ((Number) start).intValue() - 1)
+                : stringInput.indexOf(stringPattern)));
     }
     
     @Override
@@ -80,21 +80,21 @@ public class LocateFunctionProcessor implements Processor {
         
         LocateFunctionProcessor other = (LocateFunctionProcessor) obj;
         return Objects.equals(pattern(), other.pattern())
-                && Objects.equals(source(), other.source())
+                && Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(pattern(), source(), start());
+        return Objects.hash(pattern(), input(), start());
     }
     
     public Processor pattern() {
         return pattern;
     }
     
-    public Processor source() {
-        return source;
+    public Processor input() {
+        return input;
     }
     
     public Processor start() {

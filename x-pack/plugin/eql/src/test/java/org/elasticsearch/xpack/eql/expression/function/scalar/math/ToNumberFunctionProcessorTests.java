@@ -13,7 +13,7 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 
-public class ToNumberProcessorTests extends ESTestCase {
+public class ToNumberFunctionProcessorTests extends ESTestCase {
 
     private static Object process(Object value, Object base) {
         return new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null);

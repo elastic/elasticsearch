@@ -20,24 +20,32 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 public class ConfigurationTests extends PackagingTestCase {
+
+    @Before
+    public void filterDistros() {
+        assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
+    }
 
     public void test10Install() throws Exception {
         install();
     }
 
     public void test60HostnameSubstitution() throws Exception {
-        String hostname = System.getenv("HOSTNAME");
+        sh.getEnv().put("HOSTNAME", "mytesthost");
         withCustomConfig(confPath -> {
             FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
             assertWhileRunning(() -> {
                 final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).strip();
-                assertThat(nameResponse, equalTo(hostname));
+                assertThat(nameResponse, equalTo("mytesthost"));
             });
         });
     }

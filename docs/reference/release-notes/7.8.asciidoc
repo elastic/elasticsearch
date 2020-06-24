@@ -8,14 +8,14 @@ Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 === Breaking changes
 
 Aggregations::
-* `value_count` aggregation optimization {pull}54854[#54854]
+* `value_count` aggregation optimization {es-pull}54854[#54854]
 
 Features/Indices APIs::
-* Add auto create action {pull}55858[#55858]
+* Add auto create action {es-pull}55858[#55858]
 
 Mapping::
-* Disallow changing 'enabled' on the root mapper {pull}54463[#54463] (issue: {issue}33933[#33933])
-* Fix updating include_in_parent/include_in_root of nested field {pull}54386[#54386] (issue: {issue}53792[#53792])
+* Disallow changing 'enabled' on the root mapper {es-pull}54463[#54463] (issue: {es-issue}33933[#33933])
+* Fix updating include_in_parent/include_in_root of nested field {es-pull}54386[#54386] (issue: {es-issue}53792[#53792])
 
 
 [[deprecation-7.8.0]]
@@ -23,27 +23,27 @@ Mapping::
 === Deprecations
 
 Authentication::
-* Deprecate the `kibana` reserved user; introduce `kibana_system` user {pull}54967[#54967]
+* Deprecate the `kibana` reserved user; introduce `kibana_system` user {es-pull}54967[#54967]
 
 Cluster Coordination::
-* Voting config exclusions should work with absent nodes {pull}50836[#50836] (issue: {issue}47990[#47990])
+* Voting config exclusions should work with absent nodes {es-pull}50836[#50836] (issue: {es-issue}47990[#47990])
 
 Features/Features::
-* Add node local storage deprecation check {pull}54383[#54383] (issue: {issue}54374[#54374])
+* Add node local storage deprecation check {es-pull}54383[#54383] (issue: {es-issue}54374[#54374])
 
 Features/Indices APIs::
-* Deprecate local parameter for get field mapping request {pull}55014[#55014]
+* Deprecate local parameter for get field mapping request {es-pull}55014[#55014]
 
 Infra/Core::
-* Deprecate node local storage setting {pull}54374[#54374]
+* Deprecate node local storage setting {es-pull}54374[#54374]
 
 Infra/Plugins::
-* Add xpack setting deprecations to deprecation API {pull}56290[#56290] (issue: {issue}54745[#54745])
-* Deprecate disabling basic-license features {pull}54816[#54816] (issue: {issue}54745[#54745])
-* Deprecated xpack "enable" settings should be no-ops {pull}55416[#55416] (issues: {issue}54745[#54745], {issue}54816[#54816])
-* Make xpack.ilm.enabled setting a no-op {pull}55592[#55592] (issues: {issue}54745[#54745], {issue}54816[#54816], {issue}55416[#55416])
-* Make xpack.monitoring.enabled setting a no-op {pull}55617[#55617] (issues: {issue}54745[#54745], {issue}54816[#54816], {issue}55416[#55416], {issue}55461[#55461], {issue}55592[#55592])
-* Restore xpack.ilm.enabled and xpack.slm.enabled settings {pull}57383[#57383] (issues: {issue}54745[#54745], {issue}55416[#55416], {issue}55592[#55592])
+* Add xpack setting deprecations to deprecation API {es-pull}56290[#56290] (issue: {es-issue}54745[#54745])
+* Deprecate disabling basic-license features {es-pull}54816[#54816] (issue: {es-issue}54745[#54745])
+* Deprecated xpack "enable" settings should be no-ops {es-pull}55416[#55416] (issues: {es-issue}54745[#54745], {es-issue}54816[#54816])
+* Make xpack.ilm.enabled setting a no-op {es-pull}55592[#55592] (issues: {es-issue}54745[#54745], {es-issue}54816[#54816], {es-issue}55416[#55416])
+* Make xpack.monitoring.enabled setting a no-op {es-pull}55617[#55617] (issues: {es-issue}54745[#54745], {es-issue}54816[#54816], {es-issue}55416[#55416], {es-issue}55461[#55461], {es-issue}55592[#55592])
+* Restore xpack.ilm.enabled and xpack.slm.enabled settings {es-pull}57383[#57383] (issues: {es-issue}54745[#54745], {es-issue}55416[#55416], {es-issue}55592[#55592])
 
 
 
@@ -52,24 +52,24 @@ Infra/Plugins::
 === New features
 
 Aggregations::
-* Add Student's t-test aggregation support {pull}54469[#54469] (issue: {issue}53692[#53692])
-* Add support for filters to t-test aggregation {pull}54980[#54980] (issue: {issue}53692[#53692])
-* Histogram field type support for Sum aggregation {pull}55681[#55681] (issue: {issue}53285[#53285])
-* Histogram field type support for ValueCount and Avg aggregations {pull}55933[#55933] (issue: {issue}53285[#53285])
+* Add Student's t-test aggregation support {es-pull}54469[#54469] (issue: {es-issue}53692[#53692])
+* Add support for filters to t-test aggregation {es-pull}54980[#54980] (issue: {es-issue}53692[#53692])
+* Histogram field type support for Sum aggregation {es-pull}55681[#55681] (issue: {es-issue}53285[#53285])
+* Histogram field type support for ValueCount and Avg aggregations {es-pull}55933[#55933] (issue: {es-issue}53285[#53285])
 
 Features/Indices APIs::
-* Add simulate template composition API _index_template/_simulate_index/{name}  {pull}55686[#55686] (issue: {issue}53101[#53101])
+* Add simulate template composition API _index_template/_simulate_index/{name}  {es-pull}55686[#55686] (issue: {es-issue}53101[#53101])
 
 Geo::
-* Add geo_bounds aggregation support for geo_shape {pull}55328[#55328]
-* Add geo_shape support for geotile_grid and geohash_grid {pull}55966[#55966]
-* Add geo_shape support for the geo_centroid aggregation {pull}55602[#55602]
-* Add new point field {pull}53804[#53804]
+* Add geo_bounds aggregation support for geo_shape {es-pull}55328[#55328]
+* Add geo_shape support for geotile_grid and geohash_grid {es-pull}55966[#55966]
+* Add geo_shape support for the geo_centroid aggregation {es-pull}55602[#55602]
+* Add new point field {es-pull}53804[#53804]
 
 SQL::
-* Implement DATETIME_FORMAT function for date/time formatting {pull}54832[#54832] (issue: {issue}53714[#53714])
-* Implement DATETIME_PARSE function for parsing strings {pull}54960[#54960] (issue: {issue}53714[#53714])
-* Implement scripting inside aggs {pull}55241[#55241] (issues: {issue}29980[#29980], {issue}36865[#36865], {issue}37271[#37271])
+* Implement DATETIME_FORMAT function for date/time formatting {es-pull}54832[#54832] (issue: {es-issue}53714[#53714])
+* Implement DATETIME_PARSE function for parsing strings {es-pull}54960[#54960] (issue: {es-issue}53714[#53714])
+* Implement scripting inside aggs {es-pull}55241[#55241] (issues: {es-issue}29980[#29980], {es-issue}36865[#36865], {es-issue}37271[#37271])
 
 
 
@@ -78,100 +78,100 @@ SQL::
 === Enhancements
 
 Aggregations::
-* Aggs must specify a `field` or `script` (or both) {pull}52226[#52226]
-* Expose aggregation usage in Feature Usage API {pull}55732[#55732] (issue: {issue}53746[#53746])
-* Reduce memory for big aggregations run against many shards {pull}54758[#54758]
-* Save memory in on aggs in async search {pull}55683[#55683]
+* Aggs must specify a `field` or `script` (or both) {es-pull}52226[#52226]
+* Expose aggregation usage in Feature Usage API {es-pull}55732[#55732] (issue: {es-issue}53746[#53746])
+* Reduce memory for big aggregations run against many shards {es-pull}54758[#54758]
+* Save memory in on aggs in async search {es-pull}55683[#55683]
 
 Allocation::
-* Disk decider respect watermarks for single data node {pull}55805[#55805]
-* Improve same-shard allocation explanations {pull}56010[#56010]
+* Disk decider respect watermarks for single data node {es-pull}55805[#55805]
+* Improve same-shard allocation explanations {es-pull}56010[#56010]
 
 Analysis::
-* Add preserve_original setting in ngram token filter {pull}55432[#55432]
-* Add preserve_original setting in edge ngram token filter {pull}55766[#55766] (issue: {issue}55767[#55767])
-* Add pre-configured “lowercase” normalizer {pull}53882[#53882] (issue: {issue}53872[#53872])
+* Add preserve_original setting in ngram token filter {es-pull}55432[#55432]
+* Add preserve_original setting in edge ngram token filter {es-pull}55766[#55766] (issue: {es-issue}55767[#55767])
+* Add pre-configured “lowercase” normalizer {es-pull}53882[#53882] (issue: {es-issue}53872[#53872])
 
 Audit::
-* Update the audit logfile list of system users {pull}55578[#55578] (issue: {issue}37924[#37924])
+* Update the audit logfile list of system users {es-pull}55578[#55578] (issue: {es-issue}37924[#37924])
 
 Authentication::
-* Let realms gracefully terminate the authN chain {pull}55623[#55623]
+* Let realms gracefully terminate the authN chain {es-pull}55623[#55623]
 
 Authorization::
-* Add reserved_ml_user and reserved_ml_admin kibana privileges {pull}54713[#54713]
+* Add reserved_ml_user and reserved_ml_admin kibana privileges {es-pull}54713[#54713]
 
 Autoscaling::
-* Rollover: refactor out cluster state update {pull}53965[#53965]
+* Rollover: refactor out cluster state update {es-pull}53965[#53965]
 
 CRUD::
-* Avoid holding onto bulk items until all completed {pull}54407[#54407]
+* Avoid holding onto bulk items until all completed {es-pull}54407[#54407]
 
 Cluster Coordination::
-* Add voting config exclusion add and clear API spec and integration test cases {pull}55760[#55760] (issue: {issue}48131[#48131])
+* Add voting config exclusion add and clear API spec and integration test cases {es-pull}55760[#55760] (issue: {es-issue}48131[#48131])
 
 Features/CAT APIs::
-* Add support for V2 index templates to /_cat/templates {pull}55829[#55829] (issue: {issue}53101[#53101])
+* Add support for V2 index templates to /_cat/templates {es-pull}55829[#55829] (issue: {es-issue}53101[#53101])
 
 Features/Indices APIs::
-* Add HLRC support for simulate index template api {pull}55936[#55936] (issue: {issue}53101[#53101])
-* Add prefer_v2_templates flag and index setting {pull}55411[#55411] (issue: {issue}53101[#53101])
-* Add warnings/errors when V2 templates would match same indices as V1 {pull}54367[#54367] (issue: {issue}53101[#53101])
-* Disallow merging existing mapping field definitions in templates {pull}57701[#57701] (issues: {issue}55607[#55607], {issue}55982[#55982], {issue}57393[#57393])
-* Emit deprecation warning if multiple v1 templates match with a new index {pull}55558[#55558] (issue: {issue}53101[#53101])
-* Guard adding the index.prefer_v2_templates settings for pre-7.8 nodes {pull}55546[#55546] (issues: {issue}53101[#53101], {issue}55411[#55411], {issue}55539[#55539])
-* Handle merging dotted object names when merging V2 template mappings {pull}55982[#55982] (issue: {issue}53101[#53101])
-* Throw exception on duplicate mappings metadata fields when merging templates {pull}57835[#57835] (issue: {issue}57701[#57701])
-* Update template v2 api rest spec {pull}55948[#55948] (issue: {issue}53101[#53101])
-* Use V2 index templates during index creation {pull}54669[#54669] (issue: {issue}53101[#53101])
-* Use V2 templates when reading duplicate aliases and ingest pipelines {pull}54902[#54902] (issue: {issue}53101[#53101])
-* Validate V2 templates more strictly {pull}56170[#56170] (issues: {issue}43737[#43737], {issue}46045[#46045], {issue}53101[#53101], {issue}53970[#53970])
+* Add HLRC support for simulate index template api {es-pull}55936[#55936] (issue: {es-issue}53101[#53101])
+* Add prefer_v2_templates flag and index setting {es-pull}55411[#55411] (issue: {es-issue}53101[#53101])
+* Add warnings/errors when V2 templates would match same indices as V1 {es-pull}54367[#54367] (issue: {es-issue}53101[#53101])
+* Disallow merging existing mapping field definitions in templates {es-pull}57701[#57701] (issues: {es-issue}55607[#55607], {es-issue}55982[#55982], {es-issue}57393[#57393])
+* Emit deprecation warning if multiple v1 templates match with a new index {es-pull}55558[#55558] (issue: {es-issue}53101[#53101])
+* Guard adding the index.prefer_v2_templates settings for pre-7.8 nodes {es-pull}55546[#55546] (issues: {es-issue}53101[#53101], {es-issue}55411[#55411], {es-issue}55539[#55539])
+* Handle merging dotted object names when merging V2 template mappings {es-pull}55982[#55982] (issue: {es-issue}53101[#53101])
+* Throw exception on duplicate mappings metadata fields when merging templates {es-pull}57835[#57835] (issue: {es-issue}57701[#57701])
+* Update template v2 api rest spec {es-pull}55948[#55948] (issue: {es-issue}53101[#53101])
+* Use V2 index templates during index creation {es-pull}54669[#54669] (issue: {es-issue}53101[#53101])
+* Use V2 templates when reading duplicate aliases and ingest pipelines {es-pull}54902[#54902] (issue: {es-issue}53101[#53101])
+* Validate V2 templates more strictly {es-pull}56170[#56170] (issues: {es-issue}43737[#43737], {es-issue}46045[#46045], {es-issue}53101[#53101], {es-issue}53970[#53970])
 
 Features/Java High Level REST Client::
-* Enable support for decompression of compressed response within RestHighLevelClient {pull}53533[#53533]
+* Enable support for decompression of compressed response within RestHighLevelClient {es-pull}53533[#53533]
 
 Features/Stats::
-* Fix available / total disk cluster stats {pull}32480[#32480] (issue: {issue}32478[#32478])
+* Fix available / total disk cluster stats {es-pull}32480[#32480] (issue: {es-issue}32478[#32478])
 
 Features/Watcher::
-* Delay warning about missing x-pack {pull}54265[#54265] (issue: {issue}40898[#40898])
+* Delay warning about missing x-pack {es-pull}54265[#54265] (issue: {es-issue}40898[#40898])
 
 Geo::
-* Add geo_shape mapper supporting doc-values in Spatial Plugin {pull}55037[#55037] (issue: {issue}53562[#53562])
+* Add geo_shape mapper supporting doc-values in Spatial Plugin {es-pull}55037[#55037] (issue: {es-issue}53562[#53562])
 
 Infra/Core::
-* Decouple Environment from DiscoveryNode {pull}54373[#54373]
-* Ensure that the output of node roles are sorted {pull}54376[#54376] (issue: {issue}54370[#54370])
-* Reintroduce system index APIs for Kibana {pull}54858[#54858] (issues: {issue}52385[#52385], {issue}53912[#53912])
-* Schedule commands in current thread context {pull}54187[#54187] (issue: {issue}17143[#17143])
-* Start resource watcher service early {pull}54993[#54993] (issue: {issue}54867[#54867])
+* Decouple Environment from DiscoveryNode {es-pull}54373[#54373]
+* Ensure that the output of node roles are sorted {es-pull}54376[#54376] (issue: {es-issue}54370[#54370])
+* Reintroduce system index APIs for Kibana {es-pull}54858[#54858] (issues: {es-issue}52385[#52385], {es-issue}53912[#53912])
+* Schedule commands in current thread context {es-pull}54187[#54187] (issue: {es-issue}17143[#17143])
+* Start resource watcher service early {es-pull}54993[#54993] (issue: {es-issue}54867[#54867])
 
 Infra/Packaging::
-* Make Windows JAVA_HOME handling consistent with Linux {pull}55261[#55261] (issue: {issue}55134[#55134])
+* Make Windows JAVA_HOME handling consistent with Linux {es-pull}55261[#55261] (issue: {es-issue}55134[#55134])
 
 
 Infra/REST API::
-* Add validation to the usage service {pull}54617[#54617]
+* Add validation to the usage service {es-pull}54617[#54617]
 
 Infra/Scripting::
-* Scripting: stats per context in nodes stats {pull}54008[#54008] (issue: {issue}50152[#50152])
+* Scripting: stats per context in nodes stats {es-pull}54008[#54008] (issue: {es-issue}50152[#50152])
 
 Machine Learning::
-* Add effective max model memory limit to ML info {pull}55529[#55529] (issue: {issue}63942[#63942])
-* Add loss_function to regression {pull}56118[#56118]
-* Add new inference_config field to trained model config {pull}54421[#54421]
-* Add failed_category_count to model_size_stats {pull}55716[#55716] (issue: {issue}1130[#1130])
-* Add prediction_field_type to inference config {pull}55128[#55128]
-* Allow a certain number of ill-formatted rows when delimited format is specified {pull}55735[#55735] (issue: {issue}38890[#38890])
-* Apply default timeout in StopDataFrameAnalyticsAction.Request {pull}55512[#55512]
-* Create an annotation when a model snapshot is stored {pull}53783[#53783] (issue: {issue}52149[#52149])
-* Do not execute ML CRUD actions when upgrade mode is enabled {pull}54437[#54437] (issue: {issue}54326[#54326])
-* Make find_file_structure recognize Kibana CSV report timestamps {pull}55609[#55609] (issue: {issue}55586[#55586])
-* More advanced model snapshot retention options {pull}56125[#56125] (issue: {issue}52150[#52150])
-* Return assigned node in start/open job/datafeed response {pull}55473[#55473] (issue: {issue}54067[#54067])
-* Skip daily maintenance activity if upgrade mode is enabled {pull}54565[#54565] (issue: {issue}54326[#54326])
-* Start gathering and storing inference stats {pull}53429[#53429]
-* Unassign data frame analytics tasks in SetUpgradeModeAction {pull}54523[#54523] (issue: {issue}54326[#54326])
+* Add effective max model memory limit to ML info {es-pull}55529[#55529] (issue: {es-issue}63942[#63942])
+* Add loss_function to regression {es-pull}56118[#56118]
+* Add new inference_config field to trained model config {es-pull}54421[#54421]
+* Add failed_category_count to model_size_stats {es-pull}55716[#55716] (issue: {es-issue}1130[#1130])
+* Add prediction_field_type to inference config {es-pull}55128[#55128]
+* Allow a certain number of ill-formatted rows when delimited format is specified {es-pull}55735[#55735] (issue: {es-issue}38890[#38890])
+* Apply default timeout in StopDataFrameAnalyticsAction.Request {es-pull}55512[#55512]
+* Create an annotation when a model snapshot is stored {es-pull}53783[#53783] (issue: {es-issue}52149[#52149])
+* Do not execute ML CRUD actions when upgrade mode is enabled {es-pull}54437[#54437] (issue: {es-issue}54326[#54326])
+* Make find_file_structure recognize Kibana CSV report timestamps {es-pull}55609[#55609] (issue: {es-issue}55586[#55586])
+* More advanced model snapshot retention options {es-pull}56125[#56125] (issue: {es-issue}52150[#52150])
+* Return assigned node in start/open job/datafeed response {es-pull}55473[#55473] (issue: {es-issue}54067[#54067])
+* Skip daily maintenance activity if upgrade mode is enabled {es-pull}54565[#54565] (issue: {es-issue}54326[#54326])
+* Start gathering and storing inference stats {es-pull}53429[#53429]
+* Unassign data frame analytics tasks in SetUpgradeModeAction {es-pull}54523[#54523] (issue: {es-issue}54326[#54326])
 * Speed up anomaly detection for the lat_long function {ml-pull}1102[#1102]
 * Reduce CPU scheduling priority of native analysis processes to favor the ES
 JVM when CPU is constrained. This change is implemented only for Linux and macOS,
@@ -190,7 +190,7 @@ classification {ml-pull}1113[#1113]
 * Reduce variability of classification and regression results across our target
 operating systems {ml-pull}1127[#1127]
 * Switch data frame analytics model memory estimates from kilobytes to
-megabytes {ml-pull}1126[#1126] (issue: {issue}54506[#54506])
+megabytes {ml-pull}1126[#1126] (issue: {es-issue}54506[#54506])
 * Add a {ml} native code build for Linux on AArch64 {ml-pull}1132[#1132],
 {ml-pull}1135[#1135]
 * Improve data frame analytics runtime by optimising memory alignment for intrinsic
@@ -205,47 +205,47 @@ means we can choose more optimal smoothing bias and should reduce the number of 
 {ml-pull}1192[#1192]
 
 Mapping::
-* Merge V2 index/component template mappings in specific manner {pull}55607[#55607] (issue: {issue}53101[#53101])
+* Merge V2 index/component template mappings in specific manner {es-pull}55607[#55607] (issue: {es-issue}53101[#53101])
 
 Recovery::
-* Avoid copying file chunks in peer covery {pull}56072[#56072] (issue: {issue}55353[#55353])
-* Retry failed peer recovery due to transient errors {pull}55353[#55353]
+* Avoid copying file chunks in peer covery {es-pull}56072[#56072] (issue: {es-issue}55353[#55353])
+* Retry failed peer recovery due to transient errors {es-pull}55353[#55353]
 
 SQL::
-* Add BigDecimal support to JDBC {pull}56015[#56015] (issue: {issue}43806[#43806])
-* Drop BASE TABLE type in favour for just TABLE {pull}54836[#54836]
-* Relax version lock between server and clients {pull}56148[#56148]
+* Add BigDecimal support to JDBC {es-pull}56015[#56015] (issue: {es-issue}43806[#43806])
+* Drop BASE TABLE type in favour for just TABLE {es-pull}54836[#54836]
+* Relax version lock between server and clients {es-pull}56148[#56148]
 
 Search::
-* Consolidate DelayableWriteable {pull}55932[#55932]
-* Exists queries to MatchNoneQueryBuilder when the field is unmapped  {pull}54857[#54857]
-* Rewrite wrapper queries to match_none if possible {pull}55271[#55271]
-* SearchService#canMatch takes into consideration the alias filter {pull}55120[#55120] (issue: {issue}55090[#55090])
+* Consolidate DelayableWriteable {es-pull}55932[#55932]
+* Exists queries to MatchNoneQueryBuilder when the field is unmapped  {es-pull}54857[#54857]
+* Rewrite wrapper queries to match_none if possible {es-pull}55271[#55271]
+* SearchService#canMatch takes into consideration the alias filter {es-pull}55120[#55120] (issue: {es-issue}55090[#55090])
 
 Snapshot/Restore::
-* Add GCS support for searchable snapshots {pull}55403[#55403]
-* Allocate searchable snapshots with the balancer {pull}54889[#54889] (issues: {issue}50999[#50999], {issue}54729[#54729])
-* Allow bulk snapshot deletes to abort {pull}56009[#56009] (issue: {issue}55773[#55773])
-* Allow deleting multiple snapshots at once {pull}55474[#55474]
-* Allow searching of snapshot taken while indexing {pull}55511[#55511] (issue: {issue}50999[#50999])
-* Allow to prewarm the cache for searchable snapshot shards {pull}55322[#55322]
-* Enable prewarming by default for searchable snapshots {pull}56201[#56201] (issue: {issue}55952[#55952])
-* Permit searches to be concurrent to prewarming {pull}55795[#55795]
-* Reduce contention in CacheFile.fileLock() method {pull}55662[#55662]
-* Require soft deletes for searchable snapshots {pull}55453[#55453]
-* Searchable Snapshots should respect max_restore_bytes_per_sec {pull}55952[#55952]
-* Update the HDFS version used by HDFS Repo {pull}53693[#53693]
-* Use streaming reads for GCS {pull}55506[#55506] (issue: {issue}55505[#55505])
-* Use workers to warm cache parts {pull}55793[#55793] (issue: {issue}55322[#55322])
+* Add GCS support for searchable snapshots {es-pull}55403[#55403]
+* Allocate searchable snapshots with the balancer {es-pull}54889[#54889] (issues: {es-issue}50999[#50999], {es-issue}54729[#54729])
+* Allow bulk snapshot deletes to abort {es-pull}56009[#56009] (issue: {es-issue}55773[#55773])
+* Allow deleting multiple snapshots at once {es-pull}55474[#55474]
+* Allow searching of snapshot taken while indexing {es-pull}55511[#55511] (issue: {es-issue}50999[#50999])
+* Allow to prewarm the cache for searchable snapshot shards {es-pull}55322[#55322]
+* Enable prewarming by default for searchable snapshots {es-pull}56201[#56201] (issue: {es-issue}55952[#55952])
+* Permit searches to be concurrent to prewarming {es-pull}55795[#55795]
+* Reduce contention in CacheFile.fileLock() method {es-pull}55662[#55662]
+* Require soft deletes for searchable snapshots {es-pull}55453[#55453]
+* Searchable Snapshots should respect max_restore_bytes_per_sec {es-pull}55952[#55952]
+* Update the HDFS version used by HDFS Repo {es-pull}53693[#53693]
+* Use streaming reads for GCS {es-pull}55506[#55506] (issue: {es-issue}55505[#55505])
+* Use workers to warm cache parts {es-pull}55793[#55793] (issue: {es-issue}55322[#55322])
 
 Task Management::
-* Add indexName in update-settings task name {pull}55714[#55714]
-* Add scroll info to search task description {pull}54606[#54606]
-* Broadcast cancellation to only nodes have outstanding child tasks {pull}54312[#54312] (issues: {issue}50990[#50990], {issue}51157[#51157])
-* Support hierarchical task cancellation {pull}54757[#54757] (issue: {issue}50990[#50990])
+* Add indexName in update-settings task name {es-pull}55714[#55714]
+* Add scroll info to search task description {es-pull}54606[#54606]
+* Broadcast cancellation to only nodes have outstanding child tasks {es-pull}54312[#54312] (issues: {es-issue}50990[#50990], {es-issue}51157[#51157])
+* Support hierarchical task cancellation {es-pull}54757[#54757] (issue: {es-issue}50990[#50990])
 
 Transform::
-* Add throttling {pull}56007[#56007] (issue: {issue}54862[#54862])
+* Add throttling {es-pull}56007[#56007] (issue: {es-issue}54862[#54862])
 
 
 
@@ -254,41 +254,41 @@ Transform::
 === Bug fixes
 
 Aggregations::
-* Add analytics plugin usage stats to _xpack/usage {pull}54911[#54911] (issue: {issue}54847[#54847])
-* Aggregation support for Value Scripts that change types {pull}54830[#54830] (issue: {issue}54655[#54655])
-* Allow terms agg to default to depth first {pull}54845[#54845]
-* Clean up how pipeline aggs check for multi-bucket {pull}54161[#54161] (issue: {issue}53215[#53215])
-* Fix auto_date_histogram serialization bug {pull}54447[#54447] (issues: {issue}54382[#54382], {issue}54429[#54429])
-* Fix error massage for unknown value type {pull}55821[#55821] (issue: {issue}55727[#55727])
-* Fix scripted metric in CCS {pull}54776[#54776] (issue: {issue}54758[#54758])
-* Use Decimal formatter for Numeric ValuesSourceTypes {pull}54366[#54366] (issue: {issue}54365[#54365])
+* Add analytics plugin usage stats to _xpack/usage {es-pull}54911[#54911] (issue: {es-issue}54847[#54847])
+* Aggregation support for Value Scripts that change types {es-pull}54830[#54830] (issue: {es-issue}54655[#54655])
+* Allow terms agg to default to depth first {es-pull}54845[#54845]
+* Clean up how pipeline aggs check for multi-bucket {es-pull}54161[#54161] (issue: {es-issue}53215[#53215])
+* Fix auto_date_histogram serialization bug {es-pull}54447[#54447] (issues: {es-issue}54382[#54382], {es-issue}54429[#54429])
+* Fix error massage for unknown value type {es-pull}55821[#55821] (issue: {es-issue}55727[#55727])
+* Fix scripted metric in CCS {es-pull}54776[#54776] (issue: {es-issue}54758[#54758])
+* Use Decimal formatter for Numeric ValuesSourceTypes {es-pull}54366[#54366] (issue: {es-issue}54365[#54365])
 
 Allocation::
-* Fix Broken ExistingStoreRecoverySource Deserialization {pull}55657[#55657] (issue: {issue}55513[#55513])
+* Fix Broken ExistingStoreRecoverySource Deserialization {es-pull}55657[#55657] (issue: {es-issue}55513[#55513])
 
 
 Features/ILM+SLM::
-* ILM stop step execution if writeIndex is false {pull}54805[#54805]
+* ILM stop step execution if writeIndex is false {es-pull}54805[#54805]
 
 Features/Indices APIs::
-* Fix NPE in MetadataIndexTemplateService#findV2Template {pull}54945[#54945]
-* Fix creating filtered alias using now in a date_nanos range query failed {pull}54785[#54785] (issue: {issue}54315[#54315])
-* Fix simulating index templates without specified index {pull}56295[#56295] (issues: {issue}53101[#53101], {issue}56255[#56255])
-* Validate non-negative priorities for V2 index templates {pull}56139[#56139] (issue: {issue}53101[#53101])
+* Fix NPE in MetadataIndexTemplateService#findV2Template {es-pull}54945[#54945]
+* Fix creating filtered alias using now in a date_nanos range query failed {es-pull}54785[#54785] (issue: {es-issue}54315[#54315])
+* Fix simulating index templates without specified index {es-pull}56295[#56295] (issues: {es-issue}53101[#53101], {es-issue}56255[#56255])
+* Validate non-negative priorities for V2 index templates {es-pull}56139[#56139] (issue: {es-issue}53101[#53101])
 
 Features/Watcher::
-* Ensure watcher email action message ids are always unique {pull}56574[#56574]
+* Ensure watcher email action message ids are always unique {es-pull}56574[#56574]
 
 Infra/Core::
-* Add generic Set support to streams {pull}54769[#54769] (issue: {issue}54708[#54708])
+* Add generic Set support to streams {es-pull}54769[#54769] (issue: {es-issue}54708[#54708])
 
 Machine Learning::
-* Fix GET _ml/inference so size param is respected {pull}57303[#57303] (issue: {issue}57298[#57298])
-* Fix file structure finder multiline merge max for delimited formats {pull}56023[#56023]
-* Validate at least one feature is available for DF analytics {pull}55876[#55876] (issue: {issue}55593[#55593])
+* Fix GET _ml/inference so size param is respected {es-pull}57303[#57303] (issue: {es-issue}57298[#57298])
+* Fix file structure finder multiline merge max for delimited formats {es-pull}56023[#56023]
+* Validate at least one feature is available for DF analytics {es-pull}55876[#55876] (issue: {es-issue}55593[#55593])
 * Trap and fail if insufficient features are supplied to data frame analyses.
 Otherwise, classification and regression got stuck at zero analyzing progress
-{ml-pull}1160[#1160] (issue: {issue}55593[#55593])
+{ml-pull}1160[#1160] (issue: {es-issue}55593[#55593])
 * Make categorization respect the model_memory_limit {ml-pull}1167[#1167]
 (issue: {ml-issue}1130[#1130])
 * Respect user overrides for max_trees for classification and regression
@@ -301,22 +301,22 @@ Otherwise, classification and regression got stuck at zero analyzing progress
 {ml-pull}1201[#1201] (issue: {ml-issue}#1178[#1178])
 
 Network::
-* Fix issue with pipeline releasing bytes early {pull}54458[#54458]
-* Handle TLS file updates during startup {pull}54999[#54999] (issue: {issue}54867[#54867])
+* Fix issue with pipeline releasing bytes early {es-pull}54458[#54458]
+* Handle TLS file updates during startup {es-pull}54999[#54999] (issue: {es-issue}54867[#54867])
 
 SQL::
-* Fix DATETIME_PARSE behaviour regarding timezones {pull}56158[#56158] (issue: {issue}54960[#54960])
+* Fix DATETIME_PARSE behaviour regarding timezones {es-pull}56158[#56158] (issue: {es-issue}54960[#54960])
 
 Search::
-* Don't expand default_field in query_string before required {pull}55158[#55158] (issue: {issue}53789[#53789])
-* Fix `time_zone` for  `query_string` and date fields {pull}55881[#55881] (issue: {issue}55813[#55813])
+* Don't expand default_field in query_string before required {es-pull}55158[#55158] (issue: {es-issue}53789[#53789])
+* Fix `time_zone` for  `query_string` and date fields {es-pull}55881[#55881] (issue: {es-issue}55813[#55813])
 
 Security::
-* Fix certutil http for empty password with JDK 11 and lower {pull}55437[#55437] (issue: {issue}55386[#55386])
+* Fix certutil http for empty password with JDK 11 and lower {es-pull}55437[#55437] (issue: {es-issue}55386[#55386])
 
 Transform::
-* Fix count when matching exact ids {pull}56544[#56544] (issue: {issue}56196[#56196])
-* Fix http status code when bad scripts are provided {pull}56117[#56117] (issue: {issue}55994[#55994])
+* Fix count when matching exact ids {es-pull}56544[#56544] (issue: {es-issue}56196[#56196])
+* Fix http status code when bad scripts are provided {es-pull}56117[#56117] (issue: {es-issue}55994[#55994])
 
 
 
@@ -325,5 +325,5 @@ Transform::
 === Regressions
 
 Infra/Scripting::
-* Don't double-wrap expression values {pull}54432[#54432] (issue: {issue}53661[#53661])
+* Don't double-wrap expression values {es-pull}54432[#54432] (issue: {es-issue}53661[#53661])
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -145,6 +146,39 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            ScriptService.SCRIPT_CACHE_SIZE_SETTING,
+            "a script context",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size"
+        );
+    }
+
+    public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            "a script context",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire"
+        );
+    }
+
+    public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
+            "a script context",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
@@ -170,6 +204,36 @@ class NodeDeprecationChecks {
             value,
             replacementSettingKey,
             value);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final String star,
+        final String url) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String replacementSettingKey = replacementSetting.getKey();
+        final String value = deprecatedSetting.get(settings).toString();
+        final String message = String.format(
+            Locale.ROOT,
+            "setting [%s] is deprecated in favor of grouped setting [%s]",
+            deprecatedSettingKey,
+            replacementSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "the setting [%s] is currently set to [%s], instead set [%s] to [%s] where * is %s",
+            deprecatedSettingKey,
+            value,
+            replacementSettingKey,
+            value,
+            star);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 

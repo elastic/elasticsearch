@@ -23,7 +23,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,6 +44,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -112,7 +112,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public HistogramFieldMapper build(BuilderContext context) {
             return new HistogramFieldMapper(name, fieldType, new HistogramFieldType(buildFullName(context), hasDocValues, meta),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), ignoreMalformed(context), copyTo);
+                multiFieldsBuilder.build(this, context), ignoreMalformed(context), copyTo);
         }
     }
 
@@ -138,8 +138,8 @@ public class HistogramFieldMapper extends FieldMapper {
     protected Explicit<Boolean> ignoreMalformed;
 
     public HistogramFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
     }
 
@@ -164,7 +164,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         HistogramFieldType(HistogramFieldType ref) {

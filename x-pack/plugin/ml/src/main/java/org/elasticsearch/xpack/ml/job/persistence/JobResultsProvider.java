@@ -1356,7 +1356,9 @@ public class JobResultsProvider {
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
             response -> {
-                LOGGER.info("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                if (response.getUpdated() > 0) {
+                    LOGGER.warn("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                }
                 if (response.getBulkFailures().size() > 0) {
                     LOGGER.warn(
                         "[{}] failed to set [{}] forecasts to failed. Bulk failures experienced {}",

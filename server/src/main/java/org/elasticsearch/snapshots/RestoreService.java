@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -75,6 +77,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -82,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -201,12 +205,38 @@ public class RestoreService implements ClusterStateApplier {
                 // Make sure that we can restore from this snapshot
                 validateSnapshotRestorable(repositoryName, snapshotInfo);
 
+                Metadata globalMetadata = null;
                 // Resolve the indices from the snapshot that need to be restored
-                final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
+                Map<String, DataStream> dataStreams;
+                List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
+
+                List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(new String[0]),
+                    IndicesOptions.fromOptions(true, true, true, true));
+                if (requestedDataStreams.isEmpty()) {
+                    dataStreams = new HashMap<>();
+                } else {
+                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    dataStreams = globalMetadata.dataStreams();
+                    if (request.includeGlobalState() == false) {
+                        dataStreams.keySet().retainAll(requestedDataStreams);
+                    }
+                }
+                requestIndices.removeAll(dataStreams.keySet());
+                Set<String> dataStreamIndices = dataStreams.values().stream()
+                    .flatMap(ds -> ds.getIndices().stream())
+                    .map(Index::getName)
+                    .collect(Collectors.toSet());
+                requestIndices.addAll(dataStreamIndices);
+
+                final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(new String[0]),
+                    request.indicesOptions());
 
                 final Metadata.Builder metadataBuilder;
                 if (request.includeGlobalState()) {
-                    metadataBuilder = Metadata.builder(repository.getSnapshotGlobalMetadata(snapshotId));
+                    if (globalMetadata == null) {
+                        globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    }
+                    metadataBuilder = Metadata.builder(globalMetadata);
                 } else {
                     metadataBuilder = Metadata.builder();
                 }
@@ -220,7 +250,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
-                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot);
+                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
@@ -388,6 +418,12 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         checkAliasNameConflicts(indices, aliases);
+
+                        Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
+                        updatedDataStreams.putAll(dataStreams.values().stream()
+                            .map(ds -> updateDataStream(ds, mdBuilder, request))
+                            .collect(Collectors.toMap(DataStream::getName, Function.identity())));
+                        mdBuilder.dataStreams(updatedDataStreams);
 
                         // Restore global state if needed
                         if (request.includeGlobalState()) {
@@ -558,6 +594,18 @@ public class RestoreService implements ClusterStateApplier {
                 request.repository() + ":" + request.snapshot()), e);
             listener.onFailure(e);
         }
+    }
+
+    //visible for testing
+    static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
+        String dataStreamName = dataStream.getName();
+        if (request.renamePattern() != null && request.renameReplacement() != null) {
+            dataStreamName = dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
+        }
+        List<Index> updatedIndices = dataStream.getIndices().stream()
+            .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
+            .collect(Collectors.toList());
+        return new DataStream(dataStreamName, dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration());
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
@@ -831,13 +879,11 @@ public class RestoreService implements ClusterStateApplier {
         return failedShards;
     }
 
-    private static Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices) {
+    private static Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices,
+                                                      Set<String> dataStreamIndices) {
         Map<String, String> renamedIndices = new HashMap<>();
         for (String index : filteredIndices) {
-            String renamedIndex = index;
-            if (request.renameReplacement() != null && request.renamePattern() != null) {
-                renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
-            }
+            String renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
             String previousIndex = renamedIndices.put(renamedIndex, index);
             if (previousIndex != null) {
                 throw new SnapshotRestoreException(request.repository(), request.snapshot(),
@@ -845,6 +891,21 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
         return Collections.unmodifiableMap(renamedIndices);
+    }
+
+    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean partOfDataStream) {
+        String renamedIndex = index;
+        if (request.renameReplacement() != null && request.renamePattern() != null) {
+            partOfDataStream = partOfDataStream && index.startsWith(DataStream.BACKING_INDEX_PREFIX);
+            if (partOfDataStream) {
+                index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
+            }
+            renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+            if (partOfDataStream) {
+                renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
+            }
+        }
+        return renamedIndex;
     }
 
     /**

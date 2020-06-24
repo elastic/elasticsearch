@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class LongKeyedBucketOrdsTests extends ESTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -96,11 +97,14 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 assertThat(ordsEnum.value(), equalTo(values[i]));
             }
             assertFalse(ordsEnum.next());
+
+            assertThat(ords.maxOwningBucketOrd(), equalTo(0L));
         } finally {
             ords.close();
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58353")
     public void testCollectsFromManyBuckets() {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
             // Test a few explicit values
@@ -164,6 +168,8 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
             assertFalse(ords.ordsEnum(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)).next());
             assertThat(ords.bucketsInOrd(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)), equalTo(0L));
+
+            assertThat(ords.maxOwningBucketOrd(), greaterThanOrEqualTo(maxOwningBucketOrd));
         }
     }
 
@@ -178,7 +184,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -187,7 +193,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

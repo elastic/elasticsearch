@@ -69,6 +69,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -139,7 +140,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             fieldType.mapUnmappedFieldsAsText = getMapUnmappedFieldAsText(context.indexSettings());
 
             context.path().remove();
-            return new PercolatorFieldMapper(name(), Builder.this.fieldType, fieldType, context.indexSettings(),
+            return new PercolatorFieldMapper(name(), Builder.this.fieldType, fieldType,
                     multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
                     extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper,
                 getMapUnmappedFieldAsText(context.indexSettings()));
@@ -202,7 +203,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText;
 
         PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, TextSearchInfo.NONE, meta);
         }
 
         PercolatorFieldType(PercolatorFieldType ref) {
@@ -344,12 +345,11 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final boolean mapUnmappedFieldsAsText;
 
     PercolatorFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                          Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
-                          Supplier<QueryShardContext> queryShardContext,
+                          MultiFields multiFields, CopyTo copyTo, Supplier<QueryShardContext> queryShardContext,
                           KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
                           BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
                           NumberFieldMapper minimumShouldMatchFieldMapper, boolean mapUnmappedFieldsAsText) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.queryShardContext = queryShardContext;
         this.queryTermsField = queryTermsField;
         this.extractionResultField = extractionResultField;

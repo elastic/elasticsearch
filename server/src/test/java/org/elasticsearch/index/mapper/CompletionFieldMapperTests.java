@@ -83,7 +83,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("doc_values");
+        return org.elasticsearch.common.collect.Set.of("doc_values", "index");
     }
 
     @Override

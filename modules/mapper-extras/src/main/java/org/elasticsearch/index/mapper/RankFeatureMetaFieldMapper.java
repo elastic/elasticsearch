@@ -61,7 +61,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RankFeatureMetaFieldMapper build(BuilderContext context) {
-            return new RankFeatureMetaFieldMapper(context.indexSettings());
+            return new RankFeatureMetaFieldMapper();
         }
     }
 
@@ -76,7 +76,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             if (fieldType != null) {
-                return new RankFeatureMetaFieldMapper(indexSettings);
+                return new RankFeatureMetaFieldMapper();
             } else {
                 return parse(NAME, Collections.emptyMap(), context)
                         .build(new BuilderContext(indexSettings, new ContentPath(1)));
@@ -89,7 +89,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
@@ -117,8 +117,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private RankFeatureMetaFieldMapper(Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE, indexSettings);
+    private RankFeatureMetaFieldMapper() {
+        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE);
     }
 
     @Override

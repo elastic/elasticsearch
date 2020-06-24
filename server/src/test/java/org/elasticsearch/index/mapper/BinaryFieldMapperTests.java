@@ -47,7 +47,7 @@ public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMappe
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "eager_global_ordinals", "norms", "similarity");
+        return org.elasticsearch.common.collect.Set.of("analyzer", "eager_global_ordinals", "norms", "similarity", "index");
     }
 
     @Override

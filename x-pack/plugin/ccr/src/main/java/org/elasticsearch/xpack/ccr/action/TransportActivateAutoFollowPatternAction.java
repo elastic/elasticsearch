@@ -94,6 +94,7 @@ public class TransportActivateAutoFollowPatternAction extends TransportMasterNod
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
+                previousAutoFollowPattern.getSettings(),
                 request.isActive(),
                 previousAutoFollowPattern.getMaxReadRequestOperationCount(),
                 previousAutoFollowPattern.getMaxWriteRequestOperationCount(),

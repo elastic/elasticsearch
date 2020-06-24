@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -66,7 +65,7 @@ public class FakeStringFieldMapper extends FieldMapper {
         public FakeStringFieldMapper build(BuilderContext context) {
             return new FakeStringFieldMapper(
                 fieldType, new FakeStringFieldType(name),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -87,7 +86,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
 
         public FakeStringFieldType(String name) {
-            super(name, true, true, Collections.emptyMap());
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
             setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
         }
@@ -116,8 +115,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     protected FakeStringFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(mappedFieldType.name(), fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override

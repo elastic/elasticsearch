@@ -51,8 +51,6 @@ public class ValuesSourceConfig {
      * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
      *               See https://github.com/elastic/elasticsearch/issues/47469
      * @param defaultValueSourceType - per-aggregation {@link ValuesSource} of last resort.
-     * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
-     *                          {@link ValuesSourceRegistry}
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static ValuesSourceConfig resolve(QueryShardContext context,
@@ -62,8 +60,7 @@ public class ValuesSourceConfig {
                                              Object missing,
                                              ZoneId timeZone,
                                              String format,
-                                             ValuesSourceType defaultValueSourceType,
-                                             String aggregationName) {
+                                             ValuesSourceType defaultValueSourceType) {
 
         return internalResolve(context, userValueTypeHint, field, script, missing, timeZone, format, defaultValueSourceType,
             ValuesSourceConfig::getMappingFromRegistry
@@ -261,7 +258,6 @@ public class ValuesSourceConfig {
     private final DocValueFormat format;
     private final Object missing;
     private final ZoneId timeZone;
-    private final LongSupplier nowSupplier;
     private final ValuesSource valuesSource;
 
     private ValuesSourceConfig() {
@@ -290,7 +286,6 @@ public class ValuesSourceConfig {
         this.missing = missing;
         this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
-        this.nowSupplier = nowSupplier;
 
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
@@ -327,6 +322,14 @@ public class ValuesSourceConfig {
 
     public FieldContext fieldContext() {
         return fieldContext;
+    }
+
+    /**
+     * Convenience method for looking up the mapped field type backing this values source, if it exists.
+     */
+    @Nullable
+    public MappedFieldType fieldType() {
+        return fieldContext == null ? null : fieldContext.fieldType();
     }
 
     public AggregationScript.LeafFactory script() {

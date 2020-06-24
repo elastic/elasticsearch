@@ -33,7 +33,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -166,7 +165,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // TODO should this be a Lucene global analyzer as well?
                 searchAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
             }
-            return new KeywordFieldType(buildFullName(context), indexed, hasDocValues, fieldType.omitNorms() == false,
+            return new KeywordFieldType(buildFullName(context), hasDocValues, fieldType,
                 eagerGlobalOrdinals, normalizer, searchAnalyzer, similarity, meta, boost);
         }
 
@@ -174,7 +173,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldMapper build(BuilderContext context) {
             return new KeywordFieldMapper(name,
                     fieldType, buildFieldType(context), ignoreAbove, splitQueriesOnWhitespace, nullValue,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -220,11 +219,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         boolean hasNorms;
 
-        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean hasNorms,
+        public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
                                 SimilarityProvider similarity, Map<String, String> meta, float boost) {
-            super(name, isSearchable, hasDocValues, meta);
-            this.hasNorms = hasNorms;
+            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+                hasDocValues, new TextSearchInfo(fieldType), meta);
+            this.hasNorms = fieldType.omitNorms() == false;
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
             setSearchAnalyzer(searchAnalyzer);
@@ -233,11 +233,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            this(name, isSearchable, hasDocValues, true, false, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, meta, 1.0f);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public KeywordFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, Defaults.FIELD_TYPE, false,
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap(), 1f);
         }
 
         protected KeywordFieldType(KeywordFieldType ref) {
@@ -330,8 +333,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                  int ignoreAbove, boolean splitQueriesOnWhitespace, String nullValue,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                 MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
         this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
@@ -429,7 +432,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || (mappedFieldType.isSearchable() && fieldType.indexOptions() != IndexOptions.DOCS)) {
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
         if (nullValue != null) {

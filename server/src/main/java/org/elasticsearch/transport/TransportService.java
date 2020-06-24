@@ -592,14 +592,12 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                 };
             }
             asyncSender.sendRequest(connection, action, request, options, handler);
-        } catch (final Exception ex) {
+        } catch(final TransportException te) {
+            handler.handleException(te);
+        }
+        catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
-            final TransportException te;
-            if (ex instanceof TransportException) {
-                te = (TransportException) ex;
-            } else {
-                te = new TransportException("failure to send", ex);
-            }
+            final TransportException te = new TransportException("failure to send", ex);
             handler.handleException(te);
         }
     }

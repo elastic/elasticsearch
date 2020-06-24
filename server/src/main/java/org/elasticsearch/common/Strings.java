@@ -746,6 +746,9 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
+    /**
+     * Returns `true` if the string is `_all` or `*`.
+     */
     public static boolean isAllOrWildcard(String data) {
         return "_all".equals(data) || "*".equals(data);
     }

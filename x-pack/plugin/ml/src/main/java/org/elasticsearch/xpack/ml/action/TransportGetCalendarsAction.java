@@ -35,7 +35,7 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     @Override
     protected void doExecute(Task task, GetCalendarsAction.Request request, ActionListener<GetCalendarsAction.Response> listener) {
         final String calendarId = request.getCalendarId();
-        if (request.getCalendarId() != null && Strings.isAllOrWildcard(request.getCalendarId())== false) {
+        if (request.getCalendarId() != null && Strings.isAllOrWildcard(request.getCalendarId()) == false) {
             getCalendar(calendarId, listener);
         } else {
             PageParams pageParams = request.getPageParams();

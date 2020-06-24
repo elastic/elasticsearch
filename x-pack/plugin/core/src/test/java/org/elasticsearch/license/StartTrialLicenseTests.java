@@ -22,7 +22,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
+import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.NodeRoles.addRoles;
@@ -39,7 +39,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(addRoles(super.nodeSettings(nodeOrdinal), Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
             .build();
     }

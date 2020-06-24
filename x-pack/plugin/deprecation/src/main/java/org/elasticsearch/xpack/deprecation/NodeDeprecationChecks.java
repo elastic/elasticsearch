@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
@@ -125,7 +126,11 @@ class NodeDeprecationChecks {
             settings,
             pluginsAndModules,
             RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-            Node.NODE_REMOTE_CLUSTER_CLIENT,
+            Setting.boolSetting(
+                "node.remote_cluster_client",
+                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+                Property.Deprecated,
+                Property.NodeScope),
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-cluster-remote-connect"
         );
     }

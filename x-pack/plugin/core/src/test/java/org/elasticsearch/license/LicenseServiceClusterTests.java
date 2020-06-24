@@ -21,7 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
+import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.NodeRoles.addRoles;
@@ -42,7 +42,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(addRoles(super.nodeSettings(nodeOrdinal), Collections.singleton(DiscoveryNodeRole.DATA_ROLE)))
             .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 

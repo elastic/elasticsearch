@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: change after backporting
+      version: "7.8.99 - "
+      reason: "resolve index api only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -76,8 +76,8 @@ setup:
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: change after backporting
+      version: " - 7.8.99"
+      reason: "resolve index api only supported in 7.9+"
 
   - do:
       indices.resolve_index:
@@ -120,7 +120,7 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason: change after backporting
 
   - do:

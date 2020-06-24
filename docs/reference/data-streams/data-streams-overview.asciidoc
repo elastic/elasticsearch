@@ -138,7 +138,9 @@ following requests to the backing index containing the document:
 
 * A <<docs-delete,delete API>> request
 
-TIP: If you need to frequently update or delete existing documents across
-multiple indices, we recommend using an <<indices-add-alias,index alias>> and
+See <<update-delete-docs-in-a-data-stream>>.
+
+TIP: If you frequently update or delete existing documents,
+we recommend using an <<indices-add-alias,index alias>> and
 <<indices-templates,index template>> instead of a data stream. You can still
-use <<index-lifecycle-management,{ilm-init}>> to manage the indices.
+use <<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.

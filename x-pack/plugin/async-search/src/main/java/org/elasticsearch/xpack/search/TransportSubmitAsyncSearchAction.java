@@ -29,11 +29,10 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -69,13 +68,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
-        this.store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService, threadContext, client,
+        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
             ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
     }
 
     @Override
-    protected void doExecute(Task task, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
-        CancellableTask submitTask = (CancellableTask) task;
+    protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
         AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
         searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
@@ -87,42 +85,34 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
-                            if (submitTask.isCancelled()) {
-                                // the user cancelled the submit so we don't store anything
-                                // and propagate the failure
-                                Exception cause = new TaskCancelledException(submitTask.getReasonCancelled());
-                                onFatalFailure(searchTask, cause, searchResponse.isRunning(),
-                                    "submit task is cancelled", submitListener);
-                            } else {
-                                final String docId = searchTask.getExecutionId().getDocId();
-                                // creates the fallback response if the node crashes/restarts in the middle of the request
-                                // TODO: store intermediate results ?
-                                AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                                store.storeInitialResponse(docId, searchTask.getOriginHeaders(), initialResp,
-                                    new ActionListener<>() {
-                                        @Override
-                                        public void onResponse(IndexResponse r) {
-                                            if (searchResponse.isRunning()) {
-                                                try {
-                                                    // store the final response on completion unless the submit is cancelled
-                                                    searchTask.addCompletionListener(finalResponse ->
-                                                        onFinalResponse(submitTask, searchTask, finalResponse, () -> {}));
-                                                } finally {
-                                                    submitListener.onResponse(searchResponse);
-                                                }
-                                            } else {
-                                                onFinalResponse(submitTask, searchTask, searchResponse,
-                                                    () -> submitListener.onResponse(searchResponse));
+                            final String docId = searchTask.getExecutionId().getDocId();
+                            // creates the fallback response if the node crashes/restarts in the middle of the request
+                            // TODO: store intermediate results ?
+                            AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
+                            store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(IndexResponse r) {
+                                        if (searchResponse.isRunning()) {
+                                            try {
+                                                // store the final response on completion unless the submit is cancelled
+                                                searchTask.addCompletionListener(finalResponse ->
+                                                    onFinalResponse(searchTask, finalResponse, () -> {
+                                                    }));
+                                            } finally {
+                                                submitListener.onResponse(searchResponse);
                                             }
+                                        } else {
+                                            onFinalResponse(searchTask, searchResponse, () -> submitListener.onResponse(searchResponse));
                                         }
+                                    }
 
-                                        @Override
-                                        public void onFailure(Exception exc) {
-                                            onFatalFailure(searchTask, exc, searchResponse.isRunning(),
-                                                "unable to store initial response", submitListener);
-                                        }
-                                    });
-                            }
+                                    @Override
+                                    public void onFailure(Exception exc) {
+                                        onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                            "unable to store initial response", submitListener);
+                                    }
+                                });
                         } catch (Exception exc) {
                             onFatalFailure(searchTask, exc, searchResponse.isRunning(), "generic error", submitListener);
                         }
@@ -141,7 +131,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             }, request.getWaitForCompletionTimeout());
     }
 
-    private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, CancellableTask submitTask, TimeValue keepAlive) {
+    private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
         Map<String, String> originHeaders = nodeClient.threadPool().getThreadContext().getHeaders();
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
@@ -150,9 +140,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
-                return new AsyncSearchTask(id, type, action, parentTaskId,
-                    submitTask::isCancelled, keepAlive, originHeaders, taskHeaders, searchId, store.getClient(),
-                    nodeClient.threadPool(), aggReduceContextSupplier);
+                return new AsyncSearchTask(id, type, action, parentTaskId, keepAlive,
+                    originHeaders, taskHeaders, searchId, store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));
@@ -178,11 +167,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
     }
 
-    private void onFinalResponse(CancellableTask submitTask,
-                                 AsyncSearchTask searchTask,
+    private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        if (submitTask.isCancelled() || searchTask.isCancelled()) {
+        if (searchTask.isCancelled()) {
             // the task was cancelled so we ensure that there is nothing stored in the response index.
             store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
                 resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
@@ -194,7 +182,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         }
 
         try {
-            store.storeFinalResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
                 ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                                     exc -> {
                                         Throwable cause = ExceptionsHelper.unwrapCause(exc);

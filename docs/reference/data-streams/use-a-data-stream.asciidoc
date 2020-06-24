@@ -8,6 +8,7 @@ the following:
 * <<search-a-data-stream>>
 * <<manually-roll-over-a-data-stream>>
 * <<reindex-with-a-data-stream>>
+* <<update-delete-docs-in-a-data-stream>>
 
 ////
 [source,console]
@@ -49,7 +50,7 @@ NOTE: The `op_type` parameter defaults to `create` when adding new documents.
 .*Example: Index API request*
 [%collapsible]
 ====
-The following <<docs-index_,index API>> adds a new document to the `logs` data
+The following index API request adds a new document to the `logs` data
 stream.
 
 [source,console]
@@ -76,7 +77,7 @@ NOTE: Data streams do not support other bulk actions, such as `index`.
 .*Example: Bulk API request*
 [%collapsible]
 ====
-The following <<docs-bulk,bulk API>> index request adds several new documents to
+The following bulk API request adds several new documents to
 the `logs` data stream. Note that only the `create` action is used.
 
 [source,console]
@@ -140,6 +141,69 @@ GET /logs/_search
 // TEST[continued]
 ====
 
+You can use a comma-separated list or wildcard (`*`) expression to search
+multiple data streams, indices, and index aliases in the same request.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+PUT /_data_stream/logs_alt
+----
+// TEST[continued]
+////
+
+The following request searches the `logs` and `logs_alt` data streams, which are
+specified as a comma-separated list in the request path.
+
+[source,console]
+----
+GET /logs,logs_alt/_search
+{
+  "query": {
+    "match": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following request uses the `logs*` wildcard expression to search any data
+stream, index, or index alias beginning with `logs`.
+
+[source,console]
+----
+GET /logs*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "vlb44hny"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The following search request omits a target in the request path. The request
+searches all data streams and indices in the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "user.id": "l7gk7f82"
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
 [discrete]
 [[manually-roll-over-a-data-stream]]
 === Manually roll over a data stream
@@ -154,9 +218,9 @@ current write index when it meets specified criteria, such as a maximum age or
 size.
 
 However, you can also use the <<indices-rollover-index,rollover API>> to
-manually perform a rollover. This can be useful if you want to apply mapping or
-setting changes to the stream's write index after updating a data stream's
-template.
+manually perform a rollover. This can be useful if you want to
+<<data-streams-change-mappings-and-settings,apply mapping or setting changes>>
+to the stream's write index after updating a data stream's template.
 
 .*Example*
 [%collapsible]
@@ -201,7 +265,8 @@ A reindex can be used to:
 * Apply a new or updated <<create-a-data-stream-template,composable template>>
   by reindexing an existing data stream into a new one. This applies mapping
   and setting changes in the template to each document and backing index of the
-  data stream destination.
+  data stream destination. See
+  <<data-streams-use-reindex-to-change-mappings-settings>>.
 
 TIP: If you only want to update the mappings or settings of a data stream's
 write index, we recommend you update the <<create-a-data-stream-template,data
@@ -279,10 +344,207 @@ POST /_reindex
 // TEST[continued]
 ====
 
+[discrete]
+[[update-delete-docs-in-a-data-stream]]
+=== Update or delete documents in a data stream
+
+Data streams are designed to be <<data-streams-append-only,append-only>>. This
+means you cannot send update or deletion requests for existing documents to a
+data stream. However, you can send update or deletion requests to the backing
+index containing the document.
+
+To delete or update a document in a data stream, you first need to get:
+
+* The <<mapping-id-field,document ID>>
+* The name of the backing index that contains the document
+
+If you want to update a document, you must also get its current
+<<optimistic-concurrency-control,sequence number and primary term>>.
+
+You can use a <<search-a-data-stream,search request>> to retrieve this
+information.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z",
+  "user": {
+    "id": "yWIumJd7"
+  },
+  "message": "Login successful"
+}
+----
+// TEST[continued]
+////
+
+The following search request retrieves documents in the `logs` data stream with
+a `user.id` of `yWIumJd7`. By default, this search returns the document ID and
+backing index for any matching documents.
+
+The request includes a `"seq_no_primary_term": true` argument. This means the
+search also returns the sequence number and primary term for any matching
+documents.
+
+[source,console]
+----
+GET /logs/_search
+{
+  "seq_no_primary_term": true,
+  "query": {
+    "match": {
+      "user.id": "yWIumJd7"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The API returns the following response. The `hits.hits` property contains
+information for any documents matching the search.
+
+[source,console-result]
+----
+{
+  "took": 20,
+  "timed_out": false,
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.2876821,
+    "hits": [
+      {
+        "_index": ".ds-logs-000002",                <1>
+        "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
+        "_seq_no": 4,                               <3>
+        "_primary_term": 1,                         <4>
+        "_score": 0.2876821,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "user": {
+            "id": "yWIumJd7"
+          },
+          "message": "Login successful"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 20/"took": $body.took/]
+
+<1> Backing index containing the matching document
+<2> Document ID for the document
+<3> Current sequence number for the document
+<4> Primary term for the document
+====
+
+You can use an <<docs-index_,index API>> request to update an individual
+document. To prevent an accidental overwrite, this request must include valid
+`if_seq_no` and `if_primary_term` arguments.
+
+.*Example*
+[%collapsible]
+====
+The following index API request updates an existing document in the `logs` data
+stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
+`.ds-logs-000002` backing index.
+
+The request also includes the current sequence number and primary term in the
+respective `if_seq_no` and `if_primary_term` query parameters. The request body
+contains a new JSON source for the document.
+
+[source,console]
+----
+PUT /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=4&if_primary_term=1
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z",
+  "user": {
+    "id": "8a4f500d"
+  },
+  "message": "Login successful"
+}
+----
+// TEST[continued]
+====
+
+You use the <<docs-delete,delete API>> to delete individual documents. Deletion
+requests do not require a sequence number or primary term.
+
+.*Example*
+[%collapsible]
+====
+The following index API request deletes an existing document in the `logs` data
+stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
+`.ds-logs-000002` backing index.
+
+[source,console]
+----
+DELETE /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX
+----
+// TEST[continued]
+====
+
+You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
+one request using `delete`, `index`, or `update` actions.
+
+If the action type is `index`, the action must include valid
+<<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
+arguments.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z",
+  "user": {
+    "id": "yWIumJd7"
+  },
+  "message": "Login successful"
+}
+----
+// TEST[continued]
+////
+
+The following bulk API request uses an `index` action to update an existing
+document in the `logs` data stream.
+
+The `index` action targets document ID `bfspvnIBr7VVZlfp2lqX` in the
+`.ds-logs-000002` backing index. The action also includes the current sequence
+number and primary term in the respective `if_seq_no` and `if_primary_term`
+parameters.
+
+[source,console]
+----
+PUT /_bulk?refresh
+{ "index": { "_index": ".ds-logs-000002", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 4, "if_primary_term": 1 } }
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
+----
+// TEST[continued]
+====
+
 ////
 [source,console]
 ----
 DELETE /_data_stream/logs
+
+DELETE /_data_stream/logs_alt
 
 DELETE /_index_template/logs_data_stream
 ----

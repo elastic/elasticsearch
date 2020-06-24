@@ -101,7 +101,37 @@ stream uses this template to create its backing indices.
 Composable templates for data streams must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
-  property.
+property.
++
+You can use the resolve index API to check if the name or pattern
+matches any existing indices, index aliases, or data streams. If so, you should
+consider using another name or pattern.
++
+.*Example*
+[%collapsible]
+====
+The following resolve index API request checks for any existing indices, index
+aliases, or data streams that start with `logs`. If not, the `logs*`
+wildcard pattern can be used to create a new data stream.
+
+[source,console]
+----
+GET /_resolve/index/logs*
+----
+// TEST[continued]
+
+The API returns the following response, indicating no existing targets match
+this pattern.
+
+[source,console-result]
+----
+{
+  "indices" : [ ],
+  "aliases" : [ ],
+  "data_streams" : [ ]
+}
+----
+====
 
 * A `data_stream` definition containing the `timestamp_field` property.
   This timestamp field must be included in every document indexed to the data
@@ -116,6 +146,11 @@ Composable templates for data streams must contain:
 
 You can also specify other mappings and settings you'd like to apply to the
 stream's backing indices.
+
+TIP: We recommend you carefully consider which mappings and settings to include
+in this template before creating a data stream. Later changes to the mappings or
+settings of a stream's backing indices may require reindexing. See
+<<data-streams-change-mappings-and-settings>>.
 
 .*Example*
 [%collapsible]
@@ -148,6 +183,9 @@ PUT /_index_template/logs_data_stream
 // TEST[continued]
 ====
 
+NOTE: You cannot delete a composable template that's in use by a data stream.
+This would prevent the data stream from creating new backing indices.
+
 [discrete]
 [[create-a-data-stream]]
 === Create a data stream
@@ -166,6 +204,7 @@ uses the target name as the name for the stream.
 NOTE: Data streams support only specific types of indexing requests. See
 <<add-documents-to-a-data-stream>>.
 
+[[index-documents-to-create-a-data-stream]]
 .*Example: Index documents to create a data stream*
 [%collapsible]
 ====

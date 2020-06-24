@@ -22,8 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -42,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -95,6 +93,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             b.docValues(false);
         }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
+        booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
         new Modifier("search_analyzer", true, (a, b) -> {
             a.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
@@ -103,10 +102,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         new Modifier("search_quote_analyzer", true, (a, b) -> {
             a.searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.searchQuoteAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
-        }),
-        new Modifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
         }),
         new Modifier("store", false, (a, b) -> {
             a.store(true);
@@ -228,22 +223,27 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
         Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
 
-        XContentBuilder x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        builder.build(context).toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String mappings = Strings.toString(x);
+        String mappings = mappingsToString(builder.build(context), false);
+        String mappingsWithDefault = mappingsToString(builder.build(context), true);
 
         mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
 
         Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
-        x = JsonXContent.contentBuilder();
-        x.startObject().startObject("properties");
-        rebuilt.toXContent(x, ToXContent.EMPTY_PARAMS);
-        x.endObject().endObject();
-        String reparsed = Strings.toString(x);
+        String reparsed = mappingsToString(rebuilt, false);
+        String reparsedWithDefault = mappingsToString(rebuilt, true);
 
         assertThat(reparsed, equalTo(mappings));
+        assertThat(reparsedWithDefault, equalTo(mappingsWithDefault));
+    }
+
+    private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
+        ToXContent.Params params = includeDefaults ?
+            new ToXContent.MapParams(Map.of("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
+        XContentBuilder x = JsonXContent.contentBuilder();
+        x.startObject().startObject("properties");
+        builder.toXContent(x, params);
+        x.endObject().endObject();
+        return Strings.toString(x);
     }
 
 }

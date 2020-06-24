@@ -21,13 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -55,9 +55,11 @@ public class EFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+
         Output output = new Output();
-        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(symbol);
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (symbol.equals("this") || type != null)  {
             if (input.write) {
@@ -82,7 +84,7 @@ public class EFunctionRef extends AExpression {
 
                 output.expressionNode = defInterfaceReferenceNode;
             } else {
-                FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+                FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                         getLocation(), input.expected, symbol, methodName, 0);
                 output.actual = input.expected;
 
@@ -104,7 +106,7 @@ public class EFunctionRef extends AExpression {
                         "not a statement: capturing function reference [" + symbol + ":"  + methodName + "] not used"));
             }
 
-            Scope.Variable captured = scope.getVariable(getLocation(), symbol);
+            SemanticScope.Variable captured = semanticScope.getVariable(getLocation(), symbol);
             if (input.expected == null) {
                 String defReferenceEncoding;
                 if (captured.getType() == def.class) {
@@ -128,7 +130,7 @@ public class EFunctionRef extends AExpression {
                 output.actual = input.expected;
                 // static case
                 if (captured.getType() != def.class) {
-                    FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), getLocation(),
+                    FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), getLocation(),
                             input.expected, captured.getCanonicalTypeName(), methodName, 1);
 
                     TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();

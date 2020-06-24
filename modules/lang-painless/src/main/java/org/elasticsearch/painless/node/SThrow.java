@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.lookup.PainlessCast;
 
 import java.util.Objects;
 
@@ -32,22 +33,27 @@ import java.util.Objects;
  */
 public class SThrow extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SThrow(Location location, AExpression expression) {
-        super(location);
+    public SThrow(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expressionNode = Objects.requireNonNull(expressionNode);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.expected = Exception.class;
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-        expression.cast(expressionInput, expressionOutput);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope, expressionInput);
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
+                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         output.methodEscape = true;
         output.loopEscape = true;
@@ -55,8 +61,8 @@ public class SThrow extends AStatement {
         output.statementCount = 1;
 
         ThrowNode throwNode = new ThrowNode();
-        throwNode.setExpressionNode(expression.cast(expressionOutput));
-        throwNode.setLocation(location);
+        throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));
+        throwNode.setLocation(getLocation());
 
         output.statementNode = throwNode;
 

@@ -114,10 +114,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean isRetry = false;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-    private Boolean preferV2Templates;
 
     public IndexRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readOptionalString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
@@ -144,9 +147,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.preferV2Templates = in.readOptionalBoolean();
-        }
     }
 
     public IndexRequest() {
@@ -220,11 +220,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public IndicesOptions indicesOptions() {
-        if (opType == OpType.CREATE) {
-            return IndicesOptions.strictSingleIndexIncludeDataStreamNoExpandForbidClosed();
-        } else {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-        }
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**
@@ -565,16 +561,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return ifSeqNo;
     }
 
-    public IndexRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
-        this.preferV2Templates = preferV2Templates;
-        return this;
-    }
-
-    @Nullable
-    public Boolean preferV2Templates() {
-        return this.preferV2Templates;
-    }
-
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
      *
@@ -630,6 +616,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void writeTo(StreamOutput out) throws IOException {
         checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -656,9 +653,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalBoolean(preferV2Templates);
-        }
     }
 
     @Override

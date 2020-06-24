@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
-public class RankFeaturesFieldTypeTests extends FieldTypeTestCase {
+import java.util.Collections;
+import java.util.Map;
+
+public class RankFeaturesFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new RankFeaturesFieldMapper.RankFeaturesFieldType();
+    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new RankFeaturesFieldMapper.RankFeaturesFieldType(name, meta);
     }
 
     public void testIsAggregatable() {
-        MappedFieldType fieldType = createDefaultFieldType();
+        MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
     }
 }

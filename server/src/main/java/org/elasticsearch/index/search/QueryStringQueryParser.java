@@ -48,9 +48,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -323,6 +325,10 @@ public class QueryStringQueryParser extends XQueryParser {
                     }
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
+                // if we are querying a single date field, we also create a range query that leverages the time zone setting
+                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                    return getRangeQuery(field, queryText, queryText, true, true);
+                }
             }
         }
 
@@ -512,12 +518,12 @@ public class QueryStringQueryParser extends XQueryParser {
         Analyzer oldAnalyzer = getAnalyzer();
         try {
             MappedFieldType currentFieldType = context.fieldMapper(field);
-            if (currentFieldType == null) {
+            if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
             setAnalyzer(forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer);
             Query query = null;
-            if (currentFieldType.tokenized() == false) {
+            if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
             } else {
                 query = getPossiblyAnalyzedPrefixQuery(currentFieldType.name(), termStr, currentFieldType);

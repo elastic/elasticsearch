@@ -74,11 +74,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -111,7 +108,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -906,48 +902,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThreadContextContainsAuthentication(result);
     }
 
-    public void testInheritAnonymousUserRoles() {
-        Settings settings = Settings.builder()
-            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
-            .build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
-        User user1 = new User("username", "r1", "r2", "r3");
-        when(firstRealm.token(threadContext)).thenReturn(token);
-        when(firstRealm.supports(token)).thenReturn(true);
-        mockAuthenticate(firstRealm, token, user1);
-        // this call does not actually go async
-        final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2", "r3", "r4", "r5"));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.get());
-    }
-
-    public void testSystemUsersDoNotInheritAnonymousRoles() {
-        Settings settings = Settings.builder()
-            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
-            .build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
-        when(firstRealm.token(threadContext)).thenReturn(token);
-        when(firstRealm.supports(token)).thenReturn(true);
-        final User sysUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
-        mockAuthenticate(firstRealm, token, sysUser);
-        // this call does not actually go async
-        final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(authentication.getUser().roles(), equalTo(sysUser.roles()));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.get());
-    }
-
     public void testRealmTokenThrowingException() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
@@ -1002,14 +956,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
+    public void testRealmAuthenticateTerminateAuthenticationProcessWithException() {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         final AuthenticationToken token = mock(AuthenticationToken.class);
-        when(token.principal()).thenReturn(randomAlphaOfLength(5));
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        final boolean terminateWithNoException = rarely();
-        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
+        final boolean throwElasticsearchSecurityException = randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
         final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
@@ -1020,27 +974,41 @@ public class AuthenticationServiceTests extends ESTestCase {
                 ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
             }
         }
-        mockAuthenticate(secondRealm, token, (terminateWithNoException) ? null : throwE, true);
+        mockAuthenticate(secondRealm, token, throwE, true);
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
-        if (terminateWithNoException) {
-            assertThat(e.getMessage(), is("terminate authc process"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-        } else {
-            if (throwElasticsearchSecurityException) {
-                assertThat(e.getMessage(), is("authentication error"));
-                if (withAuthenticateHeader) {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
-                } else {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-                }
+        if (throwElasticsearchSecurityException) {
+            assertThat(e.getMessage(), is("authentication error"));
+            if (withAuthenticateHeader) {
+                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
             } else {
-                assertThat(e.getMessage(), is("error attempting to authenticate request"));
                 assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
             }
+        } else {
+            assertThat(e.getMessage(), is("error attempting to authenticate request"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
         }
         verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRealmAuthenticateGracefulTerminateAuthenticationProcess() {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        mockAuthenticate(firstRealm, token, null, true);
+
+        ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+            assertThat(e.getMessage(), is("unable to authenticate user [" + principal + "] for action [_action]"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
         verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
     }

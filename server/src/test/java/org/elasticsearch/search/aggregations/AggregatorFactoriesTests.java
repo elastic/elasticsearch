@@ -194,6 +194,30 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(e.toString(), containsString("Expected [START_OBJECT] under [field], but got a [VALUE_STRING] in [tag_count]"));
     }
 
+    public void testInvalidType() throws Exception {
+        XContentBuilder source = JsonXContent.contentBuilder()
+                .startObject()
+                    .startObject("by_date")
+                        .startObject("date_histogram")
+                            .field("field", "timestamp")
+                            .field("calendar_interval", "month")
+                        .endObject()
+                        .startObject("aggs")
+                            .startObject("tags")
+                                // the aggregation type is invalid
+                                .startObject("term")
+                                    .field("field", "tag")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+        XContentParser parser = createParser(source);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
+        assertThat(e.toString(), containsString("Unknown aggregation type [term] did you mean [terms]?"));
+    }
+
     public void testRewrite() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference;

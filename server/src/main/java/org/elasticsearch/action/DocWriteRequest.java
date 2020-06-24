@@ -22,10 +22,12 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -195,16 +197,22 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
-    /** read a document write (index/delete/update) request */
-    static DocWriteRequest<?> readDocumentRequest(StreamInput in) throws IOException {
+    /**
+     * Read a document write (index/delete/update) request
+     *
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
+     *                that does not have a unique shard id or when reading from a stream of version older than
+     *                {@link org.elasticsearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
+     */
+    static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            docWriteRequest = new IndexRequest(in);
+            docWriteRequest = new IndexRequest(shardId, in);
         } else if (type == 1) {
-            docWriteRequest = new DeleteRequest(in);
+            docWriteRequest = new DeleteRequest(shardId, in);
         } else if (type == 2) {
-            docWriteRequest = new UpdateRequest(in);
+            docWriteRequest = new UpdateRequest(shardId, in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
@@ -222,6 +230,22 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         } else if (request instanceof UpdateRequest) {
             out.writeByte((byte) 2);
             ((UpdateRequest) request).writeTo(out);
+        } else {
+            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
+        }
+    }
+
+    /** write a document write (index/delete/update) request without shard id*/
+    static void writeDocumentRequestThin(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
+        if (request instanceof IndexRequest) {
+            out.writeByte((byte) 0);
+            ((IndexRequest) request).writeThin(out);
+        } else if (request instanceof DeleteRequest) {
+            out.writeByte((byte) 1);
+            ((DeleteRequest) request).writeThin(out);
+        } else if (request instanceof UpdateRequest) {
+            out.writeByte((byte) 2);
+            ((UpdateRequest) request).writeThin(out);
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }

@@ -36,6 +36,8 @@ Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:
 
 * <<search-aggregations-metrics-sum-aggregation-histogram-fields,sum>> aggregation
+* <<search-aggregations-metrics-valuecount-aggregation-histogram-fields,value_count>> aggregation
+* <<search-aggregations-metrics-avg-aggregation-histogram-fields,avg>> aggregation
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation

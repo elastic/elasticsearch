@@ -68,7 +68,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -164,7 +163,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     public void testSummationAccuracy() throws IOException {
         // Summing up a normal array and expect an accurate value
         double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
-        verifySummationOfDoubles(values, 15.3, 0d);
+        verifySummationOfDoubles(values, 15.3, Double.MIN_NORMAL);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         int n = randomIntBetween(5, 10);
@@ -197,9 +196,21 @@ public class SumAggregatorTests extends AggregatorTestCase {
             sum("_name").field(FIELD_NAME),
             new MatchAllDocsQuery(),
             iw -> {
-                for (double value : values) {
-                    iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))));
-                }
+                /*
+                 * The sum agg uses a Kahan sumation on the shard to limit
+                 * floating point errors. But it doesn't ship the sums to the
+                 * coordinating node, so floaing point error can creep in when
+                 * reducing many sums. The test framework aggregates each
+                 * segment as though it were a separate shard, then reduces
+                 * those togther. Fun. But it means we don't get the full
+                 * accuracy of the Kahan sumation. And *that* accuracy is
+                 * what this method is trying to test. So we have to stick
+                 * all the documents on the same leaf. `addDocuments` does
+                 * that.
+                 */
+                iw.addDocuments(Arrays.stream(values).mapToObj(value ->
+                    singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value)))
+                ).collect(toList()));
             },
             result -> assertEquals(expected, result.getValue(), delta),
             defaultFieldType(NumberType.DOUBLE)
@@ -217,9 +228,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
+        final MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
 
         final SumAggregationBuilder builder = sum("_name")
             .field(fieldType.name());
@@ -303,8 +313,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testMissing() throws IOException {
         final MappedFieldType aggField = defaultFieldType();
-        final MappedFieldType irrelevantField = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        irrelevantField.setName("irrelevant_field");
+        final MappedFieldType irrelevantField
+            = new NumberFieldMapper.NumberFieldType("irrelevant_field", NumberType.LONG);
 
         final int numDocs = randomIntBetween(10, 100);
         final long missingValue = randomLongBetween(1, 1000);
@@ -391,7 +401,9 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
     }
 
     @Override
@@ -422,9 +434,6 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType defaultFieldType(NumberType numberType) {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(numberType);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
-        return fieldType;
+        return new NumberFieldMapper.NumberFieldType(FIELD_NAME, numberType);
     }
 }

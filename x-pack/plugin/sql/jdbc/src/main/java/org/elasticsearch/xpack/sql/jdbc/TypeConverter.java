@@ -10,6 +10,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -177,6 +178,9 @@ final class TypeConverter {
         }
         if (type == byte[].class) {
             return (T) asByteArray(val, columnType, typeString);
+        }
+        if (type == BigDecimal.class) {
+            return (T) asBigDecimal(val, columnType, typeString);
         }
         //
         // JDK 8 types
@@ -535,6 +539,36 @@ final class TypeConverter {
 
     private static byte[] asByteArray(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
+    }
+
+    private static BigDecimal asBigDecimal(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+                return (Boolean) val ? BigDecimal.ONE : BigDecimal.ZERO;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigDecimal.valueOf(((Number) val).longValue());
+            case FLOAT:
+            case HALF_FLOAT:
+                // floats are passed in as doubles here, so we need to dip into string to keep original float's (reduced) precision.
+                return new BigDecimal(String.valueOf(((Number) val).floatValue()));
+            case DOUBLE:
+            case SCALED_FLOAT:
+                return BigDecimal.valueOf(((Number) val).doubleValue());
+            case KEYWORD:
+            case TEXT:
+            case CONSTANT_KEYWORD:
+                try {
+                    return new BigDecimal((String) val);
+                } catch (NumberFormatException nfe) {
+                    return failConversion(val, columnType, typeString, BigDecimal.class, nfe);
+                }
+            // TODO: should we implement numeric - interval types conversions too; ever needed? ODBC does mandate it
+            //       https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types
+        }
+        return failConversion(val, columnType, typeString, BigDecimal.class);
     }
 
     private static LocalDate asLocalDate(Object val, EsType columnType, String typeString) throws SQLException {

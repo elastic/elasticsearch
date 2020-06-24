@@ -21,7 +21,8 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
@@ -130,8 +131,11 @@ dependencies {
     java12Compile sourceSets.main.output
   }
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
+    exclude group: 'org.elasticsearch', module: 'server'
+  }
+  internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
@@ -139,6 +143,7 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+compileInternalClusterTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 // Until this project is always being formatted with spotless, we need to
 // guard against `spotless()` not existing.
@@ -321,7 +326,7 @@ thirdPartyAudit.ignoreMissingClasses(
 
 thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
@@ -331,22 +336,13 @@ dependencyLicenses {
   }
 }
 
+licenseHeaders {
+  // Ignore our vendored version of Google Guice
+  excludes << 'org/elasticsearch/common/inject/**/*'
+}
 
-task integTest(type: Test) {
-  description = 'Multi-node tests'
-  mustRunAfter test
-
-  include '**/*IT.class'
+tasks.named('internalClusterTest').configure {
   if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.itv2_feature_enabled', 'true'
     systemProperty 'es.datastreams_feature_enabled', 'true'
   }
 }
-
-check.dependsOn integTest
-
-task internalClusterTest {
-  dependsOn integTest
-}
-
-

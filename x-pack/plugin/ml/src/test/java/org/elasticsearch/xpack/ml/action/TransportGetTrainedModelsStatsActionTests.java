@@ -73,10 +73,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public String getDescription() {
+            return null;
+        }
+
         static class Factory implements Processor.Factory {
 
             @Override
-            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                    Map<String, Object> config) {
                 return new NotInferenceProcessor();
             }
         }
@@ -91,8 +97,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
+                    Settings.EMPTY));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 

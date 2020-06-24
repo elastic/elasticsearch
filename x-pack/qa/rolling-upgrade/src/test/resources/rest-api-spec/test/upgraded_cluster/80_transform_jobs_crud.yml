@@ -244,6 +244,16 @@ setup:
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
+      transform.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "settings": {
+              "max_page_search_size": 1000
+            }
+          }
+
+  - do:
       transform.stop_transform:
         transform_id: "mixed-simple-continuous-transform"
         wait_for_completion: true
@@ -255,6 +265,13 @@ setup:
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state: "stopped" }
+
+  - do:
+      transform.get_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.settings.max_page_search_size: 1000 }
 
   - do:
       transform.delete_transform:

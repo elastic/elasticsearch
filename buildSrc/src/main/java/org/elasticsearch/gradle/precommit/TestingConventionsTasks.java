@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.precommit;
 
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
@@ -49,6 +50,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -81,8 +83,8 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = GradleUtils.getJavaSourceSets(getProject())
-                .getByName("test")
+            testClassNames = Util.getJavaTestSourceSet(getProject())
+                .get()
                 .getOutput()
                 .getClassesDirs()
                 .getFiles()
@@ -104,7 +106,7 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    public void naming(Closure<TestingConventionRule> action) {
+    public void naming(Closure<?> action) {
         naming.configure(action);
     }
 
@@ -157,8 +159,10 @@ public class TestingConventionsTasks extends DefaultTask {
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
 
+            final Set<File> testSourceSetFiles = Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
+                .filter(entry -> testSourceSetFiles.containsAll(entry.getValue()))
                 .collect(
                     Collectors.toMap(
                         Map.Entry::getKey,
@@ -319,6 +323,7 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private boolean implementsNamingConvention(Class<?> clazz) {
+        Objects.requireNonNull(clazz);
         return implementsNamingConvention(clazz.getName());
     }
 
@@ -349,13 +354,7 @@ public class TestingConventionsTasks extends DefaultTask {
         // the classes these don't influence the checks done by this task.
         // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
         // running the tests.
-        return getProject().files(
-            getProject().getConfigurations().getByName("testRuntime").resolve(),
-            GradleUtils.getJavaSourceSets(getProject())
-                .stream()
-                .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())
-                .collect(Collectors.toList())
-        );
+        return Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath();
     }
 
     private Map<String, File> walkPathAndLoadClasses(File testRoot) {

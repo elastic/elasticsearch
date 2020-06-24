@@ -19,10 +19,10 @@ setup:
           - '{"index": {}}'
           - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
           - '{"index": {}}'
-          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [2, 5, 10, 1, 8]}}'
+          - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 
 ---
-"Histogram Sum Aggregation":
+"Histogram Aggregations":
 
   - do:
       search:
@@ -33,8 +33,17 @@ setup:
             histo_sum:
               sum:
                 field: "latency"
+            histo_value_count:
+              value_count:
+                field: "latency"
+            histo_avg:
+              avg:
+                field: "latency"
 
   - match: { hits.total.value: 2 }
   - match: { aggregations.histo_sum.value: 25 }
+  - match: { aggregations.histo_value_count.value: 80 }
+  - match: { aggregations.histo_avg.value:  0.3125}
+
 
 

@@ -65,7 +65,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -341,7 +341,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(threadContext);
+            HeaderWarning.setThreadContext(threadContext);
         }
     }
 
@@ -372,7 +372,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            DeprecationLogger.removeThreadContext(threadContext);
+            HeaderWarning.removeThreadContext(threadContext);
             threadContext = null;
         }
         ensureAllSearchContextsReleased();
@@ -433,10 +433,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
             assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
             final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                    actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                         .collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+                assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
@@ -1409,8 +1409,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
+        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt;
+        if (workerIdStr == null) {
+            startAt = 0; // IDE
+        } else {
+            // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
+            // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
+            final long workerId = Long.valueOf(workerIdStr);
+            assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+            startAt = Math.floorMod(workerId - 1, 223) + 1;
+        }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
     }

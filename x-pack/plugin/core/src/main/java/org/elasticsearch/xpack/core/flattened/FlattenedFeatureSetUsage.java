@@ -28,8 +28,8 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
         this.fieldCount = input.getVersion().onOrAfter(Version.V_7_6_0) ? input.readInt() : 0;
     }
 
-    public FlattenedFeatureSetUsage(boolean available, boolean enabled, int fieldCount) {
-        super(XPackField.FLATTENED, available, enabled);
+    public FlattenedFeatureSetUsage(boolean available, int fieldCount) {
+        super(XPackField.FLATTENED, available, true);
         this.fieldCount = fieldCount;
     }
 

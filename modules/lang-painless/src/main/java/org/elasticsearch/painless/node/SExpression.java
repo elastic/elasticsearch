@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.lookup.PainlessCast;
 
 import java.util.Objects;
 
@@ -34,28 +35,33 @@ import java.util.Objects;
  */
 public class SExpression extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SExpression(Location location, AExpression expression) {
-        super(location);
+    public SExpression(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expressionNode = Objects.requireNonNull(expressionNode);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Class<?> rtnType = scope.getReturnType();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.read = input.lastSource && !isVoid;
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope, expressionInput);
 
         boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 
         expressionInput.expected = rtn ? rtnType : expressionOutput.actual;
         expressionInput.internal = rtn;
-        expression.cast(expressionInput, expressionOutput);
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
+                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         Output output = new Output();
         output.methodEscape = rtn;
@@ -63,18 +69,18 @@ public class SExpression extends AStatement {
         output.allEscape = rtn;
         output.statementCount = 1;
 
-        ExpressionNode expressionNode = expression.cast(expressionOutput);
+        ExpressionNode expressionNode = AExpression.cast(expressionOutput.expressionNode, expressionCast);
 
         if (output.methodEscape) {
             ReturnNode returnNode = new ReturnNode();
             returnNode.setExpressionNode(expressionNode);
-            returnNode.setLocation(location);
+            returnNode.setLocation(getLocation());
 
             output.statementNode = returnNode;
         } else {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
             statementExpressionNode.setExpressionNode(expressionNode);
-            statementExpressionNode.setLocation(location);
+            statementExpressionNode.setLocation(getLocation());
 
             output.statementNode = statementExpressionNode;
         }

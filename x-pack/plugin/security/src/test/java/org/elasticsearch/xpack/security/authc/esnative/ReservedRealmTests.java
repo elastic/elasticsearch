@@ -306,6 +306,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
         assertThat(result.getMessage(), containsString("failed to authenticate"));
         assertThat(result.getMessage(), containsString(principal));
+        // exception must be null for graceful termination
+        assertThat(result.getException(), is(nullValue()));
     }
 
     @SuppressWarnings("unchecked")

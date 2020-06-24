@@ -11,13 +11,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -25,7 +23,6 @@ import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 public class LogstashUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private final Settings settings;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -35,7 +32,6 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Settings settings,
         XPackLicenseState licenseState
     ) {
         super(
@@ -46,7 +42,6 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
             actionFilters,
             indexNameExpressionResolver
         );
-        this.settings = settings;
         this.licenseState = licenseState;
     }
 
@@ -58,7 +53,7 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         boolean available = licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH);
-        LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available, XPackSettings.LOGSTASH_ENABLED.get(settings));
+        LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

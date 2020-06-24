@@ -348,6 +348,17 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
     }
 
+    public void testDiscardCompoundToken() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_discard_compound_token");
+        String source = "株式会社";
+        String[] expected = new String[] {"株式", "会社"};
+
+        Tokenizer tokenizer = tokenizerFactory.create();
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenizer, expected);
+    }
+
     private TestAnalysis createTestAnalysis(Settings analysisSettings) throws IOException {
         InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
         Path home = createTempDir();

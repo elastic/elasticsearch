@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -46,7 +45,6 @@ import static java.util.Collections.singletonList;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask implements AsyncTask {
-    private final BooleanSupplier checkSubmitCancellation;
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -73,7 +71,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * @param type The type of the task.
      * @param action The action name.
      * @param parentTaskId The parent task id.
-     * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncExecutionId} of the task.
@@ -84,7 +81,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     String type,
                     String action,
                     TaskId parentTaskId,
-                    BooleanSupplier checkSubmitCancellation,
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
@@ -93,7 +89,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         super(id, type, action, "async_search", parentTaskId, taskHeaders);
-        this.checkSubmitCancellation = checkSubmitCancellation;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
@@ -319,12 +314,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     // checks if the search task should be cancelled
     private synchronized void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (hasCompleted == false &&
-                expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
-            // we cancel the search task if the initial submit task was cancelled,
-            // this is needed because the task cancellation mechanism doesn't
-            // handle the cancellation of grand-children.
-            cancelTask(() -> {}, checkSubmitCancellation.getAsBoolean() ? "submit was cancelled" : "async search has expired");
+        if (hasCompleted == false && expirationTimeMillis < now) {
+            // we cancel expired search task even if they are still running
+            cancelTask(() -> {}, "async search has expired");
         }
     }
 

@@ -208,6 +208,7 @@ public final class SourceDestValidator {
                         indexNameExpressionResolver.concreteIndexNames(
                             state,
                             DEFAULT_INDICES_OPTIONS_FOR_VALIDATION,
+                            true,
                             resolvedSource.toArray(new String[0])
                         )
                     )

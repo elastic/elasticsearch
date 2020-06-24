@@ -143,7 +143,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier(), null);
+                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDataStreamTimestampField());
                 }
 
                 @Override

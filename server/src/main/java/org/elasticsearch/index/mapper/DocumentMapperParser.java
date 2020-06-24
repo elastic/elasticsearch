@@ -56,12 +56,6 @@ public class DocumentMapperParser {
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
                                 SimilarityService similarityService, MapperRegistry mapperRegistry,
-                                Supplier<QueryShardContext> queryShardContextSupplier) {
-        this(indexSettings, mapperService, xContentRegistry, similarityService, mapperRegistry, queryShardContextSupplier, null);
-    }
-
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-                                SimilarityService similarityService, MapperRegistry mapperRegistry,
                                 Supplier<QueryShardContext> queryShardContextSupplier, String dataStreamTimestampField) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;

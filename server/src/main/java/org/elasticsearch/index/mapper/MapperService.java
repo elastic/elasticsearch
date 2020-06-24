@@ -130,13 +130,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
-                         Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
-        this(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry, queryShardContextSupplier,
-            idFieldDataEnabled, null);
-    }
-
-    public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
-                         SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled,
                          String dataStreamTimestampField) {
         super(indexSettings);

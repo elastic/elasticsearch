@@ -485,7 +485,8 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", "@timestamp", List.of("logs-foo*"));
 
         // Index doc that triggers creation of a data stream
-        IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        IndexRequest indexRequest =
+            new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).opType("create");
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp");
@@ -497,7 +498,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp");
 
         // Index another doc into a data stream
-        indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        indexRequest = new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).opType("create");
         indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 2)));
 
@@ -512,7 +513,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 3), "properties.@timestamp");
 
         // Index another doc into a data stream
-        indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType("create");
+        indexRequest = new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).opType("create");
         indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
 
@@ -617,7 +618,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .opType("create")
             .source("{}", XContentType.JSON);
         Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("required timestamp field is missing"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 
     public void testMultipleTimestampValuesInDocument() throws Exception {
@@ -631,7 +632,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
         Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(),
-            containsString("timestamp field has multiple values, only a single value is allowed"));
+            containsString("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

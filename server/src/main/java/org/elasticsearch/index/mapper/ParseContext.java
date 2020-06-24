@@ -455,10 +455,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         void postParse() {
-            if (dataStreamTimestampField != null) {
-                if (dataStreamTimestampParsed == false) {
-                    throw new IllegalArgumentException("required timestamp field is missing");
-                }
+            if (dataStreamTimestampField != null && dataStreamTimestampParsed == false) {
+                throw new IllegalArgumentException("data stream timestamp field [" + dataStreamTimestampField + "] is missing");
             }
             if (documents.size() > 1) {
                 docsReversed = true;

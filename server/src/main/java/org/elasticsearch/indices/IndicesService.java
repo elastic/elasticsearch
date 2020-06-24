@@ -725,7 +725,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
         if (indexAbstraction != null &&
             indexAbstraction.getParentDataStream() != null) {
-            return indexAbstraction.getParentDataStream().getDataStream().getTimeStampField();
+            return indexAbstraction.getParentDataStream().getDataStream().getTimeStampField().getName();
         } else {
             return null;
         }

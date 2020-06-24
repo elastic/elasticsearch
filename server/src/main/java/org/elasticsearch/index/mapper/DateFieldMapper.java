@@ -600,7 +600,7 @@ public final class DateFieldMapper extends FieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
         if (singletonDataStreamTimestamp) {
             if (context.isDataStreamTimestampParsed()) {
-                throw new IllegalArgumentException("timestamp field has multiple values, only a single value is allowed");
+                throw new IllegalArgumentException("data stream timestamp field [" + name() + "] encountered multiple values");
             }
             context.setDataStreamTimestampParsed(true);
         }

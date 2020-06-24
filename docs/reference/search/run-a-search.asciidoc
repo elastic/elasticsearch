@@ -4,7 +4,7 @@
 You can use the <<search-search,search API>> to search data stored in
 one or more {es} indices.
 
-The API can runs two types of searches, depending on how you provide
+The API can run two types of searches, depending on how you provide
 <<search-query,queries>>:
 
 <<run-uri-search,URI searches>>::

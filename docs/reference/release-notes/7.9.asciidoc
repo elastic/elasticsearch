@@ -9,3 +9,6 @@ Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 
 Script Cache::
 * Script cache size and rate limiting are per-context {es-pull}55753[#55753] (issue: {es-issue}50152[#50152])
+
+Field capabilities API::
+* Constant_keyword fields are now described by their family type `keyword` instead of `constant_keyword` {es-pull}58483[#58483] (issue: {es-issue}53175[#53175])

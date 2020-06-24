@@ -336,7 +336,7 @@ final class StoreRecovery {
                     listener.onResponse(false);
                     return;
                 }
-                if ((ex.getCause() instanceof IndexShardClosedException) || (ex.getCause() instanceof IndexShardNotStartedException)) {
+                if (ex.getCause() instanceof IndexShardClosedException || ex.getCause() instanceof IndexShardNotStartedException) {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                     return;

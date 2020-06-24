@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.startsWith;
 
-public class EndsWithProcessorTests extends ESTestCase {
+public class EndsWithFunctionProcessorTests extends ESTestCase {
 
     final Configuration caseInsensitive = randomConfigurationWithCaseSensitive(false);
 
@@ -42,7 +42,6 @@ public class EndsWithProcessorTests extends ESTestCase {
     }
 
     public void testEndsWithFunctionWithValidInputCaseInsensitive() {
-        final Configuration config = randomConfigurationWithCaseSensitive(false);
         assertEquals(true, new EndsWith(EMPTY, l("foobarbar"), l("r"), caseInsensitive).makePipe().asProcessor().process(null));
         assertEquals(true, new EndsWith(EMPTY, l("foobarbar"), l("R"), caseInsensitive).makePipe().asProcessor().process(null));
         assertEquals(false, new EndsWith(EMPTY, l("foobar"), l("foo"), caseInsensitive).makePipe().asProcessor().process(null));

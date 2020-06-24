@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.startsWith;
 
-public class IndexOfProcessorTests extends ESTestCase {
+public class IndexOfFunctionProcessorTests extends ESTestCase {
 
     final Configuration caseInsensitive = randomConfigurationWithCaseSensitive(false);
 

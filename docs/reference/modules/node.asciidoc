@@ -183,20 +183,6 @@ To create a dedicated data node, set:
 node.roles: [ data ]
 -------------------
 
-To create a dedicated data node in the {oss-dist}, set:
-[source,yaml]
--------------------
-node.master: false <1>
-node.data: true <2>
-node.ingest: false <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.data` role is enabled by default.
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable remote cluster connections (enabled by default).
->>>>>>> elastic
-
 [[node-ingest-node]]
 ==== Ingest node
 

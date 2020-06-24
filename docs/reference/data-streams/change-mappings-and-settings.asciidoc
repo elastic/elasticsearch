@@ -133,6 +133,11 @@ POST /logs/_rollover/
 ----
 // TEST[continued]
 ====
++
+IMPORTANT: You cannot use these methods to change the mapping of a data stream's
+<<create-a-data-stream-template,timestamp field>>. To change the timestamp
+field's mapping, you must reindex the data stream. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
 
 * To apply mapping and setting changes to all existing backing indices and
 future ones, you must create a new data stream and reindex your data into it.

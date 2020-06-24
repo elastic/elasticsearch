@@ -77,7 +77,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Stream;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -142,7 +141,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected long primaryOperationSize(BulkShardRequest request) {
-        return DocWriteRequest.writeSizeInBytes(Stream.of(request.items()).map(BulkItemRequest::request));
+        return request.ramBytesUsed();
     }
 
     public static void performOnPrimary(
@@ -425,7 +424,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected long replicaOperationSize(BulkShardRequest request) {
-        return DocWriteRequest.writeSizeInBytes(Stream.of(request.items()).map(BulkItemRequest::request));
+        return request.ramBytesUsed();
     }
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {

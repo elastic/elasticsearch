@@ -25,16 +25,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
-    // A heuristic for the bytes overhead of a single write operation
-    public static final int WRITE_REQUEST_BYTES_OVERHEAD = 1024;
-
     private final AtomicLong coordinatingBytes = new AtomicLong(0);
     private final AtomicLong primaryBytes = new AtomicLong(0);
     private final AtomicLong replicaBytes = new AtomicLong(0);
 
     public Releasable markCoordinatingOperationStarted(long bytes) {
-        coordinatingBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
-        return () -> coordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+        coordinatingBytes.addAndGet(bytes);
+        return () -> coordinatingBytes.getAndAdd(-bytes);
     }
 
     public long getCoordinatingBytes() {
@@ -42,8 +39,8 @@ public class WriteMemoryLimits {
     }
 
     public Releasable markPrimaryOperationStarted(long bytes) {
-        primaryBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
-        return () -> primaryBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+        primaryBytes.addAndGet(bytes);
+        return () -> primaryBytes.getAndAdd(-bytes);
     }
 
     public long getPrimaryBytes() {
@@ -51,8 +48,8 @@ public class WriteMemoryLimits {
     }
 
     public Releasable markReplicaOperationStarted(long bytes) {
-        replicaBytes.getAndAdd(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
-        return () -> replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+        replicaBytes.getAndAdd(bytes);
+        return () -> replicaBytes.getAndAdd(-bytes);
     }
 
     public long getReplicaBytes() {

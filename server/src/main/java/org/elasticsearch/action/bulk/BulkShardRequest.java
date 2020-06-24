@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -32,12 +34,14 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
 
     public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
-    private BulkItemRequest[] items;
+    private final BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -163,5 +167,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

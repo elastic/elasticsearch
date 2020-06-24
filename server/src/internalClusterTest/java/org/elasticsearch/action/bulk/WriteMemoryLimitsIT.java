@@ -40,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
@@ -119,11 +120,12 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             IndexRequest request = new IndexRequest(index).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
             totalRequestSize += request.ramBytesUsed();
+            assertTrue(request.ramBytesUsed() > request.source().length());
             bulkRequest.add(request);
         }
 
-        final long bulkRequestSize = bulkRequest.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
-        final long bulkShardRequestSize = totalRequestSize + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+        final long bulkRequestSize = bulkRequest.ramBytesUsed();
+        final long bulkShardRequestSize = totalRequestSize;
 
         try {
             final ActionFuture<BulkResponse> successFuture = client(replicaName).bulk(bulkRequest);
@@ -132,8 +134,8 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
             WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
 
-            assertEquals(bulkShardRequestSize, primaryWriteLimits.getCoordinatingBytes());
-            assertEquals(bulkShardRequestSize, primaryWriteLimits.getPrimaryBytes());
+            assertThat(primaryWriteLimits.getCoordinatingBytes(), greaterThan(bulkShardRequestSize));
+            assertThat(primaryWriteLimits.getPrimaryBytes(), greaterThan(bulkShardRequestSize));
             assertEquals(0, primaryWriteLimits.getReplicaBytes());
             assertEquals(bulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
             assertEquals(0, replicaWriteLimits.getPrimaryBytes());
@@ -167,11 +169,12 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
             ActionFuture<BulkResponse> secondFuture = client(replicaName).bulk(secondBulkRequest);
 
-            final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
-            final long secondBulkShardRequestSize = request.ramBytesUsed() + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
+            final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
+            final long secondBulkShardRequestSize = request.ramBytesUsed();
 
             assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
-            assertBusy(() -> assertEquals(bulkShardRequestSize + secondBulkShardRequestSize, replicaWriteLimits.getReplicaBytes()));
+            assertBusy(() -> assertThat(replicaWriteLimits.getReplicaBytes(),
+                greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 
             latchBlockingReplication.countDown();
 

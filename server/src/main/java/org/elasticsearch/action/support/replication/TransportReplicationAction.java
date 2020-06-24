@@ -276,7 +276,7 @@ public abstract class TransportReplicationAction<
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener =
-            ActionListener.runAfter(new ChannelActionListener<>(channel, actionName, request), releasable::close);
+            ActionListener.runBefore(new ChannelActionListener<>(channel, actionName, request), releasable::close);
         execute(task, request, listener);
     }
 
@@ -584,6 +584,7 @@ public abstract class TransportReplicationAction<
                     Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                     AsyncReplicaAction.this.onFailure(e);
                 }));
+                // TODO: Evaludate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);

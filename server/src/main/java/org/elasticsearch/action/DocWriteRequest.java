@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -281,9 +280,5 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
         }
 
         return validationException;
-    }
-
-    static long writeSizeInBytes(Stream<DocWriteRequest<?>> requestStream) {
-        return requestStream.mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

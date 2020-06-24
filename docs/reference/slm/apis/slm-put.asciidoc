@@ -56,7 +56,7 @@ Configuration for each snapshot created by the policy.
 ====
 `ignore_unavailable`::
 (Optional, boolean)
-If `true`, missing indices do *not* cause snapshot creation to fail and return
+If `true`, missing data streams or indices do *not* cause snapshot creation to fail and return
 an error. Defaults to `false`.
 
 `include_global_state`::
@@ -65,14 +65,15 @@ If `true`, cluster states are included in snapshots. Defaults to `false`.
 
 `indices`::
 (Optional, array of strings)
-Array of index names or wildcard pattern of index names included in snapshots. It
-supports <<date-math-index-names,date math>> expressions.
+Array of data streams and indices to include in snapshots.
+<<date-math-index-names,Date math>> and wildcard (`*`) expressions are
+supported.
 ====
 
 `name`::
 (Required, string)
-Name automatically assigned to each snapshot created by the policy. This value
-supports the same <<date-math-index-names,date math>> supported in index names.
+Name automatically assigned to each snapshot created by the policy.
+<<date-math-index-names,Date math>> is supported.
 To prevent conflicting snapshot names, a UUID is automatically appended to each 
 snapshot name.
 
@@ -141,7 +142,7 @@ PUT /_slm/policy/daily-snapshots
 <2> The name each snapshot should be given
 <3> Which repository to take the snapshot in
 <4> Any extra snapshot configuration
-<5> Which indices the snapshot should contain
+<5> Data streams and indices the snapshot should contain
 <6> Optional retention configuration
 <7> Keep snapshots for 30 days
 <8> Always keep at least 5 successful snapshots, even if they're more than 30 days old

@@ -5,25 +5,28 @@
 --
 
 // tag::snapshot-intro[]
-A _snapshot_ is a backup taken from a running {es} cluster. 
-You can take snapshots of individual indices or of the entire cluster. 
-Snapshots can be stored in either local or remote repositories. 
-Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
+A _snapshot_ is a backup taken from a running {es} cluster.
+You can take snapshots of an entire cluster, including all its data streams and
+indices. You can also take snapshots of only specific data streams or indices in
+the cluster.
+
+Snapshots can be stored in either local or remote repositories.
+Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage,
 and other platforms supported by a repository plugin.
 
-Snapshots are incremental: each snapshot of an index only stores data that 
-is not part of an earlier snapshot.  
+Snapshots are incremental: each snapshot only stores data that
+is not part of an earlier snapshot.
 This enables you to take frequent snapshots with minimal overhead.
-// end::snapshot-intro[] 
+// end::snapshot-intro[]
 
 // tag::restore-intro[]
-You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>. 
-By default, all indices in the snapshot are restored. 
-Alternatively, you can restore specific indices or restore the cluster state from a snapshot. 
-When restoring indices, you can modify the index name and selected index settings. 
+You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>.
+By default, all data streams and indices in the snapshot are restored.
+However, you can choose to restore only the cluster state or specific data
+streams or indices from a snapshot.
 // end::restore-intro[]
 
-You must <<snapshots-register-repository, register a snapshot repository>> 
+You must <<snapshots-register-repository, register a snapshot repository>>
 before you can <<snapshots-take-snapshot, take snapshots>>.
 
 You can use <<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
@@ -50,7 +53,7 @@ compatibility. Follow the <<setup-upgrade,Upgrade documentation>>
 when migrating between versions.
 
 A snapshot contains a copy of the on-disk data structures that make up an
-index. This means that snapshots can only be restored to versions of
+index or a data stream's backing indices. This means that snapshots can only be restored to versions of
 {es} that can read the indices:
 
 * A snapshot of an index created in 6.x can be restored to 7.x.
@@ -67,20 +70,21 @@ We do not recommend restoring snapshots from later {es} versions in earlier
 versions. In some cases, the snapshots cannot be restored. For example, a
 snapshot taken in 7.6.0 cannot be restored to 7.5.0.
 
-Each snapshot can contain indices created in various versions of {es},
-and when restoring a snapshot it must be possible to restore all of the indices
-into the target cluster. If any indices in a snapshot were created in an
-incompatible version, you will not be able restore the snapshot.
+Each snapshot can contain indices created in various versions of {es}. This
+includes backing indices created for data streams. When restoring a snapshot, it
+must be possible to restore all of these indices into the target cluster. If any
+indices in a snapshot were created in an incompatible version, you will not be
+able restore the snapshot.
 
 IMPORTANT: When backing up your data prior to an upgrade, keep in mind that you
 won't be able to restore snapshots after you upgrade if they contain indices
 created in a version that's incompatible with the upgrade version.
 
-If you end up in a situation where you need to restore a snapshot of an index
+If you end up in a situation where you need to restore a snapshot of a data stream or index
 that is incompatible with the version of the cluster you are currently running,
 you can restore it on the latest compatible version and use
-<<reindex-from-remote,reindex-from-remote>> to rebuild the index on the current
-version. Reindexing from remote is only possible if the original index has
+<<reindex-from-remote,reindex-from-remote>> to rebuild the data stream or index on the current
+version. Reindexing from remote is only possible if the original data stream or index has
 source enabled. Retrieving and reindexing the data can take significantly
 longer than simply restoring a snapshot. If you have a large amount of data, we
 recommend testing the reindex from remote process with a subset of your data to

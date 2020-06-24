@@ -745,9 +745,13 @@ https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql?view=sq
 If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
 [NOTE]
-[1] If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
-(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned. +
-[2] Format specifier `F` will be working similar to format specifier `f`.
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+[NOTE]
+Format specifier `F` will be working similar to format specifier `f`.
+It represents the most significant digit of the seconds fraction; that is,
+it represents the tenths of a second in a date and time value. `0` s in most significant digit will not be omitted.
 
 [source, sql]
 --------------------------------------------------

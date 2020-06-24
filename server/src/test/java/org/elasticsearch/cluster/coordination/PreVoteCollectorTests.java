@@ -102,7 +102,7 @@ public class PreVoteCollectorTests extends ESTestCase {
 
             @Override
             public void handleRemoteError(long requestId, Throwable t) {
-                logger.warn("Remote error {} ", t);
+                logger.warn("Remote error", t);
             }
         };
         lastAcceptedTerm = randomNonNegativeLong();

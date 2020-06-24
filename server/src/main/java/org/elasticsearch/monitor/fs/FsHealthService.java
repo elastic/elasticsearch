@@ -140,7 +140,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             try {
                 if (enabled) {
                     monitorFSHealth();
-                    logger.debug("health check succeeded: {}");
+                    logger.debug("health check succeeded");
                 }
             } catch (Exception e) {
                 logger.error("health check failed", e);

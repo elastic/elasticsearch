@@ -652,7 +652,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (source != null) {
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
-        if (!documentFields.isEmpty() &&
+        if (documentFields.isEmpty() == false &&
                 // ignore fields all together if they are all empty
                 documentFields.values().stream()
                     .anyMatch(df -> df.getValues().size() > 0)) {

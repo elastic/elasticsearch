@@ -387,6 +387,23 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
         }
 
+        Map<String, DocumentField> metadata = new HashMap<>();
+        metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
+        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+            assertNull(parsed.getFields().get("_routing"));
+        }
+
     }
 
     static Explanation createExplanation(int depth) {

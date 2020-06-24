@@ -37,7 +37,9 @@ public class ValidateRestSpecPlugin implements Plugin<Project> {
                     filter.include(DOUBLE_STAR + "/rest-api-spec/api/" + DOUBLE_STAR + "/*.json");
                     filter.exclude(DOUBLE_STAR + "/_common.json");
                 }));
-                task.setJsonSchema(project.file("src/main/resources/schema.json"));
+                // This must always be specified precisely, so that
+                // projects other than `rest-api-spec` can use this task.
+                task.setJsonSchema(new File(project.getRootDir(), "rest-api-spec/src/main/resources/schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateJson.txt"));
             });
 

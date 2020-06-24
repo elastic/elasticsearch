@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionType;
 public class AddIndexBlockAction extends ActionType<AddIndexBlockResponse> {
 
     public static final AddIndexBlockAction INSTANCE = new AddIndexBlockAction();
-    public static final String NAME = "indices:admin/add-index-block";
+    public static final String NAME = "indices:admin/block/add";
 
     private AddIndexBlockAction() {
         super(NAME, AddIndexBlockResponse::new);

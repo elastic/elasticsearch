@@ -124,7 +124,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             } else {
                 //Using the analyzer's default BUT need to do the same thing AnalysisRegistry.processAnalyzerFactory
                 // does to splice in new default of posIncGap=100 by wrapping the analyzer
-                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                if (hasPositions) {
                     int overrideInc = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
                     ft.setIndexAnalyzer(indexAnalyzer, overrideInc);
                     ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, overrideInc));
@@ -522,7 +522,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
         public AnnotatedTextFieldType(String name, boolean hasPositions, Map<String, String> meta) {
-            super(name, true, hasPositions, meta);
+            super(name, hasPositions, meta);
         }
 
         protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {

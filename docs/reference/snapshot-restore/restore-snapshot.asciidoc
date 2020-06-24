@@ -57,7 +57,7 @@ explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
 
 If you rename a restored data stream, its backing indices are also
-renamed. For example, if you rename the `logs` data stream to `restored-log`,
+renamed. For example, if you rename the `logs` data stream to `restored-logs`,
 the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
 
 [WARNING]

@@ -246,9 +246,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     public void testAddBlockNullIndex() {
-        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareAddBlock(randomFrom(APIBlock.values()), (String[])null).get());
-        assertThat(e.getMessage(), containsString("index is missing"));
+        expectThrows(NullPointerException.class,
+            () -> client().admin().indices().prepareAddBlock(randomFrom(APIBlock.values()), (String[])null));
     }
 
     public void testAddIndexBlock() throws Exception {

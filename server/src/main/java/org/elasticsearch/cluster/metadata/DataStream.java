@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
@@ -247,12 +246,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
          * Force fully inserts the timestamp field mapping into the provided mapping.
          * Existing mapping definitions for the timestamp field will be completely overwritten.
          * Takes into account if the name of the timestamp field is nested.
-         *
-         * @param mappings The mapping to update
          */
-        public void insertTimestampFieldMapping(Map<String, Object> mappings) {
-            assert mappings.containsKey("_doc");
-
+        public Map<String, Object> getTimestampFieldMapping() {
             String mappingPath = convertFieldPathToMappingPath(name);
             String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
             String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
@@ -265,7 +260,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 current = map;
             }
             current.put(leafFieldName, fieldMapping);
-            XContentHelper.update(mappings, changes, false);
+            return changes;
         }
 
         @Override

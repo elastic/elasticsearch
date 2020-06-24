@@ -44,8 +44,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.search.aggregations.metrics.MinAggregator.getPointReaderOrNull;
-
 class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;

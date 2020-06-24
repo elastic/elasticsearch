@@ -71,6 +71,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -693,42 +694,42 @@ public class MinAggregatorTests extends AggregatorTestCase {
     public void testShortcutIsApplicable() {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             assertNotNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(new MatchAllDocsQuery()),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNotNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     null,
                     mockNumericValuesSourceConfig("number", type, false)
@@ -737,28 +738,28 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
         for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(new MatchAllDocsQuery()),
                     mockAggregator(),
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                     null,
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     mockAggregator(),
                     mockDateValuesSourceConfig("number", true, resolution)
                 )
             );
             assertNull(
-                MinAggregator.getPointReaderOrNull(
+                AggregatorBase.getPointReaderOrNull(
                     mockSearchContext(null),
                     null,
                     mockDateValuesSourceConfig("number", false, resolution)
@@ -770,7 +771,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         byte[] scratch = new byte[8];
         LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
         assertThat(
-            MinAggregator.getPointReaderOrNull(
+            AggregatorBase.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
                 null,
                 mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.MILLISECONDS)
@@ -778,7 +779,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         );
         LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
         assertThat(
-            MinAggregator.getPointReaderOrNull(
+            AggregatorBase.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
                 null,
                 mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.NANOSECONDS)

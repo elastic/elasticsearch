@@ -109,6 +109,7 @@ public class FollowersCheckerTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
+
         final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
             assert false : fcr;
         }, (node, reason) -> {

@@ -94,7 +94,6 @@ public class JoinHelper {
     private final TimeValue joinTimeout;
     private final NodeHealthService nodeHealthService;
 
-
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
     private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();

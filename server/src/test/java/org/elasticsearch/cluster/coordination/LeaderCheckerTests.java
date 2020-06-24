@@ -424,7 +424,7 @@ public class LeaderCheckerTests extends ESTestCase {
             assertThat(cause.getMessage(), equalTo("rejecting leader check from [" + otherNode
                 + "] since node is unhealthy [unhealthy-info]"));
         }
-        
+
         nodeHealthServiceStatus.getAndSet(new StatusInfo(HEALTHY, "healthy-info"));
         {
             leaderChecker.setCurrentNodes(discoveryNodes);

@@ -100,11 +100,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     }
 
     @Override
-    protected void doClose() throws IOException {
-
+    protected void doClose() {
     }
 
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     public void setSlowPathLoggingThreshold(TimeValue slowPathLoggingThreshold) {
         this.slowPathLoggingThreshold = slowPathLoggingThreshold;

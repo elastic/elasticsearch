@@ -91,7 +91,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
-
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**

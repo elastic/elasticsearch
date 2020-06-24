@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Objects;
 
 public class FlushJobAction extends ActionType<FlushJobAction.Response> {
@@ -186,33 +186,35 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean flushed;
-        private Date lastFinalizedBucketEnd;
+        private final boolean flushed;
+        private final Instant lastFinalizedBucketEnd;
 
-        public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
+        public Response(boolean flushed, @Nullable Instant lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
-            this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
+            // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
+            this.lastFinalizedBucketEnd =
+                (lastFinalizedBucketEnd != null) ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli()) : null;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             flushed = in.readBoolean();
-            lastFinalizedBucketEnd = new Date(in.readVLong());
+            lastFinalizedBucketEnd = in.readOptionalInstant();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(flushed);
-            out.writeVLong(lastFinalizedBucketEnd.getTime());
+            out.writeOptionalInstant(lastFinalizedBucketEnd);
         }
 
         public boolean isFlushed() {
             return flushed;
         }
 
-        public Date getLastFinalizedBucketEnd() {
+        public Instant getLastFinalizedBucketEnd() {
             return lastFinalizedBucketEnd;
         }
 
@@ -222,7 +224,8 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
                 builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
-                        FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string", lastFinalizedBucketEnd.getTime());
+                    FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
+                    lastFinalizedBucketEnd.toEpochMilli());
             }
             builder.endObject();
             return builder;
@@ -242,7 +245,4 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return Objects.hash(flushed, lastFinalizedBucketEnd);
         }
     }
-
 }
-
-

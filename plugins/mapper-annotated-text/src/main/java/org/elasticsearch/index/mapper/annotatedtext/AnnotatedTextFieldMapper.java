@@ -32,7 +32,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -125,7 +124,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             } else {
                 //Using the analyzer's default BUT need to do the same thing AnalysisRegistry.processAnalyzerFactory
                 // does to splice in new default of posIncGap=100 by wrapping the analyzer
-                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                if (hasPositions) {
                     int overrideInc = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
                     ft.setIndexAnalyzer(indexAnalyzer, overrideInc);
                     ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, overrideInc));
@@ -142,7 +141,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             }
             return new AnnotatedTextFieldMapper(
                     name, fieldType, buildFieldType(context), positionIncrementGap,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -523,7 +522,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
         public AnnotatedTextFieldType(String name, boolean hasPositions, Map<String, String> meta) {
-            super(name, true, hasPositions, meta);
+            super(name, hasPositions, meta);
         }
 
         protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {
@@ -554,9 +553,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     private int positionIncrementGap;
     protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
-                                int positionIncrementGap,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                int positionIncrementGap, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         this.positionIncrementGap = positionIncrementGap;
     }

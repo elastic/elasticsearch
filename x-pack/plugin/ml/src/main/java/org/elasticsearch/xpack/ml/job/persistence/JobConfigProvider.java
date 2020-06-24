@@ -57,6 +57,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -120,7 +121,7 @@ public class JobConfigProvider {
     public void putJob(Job job, ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest =  new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+            IndexRequest indexRequest =  new IndexRequest(MlConfigIndex.indexName())
                     .id(Job.documentId(job.getId()))
                     .source(source)
                     .opType(DocWriteRequest.OpType.CREATE)
@@ -154,7 +155,7 @@ public class JobConfigProvider {
      * @param jobListener Job listener
      */
     public void getJob(String jobId, ActionListener<Job.Builder> jobListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -191,7 +192,7 @@ public class JobConfigProvider {
      * @param actionListener Deleted job listener
      */
     public void deleteJob(String jobId, boolean errorIfMissing, ActionListener<DeleteResponse> actionListener) {
-        DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
@@ -227,7 +228,7 @@ public class JobConfigProvider {
      */
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
                           ActionListener<Job> updatedJobListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -291,7 +292,7 @@ public class JobConfigProvider {
      */
     public void updateJobWithValidation(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
                                         UpdateValidator validator, ActionListener<Job> updatedJobListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -341,7 +342,7 @@ public class JobConfigProvider {
                                  ActionListener<Job> updatedJobListener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName())
                     .id(Job.documentId(updatedJob.getId()))
                     .source(updatedSource)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -377,7 +378,7 @@ public class JobConfigProvider {
      * @param listener          Exists listener
      */
     public void jobExists(String jobId, boolean errorIfMissing, ActionListener<Boolean> listener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
@@ -425,7 +426,7 @@ public class JobConfigProvider {
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(ids.size())
@@ -451,7 +452,7 @@ public class JobConfigProvider {
      * @param listener  Responds with true if successful else an error
      */
     public void markJobAsDeleting(String jobId, ActionListener<Boolean> listener) {
-        UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
+        UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         updateRequest.retryOnConflict(3);
         updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         updateRequest.doc(Collections.singletonMap(Job.DELETING.getPreferredName(), Boolean.TRUE));
@@ -518,7 +519,7 @@ public class JobConfigProvider {
         sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
         sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
@@ -576,7 +577,7 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
@@ -634,7 +635,7 @@ public class JobConfigProvider {
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
@@ -672,7 +673,7 @@ public class JobConfigProvider {
                 .query(boolQueryBuilder);
         sourceBuilder.fetchSource(false);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setSize(0)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
@@ -696,7 +697,7 @@ public class JobConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .query(QueryBuilders.nestedQuery(customRulesPath, QueryBuilders.existsQuery(customRulesPath), ScoreMode.None));
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)

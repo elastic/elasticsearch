@@ -99,7 +99,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(enabled, includes, excludes, context.indexSettings());
+            return new SourceFieldMapper(enabled, includes, excludes);
         }
     }
 
@@ -140,7 +140,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SourceFieldMapper(indexSettings);
+            return new SourceFieldMapper();
         }
     }
 
@@ -149,7 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public static final SourceFieldType INSTANCE = new SourceFieldType();
 
         private SourceFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         protected SourceFieldType(SourceFieldType ref) {
@@ -185,12 +185,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
 
-    private SourceFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED, null, null, indexSettings);
+    private SourceFieldMapper() {
+        this(Defaults.ENABLED, null, null);
     }
 
-    private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes, Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, SourceFieldType.INSTANCE, indexSettings); // Only stored.
+    private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
+        super(Defaults.FIELD_TYPE, SourceFieldType.INSTANCE); // Only stored.
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;

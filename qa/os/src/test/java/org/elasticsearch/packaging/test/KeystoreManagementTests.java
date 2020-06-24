@@ -47,7 +47,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -295,7 +294,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path tempDir = null;
         try {
-            tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+            tempDir = createTempDir(DockerTests.class.getSimpleName());
 
             String password = "password";
             String passwordFilename = "password.txt";
@@ -349,7 +348,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
-        Path tempDirectory = Files.createTempDirectory(getTempDir(), KeystoreManagementTests.class.getSimpleName());
+        Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
         Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to

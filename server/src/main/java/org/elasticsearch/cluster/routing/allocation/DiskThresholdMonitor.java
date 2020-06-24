@@ -140,10 +140,6 @@ public class DiskThresholdMonitor {
             final DiskUsage usage = entry.value;
             final RoutingNode routingNode = routingNodes.node(node);
 
-            final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
-            final DiskUsage usageWithReservedSpace = new DiskUsage(usage.getNodeId(), usage.getNodeName(), usage.getPath(),
-                usage.getTotalBytes(), Math.max(0L, usage.getFreeBytes() - reservedSpace));
-
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
 
@@ -175,6 +171,10 @@ public class DiskThresholdMonitor {
                     }
                 }
             }
+
+            final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
+            final DiskUsage usageWithReservedSpace = new DiskUsage(usage.getNodeId(), usage.getNodeName(), usage.getPath(),
+                usage.getTotalBytes(), Math.max(0L, usage.getFreeBytes() - reservedSpace));
 
             if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                 usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {

@@ -99,7 +99,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
         ClusterState cs = getClusterStateWithDataStreams(Arrays.asList(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
             otherIndices);
-        SnapshotsInProgress snapshotsInProgress = new SnapshotsInProgress(Arrays.asList(
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(Arrays.asList(
             createEntry(dataStreamName, "repo1", false),
             createEntry(dataStreamName2, "repo2", true)));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();

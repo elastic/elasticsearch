@@ -89,7 +89,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -260,19 +259,19 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+                        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
                         if (currentState.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
                             // Check if another restore process is already running - cannot run two restore processes at the
                             // same time in versions prior to 7.0
-                            if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
+                            if (restoreInProgress.isEmpty() == false) {
                                 throw new ConcurrentSnapshotExecutionException(snapshot,
                                     "Restore process is already running in this cluster");
                             }
                         }
                         // Check if the snapshot to restore is currently being deleted
-                        SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                        if (deletionsInProgress != null
-                            && deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshotId))) {
+                        SnapshotDeletionsInProgress deletionsInProgress =
+                            currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+                        if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshotId))) {
                             throw new ConcurrentSnapshotExecutionException(snapshot,
                                 "cannot restore a snapshot while a snapshot deletion is in-progress [" +
                                     deletionsInProgress.getEntries().get(0) + "]");
@@ -406,13 +405,8 @@ public class RestoreService implements ClusterStateApplier {
                                 Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
                                 shards
                             );
-                            RestoreInProgress.Builder restoreInProgressBuilder;
-                            if (restoreInProgress != null) {
-                                restoreInProgressBuilder = new RestoreInProgress.Builder(restoreInProgress);
-                            } else {
-                                restoreInProgressBuilder = new RestoreInProgress.Builder();
-                            }
-                            builder.putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.add(restoreEntry).build());
+                            builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder(
+                                currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)).add(restoreEntry).build());
                         } else {
                             shards = ImmutableOpenMap.of();
                         }
@@ -763,11 +757,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     public static RestoreInProgress.Entry restoreInProgress(ClusterState state, String restoreUUID) {
-        final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            return restoreInProgress.get(restoreUUID);
-        }
-        return null;
+        return state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).get(restoreUUID);
     }
 
     static class CleanRestoreStateTaskExecutor implements ClusterStateTaskExecutor<CleanRestoreStateTaskExecutor.Task>,
@@ -791,15 +781,12 @@ public class RestoreService implements ClusterStateApplier {
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
             Set<String> completedRestores = tasks.stream().map(e -> e.uuid).collect(Collectors.toSet());
             RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
-            final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
             boolean changed = false;
-            if (restoreInProgress != null) {
-                for (RestoreInProgress.Entry entry : restoreInProgress) {
-                    if (completedRestores.contains(entry.uuid())) {
-                        changed = true;
-                    } else {
-                        restoreInProgressBuilder.add(entry);
-                    }
+            for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+                if (completedRestores.contains(entry.uuid())) {
+                    changed = true;
+                } else {
+                    restoreInProgressBuilder.add(entry);
                 }
             }
             if (changed == false) {
@@ -824,20 +811,15 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private void cleanupRestoreState(ClusterChangedEvent event) {
-        ClusterState state = event.state();
-
-        RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry entry : restoreInProgress) {
-                if (entry.state().completed()) {
-                    assert completed(entry.shards()) : "state says completed but restore entries are not";
-                    clusterService.submitStateUpdateTask(
-                        "clean up snapshot restore state",
-                        new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
-                        ClusterStateTaskConfig.build(Priority.URGENT),
-                        cleanRestoreStateTaskExecutor,
-                        cleanRestoreStateTaskExecutor);
-                }
+        for (RestoreInProgress.Entry entry : event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+            if (entry.state().completed()) {
+                assert completed(entry.shards()) : "state says completed but restore entries are not";
+                clusterService.submitStateUpdateTask(
+                    "clean up snapshot restore state",
+                    new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
+                    ClusterStateTaskConfig.build(Priority.URGENT),
+                    cleanRestoreStateTaskExecutor,
+                    cleanRestoreStateTaskExecutor);
             }
         }
     }
@@ -939,13 +921,8 @@ public class RestoreService implements ClusterStateApplier {
      * Returns the indices that are currently being restored and that are contained in the indices-to-check set.
      */
     public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
-        final RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
-        if (restore == null) {
-            return emptySet();
-        }
-
         final Set<Index> indices = new HashSet<>();
-        for (RestoreInProgress.Entry entry : restore) {
+        for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
             for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                 Index index = shard.key.getIndex();
                 if (indicesToCheck.contains(index)

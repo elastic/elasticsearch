@@ -153,7 +153,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
 
         @Override
         public String toString() {
-            return "verify shard " + shardId + " before close with block " + clusterBlock;
+            return "verify shard " + shardId + " before block with " + clusterBlock;
         }
 
         @Override

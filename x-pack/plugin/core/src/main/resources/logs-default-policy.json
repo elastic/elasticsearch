@@ -1,7 +1,6 @@
 {
   "phases": {
     "hot": {
-      "min_age": "0ms",
       "actions": {
         "rollover": {
           "max_size": "50gb",

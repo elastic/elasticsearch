@@ -691,6 +691,35 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
+    public static class DoubleBinarySearcher extends BinarySearcher{
+
+        DoubleArray array;
+        double searchFor;
+
+        public DoubleBinarySearcher(DoubleArray array){
+            this.array = array;
+            this.searchFor = Integer.MIN_VALUE;
+        }
+
+        @Override
+        protected int compare(int index) {
+            // Prevent use of BinarySearcher.search() and force the use of DoubleBinarySearcher.search()
+            assert this.searchFor != Integer.MIN_VALUE;
+
+            return Double.compare(array.get(index), searchFor);
+        }
+
+        @Override
+        protected double distance(int index) {
+            return Math.abs(array.get(index) - searchFor);
+        }
+
+        public int search(int from, int to, double searchFor) {
+            this.searchFor = searchFor;
+            return super.search(from, to);
+        }
+    }
+
     /**
      * Allocate a new {@link FloatArray}.
      * @param size          the initial length of the array
@@ -782,3 +811,4 @@ public class BigArrays {
         return resize(array, newSize);
     }
 }
+

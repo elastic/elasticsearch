@@ -234,12 +234,13 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
             ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
-            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().isEmpty() == false) {
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress =
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+            if (snapshots.entries().isEmpty() == false) {
                 logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
                 fail("Snapshot is still running");
-            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+            } else if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
                 logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
                 fail("Snapshot deletion is still running");
             } else {

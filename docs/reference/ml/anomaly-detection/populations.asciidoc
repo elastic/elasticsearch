@@ -62,26 +62,26 @@ the sample web logs in {kib}, you can use the following job settings in the
 population job wizard:
 
 [role="screenshot"]
-image::images/ml-population-job.jpg["Job settings in the population job wizard]
+image::images/ml-population-job.png["Job settings in the population job wizard]
 
 After you open the job and start the {dfeed} or supply data to the job, you can
 view the results in {kib}. For example, you can view the results in the
 **Anomaly Explorer**:
 
 [role="screenshot"]
-image::images/ml-population-results.jpg["Population analysis results in the Anomaly Explorer"]
+image::images/ml-population-results.png["Population analysis results in the Anomaly Explorer"]
 
 As in this case, the results are often quite sparse. There might be just a few
 data points for the selected time period. Population analysis is particularly
 useful when you have many entities and the data for specific entitles is sporadic
 or sparse.
 
-If you click on a section in the timeline or swimlanes, you can see more
+If you click on a section in the timeline or swim lanes, you can see more
 details about the anomalies:
 
 [role="screenshot"]
-image::images/ml-population-anomaly.jpg["Anomaly details for a specific user"]
+image::images/ml-population-anomaly.png["Anomaly details for a specific user"]
 
-In this example, the client IP address `29.64.62.83` received a high volume of
+In this example, the client IP address `30.156.16.164` received a low volume of
 bytes on the date and time shown. This event is anomalous because the mean is
-three times higher than the expected behavior of the population.
+three times lower than the expected behavior of the population.

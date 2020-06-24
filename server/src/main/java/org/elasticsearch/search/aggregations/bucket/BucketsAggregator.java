@@ -21,12 +21,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -101,6 +99,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
+    /**
+     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
+     * ordinals and doc ID deltas.
+     *
+     * Refer to that method for documentation about the merge map.
+     */
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
         try (IntArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newIntArray(newNumBuckets, true);
@@ -154,7 +158,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * <p>
      * Most aggregations should probably use something like
      * {@link #buildSubAggsForAllBuckets(Object[][], ToLongFunction, BiConsumer)}
-     * or {@link #buildAggregationsForVariableBuckets(long[], LongHash, BucketBuilderForVariable, Function)}
+     * or {@link #buildAggregationsForVariableBuckets(long[], LongKeyedBucketOrds, BucketBuilderForVariable, ResultBuilderForVariable)}
      * or {@link #buildAggregationsForFixedBucketCount(long[], int, BucketBuilderForFixedCount, Function)}
      * or {@link #buildAggregationsForSingleBucket(long[], SingleBucketResultBuilder)}
      * instead of calling this directly.
@@ -300,32 +304,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     /**
      * Build aggregation results for an aggregator with a varying number of
-     * {@code long} keyed buckets that is at the top level or wrapped in
-     * {@link AggregatorFactory#asMultiBucketAggregator}.
-     * @param owningBucketOrds owning bucket ordinals for which to build the results
-     * @param bucketOrds hash of values to the bucket ordinal
-     */
-    protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongHash bucketOrds,
-            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
-        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
-        long[] bucketOrdsToCollect = new long[(int) bucketOrds.size()];
-        for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
-            bucketOrdsToCollect[bucketOrd] = bucketOrd;
-        }
-
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-        List<B> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
-            buckets.add(bucketBuilder.build(bucketOrds.get(bucketOrd), bucketDocCount(bucketOrd), subAggregationResults[bucketOrd]));
-        }
-
-        return new InternalAggregation[] { resultBuilder.apply(buckets) };
-    }
-
-    /**
-     * Build aggregation results for an aggregator with a varying number of
-     * {@code long} keyed buckets that is at the top level or wrapped in
-     * {@link AggregatorFactory#asMultiBucketAggregator}.
+     * {@code long} keyed buckets.
      * @param owningBucketOrds owning bucket ordinals for which to build the results
      * @param bucketOrds hash of values to the bucket ordinal
      */

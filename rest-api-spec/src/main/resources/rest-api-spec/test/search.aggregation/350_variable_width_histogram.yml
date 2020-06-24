@@ -1,0 +1,50 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              number:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"number": -3}'
+          - '{"index": {}}'
+          - '{"number": -2}'
+          - '{"index": {}}'
+          - '{"number": 1}'
+          - '{"index": {}}'
+          - '{"number": 4}'
+          - '{"index": {}}'
+          - '{"number": 5}'
+
+---
+"basic":
+  - skip:
+      version: " - 7.99.99"
+      reason: added in 8.0.0 (to be backported to 7.9.0)
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            histo:
+              variable_width_histogram:
+                field: number
+                buckets: 3
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key: -2.5 }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.key: 1.0 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+  - match: { aggregations.histo.buckets.2.key: 4.5 }
+  - match: { aggregations.histo.buckets.2.doc_count: 2 }
+

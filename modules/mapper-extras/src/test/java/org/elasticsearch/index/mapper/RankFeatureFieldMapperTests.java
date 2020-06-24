@@ -45,7 +45,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "store", "doc_values");
+        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
     @Before

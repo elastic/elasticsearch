@@ -83,7 +83,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
+            requests.add(DocWriteRequest.readDocumentRequest(null, in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();

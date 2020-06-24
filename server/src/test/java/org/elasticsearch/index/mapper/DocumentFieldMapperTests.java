@@ -29,9 +29,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -76,7 +73,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
     static class FakeFieldType extends TermBasedFieldType {
 
         FakeFieldType(String name) {
-            super(name, true, true, Collections.emptyMap());
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         FakeFieldType(FakeFieldType other) {
@@ -106,10 +103,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldMapper extends FieldMapper {
 
-        private static final Settings SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-
         FakeFieldMapper(FakeFieldType fieldType) {
-            super(fieldType.name(), new FieldType(), fieldType, SETTINGS, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), new FieldType(), fieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override

@@ -23,12 +23,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -69,7 +69,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
 
         @Override
         public MetaJoinFieldMapper build(BuilderContext context) {
-            return new MetaJoinFieldMapper(name, joinField, context.indexSettings());
+            return new MetaJoinFieldMapper(name, joinField);
         }
     }
 
@@ -78,7 +78,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         private final String joinField;
 
         MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.joinField = joinField;
         }
 
@@ -121,8 +121,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String name, String joinField, Settings indexSettings) {
-        super(name, Defaults.FIELD_TYPE, new MetaJoinFieldType(joinField), indexSettings, MultiFields.empty(), CopyTo.empty());
+    MetaJoinFieldMapper(String name, String joinField) {
+        super(name, Defaults.FIELD_TYPE, new MetaJoinFieldType(joinField), MultiFields.empty(), CopyTo.empty());
     }
 
     @Override

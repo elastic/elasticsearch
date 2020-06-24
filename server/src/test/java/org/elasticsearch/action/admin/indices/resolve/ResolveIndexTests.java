@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -238,7 +239,7 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dataStreamName, timestampField,
+            DataStream ds = new DataStream(dataStreamName, createTimestampField(timestampField),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
             builder.put(ds);
         }

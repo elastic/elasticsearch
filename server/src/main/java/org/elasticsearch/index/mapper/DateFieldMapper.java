@@ -39,7 +39,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -252,7 +251,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = setupFieldType(context);
             Long nullTimestamp = nullValue == null ? null : ft.dateTimeFormatter.parseMillis(nullValue);
             return new DateFieldMapper(name, fieldType, ft, ignoreMalformed(context), nullTimestamp, nullValue,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -303,7 +302,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(String name, boolean isSearchable, boolean hasDocValues,
                              DateFormatter dateTimeFormatter, Resolution resolution, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -557,10 +556,9 @@ public final class DateFieldMapper extends FieldMapper {
             MappedFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             Long nullValue, String nullValueAsString,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
         this.nullValueAsString = nullValueAsString;

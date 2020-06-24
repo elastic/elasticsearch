@@ -4,15 +4,11 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
-<<<<<<< HEAD
-Copies documents from one index to another.
-=======
 Copies documents from a _source_ to a _destination_.
 
 The source and destination can be any pre-existing index, index alias, or
 <<data-streams,data stream>>. However, the source and destination must be
 different. For example, you cannot reindex a data stream into itself.
->>>>>>> master
 
 [IMPORTANT]
 =================================================
@@ -74,17 +70,15 @@ POST _reindex
 
 [[docs-reindex-api-desc]]
 ==== {api-description-title}
-<<<<<<< HEAD
+
 // tag::docs-reindex-api-desc-tag[]
 Extracts the document source from the source index and indexes the documents into the destination index.
 You can copy all documents to the destination index, or reindex a subset of the documents.
 // end::docs-reindex-api-desc-tag[]
-=======
 
 Extracts the <<mapping-source-field,document source>> from the reindex request's source and indexes the documents into the destination.
 You can copy all documents to the destination, or reindex a subset of the documents.
 
->>>>>>> master
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
 snapshot of the source but its destination must be **different** so
 version conflicts are unlikely. The `dest` element can be configured like the
@@ -99,10 +93,6 @@ any documents that have an older version in the destination than they do
 in the source.
 
 Setting `op_type` to `create` causes `_reindex` to only create missing
-<<<<<<< HEAD
-documents in the target index. All existing documents will cause a version
-conflict.
-=======
 documents in the destination. All existing documents will cause a version
 conflict.
 
@@ -110,7 +100,6 @@ IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
 any reindex request to a destination data stream must have an `op_type`
 of`create`. A reindex can only add new documents to a destination data stream.
 It cannot update existing documents in a destination data stream.
->>>>>>> master
 
 By default, version conflicts abort the `_reindex` process.
 To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`.
@@ -469,13 +458,8 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-<<<<<<< HEAD
-(Required, string) The name of the index you are copying _from_.
-Also accepts a comma-separated list of indices to reindex from multiple sources.
-=======
 (Required, string) The name of the data stream, index, or index alias you are copying _from_.
 Also accepts a comma-separated list to reindex from multiple sources.
->>>>>>> master
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex.

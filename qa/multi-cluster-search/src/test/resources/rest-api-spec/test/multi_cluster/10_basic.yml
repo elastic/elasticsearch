@@ -294,7 +294,7 @@
   - match: { hits.total: 12 }
 
 ---
-"Search an filtered alias on the remote cluster":
+"Search a filtered alias on the remote cluster":
 
   - do:
       search:
@@ -311,10 +311,7 @@
   - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
 
 ---
-"Search an filtered alias and empty index on the remote cluster":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
+"Search a filtered alias and empty index on the remote cluster":
 
   - do:
       search:
@@ -332,9 +329,6 @@
 
 ---
 "Single shard search gets properly proxied":
-  - skip:
-        version: "all"
-        reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/58345"
 
   - do:
       search:

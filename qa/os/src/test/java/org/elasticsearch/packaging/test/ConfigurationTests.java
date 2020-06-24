@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Platforms;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
@@ -40,7 +41,8 @@ public class ConfigurationTests extends PackagingTestCase {
     }
 
     public void test60HostnameSubstitution() throws Exception {
-        sh.getEnv().put("HOSTNAME", "mytesthost");
+        String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
+        sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
             FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
             assertWhileRunning(() -> {

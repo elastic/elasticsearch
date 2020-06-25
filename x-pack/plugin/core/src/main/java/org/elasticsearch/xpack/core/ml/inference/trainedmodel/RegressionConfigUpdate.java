@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.RESULTS_FIELD;
 
@@ -77,12 +76,12 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
         this.numTopFeatureImportanceValues = in.readOptionalVInt();
     }
 
-    public int getNumTopFeatureImportanceValues() {
-        return numTopFeatureImportanceValues == null ? 0 : numTopFeatureImportanceValues;
+    public Integer getNumTopFeatureImportanceValues() {
+        return numTopFeatureImportanceValues;
     }
 
     public String getResultsField() {
-        return resultsField == null ? DEFAULT_RESULTS_FIELD : resultsField;
+        return resultsField;
     }
 
     @Override

@@ -11,7 +11,6 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 
 public class RawInferenceResults implements InferenceResults {
@@ -55,11 +54,6 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public void writeResult(IngestDocument document, String parentResultField) {
-        throw new UnsupportedOperationException("[raw] does not support writing inference results");
-    }
-
-    @Override
-    public Map<String, Object> writeResultToMap() {
         throw new UnsupportedOperationException("[raw] does not support writing inference results");
     }
 

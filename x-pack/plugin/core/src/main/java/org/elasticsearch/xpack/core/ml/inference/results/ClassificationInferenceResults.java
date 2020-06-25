@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -86,6 +84,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return topClasses;
     }
 
+    public PredictionFieldType getPredictionFieldType() {
+        return predictionFieldType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -148,22 +150,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                 .map(FeatureImportance::toMap)
                 .collect(Collectors.toList()));
         }
-    }
-
-    @Override
-    public Map<String, Object> writeResultToMap() {
-        Map<String, Object> results = new HashMap<>();
-        results.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
-        if (classificationLabel != null) {
-            results.put(LABEL, classificationLabel);
-        }
-        if (topClasses.size() > 0) {
-            results.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
-        }
-        if (getFeatureImportance().size() > 0) {
-            results.put(FEATURE_IMPORTANCE, getFeatureImportance());
-        }
-        return results;
     }
 
     @Override

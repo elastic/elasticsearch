@@ -32,7 +32,14 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             FeatureImportanceTests::randomClassification :
             FeatureImportanceTests::randomRegression;
 
-        return new ClassificationInferenceResults(randomDouble(),
+        ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
+        Double value = randomDouble();
+        if (config.getPredictionFieldType() == PredictionFieldType.BOOLEAN) {
+            // value must be close to 0 or 1
+            value = randomBoolean() ? 0.0 : 1.0;
+        }
+
+        return new ClassificationInferenceResults(value,
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null :
                 Stream.generate(TopClassEntryTests::createRandomTopClassEntry)
@@ -42,7 +49,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 Stream.generate(featureImportanceCtor)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
-            ClassificationConfigTests.randomClassificationConfig());
+            config);
     }
 
     public void testWriteResultsWithClassificationLabel() {
@@ -81,8 +88,8 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         List<?> list = document.getFieldValue("result_field.bar", List.class);
         assertThat(list.size(), equalTo(3));
 
-        for(int i = 0; i < 3; i++) {
-            Map<String, Object> map = (Map<String, Object>)list.get(i);
+        for (int i = 0; i < 3; i++) {
+            Map<String, Object> map = (Map<String, Object>) list.get(i);
             assertThat(map, equalTo(entries.get(i).asValueMap()));
         }
 
@@ -107,11 +114,11 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>)document.getFieldValue(
+        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>) document.getFieldValue(
             "result_field.feature_importance",
             List.class);
         assertThat(writtenImportance, hasSize(3));
-        importanceList.sort((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
+        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
             FeatureImportance importance = importanceList.get(i);

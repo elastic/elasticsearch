@@ -11,7 +11,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,24 +51,44 @@ public class InternalInferenceAggregation extends InternalAggregation {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Object getProperty(List<String> path) {
-        Map<String, Object> resultMap = this.inferenceResult.writeResultToMap();
-
-        for (int i=0; i<path.size() -1; i++) {
-            Object value = resultMap.get(path.get(i));
-            if (value == null) {
-                throw new InvalidAggregationPathException("Cannot find an key [" + path.get(i) + "] in " + path);
-            }
-
-            if (value instanceof Map<?, ?>) {
-                resultMap = (Map<String, Object>)value;
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1) {
+            String field = path.get(0);
+            if (CommonFields.VALUE.getPreferredName().equals(field)) {
+                if (inferenceResult instanceof ClassificationInferenceResults) {
+                    return ((ClassificationInferenceResults)inferenceResult).transformedPredictedValue();
+                } else if (inferenceResult instanceof SingleValueInferenceResults) {
+                    return ((SingleValueInferenceResults)inferenceResult).value();
+                } else {
+                    return null;
+                }
+            } else if (SingleValueInferenceResults.FEATURE_IMPORTANCE.equals(field)) {
+                if (inferenceResult instanceof SingleValueInferenceResults) {
+                    SingleValueInferenceResults valueResult = (SingleValueInferenceResults) inferenceResult;
+                    return valueResult.getFeatureImportance();
+                } else {
+                    return null;
+                }
+            } else if (ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(field)) {
+                if (inferenceResult instanceof ClassificationInferenceResults) {
+                    ClassificationInferenceResults classResult = (ClassificationInferenceResults) inferenceResult;
+                    return classResult.getTopClasses();
+                } else {
+                    return null;
+                }
             } else {
-                throw new InvalidAggregationPathException("Expected object at [" + path.get(i) + "] in " + path);
+                throw invalidPathException(path);
             }
+        } else {
+            throw invalidPathException(path);
         }
+    }
 
-        return resultMap.get(path.get(path.size()-1));
+    private InvalidAggregationPathException invalidPathException(List<String> path) {
+        return new InvalidAggregationPathException("unknown property " +  path + " for " +
+            InferencePipelineAggregationBuilder.NAME + " aggregation [" + getName() + "]");
     }
 
     @Override

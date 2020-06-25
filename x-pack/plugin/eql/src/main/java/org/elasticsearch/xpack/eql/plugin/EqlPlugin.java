@@ -118,7 +118,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         if (enabled) {
             return Arrays.asList(
                 new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class)
+                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+                new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
             );
         }
         return Collections.emptyList();
@@ -143,7 +144,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
         if (enabled) {
-            return Arrays.asList(new RestEqlSearchAction(), new RestEqlStatsAction());
+            return Arrays.asList(
+                new RestEqlSearchAction(),
+                new RestEqlStatsAction(),
+                new RestEqlGetAsyncResultAction(),
+                new RestEqlDeleteAsyncResultAction()
+            );
         }
         return Collections.emptyList();
     }

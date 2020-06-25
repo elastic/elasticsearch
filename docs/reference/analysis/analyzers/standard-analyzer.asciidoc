@@ -1,5 +1,5 @@
 [[analysis-standard-analyzer]]
-=== Standard snalyzer
+=== Standard analyzer
 ++++
 <titleabbrev>Standard</titleabbrev>
 ++++

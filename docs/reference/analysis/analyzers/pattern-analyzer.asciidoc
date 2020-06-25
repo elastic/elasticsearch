@@ -1,5 +1,5 @@
 [[analysis-pattern-analyzer]]
-=== Pattern snalyzer
+=== Pattern analyzer
 ++++
 <titleabbrev>Pattern</titleabbrev>
 ++++

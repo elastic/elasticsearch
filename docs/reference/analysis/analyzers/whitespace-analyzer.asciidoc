@@ -1,5 +1,5 @@
 [[analysis-whitespace-analyzer]]
-=== Whitespace snalyzer
+=== Whitespace analyzer
 ++++
 <titleabbrev>Whitespace</titleabbrev>
 ++++

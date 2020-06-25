@@ -322,6 +322,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         } else if (mapConfig != null) {
             validationException = mapConfig.validate(validationException);
         }
+        validationException = settings.validate(validationException);
 
         return validationException;
     }

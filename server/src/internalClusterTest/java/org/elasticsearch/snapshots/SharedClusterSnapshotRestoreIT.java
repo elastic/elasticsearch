@@ -2522,7 +2522,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
 
         String dataStream = "datastream";
-        DataStreamIT.createIndexTemplate("dst", "@timestamp", dataStream);
+        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", List.of(dataStream));
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {

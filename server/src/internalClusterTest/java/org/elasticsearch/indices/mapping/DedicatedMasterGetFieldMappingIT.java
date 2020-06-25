@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.junit.Before;
 
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -31,10 +29,8 @@ public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
 
     @Before
     public void before1() throws Exception {
-        Settings settings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
-                .build();
-        internalCluster().startNodes(settings, Settings.EMPTY);
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startNode();
     }
 
 }

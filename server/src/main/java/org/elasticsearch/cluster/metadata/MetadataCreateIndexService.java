@@ -129,6 +129,11 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
 
+    // the context is only used for validation so it's fine to pass fake values for the
+    // shard id and the current timestamp
+    private final Function<IndexService, QueryShardContext> queryShardContextSupplier = (indexService) ->
+        indexService.newQueryShardContext(0, null, () -> 0L, null);
+
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -385,6 +390,7 @@ public class MetadataCreateIndexService {
      * @param templatesApplied a list of the names of the templates applied, for logging
      * @param metadataTransformer if provided, a function that may alter cluster metadata in the same cluster state update that
      *                            creates the index
+     * @param queryShardContextSupplier a function that returns a {@link QueryShardContext} for index sort validation
      * @return a new cluster state with the index added
      */
     private ClusterState applyCreateIndexWithTemporaryService(final ClusterState currentState,
@@ -395,12 +401,14 @@ public class MetadataCreateIndexService {
                                                               final Map<String, Object> mappings,
                                                               final Function<IndexService, List<AliasMetadata>> aliasSupplier,
                                                               final List<String> templatesApplied,
-                                                              final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
+                                                              final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+                                                              final Function<IndexService, QueryShardContext> queryShardContextSupplier)
                                                                                         throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, mappings, sourceMetadata);
+                updateIndexMappingsAndBuildSortOrder(indexService, mappings, sourceMetadata,
+                    queryShardContextSupplier.apply(indexService));
             } catch (Exception e) {
                 logger.debug("failed on parsing mappings on index creation [{}]", request.index());
                 throw e;
@@ -477,10 +485,9 @@ public class MetadataCreateIndexService {
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
-            templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
+                xContentRegistry, queryShardContextSupplier.apply(indexService)),
+            templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
+            metadataTransformer, queryShardContextSupplier);
     }
 
     private ClusterState applyCreateIndexRequestWithV2Template(final ClusterState currentState,
@@ -510,10 +517,8 @@ public class MetadataCreateIndexService {
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
-            Collections.singletonList(templateName), metadataTransformer);
+                xContentRegistry, queryShardContextSupplier.apply(indexService)),
+            Collections.singletonList(templateName), metadataTransformer, queryShardContextSupplier);
     }
 
     public static Map<String, Object> resolveV2Mappings(final String requestMappings,
@@ -542,11 +547,8 @@ public class MetadataCreateIndexService {
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
-                currentState.metadata(), aliasValidator, xContentRegistry,
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                indexService.newQueryShardContext(0, null, () -> 0L, null)),
-            List.of(), metadataTransformer);
+                currentState.metadata(), aliasValidator, xContentRegistry, queryShardContextSupplier.apply(indexService)),
+            List.of(), metadataTransformer, queryShardContextSupplier);
     }
 
     /**
@@ -938,7 +940,8 @@ public class MetadataCreateIndexService {
     }
 
     private static void updateIndexMappingsAndBuildSortOrder(IndexService indexService, Map<String, Object> mappings,
-                                                             @Nullable IndexMetadata sourceMetadata) throws IOException {
+                                                             @Nullable IndexMetadata sourceMetadata,
+                                                             QueryShardContext queryShardContext) throws IOException {
         MapperService mapperService = indexService.mapperService();
         if (!mappings.isEmpty()) {
             assert mappings.size() == 1 : mappings;
@@ -951,7 +954,7 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             // we pass shard 0 as we only need sort field types to validate the index sort.
-            indexService.getIndexSortSupplier().apply(0);
+            indexService.getIndexSortSupplier().apply(queryShardContext.getShardId());
         }
     }
 

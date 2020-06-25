@@ -10,7 +10,7 @@ indices.
 ////
 [source,console]
 -----------------------------------
-PUT /_snapshot/my_backup
+PUT /_snapshot/my_repository
 {
   "type": "fs",
   "settings": {

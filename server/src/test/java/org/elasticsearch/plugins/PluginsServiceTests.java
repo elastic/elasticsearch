@@ -696,6 +696,30 @@ public class PluginsServiceTests extends ESTestCase {
         newPluginsService(settings);
     }
 
+    public void testPluginFromParentClassLoader() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+            fake,
+            "description", "description",
+            "name", "fake",
+            "version", "1.0.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", TestPlugin.class.getName()); // set a class defined outside the bundle (in parent class-loader of plugin)
+
+        final Settings settings =
+            Settings.builder()
+                .put("path.home", pathHome)
+                .put("plugin.mandatory", "fake")
+                .build();
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(exception, hasToString(containsString("Plugin [fake] must reference a class loader local Plugin class [" +
+            TestPlugin.class.getName() + "] (class loader [" + PluginsServiceTests.class.getClassLoader() + "])")));
+    }
+
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(List.of(

@@ -31,8 +31,10 @@
         id:      1
         op_type: create
         body:    { "text": "test" }
+
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: simple-data-stream1
 
   - do:
       delete_by_query:
@@ -54,7 +56,8 @@
   - is_false: task
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: simple-data-stream1
 
   - do:
       count:

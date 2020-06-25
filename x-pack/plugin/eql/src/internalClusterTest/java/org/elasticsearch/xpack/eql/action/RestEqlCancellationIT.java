@@ -17,7 +17,10 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
@@ -35,6 +38,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestIssueLogging(value = "org.elasticsearch.xpack.eql.action:TRACE",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/58270")
 public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;
@@ -124,9 +129,28 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Waiting for block to be established");
         awaitForBlockedFieldCaps(plugins);
         logger.trace("Block is established");
-        assertThat(getTaskInfoWithXOpaqueId(id, EqlSearchAction.NAME), notNullValue());
+        TaskInfo blockedTaskInfo = getTaskInfoWithXOpaqueId(id, EqlSearchAction.NAME);
+        assertThat(blockedTaskInfo, notNullValue());
         cancellable.cancel();
         logger.trace("Request is cancelled");
+
+        assertBusy(() -> {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                    if (task != null) {
+                        assertThat(task, instanceOf(EqlSearchTask.class));
+                        EqlSearchTask eqlSearchTask = (EqlSearchTask) task;
+                        logger.trace("Waiting for cancellation to be propagated {} ", eqlSearchTask.isCancelled());
+                        assertThat(eqlSearchTask.isCancelled(), equalTo(true));
+                    }
+                    return;
+                }
+            }
+            fail("Task not found");
+        });
+
+        logger.trace("Disabling field cap blocks");
         disableFieldCapBlocks(plugins);
         // The task should be cancelled before ever reaching search blocks
         assertBusy(() -> {

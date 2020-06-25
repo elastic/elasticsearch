@@ -53,34 +53,18 @@ mknod -m 666 "$target"/dev/tty0 c 4 0
 mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
-# Install files. We attempt to install a headless Java distro, and exclude a
-# number of unnecessary dependencies. In so doing, we also filter out Java
-# itself, but since Elasticsearch ships its own JDK, with its own libs, that
-# isn't a problem and in fact is what we want.
-#
-# Note that we also skip coreutils, as it pulls in all kinds of stuff that
-# we don't want.
-#
-# Note that I haven't yet verified that these dependencies are, in fact,
-# unnecessary.
-#
-# We also include some utilities that we ship with the image.
-#
-#   * `nc` is useful for checking network issues.
-#   * `zip` for working with bundles (BusyBox, below, gives us `unzip`)
-#   * `pigz` is used for compressing large heaps dumps, and is considerably
-#     faster than `gzip` for this task.
-#   * `tini` is a tiny but valid init for containers. This is used to cleanly
-#     control how ES and any child processes are shut down.
-#
+# Install a minimal set of dependencies
 yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --setopt=group_package_types=mandatory -y  \
-  -x copy-jdk-configs -x cups-libs -x javapackages-tools -x alsa-lib -x freetype -x libjpeg -x libjpeg-turbo \
-  -x coreutils \
   --skip-broken \
   install \
-    java-latest-openjdk-headless \
-    bash nc zip pigz
+    basesystem \
+    bash \
+    glibc \
+    libstdc++ \
+    pigz \
+    zip \
+    zlib
 
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the
@@ -98,8 +82,8 @@ curl --retry 10 -L -o "$target"/bin/busybox "https://busybox.net/downloads/binar
 chmod +x "$target"/bin/busybox
 
 set +x
-# Add links for all the utilities (except sh, as we have bash)
-for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
+# Add links for all the utilities (except sh, as we have bash, and some others)
+for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh | grep -v telnet ); do
   ln "$target"/bin/busybox "$target"/$path
 done
 set -x
@@ -121,11 +105,12 @@ rm -rf \
   "$target"/etc/yum* \
   "$target"/sbin/sln \
   "$target"/usr/bin/rpm \
-  "$target"/usr/bin/tini-static \
+  "$target"/{usr,var}/games \
   "$target"/usr/lib/dracut \
   "$target"/usr/lib/systemd \
   "$target"/usr/lib/udev \
-  "${target}/usr/local" \
+  "$target"/usr/lib64/X11 \
+  "$target"/usr/local \
   "$target"/usr/share/awk \
   "$target"/usr/share/centos-release \
   "$target"/usr/share/cracklib \
@@ -136,7 +121,7 @@ rm -rf \
   "$target"/usr/share/licenses \
   "$target"/usr/share/xsessions \
   "$target"/usr/share/zoneinfo \
-  "$target"/usr/share/{awk,man,doc,info,games,gdb,ghostscript,gnome,groff,icons} \
+  "$target"/usr/share/{awk,man,doc,info,games,gdb,ghostscript,gnome,groff,icons,pixmaps,sounds,backgrounds,themes,X11} \
   "$target"/usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive} \
   "$target"/var/cache/yum \
   "$target"/var/lib/rpm \

@@ -182,12 +182,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             return;
         }
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext()
-            .getHeaders()
-            .entrySet()
-            .stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 
         TransformConfigUpdate update = request.getUpdate();
         update.setHeaders(filteredHeaders);
@@ -267,7 +262,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-
         // there should be only 1 response, todo: check
         return tasks.get(0);
     }
@@ -358,7 +352,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         );
 
         // <1> Create destination index if necessary
-        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(validationResult -> {
+        ActionListener<Boolean> functionValidationListener = ActionListener.wrap(validationResult -> {
             String[] dest = indexNameExpressionResolver.concreteIndexNames(
                 clusterState,
                 IndicesOptions.lenientExpandOpen(),
@@ -402,14 +396,13 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
         function.validateConfig(ActionListener.wrap(r2 -> {
             if (request.isDeferValidation()) {
-                pivotValidationListener.onResponse(true);
+                functionValidationListener.onResponse(true);
             } else {
-                // todo: pipeline validation missing
-
+                // TODO: it seems we are not validating ingest pipelines, consider to share code with PUT
                 if (request.isDeferValidation()) {
-                    pivotValidationListener.onResponse(true);
+                    functionValidationListener.onResponse(true);
                 } else {
-                    function.validateQuery(client, config.getSource(), pivotValidationListener);
+                    function.validateQuery(client, config.getSource(), functionValidationListener);
                 }
             }
         }, listener::onFailure));

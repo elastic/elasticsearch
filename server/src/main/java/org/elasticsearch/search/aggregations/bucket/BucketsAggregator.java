@@ -99,6 +99,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
         subCollector.collect(doc, bucketOrd);
     }
 
+    /**
+     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
+     * ordinals and doc ID deltas.
+     *
+     * Refer to that method for documentation about the merge map.
+     */
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
         try (IntArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newIntArray(newNumBuckets, true);

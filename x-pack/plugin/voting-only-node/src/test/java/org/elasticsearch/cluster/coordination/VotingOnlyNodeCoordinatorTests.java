@@ -14,7 +14,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 
 import static java.util.Collections.emptySet;
 
@@ -57,8 +59,13 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
             masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES :
-                randomBoolean() ? emptySet() : Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE,
-                    DiscoveryNodeRole.MASTER_ROLE, VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE), Version.CURRENT);
+                randomBoolean() ? emptySet() : Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    DiscoveryNodeRole.DATA_ROLE,
+                    DiscoveryNodeRole.INGEST_ROLE,
+                    DiscoveryNodeRole.MASTER_ROLE,
+                    VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE
+                ))),
+            Version.CURRENT);
     }
 
 }

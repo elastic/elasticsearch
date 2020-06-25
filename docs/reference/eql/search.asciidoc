@@ -479,6 +479,8 @@ tiebreaker for events with the same timestamp.
 [source,console-result]
 ----
 {
+  "is_partial": false,
+  "is_running": false,
   "took": 34,
   "timed_out": false,
   "hits": {

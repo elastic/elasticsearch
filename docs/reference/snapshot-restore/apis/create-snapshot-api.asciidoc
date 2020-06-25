@@ -71,7 +71,9 @@ Name of the snapshot to create. This name must be unique in the snapshot reposit
 
 `wait_for_completion`::
 (Optional, boolean)
-Specifies whether the request returns immediately after snapshot initialization (default), or wait for snapshot completion. Defaults to `false`.
+If `true`, the request returns a response when the snapshot is complete.
+If `false`, the request returns a response when the snapshot initializes.
+Defaults to `false`.
 +
 NOTE: During snapshot initialization, information about all
 previous snapshots is loaded into memory. In large repositories, this load time can cause this command to take several seconds (or even minutes) to return, even if the `wait_for_completion` parameter is set to `false`.

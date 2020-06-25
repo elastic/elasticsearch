@@ -318,9 +318,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (pivotConfig != null) {
-            pivotConfig.validate(validationException);
+            validationException = pivotConfig.validate(validationException);
         } else if (mapConfig != null) {
-            mapConfig.validate(validationException);
+            validationException = mapConfig.validate(validationException);
         }
 
         return validationException;

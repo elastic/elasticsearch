@@ -84,20 +84,18 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                         Map<String, Object> metadata) throws IOException {
         Map<String, Object> aggParams = this.aggParams == null ? Map.of() : this.aggParams;
 
-        Map<String, Object> initParams = mergeParams(aggParams, initScriptParams);
-        Map<String, Object> mapParams = mergeParams(aggParams, mapScriptParams); 
-        Map<String, Object> combineParams = mergeParams(aggParams, combineScriptParams); 
         Script reduceScript = deepCopyScript(this.reduceScript, searchContext, aggParams);
 
         return new ScriptedMetricAggregator(
             name,
             lookup,
+            aggParams,
             initScript,
-            initParams,
+            initScriptParams,
             mapScript,
-            mapParams,
+            mapScriptParams,
             combineScript,
-            combineParams,
+            combineScriptParams,
             reduceScript,
             searchContext,
             parent,
@@ -142,7 +140,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         return clone;
     }
 
-    private static Map<String, Object> mergeParams(Map<String, Object> agg, Map<String, Object> script) {
+    static Map<String, Object> mergeParams(Map<String, Object> agg, Map<String, Object> script) {
         // Start with script params
         Map<String, Object> combined = new HashMap<>(script);
 

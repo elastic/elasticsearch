@@ -36,7 +36,13 @@ PUT /_snapshot/my_repository/my_snapshot
 [[create-snapshot-api-desc]]
 ==== {api-description-title}
 
-By default, a snapshot of all open and started indices in the cluster is created. You can change this behavior by specifying the list of indices in the body of the snapshot request.
+You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, a
+backup taken from a running {es} cluster.
+
+By default, a snapshot includes all data streams and open indices in the
+cluster, as well as the cluster state.  You can change this behavior by
+specifying a list of data streams and indices to back up in the body of the
+snapshot request.
 
 NOTE: You must register a snapshot before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
 

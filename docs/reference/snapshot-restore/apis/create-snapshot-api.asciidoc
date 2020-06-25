@@ -36,7 +36,7 @@ PUT /_snapshot/my_repository/my_snapshot
 [[create-snapshot-api-desc]]
 ==== {api-description-title}
 
-You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, a
+You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, which is a
 backup taken from a running {es} cluster.
 
 By default, a snapshot includes all data streams and open indices in the
@@ -69,17 +69,15 @@ Name of the repository to create a snapshot in.
 (Required, string)
 Name of the snapshot to create. This name must be unique in the snapshot repository.
 
-[[create-snapshot-api-query-params]]
-==== {api-query-parms-title}
+[role="child_attributes"]
+[[create-snapshot-api-request-body]]
+==== {api-request-body-title}
 
-`wait_for_completion`::
+`ignore_unavailable`::
 (Optional, boolean)
-If `true`, the request returns a response when the snapshot is complete.
-If `false`, the request returns a response when the snapshot initializes.
-Defaults to `false`.
+If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
 +
-NOTE: During snapshot initialization, information about all
-previous snapshots is loaded into memory. In large repositories, this load time can cause requests to take several seconds (or even minutes) to return a response, even if the `wait_for_completion` parameter is `false`.
+If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
 
 `indices`::
 (Optional, string)
@@ -88,12 +86,6 @@ A comma-separated list of data streams and indices to include in the snapshot.
 +
 By default, a snapshot includes all data streams and indices in the cluster. If this
 argument is provided, the snapshot only includes the specified data streams and clusters.
-
-`ignore_unavailable`::
-(Optional, boolean)
-If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
-+
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
 
 `include_global_state`::
 +
@@ -105,13 +97,15 @@ Defaults to `true`.
 The cluster state includes:
 
 * Persistent cluster settings
-* Composable index templates
+* Index templates
 * Legacy index templates
 * Ingest pipelines
 * {ilm-init} lifecycle policies
 --
 +
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `metadata`::
 (Optional, string)
@@ -125,8 +119,17 @@ If `false`, the entire snapshot will fail if one or more indices included in the
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
 
 `settings`::
-(Optional,string)
+(Optional, object)
 Sets snapshot settings for the repository in JSON or YAML format. See <<put-snapshot-repo-api-settings-param,`settings`>> in the Put snapshot repository API documentation.
+
+`wait_for_completion`::
+(Optional, boolean)
+If `true`, the request returns a response when the snapshot is complete.
+If `false`, the request returns a response when the snapshot initializes.
+Defaults to `false`.
++
+NOTE: During snapshot initialization, information about all
+previous snapshots is loaded into memory. In large repositories, this load time can cause requests to take several seconds (or even minutes) to return a response, even if the `wait_for_completion` parameter is `false`.
 
 [[create-snapshot-api-example]]
 ==== {api-examples-title}

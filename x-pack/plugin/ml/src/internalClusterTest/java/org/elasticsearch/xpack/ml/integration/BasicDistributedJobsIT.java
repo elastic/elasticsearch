@@ -46,10 +46,11 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -155,8 +156,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testJobAutoClose() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
-        internalCluster().startNode(removeRoles(Set.of(MachineLearning.ML_ROLE)));
-        internalCluster().startNode(addRoles(Set.of(MachineLearning.ML_ROLE)));
+        internalCluster().startNode(removeRoles(Collections.singleton(MachineLearning.ML_ROLE)));
+        internalCluster().startNode(addRoles(Collections.singleton(MachineLearning.ML_ROLE)));
 
         client().admin().indices().prepareCreate("data")
                 .addMapping("type", "time", "type=date")
@@ -197,11 +198,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
-        internalCluster().startNode(removeRoles(Set.of(MachineLearning.ML_ROLE)));
-        internalCluster().startNode(removeRoles(Set.of(MachineLearning.ML_ROLE)));
+        internalCluster().startNode(removeRoles(Collections.singleton(MachineLearning.ML_ROLE)));
+        internalCluster().startNode(removeRoles(Collections.singleton(MachineLearning.ML_ROLE)));
         // start ml node
         if (randomBoolean()) {
-            internalCluster().startNode(addRoles(Set.of(MachineLearning.ML_ROLE)));
+            internalCluster().startNode(addRoles(Collections.singleton(MachineLearning.ML_ROLE)));
         } else {
             // the default is based on 'xpack.ml.enabled', which is enabled in base test class.
             internalCluster().startNode();
@@ -238,7 +239,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("start ml node");
-        internalCluster().startNode(addRoles(Set.of(MachineLearning.ML_ROLE)));
+        internalCluster().startNode(addRoles(Collections.singleton(MachineLearning.ML_ROLE)));
         ensureStableCluster(3);
         assertBusy(() -> {
             // job should be re-opened:
@@ -251,7 +252,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node, but that will hold the indices
         logger.info("Start non ml node:");
-        String nonMlNode = internalCluster().startNode(removeRoles(Set.of(MachineLearning.ML_ROLE)));
+        String nonMlNode = internalCluster().startNode(removeRoles(Collections.singleton(MachineLearning.ML_ROLE)));
         logger.info("Starting ml nodes");
         internalCluster().startNodes(numMlNodes, onlyRole(MachineLearning.ML_ROLE));
         ensureStableCluster(numMlNodes + 1);
@@ -338,13 +339,15 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         logger.info("Start non ml node:");
         String nonMLNode = internalCluster().startNode(Settings.builder()
                 .put("node.attr.ml-indices", "state-and-results")
-                .put(removeRoles(Set.of(MachineLearning.ML_ROLE))));
+                .put(removeRoles(Collections.singleton(MachineLearning.ML_ROLE))));
         ensureStableCluster(1);
         // start an ml node for the config index
         logger.info("Starting ml node");
         String mlNode = internalCluster().startNode(Settings.builder()
                 .put("node.attr.ml-indices", "config")
-                .put(addRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))));
+                .put(addRoles(
+                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+                ));
         ensureStableCluster(2);
 
         // Create the indices (using installed templates) and set the routing to specific nodes
@@ -411,7 +414,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()
                 .put(nonMLNodeDataPathSettings)
-                .put(removeRoles(Set.of(MachineLearning.ML_ROLE))));
+                .put(removeRoles(Collections.singleton(MachineLearning.ML_ROLE))));
         ensureStableCluster(2, mlNode);
         ensureStableCluster(2, nonMlNode);
         ensureYellow(); // at least the primary shards of the indices a job uses should be started

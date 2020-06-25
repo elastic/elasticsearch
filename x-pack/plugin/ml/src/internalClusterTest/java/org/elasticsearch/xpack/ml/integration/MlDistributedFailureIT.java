@@ -56,9 +56,10 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProc
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -96,7 +97,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        String mlAndDataNode = internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+        );
         ensureStableClusterOnAllNodes(2);
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
@@ -130,9 +133,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting data and master node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
+        internalCluster().startNode(onlyRoles(
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+        ));
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
+        ));
         ensureStableClusterOnAllNodes(2);
 
         // index some datafeed data
@@ -206,7 +213,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting master/data nodes...");
         for (int count = 0; count < 3; ++count) {
-            internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
+            internalCluster().startNode(onlyRoles(
+                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+            ));
         }
         logger.info("Starting dedicated ml node...");
         internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
@@ -316,7 +325,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
+        ));
         ensureStableClusterOnAllNodes(2);
 
         // index some datafeed data

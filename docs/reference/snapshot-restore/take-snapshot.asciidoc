@@ -65,7 +65,7 @@ creation. By default, when the `ignore_unavailable` option is not set and a data
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
 the snapshot.
 
-IMPORTANT: The global cluster state includes the cluster's composable index
+IMPORTANT: The global cluster state includes the cluster's index
 templates, such as those <<create-a-data-stream-template,associated with data
 streams>>. If your snapshot includes data streams, we recommend storing the
 cluster state as part of the snapshot. This lets you later restored any

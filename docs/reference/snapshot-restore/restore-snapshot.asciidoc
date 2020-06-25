@@ -34,7 +34,7 @@ supports <<multi-index,multi index syntax>>.
 [WARNING]
 ====
 Each data stream requires an associated
-<<create-a-data-stream-template,composable template>>. The stream uses this
+<<create-a-data-stream-template,index template>>. The stream uses this
 template to create new backing indices.
 
 When restoring a data stream, ensure a matching template exists for the stream.
@@ -46,7 +46,7 @@ You can do this using one of the following methods:
 * Restore a global cluster state that includes a matching template for the
   stream.
 
-If no composable template matches a data stream, the stream cannot
+If no index template matches a data stream, the stream cannot
 <<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
 ====
 
@@ -63,7 +63,7 @@ the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
 [WARNING]
 ====
 If you rename a restored stream, ensure the index pattern of its associated
-template matches the new stream name. If no composable template matches the
+template matches the new stream name. If no index template matches the
 stream, it cannot <<manually-roll-over-a-data-stream,roll over>> or create new
 backing indices.
 ====
@@ -152,7 +152,7 @@ indices.
 The `index_settings` and `ignore_index_settings` parameters affect
 restored backing indices only. New backing indices created for a stream use the index
 settings specified in the stream's <<create-a-data-stream-template,associated
-composable template>>.
+index template>>.
 
 If you change index settings during a restore, we recommend you make
 similar changes in the associated template. This ensures new backing indices

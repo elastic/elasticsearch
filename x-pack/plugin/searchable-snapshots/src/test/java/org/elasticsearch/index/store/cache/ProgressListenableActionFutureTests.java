@@ -14,12 +14,16 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -36,7 +40,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                     progress -> listenersResponses.setOnce(listenerIndex, progress),
                     e -> listenersResponses.setOnce(listenerIndex, null)
                 ),
-                randomLongBetween(future.start, future.end)
+                randomLongBetween(future.start + 1L, future.end) // +1 to avoid immediate execution
             );
         }
         assertTrue(listenersResponses.asList().stream().allMatch(Objects::isNull));
@@ -58,7 +62,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                     o -> listenersResponses.setOnce(listenerIndex, null),
                     e -> listenersResponses.setOnce(listenerIndex, e)
                 ),
-                randomLongBetween(future.start, future.end)
+                randomLongBetween(future.start + 1L, future.end) // +1 to avoid immediate execution
             );
         }
         assertTrue(listenersResponses.asList().stream().allMatch(Objects::isNull));
@@ -111,7 +115,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                 startLatch.await();
                 long progress = future.start;
                 while (progress < future.end) {
-                    progress += randomLongBetween(1L, Math.max(1L, future.end - progress));
+                    progress = randomLongBetween(progress + 1L, future.end);
                     future.onProgress(progress);
                 }
                 future.onResponse(future.end);
@@ -132,6 +136,50 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         }
         progressUpdaterThread.join();
         assertTrue(future.isDone());
+    }
+
+    public void testPartialProgressionThenFailure() throws Exception {
+        final ProgressListenableActionFuture future = randomFuture();
+        final long limit = randomLongBetween(future.start + 1L, future.end);
+
+        final Set<PlainActionFuture<Long>> completedListeners = new HashSet<>();
+        for (long i = 0L; i < between(1, 10); i++) {
+            final PlainActionFuture<Long> listener = new PlainActionFuture<>();
+            future.addListener(ActionListener.wrap(listener::onResponse, listener::onFailure), randomLongBetween(future.start, limit));
+            completedListeners.add(listener);
+        }
+
+        final Set<PlainActionFuture<Long>> failedListeners = new HashSet<>();
+        if (limit < future.end) {
+            for (long i = 0L; i < between(1, 10); i++) {
+                final PlainActionFuture<Long> listener = new PlainActionFuture<>();
+                future.addListener(
+                    ActionListener.wrap(listener::onResponse, listener::onFailure),
+                    randomLongBetween(limit + 1L, future.end)
+                );
+                failedListeners.add(listener);
+            }
+        }
+
+        long progress = future.start;
+        while (progress < limit) {
+            progress = randomLongBetween(progress + 1L, limit);
+            future.onProgress(progress);
+        }
+
+        final ElasticsearchException exception = new ElasticsearchException("Failure at " + limit);
+        future.onFailure(exception);
+        assertTrue(future.isDone());
+
+        for (PlainActionFuture<Long> completedListener : completedListeners) {
+            assertThat(completedListener.isDone(), is(true));
+            assertThat(completedListener.actionGet(), lessThanOrEqualTo(limit));
+        }
+
+        for (PlainActionFuture<Long> failedListener : failedListeners) {
+            assertThat(failedListener.isDone(), is(true));
+            assertThat(expectThrows(ElasticsearchException.class, failedListener::actionGet), sameInstance(exception));
+        }
     }
 
     public void testListenerCalledImmediatelyAfterResponse() throws Exception {
@@ -164,8 +212,28 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat(listenerResponse.get(), nullValue());
     }
 
+    public void testListenerCalledImmediatelyWhenProgressReached() {
+        final ProgressListenableActionFuture future = randomFuture();
+        final long progress = randomLongBetween(future.start, future.end);
+
+        final PlainActionFuture<Long> listenerResponse = PlainActionFuture.newFuture();
+        if (randomBoolean()) {
+            future.onProgress(progress);
+            future.addListener(listenerResponse, randomLongBetween(future.start, progress));
+        } else {
+            future.addListener(listenerResponse, randomLongBetween(future.start, progress));
+            future.onProgress(progress);
+        }
+
+        assertThat(listenerResponse.isDone(), is(true));
+        assertThat(listenerResponse.actionGet(), equalTo(progress));
+
+        future.onResponse(future.end);
+        assertThat(future.isDone(), is(true));
+    }
+
     private static ProgressListenableActionFuture randomFuture() {
-        final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(randomIntBetween(1, 10)));
+        final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(1L));
         final long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - delta);
         return new ProgressListenableActionFuture(start, start + delta);
     }

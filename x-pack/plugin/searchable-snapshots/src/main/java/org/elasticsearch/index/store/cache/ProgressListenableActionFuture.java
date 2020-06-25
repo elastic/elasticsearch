@@ -64,30 +64,30 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
      * (inclusive) to {@code progress} (exclusive) is available. Calling this method potentially triggers the execution of one or
      * more listeners that are waiting for the progress to reach a value lower than the one just updated.
      *
-     * @param value the new progress value
+     * @param progress the new progress value
      */
-    public void onProgress(final long value) {
+    public void onProgress(final long progress) {
         ensureNotCompleted();
 
-        if (value <= start) {
-            assert false : value + " <= " + start;
+        if (progress <= start) {
+            assert false : progress + " <= " + start;
             throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
         }
-        if (end < value) {
-            assert false : end + " < " + value;
+        if (end < progress) {
+            assert false : end + " < " + progress;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
-            assert progress < value : progress + " < " + value;
-            this.progress = value;
+            assert this.progress < progress : this.progress + " < " + progress;
+            this.progress = progress;
 
             final List<Tuple<Long, ActionListener<Long>>> listeners = this.listeners;
             if (listeners != null) {
                 List<Tuple<Long, ActionListener<Long>>> listenersToKeep = null;
                 for (Tuple<Long, ActionListener<Long>> listener : listeners) {
-                    if (value < listener.v1()) {
+                    if (progress < listener.v1()) {
                         if (listenersToKeep == null) {
                             listenersToKeep = new ArrayList<>();
                         }
@@ -103,7 +103,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
             }
         }
         if (listenersToExecute != null) {
-            listenersToExecute.forEach(listener -> executeListener(listener, () -> value));
+            listenersToExecute.forEach(listener -> executeListener(listener, () -> progress));
         }
         assert invariant();
     }
@@ -150,9 +150,10 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
      */
     public void addListener(ActionListener<Long> listener, long value) {
         boolean executeImmediate = false;
+        final long progress;
         synchronized (this) {
-            final Long current = progress;
-            if (completed || (current != null && value <= current)) {
+            progress = this.progress;
+            if (completed || value <= progress) {
                 executeImmediate = true;
             } else {
                 List<Tuple<Long, ActionListener<Long>>> listeners = this.listeners;
@@ -164,7 +165,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
             }
         }
         if (executeImmediate) {
-            executeListener(listener, completed ? () -> actionGet(0L) : () -> value);
+            executeListener(listener, completed ? () -> actionGet(0L) : () -> progress);
         }
         assert invariant();
     }

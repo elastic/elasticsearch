@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.ml.inference.aggs;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;

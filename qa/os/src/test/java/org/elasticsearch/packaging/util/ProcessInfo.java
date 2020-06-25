@@ -27,9 +27,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Encapsulates the fetching of information about a running process.
- *
- * This is helpful on stripped-down images where, in order to fetch full information about a process,
- * we have to consult <code>/proc</code>.
+ * <p>
+ * This is helpful on stripped-down Docker images where, in order to fetch full information about a process,
+ * we have to consult <code>/proc</code>. Although this class hides the implementation details, it only
+ * works in Linux containers. At the moment that isn't a problem, because we only publish Docker images
+ * for Linux.
  */
 public class ProcessInfo {
     public final int pid;

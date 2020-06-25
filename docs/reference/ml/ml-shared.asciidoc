@@ -740,7 +740,8 @@ end::inference-config-regression-num-top-feature-importance-values[]
 
 tag::inference-config-results-field[]
 The field that is added to incoming documents to contain the inference
-prediction. Defaults to `predicted_value`.
+prediction. Defaults to the `results_field` value of the {dfanalytics-job} that 
+used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field[]
 
 tag::influencers[]

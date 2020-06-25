@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.junit.Before;
 
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
@@ -45,6 +46,9 @@ public class ConfigurationTests extends PackagingTestCase {
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
             FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
+            if (distribution.isPackage()) {
+                append(installation.envFile, "HOSTNAME=mytesthost");
+            }
             assertWhileRunning(() -> {
                 final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));

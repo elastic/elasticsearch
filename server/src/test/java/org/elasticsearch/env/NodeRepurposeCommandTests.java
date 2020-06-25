@@ -44,7 +44,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Set;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_CLEANUP;
@@ -82,7 +83,9 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             }
         }
         dataNoMasterSettings = nonMasterNode(dataMasterSettings);
-        noDataNoMasterSettings = removeRoles(dataMasterSettings, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+        noDataNoMasterSettings = removeRoles(
+            dataMasterSettings,
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))));
 
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }

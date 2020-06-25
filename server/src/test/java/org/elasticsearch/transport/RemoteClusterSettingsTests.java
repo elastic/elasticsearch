@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.node.Node.NODE_REMOTE_CLUSTER_CLIENT;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.elasticsearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;

@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Set;
+import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.NodeRoles.onlyRole;
@@ -70,8 +70,8 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
         assertTrue(predicate.test(onlyRole(role)));
         assertThat(DiscoveryNode.getRolesFromSettings(onlyRole(role)), hasItem(role));
 
-        assertFalse(predicate.test(removeRoles(Set.of(role))));
-        assertThat(DiscoveryNode.getRolesFromSettings(removeRoles(Set.of(role))), not(hasItem(role)));
+        assertFalse(predicate.test(removeRoles(Collections.singleton(role))));
+        assertThat(DiscoveryNode.getRolesFromSettings(removeRoles(Collections.singleton(role))), not(hasItem(role)));
 
         final Settings settings = Settings.builder().put(onlyRole(role)).put(role.legacySetting().getKey(), randomBoolean()).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DiscoveryNode.getRolesFromSettings(settings));

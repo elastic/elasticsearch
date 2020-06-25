@@ -78,6 +78,8 @@ public class AnalyticsResultProcessor {
     private volatile String failure;
     private volatile boolean isCancelled;
 
+    private TrainedModelConfig latestModelConfig;
+
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
                                     DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, ExtractedFields extractedFields) {
@@ -258,6 +260,7 @@ public class AnalyticsResultProcessor {
                 } else {
                     LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
                     auditor.info(analytics.getId(), "Stored trained model with id [" + trainedModelConfig.getModelId() + "]");
+                    latestModelConfig = trainedModelConfig;
                 }
             },
             e -> setAndReportFailure(ExceptionsHelper.serverError("error storing trained model with id [{}]", e,
@@ -276,5 +279,10 @@ public class AnalyticsResultProcessor {
     private void processMemoryUsage(MemoryUsage memoryUsage) {
         statsHolder.setMemoryUsage(memoryUsage);
         statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+    }
+
+    @Nullable
+    public TrainedModelConfig getLatestModelConfig() {
+        return latestModelConfig;
     }
 }

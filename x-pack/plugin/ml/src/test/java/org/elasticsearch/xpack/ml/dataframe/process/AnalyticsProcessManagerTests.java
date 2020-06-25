@@ -96,7 +96,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
         when(task.getStatsHolder()).thenReturn(new StatsHolder(
-            ProgressTracker.fromZeroes(Collections.singletonList("analyzing")).report()));
+            ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report()));
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,

@@ -374,6 +374,11 @@ public class Classification implements DataFrameAnalysis {
             .build();
     }
 
+    @Override
+    public boolean supportsInference() {
+        return true;
+    }
+
     public static String extractJobIdFromStateDoc(String stateDocId) {
         int suffixIndex = stateDocId.lastIndexOf(STATE_DOC_ID_SUFFIX);
         return suffixIndex <= 0 ? null : stateDocId.substring(0, suffixIndex);

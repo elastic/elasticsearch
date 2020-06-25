@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -131,18 +132,20 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
-        document.setFieldValue(parentResultField + "." + this.resultsField,
-            predictionFieldType.transformPredictedValue(value(), valueAsString()));
-        if (topClasses.size() > 0) {
-            document.setFieldValue(parentResultField + "." + topNumClassesField,
-                topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+        document.setFieldValue(parentResultField, asMap());
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        if (topClasses.isEmpty() == false) {
+            map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
-        if (getFeatureImportance().size() > 0) {
-            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance()
-                .stream()
-                .map(FeatureImportance::toMap)
-                .collect(Collectors.toList()));
+        if (getFeatureImportance().isEmpty() == false) {
+            map.put("feature_importance", getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
         }
+        return map;
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
 import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
@@ -182,10 +184,12 @@ public class AnalyticsProcessManager {
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
             processContext.setFailureReason(resultProcessor.getFailure());
+            LOGGER.info("[{}] Result processor has completed", config.getId());
+
+            runInference(parentTaskClient, task, processContext);
 
             refreshDest(parentTaskClient, config);
             refreshIndices(parentTaskClient, config.getId());
-            LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
@@ -315,6 +319,22 @@ public class AnalyticsProcessManager {
         };
     }
 
+    private void runInference(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsTask task, ProcessContext processContext) {
+        if (processContext.failureReason.get() != null) {
+            // If there has been an error thus far let's not run inference at all
+            return;
+        }
+
+        InferenceConfig inferenceConfig = processContext.config.getAnalysis().inferenceConfig(
+            new AnalysisFieldInfo(processContext.dataExtractor.get().getExtractedFields()));
+        if (inferenceConfig != null) {
+            refreshDest(parentTaskClient, processContext.config);
+            InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, trainedModelProvider, resultsPersisterService,
+                task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker());
+            inferenceRunner.run(processContext.resultProcessor.get().getLatestModelConfig(), inferenceConfig);
+        }
+    }
+
     private void refreshDest(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, parentTaskClient,
             () -> parentTaskClient.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
@@ -375,6 +395,7 @@ public class AnalyticsProcessManager {
         private final SetOnce<AnalyticsProcess<AnalyticsResult>> process = new SetOnce<>();
         private final SetOnce<DataFrameDataExtractor> dataExtractor = new SetOnce<>();
         private final SetOnce<AnalyticsResultProcessor> resultProcessor = new SetOnce<>();
+        private final SetOnce<InferenceRunner> inferenceRunner = new SetOnce<>();
         private final SetOnce<String> failureReason = new SetOnce<>();
         private final StatsPersister statsPersister;
 
@@ -395,6 +416,10 @@ public class AnalyticsProcessManager {
             this.failureReason.trySet(failureReason);
         }
 
+        void setInferenceRunner(InferenceRunner inferenceRunner) {
+            this.inferenceRunner.set(inferenceRunner);
+        }
+
         synchronized void stop() {
             LOGGER.debug("[{}] Stopping process", config.getId());
             if (dataExtractor.get() != null) {
@@ -402,6 +427,9 @@ public class AnalyticsProcessManager {
             }
             if (resultProcessor.get() != null) {
                 resultProcessor.get().cancel();
+            }
+            if (inferenceRunner.get() != null) {
+                inferenceRunner.get().cancel();
             }
             statsPersister.cancel();
             if (process.get() != null) {

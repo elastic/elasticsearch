@@ -453,6 +453,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (newMaster) {
                     finalizeSnapshotDeletionFromPreviousMaster(event.state());
                 }
+            } else if (snapshotCompletionListeners.isEmpty() == false) {
+                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
+                // state).
+                for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
+                    if (endingSnapshots.add(snapshot)) {
+                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                    }
+                }
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
@@ -1328,6 +1337,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doClose() {
         clusterService.removeApplier(this);
+    }
+
+    /**
+     * Assert that no in-memory state for any running snapshot operation exists in this instance.
+     */
+    public boolean assertAllListenersResolved() {
+        synchronized (endingSnapshots) {
+            final DiscoveryNode localNode = clusterService.localNode();
+            assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
+                    + " on [" + localNode + "]";
+            assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
+                    + " on [" + localNode + "]";
+        }
+        return true;
     }
 
     private static class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {

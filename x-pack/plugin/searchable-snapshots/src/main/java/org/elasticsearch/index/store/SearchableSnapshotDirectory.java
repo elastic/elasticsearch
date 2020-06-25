@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -463,6 +464,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
+        if (indexSettings.hasCustomDataPath()) {
+            // cache management requires the shard data path to be in a non-custom location
+            throw new IllegalArgumentException(
+                "setting ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
+                    + "] is not permitted on searchable snapshots, but was ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.get(indexSettings.getSettings())
+                    + "]"
+            );
+        }
+
         final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
@@ -485,7 +497,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
         );
 
-        final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
+        final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(

@@ -27,12 +27,14 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
@@ -41,6 +43,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +60,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -89,16 +94,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
 
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        populateIndex(indexName, 10_000);
 
         final TotalHits originalAllHits = internalCluster().client()
             .prepareSearch(indexName)
@@ -441,10 +437,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
+        createRepo(fsRepoName);
 
         final int dataNodesCount = internalCluster().numDataNodes();
         final Settings.Builder originalIndexSettings = Settings.builder();
@@ -459,19 +452,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit
             );
         }
-        assertAcked(prepareCreate(indexName, originalIndexSettings));
-        ensureGreen(indexName);
-
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 100); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        createAndPopulateIndex(indexName, originalIndexSettings);
 
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
@@ -743,6 +724,125 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 }
             }
         }
+    }
+
+    public void testCacheDirectoriesRemovedOnStartup() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepo(fsRepoName);
+
+        final Settings.Builder originalIndexSettings = Settings.builder()
+            .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+        createAndPopulateIndex(indexName, originalIndexSettings);
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(fsRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final String leakyNode = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .put(CacheService.DELETE_ON_EVICTION_SETTING.getKey(), false)
+                .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
+                .build()
+        );
+
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotName,
+            indexName,
+            Settings.builder().put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", leakyNode).build(),
+            Strings.EMPTY_ARRAY,
+            true
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen(restoredIndexName);
+
+        final Index restoredIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .get()
+            .getState()
+            .metadata()
+            .index(restoredIndexName)
+            .getIndex();
+
+        final IndexService indexService = internalCluster().getInstance(IndicesService.class, leakyNode).indexService(restoredIndex);
+        final Path shardCachePath = CacheService.getShardCachePath(indexService.getShard(0).shardPath());
+        assertTrue(Files.isDirectory(shardCachePath));
+        final Set<Path> cacheFiles = new HashSet<>();
+        try (DirectoryStream<Path> snapshotCacheStream = Files.newDirectoryStream(shardCachePath)) {
+            for (final Path snapshotCachePath : snapshotCacheStream) {
+                assertTrue(snapshotCachePath + " should be a directory", Files.isDirectory(snapshotCachePath));
+                try (DirectoryStream<Path> cacheFileStream = Files.newDirectoryStream(snapshotCachePath)) {
+                    for (final Path cacheFilePath : cacheFileStream) {
+                        assertTrue(cacheFilePath + " should be a file", Files.isRegularFile(cacheFilePath));
+                        cacheFiles.add(cacheFilePath);
+                    }
+                }
+            }
+        }
+        assertFalse("no cache files found", cacheFiles.isEmpty());
+
+        internalCluster().restartNode(leakyNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                assertTrue(Files.isDirectory(shardCachePath));
+                for (Path cacheFile : cacheFiles) {
+                    assertTrue(cacheFile + " should not have been cleaned up yet", Files.isRegularFile(cacheFile));
+                }
+
+                return Settings.EMPTY;
+            }
+        });
+
+        ensureGreen(restoredIndexName);
+
+        for (Path cacheFile : cacheFiles) {
+            assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile));
+        }
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+    }
+
+    private void createRepo(String fsRepoName) {
+        final Path repo = randomRepoPath();
+        assertAcked(
+            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
+        );
+    }
+
+    private void createAndPopulateIndex(String indexName, Settings.Builder settings) throws InterruptedException {
+        assertAcked(prepareCreate(indexName, settings));
+        ensureGreen(indexName);
+        populateIndex(indexName, 100);
+    }
+
+    private void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
+        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = between(10, maxIndexRequests); i >= 0; i--) {
+            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+        }
+        indexRandom(true, true, indexRequestBuilders);
+        refresh(indexName);
+        assertThat(
+            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
+        );
     }
 
 }

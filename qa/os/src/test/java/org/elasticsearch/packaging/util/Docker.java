@@ -496,7 +496,7 @@ public class Docker {
         Stream.of("zip", "unzip", "pigz", "nc")
             .forEach(
                 cliBinary -> assertTrue(
-                    cliBinary + " ought to be installed. ",
+                    cliBinary + " ought to be available.",
                     dockerShell.runIgnoreExitCode("which " + cliBinary).isSuccess()
                 )
             );

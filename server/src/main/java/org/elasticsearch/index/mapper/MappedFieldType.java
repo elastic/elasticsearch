@@ -42,6 +42,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -99,12 +100,13 @@ public abstract class MappedFieldType {
      * Return a fielddata builder for this field
      *
      * @param fullyQualifiedIndexName the name of the index this field-data is build for
+     * @param context holds information that may be needed when loading fielddata
      *
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, FieldDataContext context) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -135,7 +137,7 @@ public abstract class MappedFieldType {
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-    
+
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();
@@ -200,7 +202,7 @@ public abstract class MappedFieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder("");
+            fielddataBuilder("", () -> null);
             return true;
         } catch (IllegalArgumentException e) {
             return false;

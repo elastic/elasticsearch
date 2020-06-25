@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -134,7 +135,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             super(ref);
         }
 
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, FieldDataContext context) {
             failIfNoDocValues();
             return new AbstractLatLonShapeIndexFieldData.Builder(GeoShapeValuesSourceType.instance());
         }

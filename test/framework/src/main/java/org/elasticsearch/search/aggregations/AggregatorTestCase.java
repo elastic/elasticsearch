@@ -49,6 +49,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -128,7 +130,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -370,12 +371,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Sub-tests that need a more complex index field data provider can override this
      */
-    protected BiFunction<MappedFieldType, String, IndexFieldData<?>> getIndexFieldDataLookup(MapperService mapperService,
-                                                                                             CircuitBreakerService circuitBreakerService) {
-        return (fieldType, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
-            .build(mapperService.getIndexSettings(), fieldType,
-                new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
-
+    protected final TriFunction<MappedFieldType, String, FieldDataContext, IndexFieldData<?>> getIndexFieldDataLookup(
+        MapperService mapperService, CircuitBreakerService circuitBreakerService) {
+        return (fieldType, s, fieldDataContext) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName(),
+            fieldDataContext).build(mapperService.getIndexSettings(), fieldType,
+            new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
     }
 
     /**
@@ -738,7 +738,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("")
+        return fieldType.fielddataBuilder("", () -> null)
                                 .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
     }
 

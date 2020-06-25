@@ -106,14 +106,18 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
+    //TODO Looking at where this method is called (index sorting and index warmer) it may be ok to not have a SearchLookup
+    // in those situations? Shall we rather provide an empty lookup? and shall we rename the two getForField to better distinguish them?
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return getForField(fieldType, index().getName());
+        return getForField(fieldType, index().getName(), () -> null);
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType,
+                                                           String fullyQualifiedIndexName,
+                                                           FieldDataContext context) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, context);
 
         IndexFieldDataCache cache;
         synchronized (this) {

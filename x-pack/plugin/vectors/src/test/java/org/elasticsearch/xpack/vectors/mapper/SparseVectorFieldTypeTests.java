@@ -22,6 +22,6 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase<MappedFieldTyp
 
     public void testDocValuesDisabled() {
         MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
-        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index"));
+        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index", () -> null));
     }
 }

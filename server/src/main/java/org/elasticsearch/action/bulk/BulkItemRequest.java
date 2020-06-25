@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -30,7 +32,9 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable {
+public class BulkItemRequest implements Writeable, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
     private int id;
     private DocWriteRequest<?> request;
@@ -114,5 +118,10 @@ public class BulkItemRequest implements Writeable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
         out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + request.ramBytesUsed();
     }
 }

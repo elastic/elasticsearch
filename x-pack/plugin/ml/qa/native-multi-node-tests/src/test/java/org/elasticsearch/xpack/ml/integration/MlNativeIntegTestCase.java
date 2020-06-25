@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -176,7 +181,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     protected Set<String> excludeTemplates() {
         return new HashSet<>(Arrays.asList(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlMetaIndex.INDEX_NAME,
+            MlMetaIndex.indexName(),
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobResultsIndexPrefix(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
@@ -292,6 +297,20 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 }
             }
         }
+    }
+
+    protected static void createDataStreamAndTemplate(String dataStreamName, String timeField, String mapping) throws IOException {
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
+                .indexTemplate(new ComposableIndexTemplate(Collections.singletonList(dataStreamName),
+                    new Template(null, new CompressedXContent(mapping), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate(timeField))))
+            .actionGet();
+        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

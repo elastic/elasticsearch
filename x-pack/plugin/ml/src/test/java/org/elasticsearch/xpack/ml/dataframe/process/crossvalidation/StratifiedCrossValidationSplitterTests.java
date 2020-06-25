@@ -32,7 +32,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     private int dependentVariableIndex;
     private String dependentVariable;
     private long randomizeSeed;
-    private Map<String, Long> classCardinalities;
+    private Map<String, Long> classCounts;
     private String[] classValuesPerRow;
     private long trainingDocsCount;
     private long testDocsCount;
@@ -68,10 +68,10 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             }
         }
 
-        classCardinalities = new HashMap<>();
-        classCardinalities.put("a", classA);
-        classCardinalities.put("b", classB);
-        classCardinalities.put("c", classC);
+        classCounts = new HashMap<>();
+        classCounts.put("a", classA);
+        classCounts.put("b", classB);
+        classCounts.put("c", classC);
     }
 
     public void testConstructor_GivenMissingDependentVariable() {
@@ -143,7 +143,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         Map<String, Integer> totalRowsPerClass = new HashMap<>();
         Map<String, Integer> trainingRowsPerClass = new HashMap<>();
 
-        for (String classValue : classCardinalities.keySet()) {
+        for (String classValue : classCounts.keySet()) {
             totalRowsPerClass.put(classValue, 0);
             trainingRowsPerClass.put(classValue, 0);
         }
@@ -177,12 +177,15 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
 
         // We can assert we're plus/minus 1 from rounding error
 
-        double expectedTotalTrainingCount = ROWS_COUNT * trainingFraction;
+        long expectedTotalTrainingCount = 0;
+        for (long classCount : classCounts.values()) {
+            expectedTotalTrainingCount += trainingFraction * classCount;
+        }
         assertThat(trainingDocsCount + testDocsCount, equalTo((long) ROWS_COUNT));
-        assertThat(trainingDocsCount, greaterThanOrEqualTo((long) (expectedTotalTrainingCount - 2)));
-        assertThat(trainingDocsCount, lessThanOrEqualTo((long) Math.ceil(expectedTotalTrainingCount) + 2));
+        assertThat(trainingDocsCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
+        assertThat(trainingDocsCount, lessThanOrEqualTo(expectedTotalTrainingCount));
 
-        for (String classValue : classCardinalities.keySet()) {
+        for (String classValue : classCounts.keySet()) {
             double expectedClassTrainingCount = totalRowsPerClass.get(classValue) * trainingFraction;
             int classTrainingCount = trainingRowsPerClass.get(classValue);
             assertThat((double) classTrainingCount, is(closeTo(expectedClassTrainingCount, 1.0)));
@@ -221,16 +224,16 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         // should be close to the training percent, which is set to 0.5
         for (int rowTrainingCount : trainingCountPerRow) {
             double meanCount = rowTrainingCount / (double) runCount;
-            assertThat(meanCount, is(closeTo(0.5, 0.12)));
+            assertThat(meanCount, is(closeTo(0.5, 0.13)));
         }
     }
 
-    public void testProcess_GivenTwoClassesWithCardinalityEqualToOne_ShouldUseForTraining() {
+    public void testProcess_GivenTwoClassesWithCountEqualToOne_ShouldUseForTraining() {
         dependentVariable = "dep_var";
         fields = Arrays.asList(dependentVariable, "feature");
-        classCardinalities = new HashMap<>();
-        classCardinalities.put("class_a", 1L);
-        classCardinalities.put("class_b", 1L);
+        classCounts = new HashMap<>();
+        classCounts.put("class_a", 1L);
+        classCounts.put("class_b", 1L);
         CrossValidationSplitter splitter = createSplitter(80.0);
 
         {
@@ -255,7 +258,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     }
 
     private CrossValidationSplitter createSplitter(double trainingPercent) {
-        return new StratifiedCrossValidationSplitter(fields, dependentVariable, classCardinalities, trainingPercent, randomizeSeed);
+        return new StratifiedCrossValidationSplitter(fields, dependentVariable, classCounts, trainingPercent, randomizeSeed);
     }
 
     private void incrementTrainingDocsCount() {

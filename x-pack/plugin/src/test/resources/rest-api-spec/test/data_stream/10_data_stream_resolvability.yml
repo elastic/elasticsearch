@@ -54,8 +54,8 @@
 ---
 "Verify data stream resolvability in ilm explain api":
   - skip:
-      version: " - 7.99.99"
-      reason: "wait until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -113,4 +113,39 @@
   - do:
       indices.delete_data_stream:
         name: logs-foobar
+  - is_true: acknowledged
+---
+"Verify data stream resolvability rollup":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-ds-rolluptemplate] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-ds-rolluptemplate] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-ds-rolluptemplate
+        body:
+          index_patterns: [logs-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: logs-ds-rollup
+  - is_true: acknowledged
+
+  - do:
+      # Should not raise error
+      rollup.get_rollup_index_caps:
+        index: "logs*"
+  - do:
+      indices.delete_data_stream:
+        name: logs-ds-rollup
   - is_true: acknowledged

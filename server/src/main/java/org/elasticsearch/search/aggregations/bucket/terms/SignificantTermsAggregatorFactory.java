@@ -227,7 +227,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, config, backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(
+            queryShardContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
 
         return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
@@ -256,8 +261,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new MapStringTermsAggregator(
                     name,
                     factories,
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
-                    valuesSource,
                     null,
                     format,
                     bucketCountThresholds,

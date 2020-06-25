@@ -203,3 +203,28 @@ teardown:
       catch: missing
       ingest.get_pipeline:
         id: "my_pipeline"
+
+---
+"Test processor with description":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "description": "this processor sets the [field2] field to [_value]",
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.processors.0.set.description: "this processor sets the [field2] field to [_value]" }

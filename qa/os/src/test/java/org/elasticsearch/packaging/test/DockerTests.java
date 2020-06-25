@@ -54,7 +54,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -78,7 +77,7 @@ public class DockerTests extends PackagingTestCase {
     @Before
     public void setupTest() throws IOException {
         installation = runContainer(distribution());
-        tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+        tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
     @After

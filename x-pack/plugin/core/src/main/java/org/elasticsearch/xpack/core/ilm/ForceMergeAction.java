@@ -120,6 +120,7 @@ public class ForceMergeAction implements LifecycleAction {
 
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
+        StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
         StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
@@ -130,6 +131,8 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
+            readOnlyKey);
         UpdateSettingsStep readOnlyStep =
             new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
 
@@ -144,6 +147,7 @@ public class ForceMergeAction implements LifecycleAction {
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
 
         List<Step> mergeSteps = new ArrayList<>();
+        mergeSteps.add(checkNotWriteIndexStep);
         mergeSteps.add(readOnlyStep);
 
         if (codecChange) {

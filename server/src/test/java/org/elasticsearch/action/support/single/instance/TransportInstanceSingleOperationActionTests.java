@@ -81,7 +81,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         public Request() {}
 
         public Request(StreamInput in) throws IOException {
-            super(in);
+            super(null, in);
         }
     }
 

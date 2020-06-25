@@ -215,8 +215,9 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     public static boolean canAccept(String url) {
-        return (StringUtils.hasText(url) &&
-            (url.trim().startsWith(JdbcConfiguration.URL_PREFIX) || url.trim().startsWith(JdbcConfiguration.URL_FULL_PREFIX)));
+        String u = url.trim();
+        return (StringUtils.hasText(u) &&
+            (u.startsWith(JdbcConfiguration.URL_PREFIX) || u.startsWith(JdbcConfiguration.URL_FULL_PREFIX)));
     }
 
     public DriverPropertyInfo[] driverPropertyInfo() {

@@ -69,6 +69,19 @@ public class VersionEncoder {
         "\\d+(\\.\\d+)*(-[\\-\\dA-Za-z]+){0,1}(\\.[\\-\\dA-Za-z]+)*(\\+[\\.\\-\\dA-Za-z]+)?"
     );
 
+    // Regex to test Semver Main Version validity:
+    private static Pattern LEGAL_MAIN_VERSION_SEMVER = Pattern.compile("(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)");
+
+    private static Pattern LEGAL_PRERELEASE_VERSION_SEMVER = Pattern.compile(
+        "(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))"
+    );
+
+    private static Pattern LEGAL_BUILDSUFFIX_SEMVER = Pattern.compile(
+        "(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?"
+    );
+
+    static boolean strictSemverCheck = false;
+
     /**
      * Defines how version parts consisting of both alphabetical and numerical characters are ordered
      */
@@ -141,29 +154,21 @@ public class VersionEncoder {
      */
     public static BytesRef encodeVersion(String versionString, SortMode mode) {
         //System.out.println("encoding: " + versionString);
-        if (legalVersionString(versionString) == false) {
-            throw new IllegalArgumentException("Illegal version string: " + versionString);
-        }
         // extract "build" suffix starting with "+"
-        String buildSuffixPart = extractSuffix(versionString, BUILD_SEPARATOR);
-        if (buildSuffixPart != null) {
-           versionString = versionString.substring(0, versionString.length() - buildSuffixPart.length());
-        }
+        VersionParts versionParts = VersionParts.ofVersion(versionString);
 
-        // extract "pre-release" suffix starting with "-"
-        String preReleaseId = extractSuffix(versionString, PRERELESE_SEPARATOR);
-        if (preReleaseId != null) {
-            versionString = versionString.substring(0, versionString.length() - preReleaseId.length());
+        if (legalVersionString(versionParts) == false) {
+            throw new IllegalArgumentException("Illegal version string: " + versionString);
         }
 
         // pad all digit groups in main part with numeric marker and length bytes
         BytesRefBuilder encodedVersion = new BytesRefBuilder();
-        prefixDigitGroupsWithLength(versionString, encodedVersion);
+        prefixDigitGroupsWithLength(versionParts.mainVersion, encodedVersion);
 
         // encode whether version has pre-release parts
-        if (preReleaseId != null) {
+        if (versionParts.preRelease != null) {
             encodedVersion.append(PRERELESE_SEPARATOR_BYTE);  // versions with pre-release part sort before ones without
-            String[] preReleaseParts = preReleaseId.substring(1).split(DOT_SEPARATOR_REGEX);
+            String[] preReleaseParts = versionParts.preRelease.substring(1).split(DOT_SEPARATOR_REGEX);
             boolean first = true;
             for (String preReleasePart : preReleaseParts) {
                 if (first == false) {
@@ -182,8 +187,8 @@ public class VersionEncoder {
         }
 
         // append build part at the end
-        if (buildSuffixPart != null) {
-            encodedVersion.append(new BytesRef(buildSuffixPart));
+        if (versionParts.buildSuffix != null) {
+            encodedVersion.append(new BytesRef(versionParts.buildSuffix));
         }
         //System.out.println("encoded: " + encodedVersion.get());
         return encodedVersion.get();
@@ -264,7 +269,48 @@ public class VersionEncoder {
         return Arrays.copyOf(result, resultPos);
     }
 
-    static boolean legalVersionString(String versionString) {
-        return LEGAL_VERSION_PATTERN.matcher(versionString).matches();
+    static boolean legalVersionString(VersionParts versionParts) {
+        boolean basic = LEGAL_VERSION_PATTERN.matcher(versionParts.all).matches();
+        if (strictSemverCheck) {
+            boolean mainVersionMatches = LEGAL_MAIN_VERSION_SEMVER.matcher(versionParts.mainVersion).matches();
+            boolean preReleaseMatches = versionParts.preRelease == null
+                ? true
+                : LEGAL_PRERELEASE_VERSION_SEMVER.matcher(versionParts.preRelease).matches();
+            boolean buildSuffixMatches = versionParts.buildSuffix == null
+                ? true
+                : LEGAL_BUILDSUFFIX_SEMVER.matcher(versionParts.buildSuffix).matches();
+            return mainVersionMatches && preReleaseMatches && buildSuffixMatches;
+        }
+        return basic;
+    }
+
+    static class VersionParts {
+        final String all;
+        final String mainVersion;
+        final String preRelease;
+        final String buildSuffix;
+
+        private VersionParts(String all, String mainVersion, String preRelease, String buildSuffix) {
+            this.all = all;
+            this.mainVersion = mainVersion;
+            this.preRelease = preRelease;
+            this.buildSuffix = buildSuffix;
+        }
+
+        static VersionParts ofVersion(String versionString) {
+            String versionStringOriginal = versionString;
+            String buildSuffix = extractSuffix(versionString, BUILD_SEPARATOR);
+            if (buildSuffix != null) {
+               versionString = versionString.substring(0, versionString.length() - buildSuffix.length());
+            }
+
+            // extract "pre-release" suffix starting with "-"
+            String preRelease = extractSuffix(versionString, PRERELESE_SEPARATOR);
+            if (preRelease != null) {
+                versionString = versionString.substring(0, versionString.length() - preRelease.length());
+            }
+            return new VersionParts(versionStringOriginal, versionString, preRelease, buildSuffix);
+        }
+
     }
 }

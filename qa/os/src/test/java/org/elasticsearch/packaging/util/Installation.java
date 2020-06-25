@@ -172,6 +172,8 @@ public class Installation {
             String command = "\"" + path + "\" " + args;
             if (distribution.isArchive() && Platforms.WINDOWS == false) {
                 command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+            } else if (Platforms.WINDOWS) {
+                command = "& " + command;
             }
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;

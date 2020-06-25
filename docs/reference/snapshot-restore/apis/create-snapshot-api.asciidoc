@@ -4,7 +4,8 @@
 <titleabbrev>Create index snapshot</titleabbrev>
 ++++
 
-Takes a snapshot of one or more indices. A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names in the cluster, such as `snapshot_1`.
+Takes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
+indices.
 
 ////
 [source,console]

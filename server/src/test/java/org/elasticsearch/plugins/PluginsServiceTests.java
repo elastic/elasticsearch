@@ -722,8 +722,8 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
-        PluginsService.loadExtensions(List.of(
-            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin)
+        PluginsService.loadExtensions(Collections.singletonList(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
         ));
 
         assertThat(extensiblePlugin.extensions, notNullValue());
@@ -731,9 +731,9 @@ public class PluginsServiceTests extends ESTestCase {
 
         extensiblePlugin = new TestExtensiblePlugin();
         TestPlugin testPlugin = new TestPlugin();
-        PluginsService.loadExtensions(List.of(
-            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, List.of(), false), extensiblePlugin),
-            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, List.of("extensible"), false), testPlugin)
+        PluginsService.loadExtensions(Arrays.asList(
+            Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
+            Tuple.tuple(new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false), testPlugin)
         ));
 
         assertThat(extensiblePlugin.extensions, notNullValue());

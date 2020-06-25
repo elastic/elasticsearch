@@ -486,7 +486,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
             if (pluginTuple.v2() instanceof ExtensiblePlugin) {
                 loadExtensionsForPlugin((ExtensiblePlugin) pluginTuple.v2(),
-                    extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), List.of()));
+                    extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), Collections.emptyList()));
             }
         }
     }

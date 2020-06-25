@@ -33,6 +33,9 @@ import org.elasticsearch.test.NodeRoles;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -71,7 +74,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+                        return NodeRoles.removeRoles(Collections.unmodifiableSet(
+                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+                        ));
                     }
                 }));
         if (writeDanglingIndices) {

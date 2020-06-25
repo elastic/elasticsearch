@@ -296,15 +296,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        factories == AggregatorFactories.EMPTY &&
-                        includeExclude == null) {
-                    /**
+                if (collectsFromSingleBucket && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                    /*
                      * We don't need to remap global ords iff this aggregator:
-                     *    - is not a child of a bucket aggregator AND
+                     *    - collects from a single bucket AND
                      *    - has no include/exclude rules AND
                      *    - has no sub-aggregator
-                     **/
+                     */
                     remapGlobalOrd = false;
                 }
 

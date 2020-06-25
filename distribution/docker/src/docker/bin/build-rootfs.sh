@@ -10,15 +10,15 @@
 declare -r BUSYBOX_VERSION="1.31.0"
 declare -r TINI_VERSION="0.19.0"
 
-BUSYBOX_PATH=""
+BUSYBOX_ARCH=""
 TINI_BIN=""
 case "$(arch)" in
     aarch64)
-        BUSYBOX_PATH="${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-armv8l"
+        BUSYBOX_ARCH="armv8l"
         TINI_BIN='tini-arm64'
         ;;
     x86_64)
-        BUSYBOX_PATH="${BUSYBOX_VERSION}-i686-uclibc/busybox"
+        BUSYBOX_ARCH="x86_64"
         TINI_BIN='tini-amd64'
         ;;
     *)
@@ -78,7 +78,8 @@ chmod +x "$target"/bin/tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. There's no RPM for busybox available for CentOS.
-curl --retry 10 -L -o "$target"/bin/busybox "https://busybox.net/downloads/binaries/$BUSYBOX_PATH"
+curl --retry 10 -L -o "$target"/bin/busybox \
+  "https://busybox.net/downloads/binaries/${BUSYBOX_VERSION}-defconfig-multiarch-musl/busybox-${BUSYBOX_ARCH}"
 chmod +x "$target"/bin/busybox
 
 set +x

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;

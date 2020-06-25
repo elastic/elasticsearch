@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -313,6 +314,16 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public SettingsConfig getSettings() {
         return settings;
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (pivotConfig != null) {
+            pivotConfig.validate(validationException);
+        } else if (mapConfig != null) {
+            mapConfig.validate(validationException);
+        }
+
+        return validationException;
     }
 
     public boolean isValid() {

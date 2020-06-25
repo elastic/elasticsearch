@@ -70,11 +70,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            // TODO: move validate into config
-            if (config.getPivotConfig() != null) {
-                validationException = config.getPivotConfig().validate(validationException);
-            }
-
+            validationException = config.validate(validationException);
             validationException = SourceDestValidator.validateRequest(validationException, config.getDestination().getIndex());
 
             if (TransformStrings.isValidId(config.getId()) == false) {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.map;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,6 +37,10 @@ public class MapConfig implements Writeable, ToXContentObject {
 
     public MapConfig(StreamInput in) throws IOException {}
 
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        return validationException;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -49,4 +54,6 @@ public class MapConfig implements Writeable, ToXContentObject {
     public static MapConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
+
+
 }

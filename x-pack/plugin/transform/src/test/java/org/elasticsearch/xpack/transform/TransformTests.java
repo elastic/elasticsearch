@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Set;
+import java.util.Collections;
 
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
@@ -32,9 +32,9 @@ public class TransformTests extends ESTestCase {
                 builder.put("node.transform", transformEnabled);
             } else {
                 if (transformEnabled) {
-                    builder.put(addRoles(Set.of(Transform.TRANSFORM_ROLE)));
+                    builder.put(addRoles(Collections.singleton(Transform.TRANSFORM_ROLE)));
                 } else {
-                    builder.put(removeRoles(Set.of(Transform.TRANSFORM_ROLE)));
+                    builder.put(removeRoles(Collections.singleton(Transform.TRANSFORM_ROLE)));
                 }
             }
         }

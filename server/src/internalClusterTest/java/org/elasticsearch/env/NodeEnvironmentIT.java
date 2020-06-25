@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.Matchers.allOf;

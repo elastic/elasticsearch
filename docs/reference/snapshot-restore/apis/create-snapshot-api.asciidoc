@@ -89,7 +89,11 @@ A comma-separated list of data streams and indices to include in the snapshot.
 By default, a snapshot includes all data streams and indices in the cluster. If this
 argument is provided, the snapshot only includes the specified data streams and clusters.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, boolean)
+If `true`, the request ignores data streams and indices in `indices` that are missing or closed. 
+If `false`, the request returns an error for any data stream or index that is missing or closed. 
+Defaults to `false`.
 
 `include_global_state`::
 (Optional, boolean)

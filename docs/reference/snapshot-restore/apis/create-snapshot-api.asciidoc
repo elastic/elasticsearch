@@ -145,7 +145,36 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "accepted" : true
+  "snapshot": {
+    "snapshot": "snapshot_2",
+    "uuid": "vdRctLCxSketdKb54xw67g",
+    "version_id": 8000099,
+    "version": "8.0.0",
+    "indices": [],
+    "data_streams": [],
+    "include_global_state": false,
+    "metadata": {
+      "taken_by": "user123",
+      "taken_because": "backup before upgrading"
+    },
+    "state": "SUCCESS",
+    "start_time": "2020-06-25T14:00:28.850Z",
+    "start_time_in_millis": 1593093628850,
+    "end_time": "2020-06-25T14:00:28.850Z",
+    "end_time_in_millis": 1593094752018,
+    "duration_in_millis": 0,
+    "failures": [],
+    "shards": {
+      "total": 0,
+      "failed": 0,
+      "successful": 0
+    }
+  }
 }
 ----
-// TEST[skip:cannot complete subsequent snapshot]
+// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshot.uuid/]
+// TESTRESPONSE[s/"start_time": "2020-06-25T14:00:28.850Z"/"start_time": $body.snapshot.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshot.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-06-25T14:00:28.850Z"/"end_time": $body.snapshot.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshot.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshot.duration_in_millis/]

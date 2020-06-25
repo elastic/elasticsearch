@@ -27,6 +27,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -59,7 +62,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
-        final Settings noMasterNoDataSettings = NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+        final Settings noMasterNoDataSettings = NodeRoles.removeRoles(
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))));
 
         final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
             .put(noMasterNoDataSettings)

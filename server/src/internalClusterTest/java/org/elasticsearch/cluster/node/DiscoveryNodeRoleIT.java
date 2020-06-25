@@ -89,7 +89,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
     }
 
     public void testExplicitlyHasAdditionalRoles() {
-        runTestNodeHasAdditionalRole(addRoles(Set.of(AdditionalRolePlugin.ADDITIONAL_ROLE)));
+        runTestNodeHasAdditionalRole(addRoles(Collections.singleton(AdditionalRolePlugin.ADDITIONAL_ROLE)));
     }
 
     public void testDoesNotHaveAdditionalRoleUsingLegacySetting() {
@@ -97,7 +97,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
     }
 
     public void testExplicitlyDoesNotHaveAdditionalRole() {
-        runTestNodeHasAdditionalRole(removeRoles(Set.of(AdditionalRolePlugin.ADDITIONAL_ROLE)));
+        runTestNodeHasAdditionalRole(removeRoles(Collections.singleton(AdditionalRolePlugin.ADDITIONAL_ROLE)));
     }
 
     private void runTestNodeHasAdditionalRole(final Settings settings) {

@@ -1,7 +1,7 @@
 [[create-snapshot-api]]
-=== Create index snapshot API
+=== Create snapshot API
 ++++
-<titleabbrev>Create index snapshot</titleabbrev>
+<titleabbrev>Create snapshot</titleabbrev>
 ++++
 
 Takes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and

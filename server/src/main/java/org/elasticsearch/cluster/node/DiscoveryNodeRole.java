@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -155,7 +156,12 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         @Override
         public Setting<Boolean> legacySetting() {
             // copy the setting here so we can mark it private in org.elasticsearch.node.Node
-            return Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
+            return Setting.boolSetting(
+                "node.remote_cluster_client",
+                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+                Property.Deprecated,
+                Property.NodeScope
+            );
         }
 
     };

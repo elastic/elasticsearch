@@ -427,11 +427,9 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeIdNotPersistedAtInitialization() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
-            .put("node.local_storage", false)
-            .put("node.master", false)
-            .put("node.data", false)
-            .build());
+        NodeEnvironment env = newNodeEnvironment(
+            new String[0],
+            nonMasterNode(nonDataNode(Settings.builder().put("node.local_storage", false).build())));
         String nodeID = env.nodeId();
         env.close();
         final String[] paths = tmpPaths();

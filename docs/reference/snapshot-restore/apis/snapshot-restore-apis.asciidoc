@@ -16,12 +16,16 @@ content may not be included yet.
 [[snapshot-restore-repo-apis]]
 === Snapshot repository management APIs
 
-* <<create-snapshot-api,Create snapshot>>
 * <<clean-up-snapshot-repo-api,Clean up snapshot repository>>
 * <<delete-snapshot-repo-api,Delete snapshot repository>>
 * <<get-snapshot-repo-api,Get snapshot repository>>
 * <<put-snapshot-repo-api,Put snapshot repository>>
 * <<verify-snapshot-repo-api,Verify snapshot repository>>
+
+[discrete]
+[[snapshot-management-apis]]
+=== Snapshot management APIs
+* <<create-snapshot-api,Create snapshot>>
 
 include::create-snapshot-api.asciidoc[]
 include::clean-up-repo-api.asciidoc[]

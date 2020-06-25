@@ -65,9 +65,12 @@ Besides creating a copy of each data stream and index, the snapshot process can 
 (Required, string)
 Name of the repository to create a snapshot in.
 
-`<snapshot-name>`::
+`<snapshot>`::
 (Required, string)
 Name of the snapshot to create. This name must be unique in the snapshot repository.
+
+[[create-snapshot-api-query-params]]
+==== {api-query-parms-title}
 
 `wait_for_completion`::
 (Optional, boolean)
@@ -78,22 +81,19 @@ Defaults to `false`.
 NOTE: During snapshot initialization, information about all
 previous snapshots is loaded into memory. In large repositories, this load time can cause requests to take several seconds (or even minutes) to return a response, even if the `wait_for_completion` parameter is `false`.
 
-[[create-snapshot-api-query-params]]
-==== {api-query-parms-title}
-
 `indices`::
 (Optional, string)
 A comma-separated list of data streams and indices to include in the snapshot.
 <<multi-index,Multi-index syntax>> is supported.
-
++
 By default, a snapshot includes all data streams and indices in the cluster. If this
 argument is provided, the snapshot only includes the specified data streams and clusters.
 
 `ignore_unavailable`::
 (Optional, boolean)
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed. 
-If `false`, the request returns an error for any data stream or index that is missing or closed. 
-Defaults to `false`.
+If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
++
+If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
 
 `include_global_state`::
 (Optional, boolean)
@@ -104,11 +104,22 @@ pipelines, and {ilm-init} policies are restored into the current cluster. This
 overwrites any existing cluster settings, templates, pipelines and {ilm-init}
 policies whose names match those in the snapshot.
 +
-IMPORTANT: By default, the entire snapshot will fail if one or more indices participating in the snapshot do not have all primary shards available. You can change this behavior by setting `partial` to `true`.
+IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
 
 `metadata`::
 (Optional, string)
-Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data.
+Attaches arbitrary metadata to the snapshot, such as a record of who took the snapshot, why it was taken, or any other useful data. Metadata must be less than 1024 bytes.
+
+[[create-snapshot-api-partial]]
+`partial`::
+(Optional, boolean)
+If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
++
+If `true`, allows taking a partial snapshot of indices with unavailable shards.
+
+`settings`::
+(Optional,string)
+Sets snapshot settings for the repository in JSON or YAML format. See <<put-snapshot-repo-api-settings-param,`settings`>> in the Put snapshot repository API documentation.
 
 [[create-snapshot-api-example]]
 ==== {api-examples-title}

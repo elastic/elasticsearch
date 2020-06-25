@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomConfigurationWithCaseSensitive;
 
-public class StartsWithProcessorTests extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithProcessorTests {
+public class StartsWithFunctionProcessorTests extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithProcessorTests{
 
     @Override
     protected Supplier<Boolean> isCaseSensitiveGenerator() {

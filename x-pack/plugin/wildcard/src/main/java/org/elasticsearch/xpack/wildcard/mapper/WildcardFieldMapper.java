@@ -55,14 +55,15 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -145,11 +146,6 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder similarity(SimilarityProvider similarity) {
-            throw new MapperParsingException("The field [" + name + "] cannot have custom similarities");
-        }
-
-        @Override
         public Builder index(boolean index) {
             if (index == false) {
                 throw new MapperParsingException("The field [" + name + "] cannot have index = false");
@@ -175,7 +171,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(BuilderContext context) {
             return new WildcardFieldMapper(
-                    name, fieldType, new WildcardFieldType(buildFullName(context), meta), ignoreAbove,
+                    name, fieldType, new WildcardFieldType(buildFullName(context), fieldType, meta), ignoreAbove,
                     multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
@@ -215,8 +211,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
-        public WildcardFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, meta);
+        public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
+            super(name, true, true, new TextSearchInfo(fieldType, null), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
@@ -853,6 +849,12 @@ public class WildcardFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+        
+        @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }
+        
 
         @Override
         public Query existsQuery(QueryShardContext context) {

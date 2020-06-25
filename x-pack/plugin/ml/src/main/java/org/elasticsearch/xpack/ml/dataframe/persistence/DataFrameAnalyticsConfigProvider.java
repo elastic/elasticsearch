@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -99,7 +98,7 @@ public class DataFrameAnalyticsConfigProvider {
                        ClusterState clusterState,
                        ActionListener<DataFrameAnalyticsConfig> listener) {
         String id = update.getId();
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DataFrameAnalyticsConfig.documentId(id));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(id));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
             getResponse -> {
 

@@ -491,6 +491,7 @@ tiebreaker for events with the same timestamp.
     "events": [
       {
         "_index": "sec_logs",
+        "_type": "_doc",
         "_id": "1",
         "_score": null,
         "_source": {

@@ -83,8 +83,11 @@ previous snapshots is loaded into memory. In large repositories, this load time 
 
 `indices`::
 (Optional, string)
-A list of indices to include in the snapshot. This parameter supports <<multi-index,multi index syntax>>, although the options that control the behavior of multi index syntax
-must be supplied in the body of the request, rather than as request parameters.
+A comma-separated list of data streams and indices to include in the snapshot.
+<<multi-index,Multi-index syntax>> is supported.
+
+By default, a snapshot includes all data streams and indices in the cluster. If this
+argument is provided, the snapshot only includes the specified data streams and clusters.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

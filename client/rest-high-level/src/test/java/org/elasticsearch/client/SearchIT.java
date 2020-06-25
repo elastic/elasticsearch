@@ -706,6 +706,15 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testClearScrollNotFound() throws Exception {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId("DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==");
+        ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
+            highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync);
+        assertThat(clearScrollResponse.getNumFreed(), equalTo(0));
+        assertTrue(clearScrollResponse.isSucceeded());
+    }
+
     public void testMultiSearch() throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         SearchRequest searchRequest1 = new SearchRequest("index1");

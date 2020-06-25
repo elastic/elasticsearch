@@ -1221,7 +1221,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
-                emptySet());
+                singleton(404));
     }
 
     /**
@@ -1237,7 +1237,7 @@ public class RestHighLevelClient implements Closeable {
     public final Cancellable clearScrollAsync(ClearScrollRequest clearScrollRequest, RequestOptions options,
                                               ActionListener<ClearScrollResponse> listener) {
         return performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll,
-            options, ClearScrollResponse::fromXContent, listener, emptySet());
+            options, ClearScrollResponse::fromXContent, listener, singleton(404));
     }
 
     /**

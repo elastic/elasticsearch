@@ -148,9 +148,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -811,7 +809,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(nonSystemVJavaZoneId(JAVA_TIMEZONE_IDS));
     }
 
     /**
@@ -823,23 +821,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (JavaVersion.current().getVersion().get(0) == 8) {
             ZoneId timeZone;
             do {
-                timeZone = ZoneId.of(nonSystemVJavaZoneId());
+                timeZone = ZoneId.of(nonSystemVJavaZoneId(JAVA_ZONE_IDS));
             } while (timeZone.equals(ZoneId.of("GMT0")));
             return timeZone;
         } else {
-            return ZoneId.of(nonSystemVJavaZoneId());
+            return ZoneId.of(nonSystemVJavaZoneId(JAVA_ZONE_IDS));
         }
     }
 
     /**
-     * We need to exclude SystemV/* time zones because they cannot be converted
-     * back to DateTimeZone which we currently still need to do internally,
-     * e.g. in bwc serialization and in the extract() method
+     * We need to exclude time zones not supported by joda (like SystemV* timezones)
+     * because they cannot be converted back to DateTimeZone which we currently
+     * still need to do internally e.g. in bwc serialization and in the extract() method
      * //TODO remove once joda is not supported
+     * @param random zoneId from given set of ids but supported by joda
      */
-    private static String nonSystemVJavaZoneId() {
-        return randomValueOtherThanMany(id -> id.startsWith("SystemV"),
-            () -> randomFrom(JAVA_ZONE_IDS));
+    private static String nonSystemVJavaZoneId(List<String> zoneIds) {
+        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
+            () -> randomFrom(zoneIds));
     }
 
     /**

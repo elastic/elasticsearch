@@ -50,7 +50,7 @@ The snapshot process is incremental. When creating a  snapshot, {es} analyzes th
 
 The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the data stream or index that {es} is snapshotting. Only one snapshot process can run in the cluster at any time.
 
-Because a snapshot represents the index at the moment when the snapshot was created, no records that were added to the index after the snapshot process started will be present in the snapshot.
+A snapshot represents a point-in-time view of the moment when the snapshot was created. No records that were added to a data stream or index after the snapshot process started will be present in the snapshot.
 
 For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {es} waits for these processes to complete before taking a snapshot.
 

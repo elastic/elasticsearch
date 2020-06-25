@@ -834,7 +834,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      * because they cannot be converted back to DateTimeZone which we currently
      * still need to do internally e.g. in bwc serialization and in the extract() method
      * //TODO remove once joda is not supported
-     * @param random zoneId from given set of ids but supported by joda
      */
     private static String nonSystemVJavaZoneId(List<String> zoneIds) {
         return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,

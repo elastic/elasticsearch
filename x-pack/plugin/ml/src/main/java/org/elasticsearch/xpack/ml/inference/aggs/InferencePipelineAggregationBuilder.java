@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -45,7 +46,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
-    private static String DEFAULT_RESULT_FIELD = "value";
+    static String AGGREGATIONS_RESULTS_FIELD = "value";
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferencePipelineAggregationBuilder,
@@ -155,21 +156,41 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             }
         }
 
-        InferenceConfigUpdate update;
-        if (inferenceConfig == null) {
-            update = new ResultsFieldUpdate(DEFAULT_RESULT_FIELD);
-        } else {
-            // error if the results field is set and not equal to the only acceptable value
-            if (Strings.isNullOrEmpty(inferenceConfig.getResultsField()) == false &&
-                DEFAULT_RESULT_FIELD.equals(inferenceConfig.getResultsField()) == false) {
-                throw ExceptionsHelper.badRequestException("setting [{}] is not a valid option for inference aggregations",
-                    ClassificationConfig.RESULTS_FIELD.getPreferredName());
-            }
-
-            update = inferenceConfig.duplicateWithResultsField(DEFAULT_RESULT_FIELD);
-        }
+        InferenceConfigUpdate update = adaptForAggregation(inferenceConfig);
 
         return new InferencePipelineAggregator(name, bucketPathMap, metaData, update, model.get());
+    }
+
+    static InferenceConfigUpdate adaptForAggregation(InferenceConfigUpdate originalUpdate) {
+        InferenceConfigUpdate updated;
+        if (originalUpdate == null) {
+            updated = new ResultsFieldUpdate(AGGREGATIONS_RESULTS_FIELD);
+        } else {
+            if (originalUpdate instanceof ClassificationConfigUpdate) {
+                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)originalUpdate;
+
+                // error if the top classes result field is set and not equal to the only acceptable value
+                String topClassesField = classUpdate.getTopClassesResultsField();
+                if (Strings.isNullOrEmpty(topClassesField) == false &&
+                    ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(topClassesField) == false) {
+                    throw ExceptionsHelper.badRequestException("setting option [{}] to [{}] is not valid for inference aggregations",
+                        ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD, topClassesField);
+                }
+            }
+
+            // error if the results field is set and not equal to the only acceptable value
+            String resultsField = originalUpdate.getResultsField();
+            if (Strings.isNullOrEmpty(resultsField) == false && AGGREGATIONS_RESULTS_FIELD.equals(resultsField) == false) {
+                throw ExceptionsHelper.badRequestException("setting option [{}] to [{}] is not valid for inference aggregations",
+                    ClassificationConfig.RESULTS_FIELD.getPreferredName(), resultsField);
+            }
+
+            // Create an update that changes the default results field.
+            // This isn't necessary for top classes as the default is used here
+            updated = originalUpdate.duplicateWithResultsField(AGGREGATIONS_RESULTS_FIELD);
+        }
+
+        return updated;
     }
 
     @Override

@@ -404,8 +404,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").searchAnalyzer()));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("otherField").searchQuoteAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {

@@ -639,7 +639,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             }
@@ -649,7 +649,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
-                    analyzer = fieldType.searchAnalyzer();
+                    analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
                 source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
@@ -776,7 +776,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
-            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             }
@@ -786,7 +786,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
-                    analyzer = fieldType.searchAnalyzer();
+                    analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
                 }
             }
             checkPositions(fieldType);

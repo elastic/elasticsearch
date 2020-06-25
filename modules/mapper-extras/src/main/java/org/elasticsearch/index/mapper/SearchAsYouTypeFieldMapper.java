@@ -169,10 +169,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity, meta);
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity,
+                searchAnalyzer, searchQuoteAnalyzer, meta);
             ft.setIndexAnalyzer(indexAnalyzer);
-            ft.setSearchAnalyzer(searchAnalyzer);
-            ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
 
             // set up the prefix field
             FieldType prefixft = new FieldType(fieldType);
@@ -180,17 +179,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(context);
-            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixft, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             // wrap the root field's index analyzer with shingles and edge ngrams
-            final SearchAsYouTypeAnalyzer prefixIndexWrapper =
+            final Analyzer prefixIndexWrapper =
                 SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize);
             // wrap the root field's search analyzer with only shingles
-            final SearchAsYouTypeAnalyzer prefixSearchWrapper =
-                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize);
+            final NamedAnalyzer prefixSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
+                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize));
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
+            TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity, prefixSearchWrapper, searchQuoteAnalyzer);
+            final PrefixFieldType prefixFieldType
+                = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
-            prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, prefixSearchWrapper));
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
+
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize - 1];
@@ -200,18 +201,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
                 String fieldName = getShingleFieldName(buildFullName(context), shingleSize);
-                final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, shingleft);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
-                final SearchAsYouTypeAnalyzer shingleSearchWrapper =
-                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize);
-                final SearchAsYouTypeAnalyzer shingleSearchQuoteWrapper =
-                    SearchAsYouTypeAnalyzer.withShingle(searchQuoteAnalyzer.analyzer(), shingleSize);
+                final NamedAnalyzer shingleSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize));
+                final NamedAnalyzer shingleSearchQuoteWrapper = new NamedAnalyzer(searchQuoteAnalyzer.name(), searchQuoteAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchQuoteAnalyzer.analyzer(), shingleSize));
+                TextSearchInfo textSearchInfo
+                    = new TextSearchInfo(shingleft, similarity, shingleSearchWrapper, shingleSearchQuoteWrapper);
+                final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper));
-                shingleFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchWrapper));
-                shingleFieldType.setSearchQuoteAnalyzer(
-                    new NamedAnalyzer(searchQuoteAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchQuoteWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
@@ -246,8 +246,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixField;
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
-        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, new TextSearchInfo(fieldType, similarity), meta);
+        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
+                                 NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, false,
+                new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
         }
 
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {
@@ -392,8 +394,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final int maxChars;
         final String parentField;
 
-        PrefixFieldType(String parentField, FieldType fieldType, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
+        PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -545,8 +547,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final int shingleSize;
         PrefixFieldType prefixFieldType;
 
-        ShingleFieldType(String name, int shingleSize, FieldType fieldType) {
-            super(name, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
+        ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
+            super(name, true, false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 

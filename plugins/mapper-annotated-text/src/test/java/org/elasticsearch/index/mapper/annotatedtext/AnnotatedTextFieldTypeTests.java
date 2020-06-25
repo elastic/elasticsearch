@@ -34,7 +34,7 @@ import java.util.Map;
 public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new AnnotatedTextFieldMapper.AnnotatedTextFieldType(name, true, meta);
+        return new AnnotatedTextFieldMapper.AnnotatedTextFieldType(name, meta);
     }
 
     public void testIntervals() throws IOException {

@@ -233,7 +233,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
         DocumentFieldMappers fieldMappers = new DocumentFieldMappers(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), null, null, null);
+            Collections.emptyList(), null);
         DocumentMapper mockMapper = mock(DocumentMapper.class);
         when(mockMapper.mappers()).thenReturn(fieldMappers);
         when(mapperService.documentMapper()).thenReturn(mockMapper);

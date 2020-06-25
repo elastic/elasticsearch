@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.index.DocValuesType;
@@ -558,13 +559,15 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         MappedFieldType fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello World"});
+        Analyzer a = ft.getTextSearchInfo().getSearchAnalyzer();
+        assertTokenStreamContents(a.tokenStream("", "Hello World"), new String[] {"Hello World"});
 
         fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello", "world"});
+        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"hello", "world"});
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
@@ -585,13 +588,15 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"Hello", "World"});
 
         fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello world"});
+        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"hello world"});
     }
 
     public void testMeta() throws Exception {

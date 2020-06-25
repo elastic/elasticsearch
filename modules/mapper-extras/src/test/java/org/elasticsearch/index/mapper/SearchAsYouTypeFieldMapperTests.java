@@ -817,7 +817,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
                                                        PrefixFieldType prefixFieldType) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize-1));
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
@@ -835,7 +835,7 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
 
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -849,12 +849,13 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     }
 
     private static void assertPrefixFieldType(PrefixFieldType fieldType, int shingleSize, String analyzerName) {
-        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.searchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(fieldType.indexAnalyzer(), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.indexAnalyzer().analyzer();
-        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.searchAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
+            = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));
         }

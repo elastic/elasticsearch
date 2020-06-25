@@ -125,8 +125,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
 
         Term term;
-        if (searchAnalyzer() != null) {
-            value = normalizeWildcardPattern(name(), value, searchAnalyzer());
+        if (getTextSearchInfo().getSearchAnalyzer() != null) {
+            value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
             term = new Term(name(), value);
         } else {
             term = new Term(name(), indexedValueForSearch(value));

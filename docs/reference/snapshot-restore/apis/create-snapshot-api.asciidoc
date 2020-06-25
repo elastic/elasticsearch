@@ -23,7 +23,7 @@ PUT /_snapshot/my_backup
 
 [source,console]
 -----------------------------------
-PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+PUT /_snapshot/my_repository/my_snapshot
 -----------------------------------
 
 [[create-snapshot-api-request]]

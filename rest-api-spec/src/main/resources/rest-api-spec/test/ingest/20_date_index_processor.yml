@@ -1,0 +1,31 @@
+
+---
+"Test Put Versioned Pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "joda_index_name_pipeline"
+        body: >
+          {
+            "processors": [
+                {
+                  "date_index_name": {
+                    "field": "my_timestamp",
+                    "date_rounding": "d",
+                    "index_name_prefix": "prefix-",
+                    "index_name_format": "xxxx-w"
+                  }
+                }
+              ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index:  test_1
+        type:   _doc
+        pipeline: joda_index_name_pipeline
+        body:   { my_timestamp: "2020-08-10T01:01:01.000Z" }
+
+  - is_true:   _id
+  - match:   { _index:   "prefix-2020-33" }
+  - match:   { result:   "created"        }

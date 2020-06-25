@@ -16,7 +16,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.startsWith;
 
-public class LengthProcessorTests extends ESTestCase {
+public class LengthFunctionProcessorTests extends ESTestCase {
 
     public void testLengthFunctionWithValidInput() {
         assertEquals(9, new Length(EMPTY, l("foobarbar")).makePipe().asProcessor().process(null));

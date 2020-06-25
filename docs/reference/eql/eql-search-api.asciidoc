@@ -534,7 +534,12 @@ in ascending order.
         },
         "sort": [
           1607252647000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607252647000"
+          ]
+        }
       },
       {
         "_index": "my_index",
@@ -562,7 +567,12 @@ in ascending order.
         },
         "sort": [
           1607339228000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607339228000"
+          ]
+        }
       }
     ]
   }

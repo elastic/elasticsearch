@@ -99,7 +99,12 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         },
         "sort": [
           1607252645000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607252645000"
+          ]
+        }
       },
       {
         "_index": "sec_logs",
@@ -120,7 +125,12 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         },
         "sort": [
           1607339167000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607339167000"
+          ]
+        }
       }
     ]
   }

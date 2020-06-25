@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.core.ml.inference.results.SingleValueInfer
  *
  * This class parses the union all possible fields that may be written by
  * InferenceResults.
+ *
+ * The warning field is mutually exclusive with all the other fields.
  */
 public class ParsedInference extends ParsedAggregation {
 

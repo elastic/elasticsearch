@@ -105,10 +105,9 @@ public class InferencePipelineAggregator extends PipelineAggregator {
             final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
                 (p) -> (InternalAggregation) p).collect(Collectors.toList());
 
-            InternalInferenceAggregation infResult = new InternalInferenceAggregation(name(), metadata(), inference);
-            aggs.add(infResult);
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                bucket);
+            InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
+            aggs.add(aggResult);
+            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs), bucket);
             newBuckets.add(newBucket);
         }
 
@@ -123,7 +122,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
         return bucket.getProperty(agg.getName(), aggPathsList);
     }
 
-    private static AggregationExecutionException invalidAggTypeError(String aggPath, @Nullable Object propertyValue) {
+    private static AggregationExecutionException invalidAggTypeError(String aggPath, Object propertyValue) {
 
         String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() +
             " must reference either a number value, a single value numeric metric aggregation or a string: got [" +

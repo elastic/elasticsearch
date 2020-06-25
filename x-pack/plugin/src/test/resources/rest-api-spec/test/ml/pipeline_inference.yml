@@ -263,4 +263,4 @@ setup:
             }
           }
   - match: { error.caused_by.type: "status_exception" }
-  - match: { error.caused_by.reason: "setting [results_field] is not a valid option for inference aggregations" }
+  - match: { error.caused_by.reason: "setting option [results_field] to [banana] is not valid for inference aggregations" }

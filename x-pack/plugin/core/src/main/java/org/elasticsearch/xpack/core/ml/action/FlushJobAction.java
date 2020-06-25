@@ -79,7 +79,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
                 this.waitForNormalization = in.readBoolean();
             } else {
                 this.waitForNormalization = true;
@@ -94,7 +94,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
                 out.writeBoolean(waitForNormalization);
             }
         }

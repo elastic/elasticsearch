@@ -43,7 +43,7 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_9_0)) {
             Request bwcRequest = new Request(instance.jobId);
             bwcRequest.setWaitForNormalization(true);
             bwcRequest.setCalcInterim(instance.getCalcInterim());

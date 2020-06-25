@@ -61,7 +61,7 @@ Name of the repository to create a snapshot in.
 
 `<snapshot-name>`::
 (Required, string)
-Unique name of the snapshot.
+Name of the snapshot to create. This name must be unique in the snapshot repository.
 
 `wait_for_completion`::
 (Optional, boolean)

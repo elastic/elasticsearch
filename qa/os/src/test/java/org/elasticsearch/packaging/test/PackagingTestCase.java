@@ -403,7 +403,7 @@ public abstract class PackagingTestCase extends Assert {
      * use the temporary directory.
      */
     public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {
-        Path tempDir = Files.createTempDirectory(getRootTempDir(), "custom-config");
+        Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
 

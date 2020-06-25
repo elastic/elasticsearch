@@ -53,7 +53,7 @@ mknod -m 666 "$target"/dev/tty0 c 4 0
 mknod -m 666 "$target"/dev/urandom c 1 9
 mknod -m 666 "$target"/dev/zero c 1 5
 
-# Install a minimal set of dependencies
+# Install a minimal set of dependencies, as well as some utilties (zip, pigz)
 yum --installroot="$target" --releasever=/ --setopt=tsflags=nodocs \
   --setopt=group_package_types=mandatory -y  \
   --skip-broken \

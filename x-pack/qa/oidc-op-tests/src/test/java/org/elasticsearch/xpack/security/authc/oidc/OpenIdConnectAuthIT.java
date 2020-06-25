@@ -65,6 +65,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private static final String REALM_NAME = "c2id";
     private static final String REALM_NAME_IMPLICIT = "c2id-implicit";
     private static final String REALM_NAME_PROXY = "c2id-proxy";
+    private static final String REALM_NAME_CLIENT_POST_AUTH = "c2id-post";
+    private static final String REALM_NAME_CLIENT_JWT_AUTH = "c2id-jwt";
     private static final String FACILITATOR_PASSWORD = "f@cilit@t0r";
     private static final String REGISTRATION_URL = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id/clients";
     private static final String LOGIN_API = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id-login/api/";
@@ -86,7 +88,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 "\"response_types\": [\"code\"]," +
                 "\"preferred_client_id\":\"https://my.elasticsearch.org/rp\"," +
                 "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
-                "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]" +
+                "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
+                "\"token_endpoint_auth_method\":\"client_secret_basic\"" +
                 "}";
             String implicitClient = "{" +
                 "\"grant_types\": [\"implicit\"]," +
@@ -95,22 +98,61 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]" +
                 "}";
+            String postClient = "{" +
+                "\"grant_types\": [\"authorization_code\"]," +
+                "\"response_types\": [\"code\"]," +
+                "\"preferred_client_id\":\"elasticsearch-post\"," +
+                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
+                "\"token_endpoint_auth_method\":\"client_secret_post\"" +
+                "}";
+            String jwtClient = "{" +
+                "\"grant_types\": [\"authorization_code\"]," +
+                "\"response_types\": [\"code\"]," +
+                "\"preferred_client_id\":\"elasticsearch-post-jwt\"," +
+                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]," +
+                "\"token_endpoint_auth_method\":\"client_secret_jwt\"" +
+                "}";
             HttpPost httpPost = new HttpPost(REGISTRATION_URL);
             final BasicHttpContext context = new BasicHttpContext();
             httpPost.setEntity(new StringEntity(codeClient, ContentType.APPLICATION_JSON));
             httpPost.setHeader("Accept", "application/json");
             httpPost.setHeader("Content-type", "application/json");
             httpPost.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
-            CloseableHttpResponse response = SocketAccess.doPrivileged(() -> httpClient.execute(httpPost, context));
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            httpPost.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
+
             HttpPost httpPost2 = new HttpPost(REGISTRATION_URL);
             httpPost2.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
             httpPost2.setHeader("Accept", "application/json");
             httpPost2.setHeader("Content-type", "application/json");
             httpPost2.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
-            CloseableHttpResponse response2 = SocketAccess.doPrivileged(() -> httpClient.execute(httpPost2, context));
-            assertThat(response2.getStatusLine().getStatusCode(), equalTo(200));
+
+            HttpPost httpPost3 = new HttpPost(REGISTRATION_URL);
+            httpPost3.setEntity(new StringEntity(postClient, ContentType.APPLICATION_JSON));
+            httpPost3.setHeader("Accept", "application/json");
+            httpPost3.setHeader("Content-type", "application/json");
+            httpPost3.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+
+            HttpPost httpPost4 = new HttpPost(REGISTRATION_URL);
+            httpPost4.setEntity(new StringEntity(jwtClient, ContentType.APPLICATION_JSON));
+            httpPost4.setHeader("Accept", "application/json");
+            httpPost4.setHeader("Content-type", "application/json");
+            httpPost4.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+
+            SocketAccess.doPrivileged(() -> {
+                try (CloseableHttpResponse response = httpClient.execute(httpPost, context)) {
+                    assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
+                }
+                try (CloseableHttpResponse response2 = httpClient.execute(httpPost2, context)) {
+                    assertThat(response2.getStatusLine().getStatusCode(), equalTo(201));
+                }
+                try (CloseableHttpResponse response3 = httpClient.execute(httpPost3, context)) {
+                    assertThat(response3.getStatusLine().getStatusCode(), equalTo(201));
+                }
+                try (CloseableHttpResponse response4 = httpClient.execute(httpPost4, context)) {
+                    assertThat(response4.getStatusLine().getStatusCode(), equalTo(201));
+                }
+            });
         }
     }
 
@@ -250,10 +292,25 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
+    public void testAuthenticateWithCodeFlowAndClientPost() throws Exception {
+        final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_CLIENT_POST_AUTH);
+        final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
+            prepareAuthResponse.getNonce(), REALM_NAME_CLIENT_POST_AUTH);
+        verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
+    }
+
+    public void testAuthenticateWithCodeFlowAndClientJwtPost() throws Exception {
+        final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_CLIENT_JWT_AUTH);
+        final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+        Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
+            prepareAuthResponse.getNonce(), REALM_NAME_CLIENT_JWT_AUTH);
+        verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
+    }
+
     public void testAuthenticateWithImplicitFlow() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_IMPLICIT);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
-
         Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
             prepareAuthResponse.getNonce(), REALM_NAME_IMPLICIT);
         verifyElasticsearchAccessTokenForImplicitFlow(tokens.v1());
@@ -303,7 +360,6 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
         assertThat(metadata.get("oidc(iss)"), equalTo("http://localhost:8080"));
     }
-
 
     private PrepareAuthResponse getRedirectedFromFacilitator(String realmName) throws Exception {
         final Map<String, String> body = Collections.singletonMap("realm", realmName);
@@ -387,7 +443,9 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             "\"rules\": {" +
             "  \"any\" : [" +
             "    {\"field\": { \"realm.name\": \"" + REALM_NAME + "\"} }," +
-            "    {\"field\": { \"realm.name\": \"" + REALM_NAME_PROXY + "\"} }" +
+            "    {\"field\": { \"realm.name\": \"" + REALM_NAME_PROXY + "\"} }," +
+            "    {\"field\": { \"realm.name\": \"" + REALM_NAME_CLIENT_POST_AUTH + "\"} }," +
+            "    {\"field\": { \"realm.name\": \"" + REALM_NAME_CLIENT_JWT_AUTH + "\"} }" +
             "  ]" +
             "}" +
             "}");

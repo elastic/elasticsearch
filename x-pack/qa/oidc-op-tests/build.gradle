@@ -83,9 +83,41 @@ testClusters.integTest {
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.claims.groups', 'groups'
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.host', '127.0.0.1'
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.http.proxy.port', {"${ephemeralProxyPort}"}
+  // OpenID Connect Realm 4 configured for client_secret_post authentication
+  setting 'xpack.security.authc.realms.oidc.c2id-post.order', '5'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.op.issuer', 'http://localhost:8080'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.op.authorization_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id-login" }
+  setting 'xpack.security.authc.realms.oidc.c2id-post.op.token_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/token" }
+  setting 'xpack.security.authc.realms.oidc.c2id-post.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/userinfo" }
+  setting 'xpack.security.authc.realms.oidc.c2id-post.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.rp.client_id', 'elasticsearch-post'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.rp.client_auth_method', 'client_secret_post'
+  keystore 'xpack.security.authc.realms.oidc.c2id-post.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.rp.response_type', 'code'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.claims.name', 'name'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.claims.mail', 'email'
+  setting 'xpack.security.authc.realms.oidc.c2id-post.claims.groups', 'groups'
+  // OpenID Connect Realm 5 configured for client_secret_jwt authentication
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.order', '6'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.op.issuer', 'http://localhost:8080'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.op.authorization_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id-login" }
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.op.token_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/token" }
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/userinfo" }
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.rp.client_id', 'elasticsearch-post-jwt'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.rp.client_auth_method', 'client_secret_jwt'
+  keystore 'xpack.security.authc.realms.oidc.c2id-jwt.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.rp.response_type', 'code'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.claims.name', 'name'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.claims.mail', 'email'
+  setting 'xpack.security.authc.realms.oidc.c2id-jwt.claims.groups', 'groups'
   setting 'xpack.ml.enabled', 'false'
   extraConfigFile 'op-jwks.json', idpFixtureProject.file("oidc/op-jwks.json")
-
+  setting 'logger.org.elasticsearch.xpack.security.authc.oidc', 'TRACE'
   user username: "test_admin", password: "x-pack-test-password"
 }
 

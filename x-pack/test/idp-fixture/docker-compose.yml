@@ -2,7 +2,7 @@ version: '3.1'
 services:
   openldap:
     command: --copy-service --loglevel debug
-    image: "osixia/openldap:1.2.3"
+    image: "osixia/openldap:1.4.0"
     ports:
       - "389"
       - "636"
@@ -40,7 +40,7 @@ services:
       - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
 
   oidc-provider:
-    image: "c2id/c2id-server:7.8"
+    image: "c2id/c2id-server:9.5"
     depends_on:
       - http-proxy
     ports:

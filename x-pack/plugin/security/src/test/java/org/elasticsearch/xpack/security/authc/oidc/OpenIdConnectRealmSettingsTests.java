@@ -34,6 +34,43 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
         threadContext = new ThreadContext(globalSettings);
     }
 
+    public void testAllSettings() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT), "https://op.example.com/userinfo")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.POPULATE_USER_METADATA), randomBoolean())
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.GROUPS_CLAIM.getClaim()), "group1")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.DN_CLAIM.getClaim()), "uid=sub,ou=people,dc=example,dc=com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim()), "name")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.MAIL_CLAIM.getClaim()), "e@mail.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES), "openid")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_SIGNATURE_ALGORITHM),
+                randomFrom(OpenIdConnectRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS))
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_POST_LOGOUT_REDIRECT_URI), "https://my.rp.com/logout")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD),
+                randomFrom(OpenIdConnectRealmSettings.CLIENT_AUTH_METHODS))
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM),
+                randomFrom(OpenIdConnectRealmSettings.SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS))
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT), "5s")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT), "5s")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT), "5s")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS), "5")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS), "5")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_PROXY_HOST), "host")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_PROXY_PORT), "8080")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME), "http")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW), "10s");
+        settingsBuilder.setSecureSettings(getSecureSettings());
+        new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
+    }
+
     public void testIncorrectResponseTypeThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
@@ -116,9 +153,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
         settingsBuilder.setSecureSettings(getSecureSettings());
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
         assertNotNull(realm);
-
     }
-
 
     public void testInvalidTokenEndpointThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()
@@ -325,6 +360,45 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_PROXY_PORT)),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME))
         ));
+    }
+
+    public void testInvalidClientAuthenticationMethodThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD), "none")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        settingsBuilder.setSecureSettings(getSecureSettings());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD)));
+    }
+
+    public void testInvalidClientAuthenticationJwtAlgorithmThrowsError() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_METHOD), "client_secret_jwt")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM), "AB234");
+        settingsBuilder.setSecureSettings(getSecureSettings());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
+        });
+        assertThat(exception.getMessage(),
+            Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM)));
     }
 
     private MockSecureSettings getSecureSettings() {

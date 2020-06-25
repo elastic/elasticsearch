@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
@@ -45,16 +45,26 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     private final Script reduceScript;
     private final Map<String, Object> aggParams;
     private final SearchLookup lookup;
+    @Nullable
     private final ScriptedMetricAggContexts.InitScript.Factory initScript;
     private final Map<String, Object> initScriptParams;
 
-    ScriptedMetricAggregatorFactory(String name,
-                                    ScriptedMetricAggContexts.MapScript.Factory mapScript, Map<String, Object> mapScriptParams,
-                                    ScriptedMetricAggContexts.InitScript.Factory initScript, Map<String, Object> initScriptParams,
-                                    ScriptedMetricAggContexts.CombineScript.Factory combineScript,
-                                    Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
-                                    SearchLookup lookup, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+    ScriptedMetricAggregatorFactory(
+        String name,
+        ScriptedMetricAggContexts.MapScript.Factory mapScript,
+        Map<String, Object> mapScriptParams,
+        @Nullable ScriptedMetricAggContexts.InitScript.Factory initScript,
+        Map<String, Object> initScriptParams,
+        ScriptedMetricAggContexts.CombineScript.Factory combineScript,
+        Map<String, Object> combineScriptParams,
+        Script reduceScript,
+        Map<String, Object> aggParams,
+        SearchLookup lookup,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, queryShardContext, parent, subFactories, metadata);
         this.mapScript = mapScript;
         this.mapScriptParams = mapScriptParams;
@@ -73,17 +83,8 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                         boolean collectsFromSingleBucket,
                                         Map<String, Object> metadata) throws IOException {
         Map<String, Object> aggParams = this.aggParams == null ? Map.of() : this.aggParams;
-        Map<String, Object> initialState = new HashMap<String, Object>();
 
-        ScriptedMetricAggContexts.InitScript initScript = this.initScript.newInstance(
-            mergeParams(aggParams, initScriptParams),
-            initialState
-        );
-        if (initScript != null) {
-            initScript.execute();
-            CollectionUtils.ensureNoSelfReferences(initialState, "Scripted metric aggs init script");
-        }
-
+        Map<String, Object> initParams = mergeParams(aggParams, initScriptParams);
         Map<String, Object> mapParams = mergeParams(aggParams, mapScriptParams); 
         Map<String, Object> combineParams = mergeParams(aggParams, combineScriptParams); 
         Script reduceScript = deepCopyScript(this.reduceScript, searchContext, aggParams);
@@ -91,7 +92,8 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         return new ScriptedMetricAggregator(
             name,
             lookup,
-            initialState,
+            initScript,
+            initParams,
             mapScript,
             mapParams,
             combineScript,

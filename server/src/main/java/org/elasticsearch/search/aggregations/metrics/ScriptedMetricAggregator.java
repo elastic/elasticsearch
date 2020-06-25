@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -53,7 +54,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     private static final long BUCKET_COST_ESTIMATE = 1024 * 5;
 
     private final SearchLookup lookup;
-    private final Map<String, Object> initialState;
+    private final ScriptedMetricAggContexts.InitScript.Factory initScriptFactory;
+    private final Map<String, Object> initScriptParams;
     private final ScriptedMetricAggContexts.MapScript.Factory mapScriptFactory;
     private final Map<String, Object> mapScriptParams;
     private final ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory;
@@ -64,7 +66,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     ScriptedMetricAggregator(
         String name,
         SearchLookup lookup,
-        Map<String, Object> initialState,
+        @Nullable ScriptedMetricAggContexts.InitScript.Factory initScriptFactory,
+        Map<String, Object> initScriptParams,
         ScriptedMetricAggContexts.MapScript.Factory mapScriptFactory,
         Map<String, Object> mapScriptParams,
         ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory,
@@ -76,7 +79,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     ) throws IOException {
         super(name, context, parent, metadata);
         this.lookup = lookup;
-        this.initialState = initialState;
+        this.initScriptFactory = initScriptFactory;
+        this.initScriptParams = initScriptParams;
         this.mapScriptFactory = mapScriptFactory;
         this.mapScriptParams = mapScriptParams;
         this.combineScriptFactory = combineScriptFactory;
@@ -129,12 +133,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        Object result = resultFor(aggStateFor(owningBucketOrdinal));
+        Object result = resultFor(aggStateForResult(owningBucketOrdinal));
         StreamOutput.checkWriteable(result);
         return new InternalScriptedMetric(name, result, reduceScript, metadata());
     }
 
-    private Map<String, Object> aggStateFor(long owningBucketOrdinal) {
+    private Map<String, Object> aggStateForResult(long owningBucketOrdinal) {
         if (owningBucketOrdinal >= states.size()) {
             return newInitialState();
         }
@@ -161,7 +165,13 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     private Map<String, Object> newInitialState() {
-        return initialState == null ? new HashMap<>() : ScriptedMetricAggregatorFactory.deepCopyParams(initialState, context);
+        if (initScriptFactory == null) {
+            return new HashMap<>();
+        }
+        Map<String, Object> initialState = new HashMap<>();
+        initScriptFactory.newInstance(ScriptedMetricAggregatorFactory.deepCopyParams(initScriptParams, context), initialState).execute();
+        CollectionUtils.ensureNoSelfReferences(initialState, "Scripted metric aggs init script");
+        return initialState;
     }
 
     @Override
@@ -170,7 +180,7 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public void close() {
+    public void doClose() {
         Releasables.close(states);
     }
 

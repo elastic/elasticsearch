@@ -356,8 +356,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
-            if (true)
-            throw new AssertionError(exc);
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,

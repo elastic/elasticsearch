@@ -138,7 +138,7 @@ The following request takes a snapshot of `index_1` and `index_2`.
 
 [source,console]
 -----------------------------------
-PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,

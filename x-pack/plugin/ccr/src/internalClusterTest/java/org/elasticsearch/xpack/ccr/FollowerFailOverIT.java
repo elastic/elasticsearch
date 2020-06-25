@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.hamcrest.Matchers;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -248,7 +250,13 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 .get()
         );
         getFollowerCluster().startNode(
-            onlyRoles(nodeAttributes, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
+            onlyRoles(
+                nodeAttributes,
+                Collections.unmodifiableSet(
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+                )
+            )
+        );
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
         ensureFollowerGreen("follower-index");
         ClusterService clusterService = leaderCluster.clusterService(dataNode);

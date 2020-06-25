@@ -76,7 +76,7 @@ If `false`, the request returns a response when the snapshot initializes.
 Defaults to `false`.
 +
 NOTE: During snapshot initialization, information about all
-previous snapshots is loaded into memory. In large repositories, this load time can cause this command to take several seconds (or even minutes) to return, even if the `wait_for_completion` parameter is set to `false`.
+previous snapshots is loaded into memory. In large repositories, this load time can cause requests to take several seconds (or even minutes) to return a response, even if the `wait_for_completion` parameter is `false`.
 
 [[create-snapshot-api-query-params]]
 ==== {api-query-parms-title}

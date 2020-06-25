@@ -24,8 +24,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -35,6 +35,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,7 +56,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             Settings localSettings = Settings.builder()
-                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), true)
+                .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds",
                     remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
@@ -86,7 +88,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             remoteSettings)) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
-                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), true)
+                .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds",
                     remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
@@ -117,7 +119,7 @@ public class RemoteClusterClientTests extends ESTestCase {
     }
 
     public void testRemoteClusterServiceNotEnabled() {
-        final Settings settings = Settings.builder().put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build();
+        final Settings settings = removeRoles(Collections.singleton(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();

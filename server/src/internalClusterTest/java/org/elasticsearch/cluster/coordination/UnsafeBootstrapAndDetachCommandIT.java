@@ -33,7 +33,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -45,6 +44,7 @@ import java.util.Locale;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,8 +105,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNotMasterEligible() {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder()
-                .put(internalCluster().getDefaultSettings())
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                .put(nonMasterNode(internalCluster().getDefaultSettings()))
                 .build());
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NOT_MASTER_NODE_MSG);
     }

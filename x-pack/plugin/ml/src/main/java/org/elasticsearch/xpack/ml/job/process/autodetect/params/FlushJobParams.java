@@ -35,11 +35,21 @@ public class FlushJobParams {
      */
     private final Long skipTimeSeconds;
 
-    private FlushJobParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds, Long skipTimeSeconds) {
+    /**
+     * Should the flush request wait for normalization or not.
+     */
+    private final boolean waitForNormalization;
+
+    private FlushJobParams(boolean calcInterim,
+                           TimeRange timeRange,
+                           Long advanceTimeSeconds,
+                           Long skipTimeSeconds,
+                           boolean waitForNormalization) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
         this.skipTimeSeconds = skipTimeSeconds;
+        this.waitForNormalization = waitForNormalization;
     }
 
     public boolean shouldCalculateInterim() {
@@ -76,6 +86,10 @@ public class FlushJobParams {
         return skipTimeSeconds;
     }
 
+    public boolean isWaitForNormalization() {
+        return waitForNormalization;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -101,6 +115,7 @@ public class FlushJobParams {
         private TimeRange timeRange = TimeRange.builder().build();
         private String advanceTime;
         private String skipTime;
+        private boolean waitForNormalization = true;
 
         public Builder calcInterim(boolean value) {
             calcInterim = value;
@@ -122,6 +137,11 @@ public class FlushJobParams {
             return this;
         }
 
+        public Builder waitForNormalization(boolean waitForNormalization) {
+            this.waitForNormalization = waitForNormalization;
+            return this;
+        }
+
         public FlushJobParams build() {
             checkValidFlushArgumentsCombination();
             Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
@@ -130,7 +150,7 @@ public class FlushJobParams {
                 throw ExceptionsHelper.badRequestException("advance_time [" + advanceTime + "] must be later than skip_time ["
                         + skipTime + "]");
             }
-            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds);
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization);
         }
 
         private void checkValidFlushArgumentsCombination() {

@@ -49,7 +49,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, Collections.emptyMap());
+            super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected FakeFieldType(FakeFieldType ref) {

@@ -65,6 +65,9 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response mutateInstanceForVersion(Response instance, Version version) {
+        if (version.equals(Version.CURRENT)) {
+            return instance;
+        }
         if (version.before(Version.V_7_8_0)) {
             List<Response.TrainedModelStats> stats = instance.getResources()
                 .results()
@@ -76,7 +79,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                 .collect(Collectors.toList());
             return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
         }
-        return instance;
+        List<Response.TrainedModelStats> stats = instance.getResources()
+            .results()
+            .stream()
+            .map(s -> new Response.TrainedModelStats(s.getModelId(),
+                adjustForVersion(s.getIngestStats(), version),
+                s.getPipelineCount(),
+                InferenceStatsTests.mutateForVersion(s.getInferenceStats(), version)))
+            .collect(Collectors.toList());
+        return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
     }
 
     IngestStats adjustForVersion(IngestStats stats, Version version) {

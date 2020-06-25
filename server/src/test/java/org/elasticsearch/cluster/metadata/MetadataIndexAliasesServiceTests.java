@@ -38,9 +38,11 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
@@ -486,6 +488,24 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
                 () -> applyHiddenAliasMix(before, randomFrom(false, null), true));
             assertThat(exception.getMessage(), startsWith("alias [alias] has is_hidden set to true on indices ["));
         }
+    }
+
+    public void testAliasesForDataStreamBackingIndicesNotSupported() {
+        String dataStreamName = "foo-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata indexMetadata = IndexMetadata.builder(backingIndexName)
+            .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex()))))
+            .build();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
+            singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
+        assertThat(exception.getMessage(), is("The provided index [ .ds-foo-stream-000001] is a backing index belonging to data stream " +
+            "[foo-stream]. Data streams and their backing indices don't support alias operations."));
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

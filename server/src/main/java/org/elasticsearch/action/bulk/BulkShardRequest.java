@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,14 +32,17 @@ import java.util.Set;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
+    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+
     private BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = new BulkItemRequest[in.readVInt()];
+        final ShardId itemShardId = in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? shardId : null;
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {
-                items[i] = new BulkItemRequest(in);
+                items[i] = new BulkItemRequest(itemShardId, in);
             }
         }
     }
@@ -74,12 +78,18 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(items.length);
-        for (BulkItemRequest item : items) {
-            if (item != null) {
-                out.writeBoolean(true);
-                item.writeTo(out);
-            } else {
-                out.writeBoolean(false);
+        if (out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
+            for (BulkItemRequest item : items) {
+                if (item != null) {
+                    out.writeBoolean(true);
+                    item.writeThin(out);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
+        } else {
+            for (BulkItemRequest item : items) {
+                out.writeOptionalWriteable(item);
             }
         }
     }

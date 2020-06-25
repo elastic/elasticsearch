@@ -1122,7 +1122,7 @@ public final class OptimizerRules {
     }
     
 
-    public static abstract class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
+    public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit().foldable()) {

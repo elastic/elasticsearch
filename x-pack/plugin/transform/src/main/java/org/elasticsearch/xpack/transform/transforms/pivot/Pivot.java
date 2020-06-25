@@ -84,12 +84,17 @@ public class Pivot implements Function {
     }
 
     @Override
-    public void validateConfig() {
+    public void validateConfig(ActionListener<Boolean> listener) {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
-                throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
+                // todo: change to ValidationException
+                listener.onFailure(
+                    new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST)
+                );
+                return;
             }
         }
+        listener.onResponse(true);
     }
 
     @Override

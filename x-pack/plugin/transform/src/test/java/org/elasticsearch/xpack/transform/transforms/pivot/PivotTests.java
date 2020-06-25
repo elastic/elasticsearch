@@ -50,7 +50,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -146,8 +148,11 @@ public class PivotTests extends ESTestCase {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
             Function pivot = new Pivot(getValidPivotConfig(aggregationConfig), randomAlphaOfLength(10));
-            ElasticsearchException ex = expectThrows(ElasticsearchException.class, pivot::validateConfig);
-            assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
+
+            pivot.validateConfig(ActionListener.wrap(r -> { fail("expected an exception but got a response"); }, e -> {
+                assertThat(e, anyOf(instanceOf(ElasticsearchException.class)));
+                assertThat("expected aggregations to be unsupported, but they were", e, is(notNullValue()));
+            }));
         }
     }
 

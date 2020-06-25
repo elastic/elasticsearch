@@ -62,8 +62,9 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
@@ -328,8 +329,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ClusterState clusterState,
         ActionListener<Response> listener
     ) {
-
-        final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
+        final Function function = FunctionFactory.create(config);
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
@@ -376,7 +376,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
             // the transform will just have to dynamically create the destination index without special mapping.
                 && src.length > 0) {
-                createDestination(pivot, config, createDestinationListener);
+                createDestination(function, config, createDestinationListener);
             } else {
                 createDestinationListener.onResponse(null);
             }
@@ -400,33 +400,22 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             }
         });
 
-        try {
-            pivot.validateConfig();
-        } catch (ElasticsearchStatusException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
-            );
-            return;
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                )
-            );
-            return;
-        }
+        function.validateConfig(ActionListener.wrap(r2 -> {
+            if (request.isDeferValidation()) {
+                pivotValidationListener.onResponse(true);
+            } else {
+                // todo: pipeline validation missing
 
-        // <0> Validate the pivot if necessary
-        if (request.isDeferValidation()) {
-            pivotValidationListener.onResponse(true);
-        } else {
-            pivot.validateQuery(client, config.getSource(), pivotValidationListener);
-        }
+                if (request.isDeferValidation()) {
+                    pivotValidationListener.onResponse(true);
+                } else {
+                    function.validateQuery(client, config.getSource(), pivotValidationListener);
+                }
+            }
+        }, listener::onFailure));
     }
 
-    private void createDestination(Pivot pivot, TransformConfig config, ActionListener<Void> listener) {
+    private void createDestination(Function function, TransformConfig config, ActionListener<Void> listener) {
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
             TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings,
@@ -446,7 +435,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             )
         );
 
-        pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
+        function.deduceMappings(client, config.getSource(), deduceMappingsListener);
     }
 
 }

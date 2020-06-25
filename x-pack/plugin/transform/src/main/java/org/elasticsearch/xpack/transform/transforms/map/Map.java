@@ -103,8 +103,8 @@ public class Map implements Function {
     }
 
     @Override
-    public void validateConfig() {
-        // TODO not implemented yet
+    public void validateConfig(ActionListener<Boolean> listener) {
+        listener.onResponse(true);
     }
 
     @Override

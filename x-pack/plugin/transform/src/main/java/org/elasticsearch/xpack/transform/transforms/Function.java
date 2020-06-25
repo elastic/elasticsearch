@@ -54,7 +54,7 @@ public interface Function {
 
     void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener);
 
-    void validateConfig();
+    void validateConfig(ActionListener<Boolean> listener);
 
     void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener);
 

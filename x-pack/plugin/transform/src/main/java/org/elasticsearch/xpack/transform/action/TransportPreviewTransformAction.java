@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -34,7 +33,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,7 +40,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -141,41 +138,18 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             config.getDestination().getIndex(),
             SourceDestValidations.PREVIEW_VALIDATIONS,
             ActionListener.wrap(r -> {
-
                 // create the function for validation
                 final Function function = FunctionFactory.create(config);
-
-                try {
-                    function.validateConfig();
-                } catch (ElasticsearchStatusException e) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            e.status(),
-                            e
-                        )
+                function.validateConfig(ActionListener.wrap(functionValidationResponse -> {
+                    getPreview(
+                        config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                        function,
+                        config.getSource(),
+                        config.getDestination().getPipeline(),
+                        config.getDestination().getIndex(),
+                        listener
                     );
-                    return;
-                } catch (Exception e) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                    return;
-                }
-
-                getPreview(
-                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    function,
-                    config.getSource(),
-                    config.getDestination().getPipeline(),
-                    config.getDestination().getIndex(),
-                    listener
-                );
-
+                }, listener::onFailure));
             }, listener::onFailure)
         );
     }

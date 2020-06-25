@@ -300,7 +300,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         }, listener::onFailure);
 
         // <2> Put our transform
-        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
+        ActionListener<Boolean> validationListener = ActionListener.wrap(
             validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
@@ -323,40 +323,27 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             }
         );
 
-        try {
-            function.validateConfig();
-
-        } catch (ElasticsearchStatusException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
-            );
-            return;
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                )
-            );
-            return;
-        }
-
-        if (request.isDeferValidation()) {
-            pivotValidationListener.onResponse(true);
-        } else {
-            if (config.getDestination().getPipeline() != null) {
-                if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                    return;
+        function.validateConfig(ActionListener.wrap(r2 -> {
+            if (request.isDeferValidation()) {
+                validationListener.onResponse(true);
+            } else {
+                if (config.getDestination().getPipeline() != null) {
+                    if (ingestService.getPipeline(config.getDestination().getPipeline()) == null) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TransformMessages.getMessage(TransformMessages.PIPELINE_MISSING, config.getDestination().getPipeline()),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                        return;
+                    }
+                }
+                if (request.isDeferValidation()) {
+                    validationListener.onResponse(true);
+                } else {
+                    function.validateQuery(client, config.getSource(), validationListener);
                 }
             }
-            function.validateQuery(client, config.getSource(), pivotValidationListener);
-        }
+        }, listener::onFailure));
     }
 }

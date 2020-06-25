@@ -155,14 +155,20 @@ public class SparseFileTrackerTests extends ESTestCase {
                 final SparseFileTracker.Gap gap = gaps.get(gapIndex);
                 assertThat(gap.start, greaterThanOrEqualTo(start));
                 assertThat(gap.end, lessThanOrEqualTo(end));
+                // listener is notified when the last gap is completed
+                final AtomicBoolean shouldNotifyListener = new AtomicBoolean();
                 for (long i = gap.start; i < gap.end; i++) {
                     assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
                     fileContents[Math.toIntExact(i)] = AVAILABLE;
+                    // listener is notified when the progress reached the last byte of the last gap
+                    if ((gapIndex == gaps.size() - 1) && (i == gap.end - 1L)) {
+                        assertTrue(shouldNotifyListener.compareAndSet(false, true));
+                        expectNotification.set(true);
+                    }
+                    gap.onProgress(i + 1L);
+                    assertThat(wasNotified.get(), equalTo(shouldNotifyListener.get()));
                 }
-                assertFalse(wasNotified.get());
-                if (gapIndex == gaps.size() - 1) {
-                    expectNotification.set(true);
-                }
+                assertThat(wasNotified.get(), equalTo(shouldNotifyListener.get()));
                 gap.onCompletion();
             }
             assertTrue(wasNotified.get());
@@ -465,9 +471,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         } else {
             for (long i = gap.start; i < gap.end; i++) {
                 fileContents[Math.toIntExact(i)] = AVAILABLE;
-                if (randomBoolean()) {
-                    gap.onProgress(i + 1L);
-                }
+                gap.onProgress(i + 1L);
             }
             gap.onCompletion();
         }

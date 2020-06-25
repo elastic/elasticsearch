@@ -127,10 +127,11 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
     }
 
     @Override
-    protected void done() {
-        super.done();
+    protected void done(boolean success) {
+        super.done(success);
         final List<Tuple<Long, ActionListener<Long>>> listenersToExecute;
         synchronized (this) {
+            assert progress == end || success == false;
             completed = true;
             listenersToExecute = this.listeners;
             listeners = null;

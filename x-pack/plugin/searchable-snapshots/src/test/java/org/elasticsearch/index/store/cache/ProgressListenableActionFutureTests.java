@@ -44,6 +44,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
             );
         }
         assertTrue(listenersResponses.asList().stream().allMatch(Objects::isNull));
+        future.onProgress(future.end);
         future.onResponse(future.end);
         assertTrue(listenersResponses.asList().stream().allMatch(value -> value <= future.end));
 
@@ -184,7 +185,8 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
 
     public void testListenerCalledImmediatelyAfterResponse() throws Exception {
         final ProgressListenableActionFuture future = randomFuture();
-        future.onResponse(randomLongBetween(future.start, future.end));
+        future.onProgress(future.end);
+        future.onResponse(future.end);
         assertTrue(future.isDone());
 
         final SetOnce<Long> listenerResponse = new SetOnce<>();
@@ -228,6 +230,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat(listenerResponse.isDone(), is(true));
         assertThat(listenerResponse.actionGet(), equalTo(progress));
 
+        future.onProgress(future.end);
         future.onResponse(future.end);
         assertThat(future.isDone(), is(true));
     }

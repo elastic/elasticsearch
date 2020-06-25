@@ -8,9 +8,7 @@ package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.support.AdapterActionFuture;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -24,14 +22,14 @@ import java.util.function.Supplier;
  * Listeners are executed within the thread that triggers the completion, the failure or the progress update and
  * the progress value passed to the listeners on execution is the last updated value.
  */
-class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> implements ListenableActionFuture<Long> {
+class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
 
     protected final long start;
     protected final long end;
 
     // modified under 'this' mutex
     private volatile List<Tuple<Long, ActionListener<Long>>> listeners;
-    protected volatile @Nullable Long progress; // null if never updated
+    protected volatile long progress;
     private volatile boolean completed;
 
     /**
@@ -45,6 +43,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> imp
         super();
         this.start = start;
         this.end = end;
+        this.progress = start;
         this.completed = false;
         assert invariant();
     }
@@ -53,27 +52,25 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> imp
         assert start < end : start + " < " + end;
         synchronized (this) {
             assert completed == false || listeners == null;
-            if (progress != null) {
-                assert start <= progress : start + " <= " + progress;
-                assert progress <= end : progress + " <= " + end;
-                assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.v1());
-            }
+            assert start <= progress : start + " <= " + progress;
+            assert progress <= end : progress + " <= " + end;
+            assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.v1());
         }
         return true;
     }
 
     /**
-     * Updates the progress of the current {@link ActionFuture} with the given value. Calling this method
-     * potentially triggers the execution of one or more listeners that are waiting for the progress
-     * to reach a value lower than the one just updated.
+     * Updates the progress of the current {@link ActionFuture} with the given value, indicating that the range from {@code start}
+     * (inclusive) to {@code progress} (exclusive) is available. Calling this method potentially triggers the execution of one or
+     * more listeners that are waiting for the progress to reach a value lower than the one just updated.
      *
      * @param value the new progress value
      */
     public void onProgress(final long value) {
         ensureNotCompleted();
 
-        if (value < start) {
-            assert false : value + " < " + start;
+        if (value <= start) {
+            assert false : value + " <= " + start;
             throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
         }
         if (end < value) {
@@ -83,7 +80,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> imp
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
-            assert progress == null || progress < value : progress + " < " + value;
+            assert progress < value : progress + " < " + value;
             this.progress = value;
 
             final List<Tuple<Long, ActionListener<Long>>> listeners = this.listeners;
@@ -142,16 +139,6 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> imp
             listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, () -> actionGet(0L)));
         }
         assert invariant();
-    }
-
-    /**
-     * Attach a {@link ActionListener} to the current future. The listener will be executed once the future is completed.
-     *
-     * @param listener the {@link ActionListener} to add
-     */
-    @Override
-    public void addListener(final ActionListener<Long> listener) {
-        addListener(listener, end);
     }
 
     /**

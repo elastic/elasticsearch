@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,16 +31,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         final AtomicArray<Long> listenersResponses = new AtomicArray<>(between(0, 50));
         for (int i = 0; i < listenersResponses.length(); i++) {
             final int listenerIndex = i;
-            final ActionListener<Long> listener = ActionListener.wrap(
-                progress -> listenersResponses.setOnce(listenerIndex, progress),
-                e -> listenersResponses.setOnce(listenerIndex, null)
+            future.addListener(
+                ActionListener.wrap(
+                    progress -> listenersResponses.setOnce(listenerIndex, progress),
+                    e -> listenersResponses.setOnce(listenerIndex, null)
+                ),
+                randomLongBetween(future.start, future.end)
             );
-
-            if (randomBoolean()) {
-                future.addListener(listener, randomLongBetween(future.start, future.end));
-            } else {
-                future.addListener(listener);
-            }
         }
         assertTrue(listenersResponses.asList().stream().allMatch(Objects::isNull));
         future.onResponse(future.end);
@@ -57,16 +53,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         final AtomicArray<Exception> listenersResponses = new AtomicArray<>(between(0, 50));
         for (int i = 0; i < listenersResponses.length(); i++) {
             final int listenerIndex = i;
-            final ActionListener<Long> listener = ActionListener.wrap(
-                o -> listenersResponses.setOnce(listenerIndex, null),
-                e -> listenersResponses.setOnce(listenerIndex, e)
+            future.addListener(
+                ActionListener.wrap(
+                    o -> listenersResponses.setOnce(listenerIndex, null),
+                    e -> listenersResponses.setOnce(listenerIndex, e)
+                ),
+                randomLongBetween(future.start, future.end)
             );
-
-            if (randomBoolean()) {
-                future.addListener(listener, randomLongBetween(future.start, future.end));
-            } else {
-                future.addListener(listener);
-            }
         }
         assertTrue(listenersResponses.asList().stream().allMatch(Objects::isNull));
 
@@ -97,8 +90,14 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                         future.addListener(ActionListener.wrap(listener::onResponse, listener::onFailure), expectedProgress);
                         assertThat(listener.get(), greaterThanOrEqualTo(expectedProgress));
                     }
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new AssertionError(e);
+                } catch (Throwable t) {
+                    logger.error("Failed to wait for progress to be reached", t);
+                    if (future.isDone() == false) {
+                        future.onFailure(
+                            new Exception("Failed to update progress [" + t.getClass().getName() + ':' + t.getMessage() + "]")
+                        );
+                    }
+                    throw new AssertionError(t);
                 }
             });
         }
@@ -112,12 +111,16 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                 startLatch.await();
                 long progress = future.start;
                 while (progress < future.end) {
-                    future.onProgress(progress);
                     progress += randomLongBetween(1L, Math.max(1L, future.end - progress));
+                    future.onProgress(progress);
                 }
                 future.onResponse(future.end);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
+            } catch (Throwable t) {
+                logger.error("Failed to update progress", t);
+                if (future.isDone() == false) {
+                    future.onFailure(new Exception("Failed to update progress [" + t.getClass().getName() + ':' + t.getMessage() + "]"));
+                }
+                throw new AssertionError(t);
             }
         });
         progressUpdaterThread.start();
@@ -136,27 +139,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         future.onResponse(randomLongBetween(future.start, future.end));
         assertTrue(future.isDone());
 
-        {
-            final SetOnce<Long> listenerResponse = new SetOnce<>();
-            final SetOnce<Exception> listenerFailure = new SetOnce<>();
+        final SetOnce<Long> listenerResponse = new SetOnce<>();
+        final SetOnce<Exception> listenerFailure = new SetOnce<>();
 
-            future.addListener(ActionListener.wrap(listenerResponse::set, listenerFailure::set));
+        future.addListener(ActionListener.wrap(listenerResponse::set, listenerFailure::set), randomLongBetween(future.start, future.end));
 
-            assertThat(listenerResponse.get(), equalTo(future.get()));
-            assertThat(listenerFailure.get(), nullValue());
-        }
-        {
-            final SetOnce<Long> listenerResponse = new SetOnce<>();
-            final SetOnce<Exception> listenerFailure = new SetOnce<>();
-
-            future.addListener(
-                ActionListener.wrap(listenerResponse::set, listenerFailure::set),
-                randomLongBetween(future.start, future.end)
-            );
-
-            assertThat(listenerResponse.get(), equalTo(future.get()));
-            assertThat(listenerFailure.get(), nullValue());
-        }
+        assertThat(listenerResponse.get(), equalTo(future.get()));
+        assertThat(listenerFailure.get(), nullValue());
     }
 
     public void testListenerCalledImmediatelyAfterFailure() {
@@ -166,27 +155,13 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         future.onFailure(failure);
         assertTrue(future.isDone());
 
-        {
-            final SetOnce<Exception> listenerFailure = new SetOnce<>();
-            final SetOnce<Long> listenerResponse = new SetOnce<>();
+        final SetOnce<Exception> listenerFailure = new SetOnce<>();
+        final SetOnce<Long> listenerResponse = new SetOnce<>();
 
-            future.addListener(ActionListener.wrap(listenerResponse::set, listenerFailure::set));
+        future.addListener(ActionListener.wrap(listenerResponse::set, listenerFailure::set), randomLongBetween(future.start, future.end));
 
-            assertThat(listenerFailure.get(), sameInstance(failure));
-            assertThat(listenerResponse.get(), nullValue());
-        }
-        {
-            final SetOnce<Exception> listenerFailure = new SetOnce<>();
-            final SetOnce<Long> listenerResponse = new SetOnce<>();
-
-            future.addListener(
-                ActionListener.wrap(listenerResponse::set, listenerFailure::set),
-                randomLongBetween(future.start, future.end)
-            );
-
-            assertThat(listenerFailure.get(), sameInstance(failure));
-            assertThat(listenerResponse.get(), nullValue());
-        }
+        assertThat(listenerFailure.get(), sameInstance(failure));
+        assertThat(listenerResponse.get(), nullValue());
     }
 
     private static ProgressListenableActionFuture randomFuture() {

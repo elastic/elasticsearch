@@ -144,12 +144,10 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
 
         final Tuple<Long, Long> range = Tuple.tuple(start, end);
-        final Tuple<Long, Long> subRange = randomBoolean() ? Tuple.tuple(start, end) : null;
-
         if (pending) {
             final AtomicBoolean expectNotification = new AtomicBoolean();
             final AtomicBoolean wasNotified = new AtomicBoolean();
-            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, ActionListener.wrap(ignored -> {
+            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, range, ActionListener.wrap(ignored -> {
                 assertTrue(expectNotification.get());
                 assertTrue(wasNotified.compareAndSet(false, true));
             }, e -> { throw new AssertionError(e); }));
@@ -173,7 +171,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final AtomicBoolean wasNotified = new AtomicBoolean();
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             range,
-            subRange,
+            range,
             ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
         );
         assertThat(gaps, empty());
@@ -235,7 +233,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                     assertThat(fileContents[Math.toIntExact(i)], equalTo(UNAVAILABLE));
                     fileContents[Math.toIntExact(i)] = AVAILABLE;
                     assertTrue(wasNotified.get());
-                    gap.onProgress(i);
+                    gap.onProgress(i + 1L);
                 }
                 gap.onCompletion();
             }
@@ -275,10 +273,10 @@ public class SparseFileTrackerTests extends ESTestCase {
                             + i
                             + ']',
                         wasNotified.get(),
-                        equalTo(triggeringProgress < i - 1L)
+                        equalTo(triggeringProgress < i)
                     );
 
-                    gap.onProgress(i);
+                    gap.onProgress(i + 1L);
 
                     assertThat(
                         "Listener should not have been called before ["
@@ -287,7 +285,7 @@ public class SparseFileTrackerTests extends ESTestCase {
                             + i
                             + ']',
                         wasNotified.get(),
-                        equalTo(triggeringProgress < i)
+                        equalTo(triggeringProgress < i + 1L)
                     );
                 }
                 gap.onCompletion();
@@ -432,7 +430,7 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             Tuple.tuple(rangeStart, rangeEnd),
-            useSubRange ? Tuple.tuple(subRangeStart, subRangeEnd) : (randomBoolean() ? null : Tuple.tuple(rangeStart, rangeEnd)),
+            Tuple.tuple(subRangeStart, subRangeEnd),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void aVoid) {
@@ -468,7 +466,7 @@ public class SparseFileTrackerTests extends ESTestCase {
             for (long i = gap.start; i < gap.end; i++) {
                 fileContents[Math.toIntExact(i)] = AVAILABLE;
                 if (randomBoolean()) {
-                    gap.onProgress(i);
+                    gap.onProgress(i + 1L);
                 }
             }
             gap.onCompletion();

@@ -58,8 +58,8 @@ public class SparseFileTracker {
 
     /**
      * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill. The
-     * range from the file is defined by {@code range} but the listener can be executed as soon as a smaller sub range {@code subRange}
-     * becomes available. When no {@code subRange} is provided the listener is executed once the full range is available.
+     * range from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range
+     * {@code subRange} becomes available.
      *
      * @param range    A tuple that contains the (inclusive) start and (exclusive) end of the desired range
      * @param subRange A tuple that contains the (inclusive) start and (exclusive) end of the listener's range
@@ -67,38 +67,32 @@ public class SparseFileTracker {
      * @return A collection of gaps that the client should fill in to satisfy this range
      * @throws IllegalArgumentException if invalid range is requested
      */
-    public List<Gap> waitForRange(
-        final Tuple<Long, Long> range,
-        @Nullable final Tuple<Long, Long> subRange,
-        final ActionListener<Void> listener
-    ) {
+    public List<Gap> waitForRange(final Tuple<Long, Long> range, final Tuple<Long, Long> subRange, final ActionListener<Void> listener) {
         final long start = range.v1();
         final long end = range.v2();
         if (end < start || start < 0L || length < end) {
             throw new IllegalArgumentException("invalid range [start=" + start + ", end=" + end + ", length=" + length + "]");
         }
 
-        if (subRange != null) {
-            if (subRange.v2() < subRange.v1() || subRange.v1() < 0L || length < subRange.v2()) {
-                throw new IllegalArgumentException(
-                    "invalid range to listen to [start=" + subRange.v1() + ", end=" + subRange.v2() + ", length=" + length + "]"
-                );
-            }
-            if (subRange.v1() < start || end < subRange.v2()) {
-                throw new IllegalArgumentException(
-                    "unable to listen to range [start="
-                        + subRange.v1()
-                        + ", end="
-                        + subRange.v2()
-                        + "] when range is [start="
-                        + start
-                        + ", end="
-                        + end
-                        + ", length="
-                        + length
-                        + "]"
-                );
-            }
+        if (subRange.v2() < subRange.v1() || subRange.v1() < 0L || length < subRange.v2()) {
+            throw new IllegalArgumentException(
+                "invalid range to listen to [start=" + subRange.v1() + ", end=" + subRange.v2() + ", length=" + length + "]"
+            );
+        }
+        if (subRange.v1() < start || end < subRange.v2()) {
+            throw new IllegalArgumentException(
+                "unable to listen to range [start="
+                    + subRange.v1()
+                    + ", end="
+                    + subRange.v2()
+                    + "] when range is [start="
+                    + start
+                    + ", end="
+                    + end
+                    + ", length="
+                    + length
+                    + "]"
+            );
         }
 
         final List<Gap> gaps = new ArrayList<>();
@@ -125,7 +119,11 @@ public class SparseFileTracker {
 
                 final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
                 if (existingRanges.isEmpty()) {
-                    final Range newPendingRange = new Range(targetRange.start, end);
+                    final Range newPendingRange = new Range(
+                        targetRange.start,
+                        end,
+                        new ProgressListenableActionFuture(targetRange.start, end)
+                    );
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(targetRange.start, end));
@@ -140,7 +138,12 @@ public class SparseFileTracker {
                         }
                         targetRange.start = Math.min(end, firstExistingRange.end);
                     } else {
-                        final Range newPendingRange = new Range(targetRange.start, Math.min(end, firstExistingRange.start));
+                        final long newPendingRangeEnd = Math.min(end, firstExistingRange.start);
+                        final Range newPendingRange = new Range(
+                            targetRange.start,
+                            newPendingRangeEnd,
+                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd)
+                        );
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
                         gaps.add(new Gap(targetRange.start, newPendingRange.end));
@@ -158,7 +161,7 @@ public class SparseFileTracker {
                 assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
 
                 // Pending ranges that needs to be filled before executing the listener
-                final List<Range> requiredRanges = (subRange == null)
+                final List<Range> requiredRanges = (start == subRange.v1() && end == subRange.v2())
                     ? pendingRanges
                     : pendingRanges.stream()
                         .filter(pendingRange -> pendingRange.start < subRange.v2())
@@ -404,9 +407,6 @@ public class SparseFileTracker {
         }
 
         public void onProgress(long value) {
-            if (value < start || end < value) {
-                throw new IllegalArgumentException("Cannot update progress [" + value + "] for gap [" + start + '-' + end + ']');
-            }
             onGapProgress(start, end, value);
         }
 
@@ -434,11 +434,7 @@ public class SparseFileTracker {
         @Nullable // if not pending
         final ProgressListenableActionFuture completionListener;
 
-        Range(long start, long end) {
-            this(start, end, new ProgressListenableActionFuture(start, end));
-        }
-
-        Range(long start, long end, ProgressListenableActionFuture completionListener) {
+        Range(long start, long end, @Nullable ProgressListenableActionFuture completionListener) {
             assert start <= end : start + "-" + end;
             this.start = start;
             this.end = end;

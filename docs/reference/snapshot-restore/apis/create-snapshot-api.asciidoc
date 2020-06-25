@@ -113,7 +113,7 @@ Attaches arbitrary metadata to the snapshot, such as a record of who took the sn
 [[create-snapshot-api-example]]
 ==== {api-examples-title}
 
-In the following example, `index_1` and `index_2` are the indices to take snapshots of.
+The following request takes a snapshot of `index_1` and `index_2`.
 
 [source,console]
 -----------------------------------

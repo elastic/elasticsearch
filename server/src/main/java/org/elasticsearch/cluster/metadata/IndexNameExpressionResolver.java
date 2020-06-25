@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -963,7 +962,7 @@ public class IndexNameExpressionResolver {
                                 long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
 
-                                String time = formatter.format(Instant.ofEpochMilli(millis));
+                                String time = formatter.formatMillis(millis);
                                 beforePlaceHolderSb.append(time);
                                 inPlaceHolderSb = new StringBuilder();
                                 inPlaceHolder = false;

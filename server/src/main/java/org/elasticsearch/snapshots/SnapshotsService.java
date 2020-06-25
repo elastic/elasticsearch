@@ -1605,15 +1605,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void failAllListenersOnMasterFailOver(Exception e) {
         synchronized (currentlyFinalizing) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                final Exception wrapped =
-                    new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
-                for (Iterator<List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>>> iterator =
-                     snapshotCompletionListeners.values().iterator();
-                     iterator.hasNext(); ) {
-                    final List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> listeners = iterator.next();
-                    iterator.remove();
-                    failListenersIgnoringException(listeners, wrapped);
+                for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
+                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
                 }
+                final Exception wrapped =
+                        new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
                 for (Iterator<List<ActionListener<Void>>> iterator = snapshotDeletionListeners.values().iterator();
                      iterator.hasNext(); ) {
                     final List<ActionListener<Void>> listeners = iterator.next();
@@ -1994,12 +1990,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Assert that no in-memory state for any running snapshot-create or -delete operation exists in this instance.
      */
     public boolean assertAllListenersResolved() {
+        final DiscoveryNode localNode = clusterService.localNode();
         synchronized (endingSnapshots) {
-            final DiscoveryNode localNode = clusterService.localNode();
             assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
                     + " on [" + localNode + "]";
             assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
                     + " on [" + localNode + "]";
+        }
+        synchronized (currentlyFinalizing) {
             assert currentlyFinalizing.isEmpty() : "Found leaked finalizations " + currentlyFinalizing
                     + " on [" + localNode + "]";
             assert snapshotDeletionListeners.isEmpty() : "Found leaked snapshot delete listeners " + snapshotDeletionListeners

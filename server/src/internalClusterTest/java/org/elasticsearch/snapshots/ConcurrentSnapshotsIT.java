@@ -583,7 +583,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         expectThrows(RepositoryException.class, firstDeleteFuture::actionGet);
         expectThrows(RepositoryException.class, secondDeleteFuture::actionGet);
-        expectThrows(RepositoryException.class, createThirdSnapshot::actionGet);
+        expectThrows(SnapshotException.class, createThirdSnapshot::actionGet);
 
         awaitNoMoreRunningOperations();
     }
@@ -618,7 +618,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> make sure all failing requests get a response");
         expectThrows(SnapshotException.class, firstFailedSnapshotFuture::actionGet);
-        expectThrows(RepositoryException.class, secondFailedSnapshotFuture::actionGet);
+        expectThrows(SnapshotException.class, secondFailedSnapshotFuture::actionGet);
         expectThrows(RepositoryException.class, failedDeleteFuture::actionGet);
 
         awaitNoMoreRunningOperations();

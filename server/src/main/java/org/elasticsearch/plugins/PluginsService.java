@@ -440,13 +440,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // package-private for test visibility
     static void loadExtensions(List<Tuple<PluginInfo, Plugin>> plugins) {
-        Map<String, List<Plugin>> extendingPlugins = plugins.stream()
+        Map<String, List<Plugin>> extendingPluginsByName = plugins.stream()
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
             if (pluginTuple.v2() instanceof ExtensiblePlugin) {
                 loadExtensionsForPlugin((ExtensiblePlugin) pluginTuple.v2(),
-                    extendingPlugins.getOrDefault(pluginTuple.v1().getName(), List.of()));
+                    extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), List.of()));
             }
         }
     }

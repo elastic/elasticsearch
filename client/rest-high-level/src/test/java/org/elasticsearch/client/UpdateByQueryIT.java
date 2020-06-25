@@ -44,7 +44,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class UpdateByQueryIT extends ESRestHighLevelClientTestCase {
 
@@ -123,7 +128,7 @@ public class UpdateByQueryIT extends ESRestHighLevelClientTestCase {
             updateByQueryRequest.setBatchSize(1);
             updateByQueryRequest.setRequestsPerSecond(0.00001f);
             final CountDownLatch taskFinished = new CountDownLatch(1);
-            highLevelClient().updateByQueryAsync(updateByQueryRequest, RequestOptions.DEFAULT, new ActionListener<BulkByScrollResponse>() {
+            highLevelClient().updateByQueryAsync(updateByQueryRequest, RequestOptions.DEFAULT, new ActionListener<>() {
 
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
@@ -186,7 +191,8 @@ public class UpdateByQueryIT extends ESRestHighLevelClientTestCase {
             // tag::submit-update_by_query-task
             UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest();
             updateByQueryRequest.indices(sourceIndex);
-            updateByQueryRequest.setScript(new Script("if (ctx._source.foo == 2) ctx._source.foo++;"));
+            updateByQueryRequest.setScript(
+                new Script("if (ctx._source.foo == 2) ctx._source.foo++;"));
             updateByQueryRequest.setRefresh(true);
 
             TaskSubmissionResponse updateByQuerySubmission = highLevelClient()

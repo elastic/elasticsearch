@@ -147,6 +147,11 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
+    protected boolean rerouteBypassed() {
+        return true;
+    }
+
+    @Override
     protected void dispatchedShardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {

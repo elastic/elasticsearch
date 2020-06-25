@@ -134,12 +134,10 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
             WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
 
-            assertThat(primaryWriteLimits.getCoordinatingBytes(), greaterThan(bulkShardRequestSize));
-            assertThat(primaryWriteLimits.getPrimaryBytes(), greaterThan(bulkShardRequestSize));
-            assertEquals(0, primaryWriteLimits.getReplicaBytes());
-            assertEquals(bulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
-            assertEquals(0, replicaWriteLimits.getPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaBytes());
+            assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
+            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+            assertEquals(bulkRequestSize, replicaWriteLimits.getWriteBytes());
+            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
 
             ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
             // Block the replica Write thread pool
@@ -172,8 +170,9 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
             final long secondBulkShardRequestSize = request.ramBytesUsed();
 
-            assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
-            assertBusy(() -> assertThat(replicaWriteLimits.getReplicaBytes(),
+            assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
+            assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getWriteBytes());
+            assertBusy(() -> assertThat(replicaWriteLimits.getReplicaWriteBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 
             latchBlockingReplication.countDown();
@@ -181,12 +180,10 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             successFuture.actionGet();
             secondFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getCoordinatingBytes());
-            assertEquals(0, primaryWriteLimits.getPrimaryBytes());
-            assertEquals(0, primaryWriteLimits.getReplicaBytes());
-            assertEquals(0, replicaWriteLimits.getCoordinatingBytes());
-            assertEquals(0, replicaWriteLimits.getPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaBytes());
+            assertEquals(0, primaryWriteLimits.getWriteBytes());
+            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, replicaWriteLimits.getWriteBytes());
+            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
         } finally {
             if (replicationSendPointReached.getCount() > 0) {
                 replicationSendPointReached.countDown();

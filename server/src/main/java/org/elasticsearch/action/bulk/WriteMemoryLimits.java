@@ -25,34 +25,24 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
-    private final AtomicLong coordinatingBytes = new AtomicLong(0);
-    private final AtomicLong primaryBytes = new AtomicLong(0);
-    private final AtomicLong replicaBytes = new AtomicLong(0);
+    private final AtomicLong writeBytes = new AtomicLong(0);
+    private final AtomicLong replicaWriteBytes = new AtomicLong(0);
 
-    public Releasable markCoordinatingOperationStarted(long bytes) {
-        coordinatingBytes.addAndGet(bytes);
-        return () -> coordinatingBytes.getAndAdd(-bytes);
+    public Releasable markWriteOperationStarted(long bytes) {
+        writeBytes.addAndGet(bytes);
+        return () -> writeBytes.getAndAdd(-bytes);
     }
 
-    public long getCoordinatingBytes() {
-        return coordinatingBytes.get();
+    public long getWriteBytes() {
+        return writeBytes.get();
     }
 
-    public Releasable markPrimaryOperationStarted(long bytes) {
-        primaryBytes.addAndGet(bytes);
-        return () -> primaryBytes.getAndAdd(-bytes);
+    public Releasable markReplicaWriteStarted(long bytes) {
+        replicaWriteBytes.getAndAdd(bytes);
+        return () -> replicaWriteBytes.getAndAdd(-bytes);
     }
 
-    public long getPrimaryBytes() {
-        return primaryBytes.get();
-    }
-
-    public Releasable markReplicaOperationStarted(long bytes) {
-        replicaBytes.getAndAdd(bytes);
-        return () -> replicaBytes.getAndAdd(-bytes);
-    }
-
-    public long getReplicaBytes() {
-        return replicaBytes.get();
+    public long getReplicaWriteBytes() {
+        return replicaWriteBytes.get();
     }
 }

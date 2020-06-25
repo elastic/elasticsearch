@@ -162,7 +162,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = bulkRequest.ramBytesUsed();
-        final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
+        final Releasable releasable = writeMemoryLimits.markWriteOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             doInternalExecute(task, bulkRequest, releasingListener);

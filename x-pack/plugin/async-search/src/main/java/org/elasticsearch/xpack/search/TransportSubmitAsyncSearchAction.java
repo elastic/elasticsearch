@@ -96,15 +96,20 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                         if (searchResponse.isRunning()) {
                                             try {
                                                 // store the final response on completion unless the submit is cancelled
-                                                searchTask.addCompletionListener(finalResponse ->
-                                                    onFinalResponse(searchTask, finalResponse, () -> {
+                                                searchTask.addCompletionListener(ActionListener.wrap(
+                                                    finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}),
+                                                    failure -> {
+                                                        //there was an error, store it: in this case we have no results, only the error
+                                                        AsyncSearchResponse finalResponse = searchTask.buildErrorResponse(failure);
+                                                        onFinalResponse(searchTask, finalResponse, () -> {});
                                                     }));
                                             } finally {
                                                 submitListener.onResponse(searchResponse);
                                             }
                                         } else {
-                                            onFinalResponse(searchTask, searchResponse, () -> submitListener.onResponse(searchResponse));
-                                        }
+                                            onFinalResponse(searchTask, searchResponse,
+                                                () -> submitListener.onResponse(searchResponse));
+                                            }
                                     }
 
                                     @Override
@@ -126,12 +131,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
-                    //this will only ever be called when there's an issue registering the completion listener. Mostly the issue will be
-                    //when scheduling the thread that returns a response after the wait for completion timeout.
-                    //Note that addCompletionListener may be executed asynchronously as it has to wait for onListShards to be called,
-                    //which is why we need to rely on the listener rather than catching.
-                    taskManager.unregister(searchTask);
-                    submitListener.onFailure(exc);
+                    onFatalFailure(searchTask, exc, true, "addCompletionListener failure", submitListener);
                 }
             }, request.getWaitForCompletionTimeout());
     }
@@ -158,14 +158,18 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
-                    task.addCompletionListener(finalResponse -> taskManager.unregister(task));
+                    task.addCompletionListener(ActionListener.wrap(
+                            finalResponse -> taskManager.unregister(task),
+                            failure ->  taskManager.unregister(task)));
                 } finally {
                     listener.onFailure(error);
                 }
             }, "fatal failure: " + cancelReason);
         } else {
             try {
-                task.addCompletionListener(finalResponse -> taskManager.unregister(task));
+                task.addCompletionListener(ActionListener.wrap(
+                    finalResponse -> taskManager.unregister(task),
+                    failure -> taskManager.unregister(task)));
             } finally {
                 listener.onFailure(error);
             }
@@ -187,23 +191,17 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             return;
        }
 
-        try {
-            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
-                ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                                    exc -> {
-                                        Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                                        if (cause instanceof DocumentMissingException == false &&
-                                                cause instanceof VersionConflictEngineException == false) {
-                                            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                                                searchTask.getExecutionId().getEncoded()), exc);
-                                        }
-                                        unregisterTaskAndMoveOn(searchTask, nextAction);
-                                    }));
-        } catch (Exception exc) {
-            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getExecutionId().getEncoded()),
-                exc);
-            unregisterTaskAndMoveOn(searchTask, nextAction);
-        }
+        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                exc -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(exc);
+                    if (cause instanceof DocumentMissingException == false &&
+                        cause instanceof VersionConflictEngineException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
+                            searchTask.getExecutionId().getEncoded()), exc);
+                    }
+                    unregisterTaskAndMoveOn(searchTask, nextAction);
+                }));
     }
 
     private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {

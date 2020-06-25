@@ -151,26 +151,23 @@ public class AsyncSearchTaskTests extends ESTestCase {
             .asSerialized(InternalAggregations::new, new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             serializedAggs, 1);
-        AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         task.addCompletionListener(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-                assertTrue(response.compareAndSet(null, asyncSearchResponse));
-                latch.countDown();
+                throw new AssertionError("onResponse should not be called");
             }
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError("onFailure should not be called");
+                assertTrue(failure.compareAndSet(null, e));
+                latch.countDown();
             }
         }, TimeValue.timeValueMillis(10L));
-        assertTrue(latch.await(1000, TimeUnit.SECONDS));
-        AsyncSearchResponse asyncSearchResponse = response.get();
-        assertNull(asyncSearchResponse.getSearchResponse());
-        Exception failure = asyncSearchResponse.getFailure();
-        assertThat(failure, instanceOf(IllegalArgumentException.class));
-        IllegalArgumentException iae = (IllegalArgumentException)failure;
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
+        IllegalArgumentException iae = (IllegalArgumentException)failure.get();
         assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]", iae.getMessage());
     }
 
@@ -192,23 +189,24 @@ public class AsyncSearchTaskTests extends ESTestCase {
         task.addCompletionListener(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-                assertTrue(response.compareAndSet(null, asyncSearchResponse));
-                latch.countDown();
+                throw new AssertionError("onResponse should not be called");
             }
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError("onFailure should not be called");
+                AsyncSearchResponse asyncSearchResponse = task.buildErrorResponse(e);
+                assertTrue(response.compareAndSet(null, asyncSearchResponse));
+                latch.countDown();
             }
         }, TimeValue.timeValueMillis(10L));
-        assertTrue(latch.await(1000, TimeUnit.SECONDS));
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
         AsyncSearchResponse asyncSearchResponse = response.get();
         assertNull(asyncSearchResponse.getSearchResponse());
         Exception failure = asyncSearchResponse.getFailure();
-        assertEquals("boom", failure.getMessage());
-        assertThat(failure.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
-        IllegalArgumentException iae = (IllegalArgumentException)failure.getSuppressed()[0];
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        IllegalArgumentException iae = (IllegalArgumentException)failure;
         assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]", iae.getMessage());
+        assertEquals("boom", failure.getSuppressed()[0].getMessage());
     }
 
     public void testWaitForCompletion() throws InterruptedException {

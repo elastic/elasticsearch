@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -57,7 +56,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private boolean hasCompleted;
     private long completionId;
     private final List<Runnable> initListeners = new ArrayList<>();
-    private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
+    private final CompletionListeners completionListeners = new CompletionListeners();
 
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
@@ -163,8 +162,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     /**
-     * Creates a listener that listens for an {@link AsyncSearchResponse} and executes the
-     * consumer when the task is finished or when the provided <code>waitForCompletion</code>
+     * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
+     * listener when the task is finished or when the provided <code>waitForCompletion</code>
      * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
      */
     public void addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
@@ -188,25 +187,25 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            getResponseWithHeaders(listener);
         }
     }
 
     /**
-     * Creates a listener that listens for an {@link AsyncSearchResponse} and executes the
-     * consumer when the task is finished.
+     * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
+     * listener when the task is finished.
      */
-    public void addCompletionListener(Consumer<AsyncSearchResponse> listener) {
+    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                completionListeners.put(completionId++, listener);
+                completionListeners.register(completionId++, listener);
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponseWithHeaders());
+            getResponseWithHeaders(listener);
         }
     }
 
@@ -226,7 +225,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                             if (hasRun.compareAndSet(false, true)) {
                                 // timeout occurred before completion
                                 removeCompletionListener(id);
-                                listener.onResponse(getResponseWithHeaders());
+                                getResponseWithHeaders(listener);
                             }
                         },
                         waitForCompletion,
@@ -235,24 +234,29 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     listener.onFailure(exc);
                     return;
                 }
-                completionListeners.put(id, resp -> {
-                    if (hasRun.compareAndSet(false, true)) {
-                        // completion occurred before timeout
-                        cancellable.cancel();
-                        listener.onResponse(resp);
-                    }
-                });
+                completionListeners.register(
+                    id,
+                    ActionListener.wrap(
+                        resp -> {
+                            if (hasRun.compareAndSet(false, true)) {
+                                // completion occurred before timeout
+                                cancellable.cancel();
+                                listener.onResponse(resp);
+                            }
+                        },
+                        listener::onFailure
+                    ));
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponseWithHeaders());
+            getResponseWithHeaders(listener);
         }
     }
 
     private void removeCompletionListener(long id) {
         synchronized (this) {
             if (hasCompleted == false) {
-                completionListeners.remove(id);
+                completionListeners.unregister(id);
             }
         }
     }
@@ -293,30 +297,41 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        AsyncSearchResponse finalResponse = getResponse();
-        for (Consumer<AsyncSearchResponse> listener : completionListeners.values()) {
-            listener.accept(finalResponse);
-        }
-        completionListeners.clear();
+        getResponse(completionListeners);
+        //TODO is clearing the map necessary? we will only execute the listeners once anyways
+        //completionListeners.clear();
     }
 
     /**
      * Returns the current {@link AsyncSearchResponse}.
      */
-    private AsyncSearchResponse getResponse() {
-        assert searchResponse.get() != null;
-        checkCancellation();
-        return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
+    private void getResponse(ActionListener<AsyncSearchResponse> listener) {
+        getResponse(listener, false);
     }
 
     /**
      * Returns the current {@link AsyncSearchResponse} and restores the response headers
      * in the local thread context.
      */
-    private AsyncSearchResponse getResponseWithHeaders() {
+    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
+        getResponse(listener, true);
+    }
+
+    private void getResponse(ActionListener<AsyncSearchResponse> listener, boolean restoreResponseHeaders) {
         assert searchResponse.get() != null;
         checkCancellation();
-        return searchResponse.get().toAsyncSearchResponseWithHeaders(this, expirationTimeMillis);
+        AsyncSearchResponse asyncSearchResponse;
+        try {
+            asyncSearchResponse = searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+        } catch(Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        listener.onResponse(asyncSearchResponse);
+    }
+
+    AsyncSearchResponse buildErrorResponse(Exception exception) {
+        return searchResponse.get().buildErrorResponse(this, expirationTimeMillis, exception);
     }
 
     // checks if the search task should be cancelled
@@ -341,6 +356,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            if (true)
+            throw new AssertionError(exc);
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().addShardFailure(shardIndex,
@@ -411,6 +428,32 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();
             executeCompletionListeners();
+        }
+    }
+
+    private static class CompletionListeners implements ActionListener<AsyncSearchResponse> {
+        private final Map<Long, ActionListener<AsyncSearchResponse>> listeners = new HashMap<>();
+
+        void register(long id, ActionListener<AsyncSearchResponse> listener) {
+            this.listeners.put(id, listener);
+        }
+
+        void unregister(long id) {
+            this.listeners.remove(id);
+        }
+
+        @Override
+        public void onResponse(AsyncSearchResponse asyncSearchResponse) {
+            for (ActionListener<AsyncSearchResponse> listener : listeners.values()) {
+                listener.onResponse(asyncSearchResponse);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            for (ActionListener<AsyncSearchResponse> listener : listeners.values()) {
+                listener.onFailure(e);
+            }
         }
     }
 }

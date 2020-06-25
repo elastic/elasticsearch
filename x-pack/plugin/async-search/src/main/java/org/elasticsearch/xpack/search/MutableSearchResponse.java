@@ -154,27 +154,6 @@ class MutableSearchResponse {
         shardFailures.set(shardIndex, failure);
     }
 
-    /**
-     * Creates an {@link AsyncSearchResponse} based on the current state of the mutable response.
-     * The final reduce of the aggregations is executed if needed (partial response).
-     * This method is synchronized to ensure that we don't perform final reduces concurrently.
-     */
-    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
-        SearchResponse searchResponse = null;
-        Exception error = failure;
-        try {
-            searchResponse = findOrBuildResponse(task);
-        } catch(Exception e) {
-            if (error == null) {
-                error = e;
-            } else {
-                error.addSuppressed(e);
-            }
-        }
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
-                error, isPartial, frozen == false, task.getStartTime(), expirationTime);
-    }
-
     private SearchResponse findOrBuildResponse(AsyncSearchTask task) {
         if (finalResponse != null) {
             // We have a final response, use it.
@@ -202,14 +181,33 @@ class MutableSearchResponse {
 
     /**
      * Creates an {@link AsyncSearchResponse} based on the current state of the mutable response.
-     * This method also restores the response headers in the current thread context if the final response is available.
+     * The final reduce of the aggregations is executed if needed (partial response).
+     * This method is synchronized to ensure that we don't perform final reduces concurrently.
+     * This method also restores the response headers in the current thread context when requested, if the final response is available.
      */
-    synchronized AsyncSearchResponse toAsyncSearchResponseWithHeaders(AsyncSearchTask task, long expirationTime) {
-        AsyncSearchResponse resp = toAsyncSearchResponse(task, expirationTime);
-        if (responseHeaders != null) {
+    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task,
+                                                           long expirationTime,
+                                                           boolean restoreResponseHeaders) {
+        if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
-        return resp;
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), findOrBuildResponse(task),
+            failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
+    }
+
+    synchronized AsyncSearchResponse buildErrorResponse(AsyncSearchTask task,
+                                                        long expirationTime,
+                                                        Exception exception) {
+        Exception error;
+        if (this.failure == null) {
+            error = exception;
+        } else {
+            error = exception;
+            error.addSuppressed(this.failure);
+
+        }
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), null,
+            error, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 
     private void failIfFrozen() {

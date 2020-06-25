@@ -29,7 +29,9 @@ PUT /_snapshot/my_repository/my_snapshot
 [[create-snapshot-api-request]]
 ==== {api-request-title}
 
-`POST /_snapshot/<repository>/<snapshot-name>`
+`PUT /_snapshot/<repository>/<snapshot>`
+
+`POST /_snapshot/<repository>/<snapshot>`
 
 [[create-snapshot-api-desc]]
 ==== {api-description-title}

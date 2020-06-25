@@ -489,6 +489,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 processExternalChanges(newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                         event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event));
+            } else if (snapshotCompletionListeners.isEmpty() == false) {
+                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
+                // state).
+                for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
+                    if (endingSnapshots.add(snapshot)) {
+                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                    }
+                }
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
@@ -1981,21 +1990,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         clusterService.removeApplier(this);
     }
 
+    /**
+     * Assert that no in-memory state for any running snapshot-create or -delete operation exists in this instance.
+     */
     public boolean assertAllListenersResolved() {
-        synchronized (currentlyFinalizing) {
+        synchronized (endingSnapshots) {
             final DiscoveryNode localNode = clusterService.localNode();
+            assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
+                    + " on [" + localNode + "]";
+            assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
+                    + " on [" + localNode + "]";
             assert currentlyFinalizing.isEmpty() : "Found leaked finalizations " + currentlyFinalizing
                     + " on [" + localNode + "]";
             assert snapshotDeletionListeners.isEmpty() : "Found leaked snapshot delete listeners " + snapshotDeletionListeners
-                    + " on [" + localNode + "]";
-            assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
                     + " on [" + localNode + "]";
             assert snapshotsToFinalize.isEmpty() : "Found leaked snapshots to finalize " + snapshotsToFinalize
                     + " on [" + localNode + "]";
             assert runningDeletions.isEmpty() : "Found leaked running deletions " + runningDeletions
                     + " on [" + localNode + "]";
-            return true;
         }
+        return true;
     }
 
     private static class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {

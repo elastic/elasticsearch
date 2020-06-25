@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -59,6 +60,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
+
     private static ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -927,5 +931,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
         res.append(", detect_noop[").append(detectNoop).append("]");
         return res.append("}").toString();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long childRequestBytes = 0;
+        if (doc != null) {
+            childRequestBytes += doc.ramBytesUsed();
+        }
+        if (upsertRequest != null) {
+            childRequestBytes += upsertRequest.ramBytesUsed();
+        }
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
     }
 }

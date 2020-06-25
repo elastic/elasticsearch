@@ -96,6 +96,7 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
@@ -409,11 +410,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
             Node.WRITE_PORTS_FILE_SETTING,
             Node.NODE_NAME_SETTING,
-            Node.NODE_DATA_SETTING,
-            Node.NODE_MASTER_SETTING,
-            Node.NODE_INGEST_SETTING,
-            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
+            NodeRoleSettings.NODE_ROLES_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
             BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
             ClusterName.CLUSTER_NAME_SETTING,

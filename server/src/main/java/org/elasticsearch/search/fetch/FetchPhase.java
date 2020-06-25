@@ -30,8 +30,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.IntroSorter;
-import org.apache.lucene.util.Sorter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -140,28 +138,6 @@ public class FetchPhase implements SearchPhase {
                 fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
             }
         }
-        int[] docIds = new int[context.docIdsToLoadSize()];
-        int[] sortedDocIds = new int[context.docIdsToLoadSize()];
-        int[] indices = new int[context.docIdsToLoadSize()];
-        Sorter sorter = new IntroSorter() {
-            @Override
-            protected void swap(int i, int j) {
-                int left = docIds[i];
-                docIds[i] = docIds[j];
-                docIds[j] = left;
-            }
-
-            @Override
-            protected void setPivot(int i) {
-
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return 0;
-            }
-        };
-
 
         try {
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];

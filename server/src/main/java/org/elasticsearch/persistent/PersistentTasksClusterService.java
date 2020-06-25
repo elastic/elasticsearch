@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -76,6 +77,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     // visible for testing only
     public void setRecheckInterval(TimeValue recheckInterval) {
         periodicRechecker.setInterval(recheckInterval);
+    }
+
+    // visible for testing only
+    PeriodicRechecker getPeriodicRechecker() {
+        return periodicRechecker;
     }
 
     @Override
@@ -317,6 +323,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
                 reassignPersistentTasks();
             }
+        } else {
+            periodicRechecker.cancel();
         }
     }
 
@@ -333,9 +341,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                // There must be a task that's worth rechecking because there was one
-                // that caused this method to be called and the method failed to assign it
-                periodicRechecker.rescheduleIfNecessary();
+                if (e instanceof NotMasterException == false) {
+                    // There must be a task that's worth rechecking because there was one
+                    // that caused this method to be called and the method failed to assign it,
+                    // but only do this if the node is still the master
+                    periodicRechecker.rescheduleIfNecessary();
+                }
             }
 
             @Override
@@ -450,7 +461,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Class to periodically try to reassign unassigned persistent tasks.
      */
-    private class PeriodicRechecker extends AbstractAsyncTask {
+    class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
             super(logger, threadPool, recheckInterval, false);

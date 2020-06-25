@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -59,8 +60,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE,
-                new ReplaceSurrogateFunction());
+        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE, new ReplaceSurrogateFunction());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -194,7 +194,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      */
     static final class CombineLimits extends OptimizerRule<LimitWithOffset> {
 
-        public CombineLimits() {
+        CombineLimits() {
             super(TransformDirection.UP);
         }
 
@@ -221,10 +221,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     primaryLimit = Math.max(primaryLimit, secondaryLimit);
                 } else {
                     // the secondary limit cannot go beyond the primary - if it does it gets ignored
-                    if (Math.abs(secondaryLimit) < Math.abs(primaryLimit)) {
-                        primaryOffset += Math.abs(primaryLimit + secondaryLimit);
+                    if (MathUtils.abs(secondaryLimit) < MathUtils.abs(primaryLimit)) {
+                        primaryOffset += MathUtils.abs(primaryLimit + secondaryLimit);
                         // preserve order
-                        primaryLimit = Math.abs(secondaryLimit) * sign;
+                        primaryLimit = MathUtils.abs(secondaryLimit) * sign;
                     }
                 }
 

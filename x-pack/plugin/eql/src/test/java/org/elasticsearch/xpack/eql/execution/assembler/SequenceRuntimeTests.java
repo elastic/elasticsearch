@@ -149,10 +149,10 @@ public class SequenceRuntimeTests extends ESTestCase {
             return new Object[0];
         }
 
-        @SuppressWarnings({ "unchecked" })
+        @SuppressWarnings("unchecked")
         @Override
-        public List<SearchHit> values() {
-            return hits;
+        public <V> List<V> values() {
+            return (List<V>) hits;
         }
 
         @Override

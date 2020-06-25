@@ -68,10 +68,11 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
+
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -90,10 +91,10 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -113,10 +114,10 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -139,10 +140,11 @@ public class OptimizerTests extends ESTestCase {
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof Project);
-            plan = ((Project) plan).child();
             assertTrue(plan instanceof OrderBy);
             plan = ((OrderBy) plan).child();
+            assertTrue(plan instanceof Project);
+            plan = ((Project) plan).child();
+
             assertTrue(plan instanceof Filter);
 
             Filter filter = (Filter) plan;
@@ -160,10 +162,10 @@ public class OptimizerTests extends ESTestCase {
 
     public void testWildcardEscapes() {
         LogicalPlan plan = accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'");
-        assertTrue(plan instanceof Project);
-        plan = ((Project) plan).child();
         assertTrue(plan instanceof OrderBy);
         plan = ((OrderBy) plan).child();
+        assertTrue(plan instanceof Project);
+        plan = ((Project) plan).child();
         assertTrue(plan instanceof Filter);
 
         Filter filter = (Filter) plan;

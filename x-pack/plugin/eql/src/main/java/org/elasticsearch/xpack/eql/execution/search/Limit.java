@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.elasticsearch.xpack.eql.util.MathUtils;
+
 import java.util.Objects;
 
 public class Limit {
@@ -17,11 +19,11 @@ public class Limit {
     public Limit(int limit, int offset) {
         this.limit = limit;
         this.offset = offset;
-        this.total = Math.abs(limit) + offset;
+        this.total = MathUtils.abs(limit) + offset;
     }
 
     public int absLimit() {
-        return Math.abs(limit);
+        return MathUtils.abs(limit);
     }
 
     @Override

@@ -823,12 +823,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (JavaVersion.current().getVersion().get(0) == 8) {
             ZoneId timeZone;
             do {
-                timeZone = ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+                timeZone = ZoneId.of(nonSystemVJavaZoneId());
             } while (timeZone.equals(ZoneId.of("GMT0")));
             return timeZone;
         } else {
-            return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+            return ZoneId.of(nonSystemVJavaZoneId());
         }
+    }
+
+    /**
+     * We need to exclude SystemV/* time zones because they cannot be converted
+     * back to DateTimeZone which we currently still need to do internally,
+     * e.g. in bwc serialization and in the extract() method
+     * //TODO remove once joda is not supported
+     */
+    private static String nonSystemVJavaZoneId() {
+        return randomValueOtherThanMany(id -> id.startsWith("SystemV"),
+            () -> randomFrom(JAVA_ZONE_IDS));
     }
 
     /**

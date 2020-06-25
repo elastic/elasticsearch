@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Preci
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -87,6 +90,62 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
+        String predictedClassField = KEYWORD_FIELD + "_prediction";
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+            new Classification(
+                KEYWORD_FIELD,
+                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
+                null,
+                null,
+                null,
+                null));
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+            assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
+            assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [classification]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            expectedDestIndexAuditMessage(),
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
+    }
+
+    public void testWithDatastreams() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
+        initialize("classification_with_datastreams", true);
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
@@ -454,7 +513,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
         String dependentVariable = KEYWORD_FIELD;
 
-        createIndex(sourceIndex);
+        createIndex(sourceIndex, false);
         // We use 100 rows as we can't set this too low. If too low it is possible
         // we only train with rows of one of the two classes which leads to a failure.
         indexData(sourceIndex, 100, 0, dependentVariable);
@@ -594,28 +653,65 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     private void initialize(String jobId) {
+        initialize(jobId, false);
+    }
+
+    private void initialize(String jobId, boolean isDatastream) {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
         this.analysisUsesExistingDestIndex = randomBoolean();
-        createIndex(sourceIndex);
+        createIndex(sourceIndex, isDatastream);
         if (analysisUsesExistingDestIndex) {
-            createIndex(destIndex);
+            createIndex(destIndex, false);
         }
     }
 
-    private static void createIndex(String index) {
-        client().admin().indices().prepareCreate(index)
-            .setMapping(
-                BOOLEAN_FIELD, "type=boolean",
-                NUMERICAL_FIELD, "type=double",
-                DISCRETE_NUMERICAL_FIELD, "type=integer",
-                TEXT_FIELD, "type=text",
-                KEYWORD_FIELD, "type=keyword",
-                NESTED_FIELD, "type=keyword",
-                ALIAS_TO_KEYWORD_FIELD, "type=alias,path=" + KEYWORD_FIELD,
-                ALIAS_TO_NESTED_FIELD, "type=alias,path=" + NESTED_FIELD)
-            .get();
+    private static void createIndex(String index, boolean isDatastream) {
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"time\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }," +
+            "        \""+ BOOLEAN_FIELD + "\": {\n" +
+            "          \"type\": \"boolean\"\n" +
+            "        }," +
+            "        \""+ NUMERICAL_FIELD + "\": {\n" +
+            "          \"type\": \"double\"\n" +
+            "        }," +
+            "        \""+ DISCRETE_NUMERICAL_FIELD + "\": {\n" +
+            "          \"type\": \"integer\"\n" +
+            "        }," +
+            "        \""+ TEXT_FIELD + "\": {\n" +
+            "          \"type\": \"text\"\n" +
+            "        }," +
+            "        \""+ KEYWORD_FIELD + "\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }," +
+            "        \""+ NESTED_FIELD + "\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }," +
+            "        \""+ ALIAS_TO_KEYWORD_FIELD + "\": {\n" +
+            "          \"type\": \"alias\",\n" +
+            "          \"path\": \"" + KEYWORD_FIELD + "\"\n" +
+            "        }," +
+            "        \""+ ALIAS_TO_NESTED_FIELD + "\": {\n" +
+            "          \"type\": \"alias\",\n" +
+            "          \"path\": \"" + NESTED_FIELD + "\"\n" +
+            "        }" +
+            "      }\n" +
+            "    }";
+        if (isDatastream) {
+            try {
+                createDataStreamAndTemplate(index, "time", mapping);
+            } catch (IOException ex) {
+                throw new ElasticsearchException(ex);
+            }
+        } else {
+            client().admin().indices().prepareCreate(index)
+                .setMapping(mapping)
+                .get();
+        }
     }
 
     private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
@@ -629,7 +725,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
                 KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
                 NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
@@ -653,7 +749,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             if (NESTED_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
-            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();

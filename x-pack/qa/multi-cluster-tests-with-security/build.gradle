@@ -24,7 +24,7 @@ task 'remote-cluster'(type: RestIntegTestTask) {
 testClusters.'remote-cluster' {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  setting 'node.remote_cluster_client', "false"
+  setting 'node.roles', '[data,ingest,master]'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -49,7 +49,6 @@ testClusters.'mixed-cluster' {
     testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
   setting 'cluster.remote.connections_per_cluster', "1"
-  setting 'node.remote_cluster_client', "true"
 
   user username: "test_user", password: "x-pack-test-password"
 }

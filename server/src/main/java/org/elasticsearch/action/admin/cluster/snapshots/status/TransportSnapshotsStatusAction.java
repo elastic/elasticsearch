@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -111,7 +110,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     protected void masterOperation(Task task, final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots =
             SnapshotsService.currentSnapshots(snapshotsInProgress, request.repository(), Arrays.asList(request.snapshots()));
         if (currentSnapshots.isEmpty()) {
@@ -148,7 +147,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     }
 
-    private void buildResponse(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+    private void buildResponse(SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
                                List<SnapshotsInProgress.Entry> currentSnapshotEntries,
                                TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
                                ActionListener<SnapshotsStatusResponse> listener) {
@@ -217,7 +216,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         }
     }
 
-    private void loadRepositoryData(@Nullable SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
+    private void loadRepositoryData(SnapshotsInProgress snapshotsInProgress, SnapshotsStatusRequest request,
                                     List<SnapshotStatus> builder, Set<String> currentSnapshotNames, String repositoryName,
                                     ActionListener<SnapshotsStatusResponse> listener) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
@@ -290,7 +289,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
      * @return snapshot
      * @throws SnapshotMissingException if snapshot is not found
      */
-    private SnapshotInfo snapshot(@Nullable SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
+    private SnapshotInfo snapshot(SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
         List<SnapshotsInProgress.Entry> entries =
             SnapshotsService.currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
         if (!entries.isEmpty()) {

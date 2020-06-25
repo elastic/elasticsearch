@@ -37,7 +37,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -118,7 +117,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
-        this.enabled = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
     }
 

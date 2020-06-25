@@ -121,7 +121,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
         SeqNoFieldType() {
-            super(NAME, true, true, Collections.emptyMap());
+            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected SeqNoFieldType(SeqNoFieldType ref) {

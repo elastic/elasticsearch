@@ -469,7 +469,7 @@ public class MetadataCreateIndexService {
             templates.stream().map(IndexTemplateMetadata::getMappings).collect(toList()), xContentRegistry));
 
         final Settings aggregatedIndexSettings =
-            aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates), mappings,
+            aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates),
                 null, settings, indexScopedSettings, shardLimitValidator);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -493,10 +493,17 @@ public class MetadataCreateIndexService {
 
         final Map<String, Object> mappings = resolveV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
 
+        if (request.dataStreamName() != null) {
+            DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
+            if (dataStream != null) {
+                dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
+            }
+        }
+
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
-                mappings, null, settings, indexScopedSettings, shardLimitValidator);
+                null, settings, indexScopedSettings, shardLimitValidator);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -526,10 +533,14 @@ public class MetadataCreateIndexService {
                                                                                             throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
-        final Map<String, Object> mappings = Collections.unmodifiableMap(MapperService.parseMapping(xContentRegistry, request.mappings()));
+        final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
+        if (mappings.isEmpty() == false) {
+            throw new IllegalArgumentException("mappings are not allowed when creating an index from a source index, " +
+                "all mappings are copied from the source index");
+        }
 
-        final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY, mappings, sourceMetadata,
-            settings, indexScopedSettings, shardLimitValidator);
+        final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -692,8 +703,7 @@ public class MetadataCreateIndexService {
      * @return the aggregated settings for the new index
      */
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
-                                           Settings templateSettings, Map<String, Object> mappings,
-                                           @Nullable IndexMetadata sourceMetadata, Settings settings,
+                                           Settings templateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator) {
         Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
@@ -726,7 +736,6 @@ public class MetadataCreateIndexService {
             assert request.resizeType() != null;
             prepareResizeIndexSettings(
                 currentState,
-                mappings.keySet(),
                 indexSettingsBuilder,
                 request.recoverFrom(),
                 request.index(),
@@ -1024,10 +1033,8 @@ public class MetadataCreateIndexService {
      *
      * @return the list of nodes at least one instance of the source index shards are allocated
      */
-    static List<String> validateShrinkIndex(ClusterState state, String sourceIndex,
-                                            Set<String> targetIndexMappingsTypes, String targetIndexName,
-                                            Settings targetIndexSettings) {
-        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+    static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
+        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
         IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
 
@@ -1057,23 +1064,17 @@ public class MetadataCreateIndexService {
         return nodesToAllocateOn;
     }
 
-    static void validateSplitIndex(ClusterState state, String sourceIndex,
-                                   Set<String> targetIndexMappingsTypes, String targetIndexName,
-                                   Settings targetIndexSettings) {
-        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+    static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
+        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
-    static void validateCloneIndex(ClusterState state, String sourceIndex,
-                                   Set<String> targetIndexMappingsTypes, String targetIndexName,
-                                   Settings targetIndexSettings) {
-        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+    static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
+        IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
         IndexMetadata.selectCloneShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
-    static IndexMetadata validateResize(ClusterState state, String sourceIndex,
-                                        Set<String> targetIndexMappingsTypes, String targetIndexName,
-                                        Settings targetIndexSettings) {
+    static IndexMetadata validateResize(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         if (state.metadata().hasIndex(targetIndexName)) {
             throw new ResourceAlreadyExistsException(state.metadata().index(targetIndexName).getIndex());
         }
@@ -1095,11 +1096,6 @@ public class MetadataCreateIndexService {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
-        if (targetIndexMappingsTypes.size() > 0) {
-            throw new IllegalArgumentException("mappings are not allowed when resizing indices" +
-                ", all mappings are copied from the source index");
-        }
-
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
@@ -1111,14 +1107,12 @@ public class MetadataCreateIndexService {
 
     static void prepareResizeIndexSettings(
             final ClusterState currentState,
-            final Set<String> mappingKeys,
             final Settings.Builder indexSettingsBuilder,
             final Index resizeSourceIndex,
             final String resizeIntoName,
             final ResizeType type,
             final boolean copySettings,
             final IndexScopedSettings indexScopedSettings) {
-
         // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
         // once we are allocated.
         final String initialRecoveryIdFilter = IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id";
@@ -1126,13 +1120,13 @@ public class MetadataCreateIndexService {
         final IndexMetadata sourceMetadata = currentState.metadata().index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
-                mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+                resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
         } else if (type == ResizeType.SPLIT) {
-            validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            validateSplitIndex(currentState, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else if (type == ResizeType.CLONE) {
-            validateCloneIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            validateCloneIndex(currentState, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);

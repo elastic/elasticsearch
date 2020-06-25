@@ -242,6 +242,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                          new SnapshotInfo(
                              new SnapshotId(req.snapshot(), "uuid"),
                              Arrays.asList(req.indices()),
+                             Collections.emptyList(),
                              startTime,
                              "snapshot started",
                              endTime,

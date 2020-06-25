@@ -750,8 +750,8 @@ If the 1st argument is of type `time`, then pattern specified by the 2nd argumen
 
 [NOTE]
 Format specifier `F` will be working similar to format specifier `f`.
-It represents the most significant digit of the seconds fraction; that is,
-it represents the tenths of a second in a date and time value. `0` s in most significant digit will not be omitted.
+It represents the most significant digit of the seconds fraction and all trailing `0` s will be printed to meet the number of `F` s in the pattern,
+e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`.
 
 [source, sql]
 --------------------------------------------------

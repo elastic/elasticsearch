@@ -357,7 +357,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public long parse(String value) {
-            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
 
         @Override

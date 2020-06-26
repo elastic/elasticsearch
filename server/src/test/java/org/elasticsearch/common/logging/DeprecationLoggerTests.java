@@ -20,7 +20,6 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.simple.SimpleLoggerContext;
 import org.apache.logging.log4j.simple.SimpleLoggerContextFactory;
 import org.apache.logging.log4j.spi.ExtendedLogger;
@@ -42,7 +41,6 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DeprecationLoggerTests extends ESTestCase {
     @SuppressLoggerChecks(reason = "Safe as this is using mockito")

@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -1311,6 +1312,7 @@ public final class InternalTestCluster extends TestCluster {
         assertNoPendingIndexOperations();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
+        assertAllPendingWriteLimitsReleased();
         assertOpenTranslogReferences();
         assertNoSnapshottedIndexCommit();
     }
@@ -1341,6 +1343,24 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+    }
+
+    private void assertAllPendingWriteLimitsReleased() throws Exception {
+        assertBusy(() -> {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                WriteMemoryLimits writeMemoryLimits = getInstance(WriteMemoryLimits.class, nodeAndClient.name);
+                final long writeBytes = writeMemoryLimits.getWriteBytes();
+                if (writeBytes > 0) {
+                    throw new AssertionError("pending write bytes [" + writeBytes + "] bytes on node ["
+                        + nodeAndClient.name + "].");
+                }
+                final long replicaWriteBytes = writeMemoryLimits.getReplicaWriteBytes();
+                if (replicaWriteBytes > 0) {
+                    throw new AssertionError("pending replica write bytes [" + writeBytes + "] bytes on node ["
+                        + nodeAndClient.name + "].");
+                }
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertNoPendingIndexOperations() throws Exception {

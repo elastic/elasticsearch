@@ -451,6 +451,20 @@ information for any documents matching the search.
 <4> Primary term for the document
 ====
 
+[source,console]
+----
+GET /*/_msearch
+{}
+{"query" : {"match_all" : {}}}
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+}
+----
+
 You can use an <<docs-index_,index API>> request to update an individual
 document. To prevent an accidental overwrite, this request must include valid
 `if_seq_no` and `if_primary_term` arguments.

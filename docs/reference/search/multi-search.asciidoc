@@ -55,11 +55,14 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices,
-and index aliases used to limit the request.
+Comma-separated list or wildcard (`*`) expression of the default data streams,
+indices, and index aliases used to limit the request.
 +
-To search all data streams and indices in a cluster, use `_all` or omit this
-parameter.
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
++
+You can override this default for a specific search using the `<header>`s
+`index` request body parameter.
 
 [[search-multi-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -189,6 +192,9 @@ included in the response. Defaults to `false`.
 (Optional, string or array of strings)
 Data streams, indices, and index aliases used to limit the request. Wildcard
 (`*`) expressions are supported. You can specify multiple targets as an array.
++
+If this parameter is not specified, the `<target>` request path parameter
+is used.
 
 `preference`:::
 (Optional, string)

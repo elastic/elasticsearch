@@ -85,8 +85,10 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfigUpdate duplicateWithResultsField(String resultsFieldName) {
-        return new RegressionConfigUpdate(resultsFieldName, numTopFeatureImportanceValues);
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder()
+            .setNumTopFeatureImportanceValues(numTopFeatureImportanceValues)
+            .setResultsField(resultsField);
     }
 
     @Override
@@ -171,10 +173,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
                 || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues);
     }
 
-    public static class Builder {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, RegressionConfigUpdate> {
         private String resultsField;
         private Integer numTopFeatureImportanceValues;
 
+        @Override
         public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;

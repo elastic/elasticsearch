@@ -80,8 +80,8 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfigUpdate duplicateWithResultsField(String resultsField) {
-        return new ResultsFieldUpdate(resultsField);
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder().setResultsField(resultsField);
     }
 
     @Override
@@ -118,5 +118,20 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     @Override
     public int hashCode() {
         return Objects.hashCode(resultsField);
+    }
+
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, ResultsFieldUpdate> {
+        private String resultsField;
+
+        @Override
+        public Builder setResultsField(String resultsField) {
+            this.resultsField = resultsField;
+            return this;
+        }
+
+        @Override
+        public ResultsFieldUpdate build() {
+            return new ResultsFieldUpdate(resultsField);
+        }
     }
 }

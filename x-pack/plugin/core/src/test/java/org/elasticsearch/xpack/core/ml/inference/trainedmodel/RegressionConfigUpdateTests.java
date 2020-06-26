@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests.randomRegressionConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCase<RegressionConfigUpdate> {
 
@@ -67,15 +68,18 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
         assertEquals("Cannot apply inference config. More than one field is configured as [warning]", e.getMessage());
     }
 
-    public void testDuplicateWithResultsField() {
+    public void testNewBuilder() {
         RegressionConfigUpdate update = randomRegressionConfigUpdate();
         String newFieldName = update.getResultsField() + "_value";
-        RegressionConfigUpdate updateWithField = (RegressionConfigUpdate)update.duplicateWithResultsField(newFieldName);
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
 
         assertNotSame(updateWithField, update);
         assertEquals(newFieldName, updateWithField.getResultsField());
         // other fields are the same
-        assertEquals(update.getNumTopFeatureImportanceValues(), updateWithField.getNumTopFeatureImportanceValues());
+        assertThat(updateWithField, instanceOf(RegressionConfigUpdate.class));
+        assertEquals(update.getNumTopFeatureImportanceValues(),
+            ((RegressionConfigUpdate)updateWithField).getNumTopFeatureImportanceValues());
     }
 
     @Override

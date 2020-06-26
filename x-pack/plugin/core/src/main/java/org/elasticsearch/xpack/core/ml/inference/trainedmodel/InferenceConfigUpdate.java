@@ -29,7 +29,12 @@ public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteab
 
     String getResultsField();
 
-    InferenceConfigUpdate duplicateWithResultsField(String resultsField);
+    interface Builder<T extends Builder<T, U>, U extends InferenceConfigUpdate> {
+        U build();
+        T setResultsField(String resultsField);
+    }
+
+    Builder<? extends Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder();
 
     static void checkFieldUniqueness(String... fieldNames) {
         Set<String> duplicatedFieldNames = new HashSet<>();

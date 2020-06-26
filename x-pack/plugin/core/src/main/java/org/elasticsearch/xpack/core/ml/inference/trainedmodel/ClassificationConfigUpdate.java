@@ -63,18 +63,18 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             config.getPredictionFieldType());
     }
 
-    private static final ObjectParser<ClassificationConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    private static ObjectParser<ClassificationConfigUpdate.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<ClassificationConfigUpdate.Builder, Void> parser = new ObjectParser<>(
+    private static ObjectParser<Builder, Void> createParser(boolean lenient) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            ClassificationConfigUpdate.Builder::new);
-        parser.declareInt(ClassificationConfigUpdate.Builder::setNumTopClasses, NUM_TOP_CLASSES);
-        parser.declareString(ClassificationConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareString(ClassificationConfigUpdate.Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
-        parser.declareInt(ClassificationConfigUpdate.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
-        parser.declareString(ClassificationConfigUpdate.Builder::setPredictionFieldType, PREDICTION_FIELD_TYPE);
+            Builder::new);
+        parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
+        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
+        parser.declareString(Builder::setTopClassesResultsField, TOP_CLASSES_RESULTS_FIELD);
+        parser.declareInt(Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+        parser.declareString(Builder::setPredictionFieldType, PREDICTION_FIELD_TYPE);
         return parser;
     }
 
@@ -121,9 +121,13 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfigUpdate duplicateWithResultsField(String resultsFieldName) {
-        return new ClassificationConfigUpdate(numTopClasses, resultsFieldName, topClassesResultsField,
-            numTopFeatureImportanceValues, predictionFieldType);
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder()
+            .setNumTopClasses(numTopClasses)
+            .setTopClassesResultsField(topClassesResultsField)
+            .setResultsField(resultsField)
+            .setNumTopFeatureImportanceValues(numTopFeatureImportanceValues)
+            .setPredictionFieldType(predictionFieldType);
     }
 
     public Integer getNumTopFeatureImportanceValues() {
@@ -243,7 +247,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             && (predictionFieldType == null || predictionFieldType.equals(originalConfig.getPredictionFieldType()));
     }
 
-    public static class Builder {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, ClassificationConfigUpdate> {
         private Integer numTopClasses;
         private String topClassesResultsField;
         private String resultsField;
@@ -260,6 +264,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
+        @Override
         public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
@@ -279,6 +284,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return setPredictionFieldType(PredictionFieldType.fromString(predictionFieldType));
         }
 
+        @Override
         public ClassificationConfigUpdate build() {
             return new ClassificationConfigUpdate(numTopClasses,
                 resultsField,

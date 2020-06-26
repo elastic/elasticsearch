@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests.randomClassificationConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<ClassificationConfigUpdate> {
 
@@ -85,15 +86,18 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
     public void testDuplicateWithResultsField() {
         ClassificationConfigUpdate update = randomClassificationConfigUpdate();
         String newFieldName = update.getResultsField() + "_value";
-        ClassificationConfigUpdate updateWithField = (ClassificationConfigUpdate)update.duplicateWithResultsField(newFieldName);
+
+        InferenceConfigUpdate updateWithField = update.newBuilder().setResultsField(newFieldName).build();
 
         assertNotSame(updateWithField, update);
         assertEquals(newFieldName, updateWithField.getResultsField());
         // other fields are the same
-        assertEquals(update.getTopClassesResultsField(), updateWithField.getTopClassesResultsField());
-        assertEquals(update.getNumTopClasses(), updateWithField.getNumTopClasses());
-        assertEquals(update.getPredictionFieldType(), updateWithField.getPredictionFieldType());
-        assertEquals(update.getNumTopFeatureImportanceValues(), updateWithField.getNumTopFeatureImportanceValues());
+        assertThat(updateWithField, instanceOf(ClassificationConfigUpdate.class));
+        ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)updateWithField;
+        assertEquals(update.getTopClassesResultsField(), classUpdate.getTopClassesResultsField());
+        assertEquals(update.getNumTopClasses(), classUpdate.getNumTopClasses());
+        assertEquals(update.getPredictionFieldType(), classUpdate.getPredictionFieldType());
+        assertEquals(update.getNumTopFeatureImportanceValues(), classUpdate.getNumTopFeatureImportanceValues());
     }
 
     @Override

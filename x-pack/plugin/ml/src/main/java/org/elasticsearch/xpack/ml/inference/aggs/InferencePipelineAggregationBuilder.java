@@ -186,8 +186,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             }
 
             // Create an update that changes the default results field.
-            // This isn't necessary for top classes as the default is used here
-            updated = originalUpdate.duplicateWithResultsField(AGGREGATIONS_RESULTS_FIELD);
+            // This isn't necessary for top classes as the default is the same one used here
+            updated = originalUpdate.newBuilder().setResultsField(AGGREGATIONS_RESULTS_FIELD).build();
         }
 
         return updated;

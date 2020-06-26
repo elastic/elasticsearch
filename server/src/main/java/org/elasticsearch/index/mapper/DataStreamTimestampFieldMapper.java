@@ -161,12 +161,14 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        doXContentBody(builder, includeDefaults, params);
-        if (fieldName != null || includeDefaults) {
-            builder.field("field_name", fieldName);
+        if (includeDefaults == false && fieldName == null) {
+            return builder;
         }
+
+        builder.startObject(simpleName());
+        doXContentBody(builder, includeDefaults, params);
+        builder.field("field_name", fieldName);
         return builder.endObject();
     }
 

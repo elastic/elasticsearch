@@ -76,8 +76,7 @@ RUN mkdir -m 755 /rootfs/dev && \\
 RUN yum --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
       --setopt=group_package_types=mandatory -y  \\
       --skip-broken \\
-      install \\
-        basesystem  bash  glibc  libstdc++  zip  zlib
+      install basesystem bash zip zlib
 
 # The tini GitHub page gives instructions for verifying the binary using
 # gpg, but the keyservers are slow to return the key and this can fail the

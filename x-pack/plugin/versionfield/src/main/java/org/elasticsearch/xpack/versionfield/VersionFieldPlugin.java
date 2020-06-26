@@ -17,14 +17,12 @@ import java.util.Map;
 
 public class VersionFieldPlugin extends Plugin implements MapperPlugin {
 
-
-    public VersionFieldPlugin(Settings settings) {
-    }
+    public VersionFieldPlugin(Settings settings) {}
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        //mappers.put(WildcardFieldMapper.CONTENT_TYPE, new WildcardFieldMapper.TypeParser());
+        // mappers.put(WildcardFieldMapper.CONTENT_TYPE, new WildcardFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 }

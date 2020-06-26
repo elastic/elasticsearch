@@ -19,9 +19,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -43,7 +43,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
 
     @Override
     protected String[] getIndices() {
-        return new String[] { AnomalyDetectorsIndex.configIndexName() };
+        return new String[] { MlConfigIndex.indexName() };
     }
 
     @Override

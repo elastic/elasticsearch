@@ -176,7 +176,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             SortMode mode,
             FieldType fieldType
         ) {
-            super(name, isSearchable, hasDocValues, new TextSearchInfo(fieldType), meta);
+            super(name, isSearchable, hasDocValues, new TextSearchInfo(fieldType, null), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);

@@ -57,6 +57,8 @@ import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
+    public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(List.of());
+
     private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
 
     public static final String TYPE = "snapshots";
@@ -481,12 +483,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private final List<Entry> entries;
 
-    public SnapshotsInProgress(List<Entry> entries) {
-        this.entries = entries;
+    public static SnapshotsInProgress of(List<Entry> entries) {
+        if (entries.isEmpty()) {
+            return EMPTY;
+        }
+        return new SnapshotsInProgress(Collections.unmodifiableList(entries));
     }
 
-    public SnapshotsInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+    private SnapshotsInProgress(List<Entry> entries) {
+        this.entries = entries;
     }
 
     public List<Entry> entries() {

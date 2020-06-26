@@ -262,7 +262,7 @@ A reindex can be used to:
 * Convert an existing index alias and collection of time-based indices into a
   data stream.
 
-* Apply a new or updated <<create-a-data-stream-template,composable template>>
+* Apply a new or updated <<create-a-data-stream-template,index template>>
   by reindexing an existing data stream into a new one. This applies mapping
   and setting changes in the template to each document and backing index of the
   data stream destination. See
@@ -450,20 +450,6 @@ information for any documents matching the search.
 <3> Current sequence number for the document
 <4> Primary term for the document
 ====
-
-[source,console]
-----
-GET /*/_msearch
-{}
-{"query" : {"match_all" : {}}}
-----
-// TEST[continued]
-
-[source,console-result]
-----
-{
-}
-----
 
 You can use an <<docs-index_,index API>> request to update an individual
 document. To prevent an accidental overwrite, this request must include valid

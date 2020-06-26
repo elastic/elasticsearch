@@ -303,12 +303,12 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     void assertPlugin(String name, Path original, Environment env) throws IOException {
-        assertPluginInternal(name, env.pluginsFile());
+        assertPluginInternal(name, env.pluginsFile(), original);
         assertConfigAndBin(name, original, env);
         assertInstallCleaned(env);
     }
 
-    void assertPluginInternal(String name, Path pluginsFile) throws IOException {
+    void assertPluginInternal(String name, Path pluginsFile, Path originalPlugin) throws IOException {
         Path got = pluginsFile.resolve(name);
         assertTrue("dir " + name + " exists", Files.exists(got));
 
@@ -327,7 +327,12 @@ public class InstallPluginCommandTests extends ESTestCase {
                 )
             );
         }
-        assertTrue("jar was copied", Files.exists(got.resolve("plugin.jar")));
+        try (Stream<Path> files = Files.list(originalPlugin).filter(p -> p.getFileName().toString().endsWith(".jar"))) {
+            files.forEach(file -> {
+                Path expectedJar = got.resolve(originalPlugin.relativize(file).toString());
+                assertTrue("jar [" + file.getFileName() + "] was copied", Files.exists(expectedJar));
+            });
+        }
         assertFalse("bin was not copied", Files.exists(got.resolve("bin")));
         assertFalse("config was not copied", Files.exists(got.resolve("config")));
     }
@@ -1492,5 +1497,15 @@ public class InstallPluginCommandTests extends ESTestCase {
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
         assertThat(e, hasToString(containsString("plugins can not have native controllers")));
+    }
+
+    public void testMultipleJars() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        writeJar(pluginDir.resolve("dep1.jar"), "Dep1");
+        writeJar(pluginDir.resolve("dep2.jar"), "Dep2");
+        String pluginZip = createPluginUrl("fake-with-deps", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake-with-deps", pluginDir, env.v2());
     }
 }

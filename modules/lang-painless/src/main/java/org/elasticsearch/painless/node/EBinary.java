@@ -22,13 +22,12 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -38,20 +37,32 @@ import java.util.regex.Pattern;
  */
 public class EBinary extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression left;
-    protected final AExpression right;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final Operation operation;
 
-    public EBinary(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
+    public EBinary(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -67,11 +78,11 @@ public class EBinary extends AExpression {
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
 
         Input leftInput = new Input();
-        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
 
         Output output = new Output();
         Input rightInput = new Input();
-        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             leftInput.expected = String.class;
@@ -151,9 +162,9 @@ public class EBinary extends AExpression {
             }
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
                 leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         BinaryMathNode binaryMathNode = new BinaryMathNode();
@@ -161,7 +172,7 @@ public class EBinary extends AExpression {
         binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
         binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        binaryMathNode.setLocation(location);
+        binaryMathNode.setLocation(getLocation());
         binaryMathNode.setExpressionType(output.actual);
         binaryMathNode.setBinaryType(promote);
         binaryMathNode.setShiftType(shiftDistance);

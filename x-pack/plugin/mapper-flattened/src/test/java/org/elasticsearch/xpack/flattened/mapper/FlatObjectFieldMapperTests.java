@@ -35,6 +35,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,16 +49,16 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         return new FlatObjectFieldMapper.Builder("flat-object");
     }
 
-    @Override
-    protected boolean supportsStore() {
-        return false;
-    }
-
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
         addBooleanModifier("split_queries_on_whitespace", true, FlatObjectFieldMapper.Builder::splitQueriesOnWhitespace);
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("store", "analyzer", "similarity");
     }
 
     @Override

@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
+import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.SETTINGS_FIELD;
 
 public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse> {
 
@@ -47,6 +50,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray((params, value) -> params.leaderIndexPatterns = value, AutoFollowPattern.LEADER_PATTERNS_FIELD);
             PARSER.declareString((params, value) -> params.followIndexNamePattern = value, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
+            PARSER.declareObject((params, value) -> params.settings = value, (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
             FollowParameters.initParser(PARSER);
         }
 
@@ -57,6 +61,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndexPatterns(parameters.leaderIndexPatterns);
             request.setFollowIndexNamePattern(parameters.followIndexNamePattern);
+            request.setSettings(parameters.settings);
             request.setParameters(parameters);
             return request;
         }
@@ -65,6 +70,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         private String remoteCluster;
         private List<String> leaderIndexPatterns;
         private String followIndexNamePattern;
+        private Settings settings = Settings.EMPTY;
         private FollowParameters parameters = new FollowParameters();
 
         public Request() {
@@ -132,6 +138,14 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             this.followIndexNamePattern = followIndexNamePattern;
         }
 
+        public Settings getSettings() {
+            return settings;
+        }
+
+        public void setSettings(final Settings settings) {
+            this.settings = Objects.requireNonNull(settings);
+        }
+
         public FollowParameters getParameters() {
             return parameters;
         }
@@ -146,6 +160,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+                settings = Settings.readSettingsFromStream(in);
+            }
             parameters = new FollowParameters(in);
         }
 
@@ -156,6 +173,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+                Settings.writeSettingsToStream(settings, out);
+            }
             parameters.writeTo(out);
         }
 
@@ -167,6 +187,13 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
+                }
+                if (settings.isEmpty() == false) {
+                    builder.startObject(SETTINGS_FIELD.getPreferredName());
+                    {
+                        settings.toXContent(builder, params);
+                    }
+                    builder.endObject();
                 }
                 parameters.toXContentFragment(builder);
             }
@@ -197,6 +224,8 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             private String remoteCluster;
             private List<String> leaderIndexPatterns;
             private String followIndexNamePattern;
+            private Settings settings = Settings.EMPTY;
+
         }
 
     }

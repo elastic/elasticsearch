@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCleanFilesRequest;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -241,6 +243,54 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
+    }
+
+    /**
+     * If the recovery source is on an old node (before <pre>{@link org.elasticsearch.Version#V_7_2_0}</pre>) then the recovery target
+     * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
+     * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
+     * this behavior by changing the global checkpoint in phase1 to unassigned.
+     */
+    public void testSimulateRecoverySourceOnOldNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        String source = internalCluster().startDataOnlyNode();
+        String indexName = "test";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
+        ensureGreen(indexName);
+        if (randomBoolean()) {
+            indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(200, 500))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).collect(Collectors.toList()));
+        }
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush(indexName).get();
+        }
+        if (randomBoolean()) {
+            syncFlush(indexName);
+        }
+        internalCluster().startDataOnlyNode();
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, source);
+        Semaphore failRecovery = new Semaphore(1);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.CLEAN_FILES)) {
+                RecoveryCleanFilesRequest cleanFilesRequest = (RecoveryCleanFilesRequest) request;
+                request = new RecoveryCleanFilesRequest(cleanFilesRequest.recoveryId(),
+                    cleanFilesRequest.requestSeqNo(), cleanFilesRequest.shardId(), cleanFilesRequest.sourceMetaSnapshot(),
+                    cleanFilesRequest.totalTranslogOps(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+            }
+            if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                if (failRecovery.tryAcquire()) {
+                    throw new IllegalStateException("simulated");
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        assertAcked(client().admin().indices().prepareUpdateSettings()
+            .setIndices(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()));
+        ensureGreen(indexName);
+        transportService.clearAllRules();
     }
 
     private void assertNoOpRecoveries(String indexName) {

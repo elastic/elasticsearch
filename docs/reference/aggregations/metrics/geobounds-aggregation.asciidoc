@@ -1,7 +1,7 @@
 [[search-aggregations-metrics-geobounds-aggregation]]
 === Geo Bounds Aggregation
 
-A metric aggregation that computes the bounding box containing all geo_point values for a field.
+A metric aggregation that computes the bounding box containing all geo values for a field.
 
 
 Example:
@@ -70,6 +70,68 @@ The response for the above aggregation:
                 "bottom_right": {
                     "lat": 48.85999997612089,
                     "lon": 2.3363889567553997
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+[discrete]
+[role="xpack"]
+==== Geo Bounds Aggregation on `geo_shape` fields
+
+The Geo Bounds Aggregation is also supported on `geo_shape` fields.
+
+Example:
+
+[source,console]
+--------------------------------------------------
+PUT /places
+{
+    "mappings": {
+        "properties": {
+            "geometry": {
+                "type": "geo_shape"
+            }
+        }
+    }
+}
+
+POST /places/_bulk?refresh
+{"index":{"_id":1}}
+{"name": "NEMO Science Museum", "geometry": "POINT(4.912350 52.374081)" }
+{"index":{"_id":2}}
+{"name": "Sportpark De Weeren", "geometry": { "type": "Polygon", "coordinates": [ [ [ 4.965305328369141, 52.39347642069457 ], [ 4.966979026794433, 52.391721758934835 ], [ 4.969425201416015, 52.39238958618537 ], [ 4.967944622039794, 52.39420969150824 ], [ 4.965305328369141, 52.39347642069457 ] ] ] } }
+
+POST /places/_search?size=0
+{
+    "aggs" : {
+        "viewport" : {
+            "geo_bounds" : {
+                "field" : "geometry"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST
+
+[source,console-result]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "viewport": {
+            "bounds": {
+                "top_left": {
+                    "lat": 52.39420966710895,
+                    "lon": 4.912349972873926
+                },
+                "bottom_right": {
+                    "lat": 52.374080987647176,
+                    "lon": 4.969425117596984
                 }
             }
         }

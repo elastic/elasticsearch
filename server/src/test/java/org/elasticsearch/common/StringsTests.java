@@ -25,8 +25,17 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class StringsTests extends ESTestCase {
+
+    public void testIsAllOrWildCardString() {
+        assertThat(Strings.isAllOrWildcard("_all"), is(true));
+        assertThat(Strings.isAllOrWildcard("*"), is(true));
+        assertThat(Strings.isAllOrWildcard("foo"), is(false));
+        assertThat(Strings.isAllOrWildcard(""), is(false));
+        assertThat(Strings.isAllOrWildcard((String)null), is(false));
+    }
 
     public void testSubstring() {
         assertEquals(null, Strings.substring(null, 0, 1000));

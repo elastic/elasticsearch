@@ -159,8 +159,8 @@ The API returns the following response:
   "snapshot": {
     "snapshot": "snapshot_2",
     "uuid": "vdRctLCxSketdKb54xw67g",
-    "version_id": 8000099,
-    "version": "8.0.0",
+    "version_id": <version_id>,
+    "version": <version>,
     "indices": [],
     "data_streams": [],
     "include_global_state": false,
@@ -184,6 +184,8 @@ The API returns the following response:
 }
 ----
 // TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshot.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshot.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.snapshot.version/]
 // TESTRESPONSE[s/"start_time": "2020-06-25T14:00:28.850Z"/"start_time": $body.snapshot.start_time/]
 // TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshot.start_time_in_millis/]
 // TESTRESPONSE[s/"end_time": "2020-06-25T14:00:28.850Z"/"end_time": $body.snapshot.end_time/]

@@ -522,6 +522,7 @@ tiebreaker for events with the same timestamp.
       },
             {
         "_index": "sec_logs",
+        "_type": "_doc",
         "_id": "3",
         "_score": null,
         "_source": {

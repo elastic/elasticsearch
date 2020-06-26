@@ -34,7 +34,7 @@ public class DateUtilsTests extends ESTestCase {
     private static final Set<String> IGNORE = new HashSet<>(Arrays.asList(
         "Eire", "Europe/Dublin" // dublin timezone in joda does not account for DST
     ));
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56343")
+
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));

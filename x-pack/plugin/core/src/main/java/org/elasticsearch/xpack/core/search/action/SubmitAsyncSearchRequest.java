@@ -154,8 +154,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         return new CancellableTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public boolean shouldCancelChildrenOnCancellation() {
-                // we cancel the underlying search action explicitly in the submit action
-                return false;
+                return true;
             }
 
             @Override

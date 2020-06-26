@@ -22,15 +22,15 @@ The following <<docs-bulk,bulk API>> request adds some example log data to the
 ----
 PUT /sec_logs/_bulk?refresh
 {"index":{"_index" : "sec_logs", "_id" : "1"}}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD","sequence": 1 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "2"}}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "3"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "4"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "sec_logs", "_id" : "5"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
 
@@ -90,7 +90,9 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "process"
+            "category": "process",
+            "id": "edwCRnyD",
+            "sequence": 1
           },
           "process": {
             "name": "cmd.exe",
@@ -111,7 +113,9 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "process"
+            "category": "process",
+            "id": "cMyt5SZ2",
+            "sequence": 3
           },
           "process": {
             "name": "cmd.exe",
@@ -196,7 +200,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "file"
+                "category": "file",
+                "id": "bYA7gPay",
+                "sequence": 4
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -229,7 +235,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "process"
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 5
               },
               "process": {
                 "name": "regsvr32.exe",
@@ -317,7 +325,9 @@ contains the shared `agent.id` value for each matching event.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "file"
+                "category": "file",
+                "id": "bYA7gPay",
+                "sequence": 4
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -350,7 +360,9 @@ contains the shared `agent.id` value for each matching event.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "process"
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 5
               },
               "process": {
                 "name": "regsvr32.exe",
@@ -426,6 +438,116 @@ GET /sec_logs/_eql/search
 }
 ----
 ====
+
+[discrete]
+[[eql-search-specify-a-sort-tiebreaker]]
+=== Specify a sort tiebreaker
+
+By default, the EQL search API sorts matching events in the search response by
+timestamp. However, if two or more events share the same timestamp, a tiebreaker
+field is used to sort the events in ascending, lexicographic order.
+
+The EQL search API uses `event.sequence` as the default tiebreaker field. You
+can use the `tiebreaker_field` parameter to specify another field.
+
+.*Example*
+[%collapsible]
+====
+The following request specifies `event.start` as the tiebreaker field.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "tiebreaker_field": "event.id",
+  "query": """
+    process where process.name == "cmd.exe" and stringContains(process.path, "System32")
+  """
+}
+----
+
+The API returns the following response. Note the `sort` property of each
+matching event contains an array of two items:
+
+* The first item is the event's <<eql-search-api-timestamp-field,timestamp>>,
+converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
+epoch].
+
+* The second item is the event's `event.id` value. This value is used as a sort
+tiebreaker for events with the same timestamp.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 34,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "sec_logs",
+        "_id": "1",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process",
+            "id": "edwCRnyD",
+            "sequence": 1
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607252645000,                                <1>
+          "edwCRnyD"                                    <2>
+        ]
+      },
+            {
+        "_index": "sec_logs",
+        "_id": "3",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "agent": {
+            "id": "8a4f500d"
+          },
+          "event": {
+            "category": "process",
+            "id": "cMyt5SZ2",
+            "sequence": 3
+          },
+          "process": {
+            "name": "cmd.exe",
+            "path": "C:\\Windows\\System32\\cmd.exe"
+          }
+        },
+        "sort": [
+          1607339167000,                                <1>
+          "cMyt5SZ2"                                    <2>
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 34/"took": $body.took/]
+<1> The event's <<eql-search-api-timestamp-field,timestamp>>, converted to 
+milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
+epoch]
+<2> The event's `event.id` value.
+====
+
 
 [discrete]
 [[eql-search-filter-query-dsl]]

@@ -26,18 +26,22 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Objects;
 
 public class MemoryUsage implements ToXContentObject {
 
     static final ParseField TIMESTAMP = new ParseField("timestamp");
     static final ParseField PEAK_USAGE_BYTES = new ParseField("peak_usage_bytes");
+    static final ParseField STATUS = new ParseField("status");
+    static final ParseField INCREASED_MEMORY_ESTIMATE_BYTES = new ParseField("increased_memory_estimate_bytes");
 
     public static final ConstructingObjectParser<MemoryUsage, Void> PARSER = new ConstructingObjectParser<>("analytics_memory_usage",
-        true, a -> new MemoryUsage((Instant) a[0], (long) a[1]));
+        true, a -> new MemoryUsage((Instant) a[0], (long) a[1], (Status) a[2], (Long) a[3]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
@@ -45,15 +49,26 @@ public class MemoryUsage implements ToXContentObject {
             TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return Status.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, STATUS, ObjectParser.ValueType.STRING);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INCREASED_MEMORY_ESTIMATE_BYTES);
     }
 
     @Nullable
     private final Instant timestamp;
     private final long peakUsageBytes;
+    private final Status status;
+    private final Long increasedMemoryEstimateBytes;
 
-    public MemoryUsage(@Nullable Instant timestamp, long peakUsageBytes) {
+    public MemoryUsage(@Nullable Instant timestamp, long peakUsageBytes, Status status, @Nullable Long increasedMemoryEstimateBytes) {
         this.timestamp = timestamp == null ? null : Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
+        this.status = status;
+        this.increasedMemoryEstimateBytes = increasedMemoryEstimateBytes;
     }
 
     @Nullable
@@ -65,6 +80,14 @@ public class MemoryUsage implements ToXContentObject {
         return peakUsageBytes;
     }
 
+    public Status getStatus() {
+        return status;
+    }
+
+    public Long getIncreasedMemoryEstimateBytes() {
+        return increasedMemoryEstimateBytes;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -72,6 +95,10 @@ public class MemoryUsage implements ToXContentObject {
             builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
         }
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
+        builder.field(STATUS.getPreferredName(), status);
+        if (increasedMemoryEstimateBytes != null) {
+            builder.field(INCREASED_MEMORY_ESTIMATE_BYTES.getPreferredName(), increasedMemoryEstimateBytes);
+        }
         builder.endObject();
         return builder;
     }
@@ -83,12 +110,14 @@ public class MemoryUsage implements ToXContentObject {
 
         MemoryUsage other = (MemoryUsage) o;
         return Objects.equals(timestamp, other.timestamp)
-            && peakUsageBytes == other.peakUsageBytes;
+            && peakUsageBytes == other.peakUsageBytes
+            && Objects.equals(status, other.status)
+            && Objects.equals(increasedMemoryEstimateBytes, other.increasedMemoryEstimateBytes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, peakUsageBytes);
+        return Objects.hash(timestamp, peakUsageBytes, status, increasedMemoryEstimateBytes);
     }
 
     @Override
@@ -96,6 +125,22 @@ public class MemoryUsage implements ToXContentObject {
         return new ToStringBuilder(getClass())
             .add(TIMESTAMP.getPreferredName(), timestamp == null ? null : timestamp.getEpochSecond())
             .add(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes)
+            .add(STATUS.getPreferredName(), status)
+            .add(INCREASED_MEMORY_ESTIMATE_BYTES.getPreferredName(), increasedMemoryEstimateBytes)
             .toString();
+    }
+
+    public enum Status {
+        OK,
+        HARD_LIMIT;
+
+        public static Status fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

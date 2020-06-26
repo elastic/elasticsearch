@@ -1,5 +1,8 @@
 [[analysis-standard-analyzer]]
-=== Standard Analyzer
+=== Standard analyzer
+++++
+<titleabbrev>Standard</titleabbrev>
+++++
 
 The `standard` analyzer is the default analyzer which is used if none is
 specified. It provides grammar based tokenization (based on the Unicode Text

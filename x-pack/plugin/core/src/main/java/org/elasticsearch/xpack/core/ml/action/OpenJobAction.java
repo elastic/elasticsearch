@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -246,7 +245,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
         static boolean match(Task task, String expectedJobId) {
             if (task instanceof JobTaskMatcher) {
-                if (Metadata.ALL.equals(expectedJobId)) {
+                if (Strings.isAllOrWildcard(expectedJobId)) {
                     return true;
                 }
                 String expectedDescription = "job-" + expectedJobId;

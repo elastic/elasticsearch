@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -944,7 +945,7 @@ public class MetadataTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build(), false)
-            .put(new DataStream(dataStreamName, "ts", List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -959,7 +960,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, "ts", List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -976,7 +977,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
             .put(invalidIdx, false)
-            .put(new DataStream(dataStreamName, "ts", List.of(validIdx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(validIdx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
@@ -991,7 +992,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, "ts", List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
@@ -1015,7 +1016,7 @@ public class MetadataTests extends ESTestCase {
             backingIndices.add(im.getIndex());
         }
 
-        b.put(new DataStream(dataStreamName, "ts", backingIndices, lastBackingIndexNum));
+        b.put(new DataStream(dataStreamName, createTimestampField("ts"), backingIndices, lastBackingIndexNum));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1033,7 +1034,7 @@ public class MetadataTests extends ESTestCase {
                 indices.add(idx.getIndex());
                 b.put(idx, true);
             }
-            b.put(new DataStream(name, "ts", indices, indices.size()));
+            b.put(new DataStream(name, createTimestampField("ts"), indices, indices.size()));
         }
 
         Metadata metadata = b.build();
@@ -1098,7 +1099,7 @@ public class MetadataTests extends ESTestCase {
         }
         DataStream dataStream = new DataStream(
             dataStreamName,
-            "ts",
+            createTimestampField("ts"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
             backingIndices.size()
         );
@@ -1172,7 +1173,7 @@ public class MetadataTests extends ESTestCase {
         }
         DataStream dataStream = new DataStream(
             dataStreamName,
-            "ts",
+            createTimestampField("ts"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
             backingIndices.size()
         );
@@ -1274,7 +1275,7 @@ public class MetadataTests extends ESTestCase {
             b.put(im, false);
             backingIndices.add(im.getIndex());
         }
-        b.put(new DataStream(dataStreamName, "ts", backingIndices, lastBackingIndexNum));
+        b.put(new DataStream(dataStreamName, createTimestampField("ts"), backingIndices, lastBackingIndexNum));
         return new CreateIndexResult(indices, backingIndices, b.build());
     }
 

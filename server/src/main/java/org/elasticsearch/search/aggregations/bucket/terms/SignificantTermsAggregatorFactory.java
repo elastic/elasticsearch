@@ -227,7 +227,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, config, backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(
+            queryShardContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
 
         return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
@@ -256,8 +261,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new MapStringTermsAggregator(
                     name,
                     factories,
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
-                    valuesSource,
                     null,
                     format,
                     bucketCountThresholds,
@@ -291,15 +296,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        factories == AggregatorFactories.EMPTY &&
-                        includeExclude == null) {
-                    /**
+                if (collectsFromSingleBucket && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                    /*
                      * We don't need to remap global ords iff this aggregator:
-                     *    - is not a child of a bucket aggregator AND
+                     *    - collects from a single bucket AND
                      *    - has no include/exclude rules AND
                      *    - has no sub-aggregator
-                     **/
+                     */
                     remapGlobalOrd = false;
                 }
 

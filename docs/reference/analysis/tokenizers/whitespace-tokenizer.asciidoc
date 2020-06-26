@@ -1,5 +1,8 @@
 [[analysis-whitespace-tokenizer]]
-=== Whitespace Tokenizer
+=== Whitespace tokenizer
+++++
+<titleabbrev>Whitespace</titleabbrev>
+++++
 
 The `whitespace` tokenizer breaks text into terms whenever it encounters a
 whitespace character.

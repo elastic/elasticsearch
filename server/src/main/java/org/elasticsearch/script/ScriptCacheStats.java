@@ -122,13 +122,6 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Get the general stats, null if using context cache
-     */
-    public ScriptStats getGeneralStats() {
-        return general;
-    }
-
-    /**
      * The sum of all script stats, either the general stats or the sum of all stats of the context stats.
      */
     public ScriptStats sum() {

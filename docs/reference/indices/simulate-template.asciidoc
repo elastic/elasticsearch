@@ -4,7 +4,25 @@
 <titleabbrev>Simulate template</titleabbrev>
 ++++
 
-Returns the index settings that would be applied by a particular template.
+experimental[]
+
+Returns the index settings that would be applied by a particular 
+<<indices-templates, index template>>.
+
+////
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns": ["logdata-*"],
+  "template": {
+    "settings": {
+      "index.number_of_shards": 2
+    }
+  }
+}
+--------------------------------------------------
+////
 
 [source,console]
 --------------------------------------------------

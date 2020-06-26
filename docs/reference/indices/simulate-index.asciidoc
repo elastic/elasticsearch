@@ -4,7 +4,10 @@
 <titleabbrev>Simulate index</titleabbrev>
 ++++
 
-Returns the index settings that would be applied to the specified index from an index template.
+experimental[]
+
+Returns the index settings that would be applied to the specified index from an 
+<<indices-templates, index template>>.
 
 [source,console]
 --------------------------------------------------

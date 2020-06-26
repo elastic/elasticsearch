@@ -10,9 +10,7 @@
 * <<ilm-index-lifecycle>>
 * <<index-rollover>>
 * <<update-lifecycle-policy>>
-* <<indices-templates, Index templates>>
 
 include::ilm-index-lifecycle.asciidoc[]
 include::index-rollover.asciidoc[]
 include::update-lifecycle-policy.asciidoc[]
-include::../indices/index-templates.asciidoc[]

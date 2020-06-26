@@ -40,7 +40,8 @@ public class SequenceExec extends PhysicalPlan {
                         List<Attribute> untilKeys,
                         PhysicalPlan until,
                         Attribute timestamp,
-                        Attribute tiebreaker, OrderDirection direction) {
+                        Attribute tiebreaker,
+                        OrderDirection direction) {
         this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker, null, direction);
     }
 

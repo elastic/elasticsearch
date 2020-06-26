@@ -23,14 +23,24 @@ public class Sequence extends Join {
 
     private final TimeValue maxSpan;
 
-    public Sequence(Source source, List<KeyedFilter> queries, KeyedFilter until, TimeValue maxSpan, Attribute timestamp,
-                    Attribute tiebreaker, OrderDirection direction) {
+    public Sequence(Source source, 
+                    List<KeyedFilter> queries, 
+                    KeyedFilter until, 
+                    TimeValue maxSpan, 
+                    Attribute timestamp,
+                    Attribute tiebreaker, 
+                    OrderDirection direction) {
         super(source, queries, until, timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
 
-    private Sequence(Source source, List<LogicalPlan> queries, LogicalPlan until, TimeValue maxSpan, Attribute timestamp,
-                     Attribute tiebreaker, OrderDirection direction) {
+    private Sequence(Source source, 
+                     List<LogicalPlan> queries, 
+                     LogicalPlan until, 
+                     TimeValue maxSpan, 
+                     Attribute timestamp,
+                     Attribute tiebreaker, 
+                     OrderDirection direction) {
         super(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }

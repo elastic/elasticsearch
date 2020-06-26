@@ -93,10 +93,6 @@ public class QueryContainer {
         return limit;
     }
 
-    public boolean descendingOrder() {
-        return limit != null && limit.limit < 0;
-    }
-
     public QueryContainer with(Query q) {
         return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
     }

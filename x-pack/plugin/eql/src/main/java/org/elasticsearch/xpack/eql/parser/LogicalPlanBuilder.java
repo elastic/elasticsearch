@@ -311,13 +311,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             case "head":
                 Expression headLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 return new Head(source(ctx), headLimit, plan);
-            //new LimitWithOffset(source(ctx), headLimit, 0, plan)
 
             case "tail":
                 Expression tailLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 // negate the limit
                 return new Tail(source(ctx), tailLimit, plan);
-            //return new LimitWithOffset(source(ctx), new Neg(tailLimit.source(), tailLimit), plan);
 
             default:
                 throw new ParsingException(source(ctx), "Pipe [{}] is not supported yet", name);
@@ -332,7 +330,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         BooleanExpressionContext limitCtx = exps.get(0);
         Expression expression = expression(limitCtx);
 
-        if (expression.dataType().isInteger() == false || expression.foldable() == false) {
+        if (expression.dataType().isInteger() == false || expression.foldable() == false || (int) expression.fold() < 0) {
             throw new ParsingException(source(limitCtx), "Pipe [{}] expects a positive integer but found [{}]", pipeName, expression
                     .sourceText());
         }

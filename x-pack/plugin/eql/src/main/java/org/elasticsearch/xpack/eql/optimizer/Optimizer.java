@@ -200,39 +200,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LimitWithOffset limit) {
-            if (limit.child() instanceof LimitWithOffset) {
-                LimitWithOffset primary = (LimitWithOffset) limit.child();
-
-                int primaryLimit = (Integer) primary.limit().fold();
-                int primaryOffset = primary.offset();
-                // +1 means ASC, -1 descending and 0 if there are no results
-                int sign = Integer.signum(primaryLimit);
-
-                int secondaryLimit = (Integer) limit.limit().fold();
-                if (limit.offset() != 0) {
-                    throw new EqlIllegalArgumentException("Limits with different offset not implemented yet");
-                }
-
-                // for the same direction
-                if (primaryLimit > 0 && secondaryLimit > 0) {
-                    // consider the minimum
-                    primaryLimit = Math.min(primaryLimit, secondaryLimit);
-                } else if (primaryLimit < 0 && secondaryLimit < 0) {
-                    primaryLimit = Math.max(primaryLimit, secondaryLimit);
-                } else {
-                    // the secondary limit cannot go beyond the primary - if it does it gets ignored
-                    if (MathUtils.abs(secondaryLimit) < MathUtils.abs(primaryLimit)) {
-                        primaryOffset += MathUtils.abs(primaryLimit + secondaryLimit);
-                        // preserve order
-                        primaryLimit = MathUtils.abs(secondaryLimit) * sign;
-                    }
-                }
-
-                Literal literal = new Literal(primary.limit().source(), primaryLimit, DataTypes.INTEGER);
-                return new LimitWithOffset(primary.source(), literal, primaryOffset, primary.child());
+            // bail out early
+            if (limit.child() instanceof LimitWithOffset == false) {
+                return limit;
             }
 
-            return limit;
+            LimitWithOffset primary = (LimitWithOffset) limit.child();
+
+            int primaryLimit = (Integer) primary.limit().fold();
+            int primaryOffset = primary.offset();
+            // +1 means ASC, -1 descending and 0 if there are no results
+            int sign = Integer.signum(primaryLimit);
+
+            int secondaryLimit = (Integer) limit.limit().fold();
+            if (limit.offset() != 0) {
+                throw new EqlIllegalArgumentException("Limits with different offset not implemented yet");
+            }
+
+            // for the same direction
+            if (primaryLimit > 0 && secondaryLimit > 0) {
+                // consider the minimum
+                primaryLimit = Math.min(primaryLimit, secondaryLimit);
+            } else if (primaryLimit < 0 && secondaryLimit < 0) {
+                primaryLimit = Math.max(primaryLimit, secondaryLimit);
+            } else {
+                // the secondary limit cannot go beyond the primary - if it does it gets ignored
+                if (MathUtils.abs(secondaryLimit) < MathUtils.abs(primaryLimit)) {
+                    primaryOffset += MathUtils.abs(primaryLimit + secondaryLimit);
+                    // preserve order
+                    primaryLimit = MathUtils.abs(secondaryLimit) * sign;
+                }
+            }
+
+            Literal literal = new Literal(primary.limit().source(), primaryLimit, DataTypes.INTEGER);
+            return new LimitWithOffset(primary.source(), literal, primaryOffset, primary.child());
         }
     }
 
@@ -243,8 +244,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LimitWithOffset limit) {
-            // only care if the limit is negative (tail)
-            
             if (limit.limit().foldable()) {
                 LogicalPlan child = limit.child();
                 if (child instanceof OrderBy) {

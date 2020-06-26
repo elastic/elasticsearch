@@ -53,70 +53,57 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
     
 
-    private static class FoldProject extends FoldingRule<ProjectExec> {
+    private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 
         @Override
-        protected PhysicalPlan rule(ProjectExec project) {
-            if (project.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) project.child();
-                return new EsQueryExec(exec.source(), project.output(), exec.queryContainer());
-            }
-            return project;
+        protected PhysicalPlan rule(ProjectExec project, EsQueryExec exec) {
+            return new EsQueryExec(exec.source(), project.output(), exec.queryContainer());
         }
     }
 
-    private static class FoldFilter extends FoldingRule<FilterExec> {
+    private static class FoldFilter extends QueryFoldingRule<FilterExec> {
 
         @Override
-        protected PhysicalPlan rule(FilterExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
-                QueryContainer qContainer = exec.queryContainer();
+        protected PhysicalPlan rule(FilterExec plan, EsQueryExec exec) {
+            QueryContainer qContainer = exec.queryContainer();
+            Query query = QueryTranslator.toQuery(plan.condition());
 
-                Query query = QueryTranslator.toQuery(plan.condition());
-
-                if (qContainer.query() != null || query != null) {
-                    query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);
-                }
-
-                qContainer = qContainer.with(query);
-                return exec.with(qContainer);
+            if (qContainer.query() != null || query != null) {
+                query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);
             }
-            return plan;
+
+            qContainer = qContainer.with(query);
+            return exec.with(qContainer);
         }
     }
     
-    private static class FoldOrderBy extends FoldingRule<OrderExec> {
+    private static class FoldOrderBy extends QueryFoldingRule<OrderExec> {
 
         @Override
-        protected PhysicalPlan rule(OrderExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
-                QueryContainer qContainer = exec.queryContainer();
+        protected PhysicalPlan rule(OrderExec plan, EsQueryExec query) {
+            QueryContainer qContainer = query.queryContainer();
 
-                for (Order order : plan.order()) {
-                    Direction direction = Direction.from(order.direction());
-                    Missing missing = Missing.from(order.nullsPosition());
+            for (Order order : plan.order()) {
+                Direction direction = Direction.from(order.direction());
+                Missing missing = Missing.from(order.nullsPosition());
 
-                    // check whether sorting is on an group (and thus nested agg) or field
-                    Expression orderExpression = order.child();
+                // check whether sorting is on an group (and thus nested agg) or field
+                Expression orderExpression = order.child();
 
-                    String lookup = Expressions.id(orderExpression);
+                String lookup = Expressions.id(orderExpression);
 
-                    // field
-                    if (orderExpression instanceof FieldAttribute) {
-                        FieldAttribute fa = (FieldAttribute) orderExpression;
-                        qContainer = qContainer.addSort(lookup, new AttributeSort(fa, direction, missing));
-                    }
-                    // unknown
-                    else {
-                        throw new EqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
-                    }
+                // field
+                if (orderExpression instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) orderExpression;
+                    qContainer = qContainer.addSort(lookup, new AttributeSort(fa, direction, missing));
                 }
-
-                return exec.with(qContainer);
+                // unknown
+                else {
+                    throw new EqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
+                }
             }
-            return plan;
+
+            return query.with(qContainer);
         }
     }
 

@@ -104,16 +104,8 @@ class SequenceRuntime implements Executable {
         // break the results per key
         // when dealing with descending order, queries outside the base are ASC (search_before)
         // so look at the data in reverse (that is DESC)
-        Iterator<SearchHit> iterator = descending ? new ReversedIterator<>(hits) : hits.iterator();
-
-        for (; iterator.hasNext();) {
-            SearchHit hit = iterator.next();
-
-            // early skip in case of reaching the limit
-            // check the last stage to avoid calling the state machine in other stages
-            if (isLast(currentStage) && stateMachine.reachedLimit()) {
-                return;
-            }
+        for (Iterator<SearchHit> it = descending ? new ReversedIterator<>(hits) : hits.iterator(); it.hasNext();) {
+            SearchHit hit = it.next();
 
             KeyAndOrdinal ko = key(hit, criterion);
             if (currentStage == 0) {
@@ -123,6 +115,12 @@ class SequenceRuntime implements Executable {
                 stateMachine.trackSequence(seq, tStart, tStop);
             } else {
                 stateMachine.match(currentStage, ko.key, ko.timestamp, ko.tiebreaker, hit);
+
+                // early skip in case of reaching the limit
+                // check the last stage to avoid calling the state machine in other stages
+                if (stateMachine.reachedLimit()) {
+                    return;
+                }
             }
         }
     }
@@ -153,9 +151,5 @@ class SequenceRuntime implements Executable {
 
     private boolean hasFinished(int stage) {
         return stage == numberOfStages;
-    }
-
-    private boolean isLast(int stage) {
-        return stage == numberOfStages - 1;
     }
 }

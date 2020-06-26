@@ -64,7 +64,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1349")
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String BOOLEAN_FIELD = "boolean-field";

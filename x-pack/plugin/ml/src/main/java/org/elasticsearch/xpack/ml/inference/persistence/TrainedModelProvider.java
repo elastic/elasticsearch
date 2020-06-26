@@ -236,7 +236,8 @@ public class TrainedModelProvider {
                     .setCompressedString(chunkedStrings.get(i))
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
                     .setDefinitionLength(chunkedStrings.get(i).length())
-                    .setTotalDefinitionLength(compressedString.length())
+                    // If it is the last doc, it is the EOS
+                    .setEos(i == chunkedStrings.size() - 1)
                     .build());
             }
         } catch (IOException ex) {
@@ -336,6 +337,9 @@ public class TrainedModelProvider {
                 .unmappedType("long"))
             .request();
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+            // TODO how could we stream in the model definition WHILE parsing it?
+            // This would reduce the overall memory usage as we won't have to load the whole compressed string
+            // XContentParser supports streams.
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
                     listener.onFailure(new ResourceNotFoundException(
@@ -348,11 +352,24 @@ public class TrainedModelProvider {
                 String compressedString = docs.stream()
                     .map(TrainedModelDefinitionDoc::getCompressedString)
                     .collect(Collectors.joining());
-                if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                    listener.onFailure(ExceptionsHelper.serverError(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                    return;
+                // BWC for when we tracked the total definition length
+                // TODO: remove in 9
+                if (docs.get(0).getTotalDefinitionLength() != null) {
+                    if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                        listener.onFailure(ExceptionsHelper.serverError(
+                            Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                        return;
+                    }
+                } else {
+                    TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+                    // Either we are missing the last doc, or some previous doc
+                    if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+                        listener.onFailure(ExceptionsHelper.serverError(
+                            Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                        return;
+                    }
                 }
+
                 InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
                     compressedString,
                     InferenceDefinition::fromXContent,

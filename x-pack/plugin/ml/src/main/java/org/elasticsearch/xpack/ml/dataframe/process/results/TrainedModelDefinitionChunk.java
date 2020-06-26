@@ -17,33 +17,37 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TrainedModelDefinitionChunk implements ToXContentObject {
 
     private static final ParseField DEFINITION = new ParseField("definition");
-    private static final ParseField TOTAL_DEFINITION_LENGTH = new ParseField("total_definition_length");
+    private static final ParseField DOC_NUM = new ParseField("doc_num");
+    private static final ParseField EOS = new ParseField("eos");
 
     public static final ConstructingObjectParser<TrainedModelDefinitionChunk, Void> PARSER = new ConstructingObjectParser<>(
         "chunked_trained_model_definition",
-        a -> new TrainedModelDefinitionChunk((String) a[0], (Long) a[1]));
+        a -> new TrainedModelDefinitionChunk((String) a[0], (Integer) a[1], (Boolean) a[2]));
 
     static {
         PARSER.declareString(constructorArg(), DEFINITION);
-        PARSER.declareLong(constructorArg(), TOTAL_DEFINITION_LENGTH);
+        PARSER.declareInt(constructorArg(), DOC_NUM);
+        PARSER.declareBoolean(optionalConstructorArg(), EOS);
     }
 
     private final String definition;
-    private final long totalDefinitionLength;
+    private final int docNum;
+    private final Boolean eos;
 
-    public TrainedModelDefinitionChunk(String definition, long totalDefinitionLength) {
+    public TrainedModelDefinitionChunk(String definition, int docNum, Boolean eos) {
         this.definition = definition;
-        this.totalDefinitionLength = totalDefinitionLength;
+        this.docNum = docNum;
+        this.eos = eos;
     }
 
-    public TrainedModelDefinitionDoc createTrainedModelDoc(String modelId, int docNum) {
+    public TrainedModelDefinitionDoc createTrainedModelDoc(String modelId) {
         return new TrainedModelDefinitionDoc.Builder()
             .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-            .setTotalDefinitionLength(totalDefinitionLength)
             .setModelId(modelId)
             .setDefinitionLength(definition.length())
             .setDocNum(docNum)
@@ -51,11 +55,18 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
             .build();
     }
 
+    public boolean isEos() {
+        return eos != null && eos;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DEFINITION.getPreferredName(), definition);
-        builder.field(TOTAL_DEFINITION_LENGTH.getPreferredName(), totalDefinitionLength);
+        builder.field(DOC_NUM.getPreferredName(), docNum);
+        if (eos != null) {
+            builder.field(EOS.getPreferredName(), eos);
+        }
         builder.endObject();
         return builder;
     }
@@ -65,12 +76,13 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinitionChunk that = (TrainedModelDefinitionChunk) o;
-        return totalDefinitionLength == that.totalDefinitionLength &&
-            Objects.equals(definition, that.definition);
+        return docNum == that.docNum
+            && Objects.equals(definition, that.definition)
+            && Objects.equals(eos, that.eos);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(definition, totalDefinitionLength);
+        return Objects.hash(definition, docNum, eos);
     }
 }

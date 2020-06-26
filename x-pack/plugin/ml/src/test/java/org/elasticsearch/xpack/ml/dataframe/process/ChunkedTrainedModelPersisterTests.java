@@ -88,8 +88,8 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
 
         ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
-        TrainedModelDefinitionChunk chunk1 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 20L);
-        TrainedModelDefinitionChunk chunk2 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 20L);
+        TrainedModelDefinitionChunk chunk1 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 0, false);
+        TrainedModelDefinitionChunk chunk2 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 1, true);
 
         resultProcessor.createAndIndexInferenceModelMetadata(modelSizeInfo);
         resultProcessor.createAndIndexInferenceModelDoc(chunk1);

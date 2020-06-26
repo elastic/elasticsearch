@@ -73,8 +73,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         }
         if (randomBoolean()) {
             String def = randomAlphaOfLengthBetween(100, 1000);
-            long totallength = def.length() * randomLongBetween(1, 10);
-            trainedModelDefinitionChunk = new TrainedModelDefinitionChunk(def, totallength);
+            trainedModelDefinitionChunk = new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean());
         }
         return new AnalyticsResult(rowResults, phaseProgress, memoryUsage, outlierDetectionStats,
             classificationStats, regressionStats, modelSizeInfo, trainedModelDefinitionChunk);

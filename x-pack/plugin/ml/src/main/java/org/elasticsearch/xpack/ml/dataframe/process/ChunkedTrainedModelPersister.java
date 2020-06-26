@@ -38,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -51,8 +49,6 @@ public class ChunkedTrainedModelPersister {
     private static final Logger LOGGER = LogManager.getLogger(ChunkedTrainedModelPersister.class);
     private final TrainedModelProvider provider;
     private final AtomicReference<String> currentModelId;
-    private final AtomicInteger currentChunkedDoc;
-    private final AtomicLong persistedChunkLengths;
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameAnalyticsAuditor auditor;
     private final Consumer<Exception> failureHandler;
@@ -66,8 +62,6 @@ public class ChunkedTrainedModelPersister {
                                         ExtractedFields extractedFields) {
         this.provider = provider;
         this.currentModelId = new AtomicReference<>("");
-        this.currentChunkedDoc = new AtomicInteger(0);
-        this.persistedChunkLengths = new AtomicLong(0L);
         this.analytics = analytics;
         this.auditor = auditor;
         this.failureHandler = failureHandler;
@@ -81,9 +75,7 @@ public class ChunkedTrainedModelPersister {
             ));
             return;
         }
-        TrainedModelDefinitionDoc trainedModelDefinitionDoc = trainedModelDefinitionChunk.createTrainedModelDoc(
-            this.currentModelId.get(),
-            this.currentChunkedDoc.getAndIncrement());
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc = trainedModelDefinitionChunk.createTrainedModelDoc(this.currentModelId.get());
 
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Void> storeListener = ActionListener.wrap(
@@ -94,8 +86,7 @@ public class ChunkedTrainedModelPersister {
                     trainedModelDefinitionDoc.getModelId(),
                     trainedModelDefinitionDoc.getDocNum()));
 
-                long persistedChunkLengths = this.persistedChunkLengths.addAndGet(trainedModelDefinitionDoc.getDefinitionLength());
-                if (persistedChunkLengths >= trainedModelDefinitionDoc.getTotalDefinitionLength()) {
+                if (trainedModelDefinitionChunk.isEos()) {
                     readyToStoreNewModel = true;
                     LOGGER.info(
                         "[{}] finished stored trained model definition chunks with id [{}]",
@@ -176,8 +167,6 @@ public class ChunkedTrainedModelPersister {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         currentModelId.set(modelId);
-        currentChunkedDoc.set(0);
-        persistedChunkLengths.set(0);
         List<ExtractedField> fieldNames = extractedFields.getAllFields();
         String dependentVariable = getDependentVariable();
         List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()

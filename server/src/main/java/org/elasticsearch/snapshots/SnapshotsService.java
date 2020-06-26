@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -151,18 +152,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     //Set of repositories currently running either a snapshot finalization or a snapshot delete.
     private final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
 
-    /**
-     * Map of repository name to a deque of {@link SnapshotsInProgress.Entry} together with the cluster {@link Metadata} at the time the
-     * snapshot finished.
-     */
-    private final Map<String, Deque<SnapshotFinalization>> snapshotsToFinalize = new HashMap<>();
-
-    /**
-     * Set of delete operations currently being executed against the repository. The values in this set are the delete UUIDs returned by
-     * {@link SnapshotDeletionsInProgress.Entry#uuid()}.
-     */
-    private final Set<String> runningDeletions = Collections.synchronizedSet(new HashSet<>());
-
     // Set of snapshots that are currently being ended by this node
     private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
 
@@ -170,6 +159,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
 
     private final TransportService transportService;
+
+    private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                             RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters) {
@@ -522,10 +513,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotDeletionsInProgress snapshotDeletionsInProgress =
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
         if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-            synchronized (runningDeletions) {
+            synchronized (repositoryOperations.runningDeletions) {
                 final Set<String> runningDeletes = Stream.concat(
                         snapshotDeletionsInProgress.getEntries().stream().map(SnapshotDeletionsInProgress.Entry::uuid),
-                        runningDeletions.stream())
+                        repositoryOperations.runningDeletions.stream())
                         .collect(Collectors.toSet());
                 final Set<String> deleteListenerKeys = snapshotDeletionListeners.keySet();
                 assert runningDeletes.containsAll(deleteListenerKeys) : "Saw deletions listeners for unknown uuids in "
@@ -819,7 +810,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             } else {
                 if (newFinalization) {
-                    snapshotsToFinalize.computeIfAbsent(repoName, k -> new LinkedList<>()).add(new SnapshotFinalization(entry, metadata));
+                    repositoryOperations.addFinalization(entry, metadata);
                 }
             }
         }
@@ -906,23 +897,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void runNextQueuedOperation(RepositoryData repositoryData, String repository) {
         synchronized (currentlyFinalizing) {
             assert currentlyFinalizing.contains(repository);
-            final Deque<SnapshotFinalization> outstandingForRepo = snapshotsToFinalize.get(repository);
-            final SnapshotFinalization nextFinalization;
-            if (outstandingForRepo == null) {
-                nextFinalization = null;
-            } else {
-                nextFinalization = outstandingForRepo.pollFirst();
-                if (outstandingForRepo.isEmpty()) {
-                    snapshotsToFinalize.remove(repository);
-                }
-            }
+            final Tuple<SnapshotsInProgress.Entry, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
             if (nextFinalization == null) {
                 final boolean removed = currentlyFinalizing.remove(repository);
                 assert removed;
                 runReadyDeletions(repositoryData, repository);
             } else {
                 logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
-                finalizeSnapshotEntry(nextFinalization.entry, nextFinalization.metadata, repositoryData);
+                finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
             }
         }
     }
@@ -1519,7 +1501,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
                                                RepositoryData repositoryData, Version minNodeVersion) {
-        if (runningDeletions.add(deleteEntry.uuid())) {
+        if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
             boolean added = currentlyFinalizing.add(deleteEntry.repository());
             assert added : "Tried to start snapshot delete while already running operation on repository [" + deleteEntry + "]";
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
@@ -1622,8 +1604,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert false :
                         new AssertionError("Modifying snapshot state should only ever fail because we failed to publish new state", e);
             }
-            snapshotsToFinalize.clear();
-            runningDeletions.clear();
             currentlyFinalizing.clear();
         }
     }
@@ -1667,7 +1647,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public void onFailure(String source, Exception e) {
             logger.warn(() -> new ParameterizedMessage("{} failed to remove snapshot deletion metadata", deleteEntry), e);
-            runningDeletions.remove(deleteEntry.uuid());
+            repositoryOperations.finishDeletion(deleteEntry.uuid());
             failAllListenersOnMasterFailOver(e);
         }
 
@@ -1679,7 +1659,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             final List<ActionListener<Void>> deleteListeners;
             synchronized (currentlyFinalizing) {
-                runningDeletions.remove(deleteEntry.uuid());
+                repositoryOperations.finishDeletion(deleteEntry.uuid());
                 deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
                 assert currentlyFinalizing.contains(deleteEntry.repository());
                 currentlyFinalizing.remove(deleteEntry.repository());
@@ -2002,9 +1982,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     + " on [" + localNode + "]";
             assert snapshotDeletionListeners.isEmpty() : "Found leaked snapshot delete listeners " + snapshotDeletionListeners
                     + " on [" + localNode + "]";
-            assert snapshotsToFinalize.isEmpty() : "Found leaked snapshots to finalize " + snapshotsToFinalize
-                    + " on [" + localNode + "]";
-            assert runningDeletions.isEmpty() : "Found leaked running deletions " + runningDeletions
+            assert repositoryOperations.isEmpty() : "Found leaked snapshots to finalize " + repositoryOperations
                     + " on [" + localNode + "]";
         }
         return true;
@@ -2149,23 +2127,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static final class SnapshotFinalization {
-
-        private final SnapshotsInProgress.Entry entry;
-
-        private final Metadata metadata;
-
-        SnapshotFinalization(SnapshotsInProgress.Entry entry, Metadata metadata) {
-            this.entry = entry;
-            this.metadata = metadata;
-        }
-
-        @Override
-        public String toString() {
-            return "SnapshotFinalization{" + entry.snapshot() + "}";
-        }
-    }
-
     /**
      * Cluster state update task that removes all {@link SnapshotsInProgress.Entry} and {@link SnapshotDeletionsInProgress.Entry} for a
      * given repository from the cluster state and afterwards fails all relevant listeners in {@link #snapshotCompletionListeners} and
@@ -2240,16 +2201,86 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             logger.trace("Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners", repository);
             synchronized (currentlyFinalizing) {
-                snapshotsToFinalize.remove(repository);
+                repositoryOperations.clear();
                 currentlyFinalizing.remove(repository);
                 for (Snapshot snapshot : snapshotsToFail) {
                     failSnapshotCompletionListeners(snapshot, failure);
                 }
                 for (String delete : deletionsToFail) {
                     failListenersIgnoringException(snapshotDeletionListeners.remove(delete), failure);
-                    runningDeletions.remove(delete);
+                    repositoryOperations.finishDeletion(delete);
                 }
             }
+        }
+    }
+
+    private static final class OngoingRepositoryOperations {
+
+        /**
+         * Map of repository name to a deque of {@link SnapshotsInProgress.Entry} that need to be finalized for the repository and the
+         * {@link Metadata to use when finalizing}.
+         */
+        private final Map<String, Deque<SnapshotsInProgress.Entry>> snapshotsToFinalize = new HashMap<>();
+
+        /**
+         * Set of delete operations currently being executed against the repository. The values in this set are the delete UUIDs returned
+         * by {@link SnapshotDeletionsInProgress.Entry#uuid()}.
+         */
+        private final Set<String> runningDeletions = Collections.synchronizedSet(new HashSet<>());
+
+        @Nullable
+        private Metadata latestKnownMetaData;
+
+        @Nullable
+        synchronized Tuple<SnapshotsInProgress.Entry, Metadata> pollFinalization(String repository) {
+            assertConsistent();
+            final SnapshotsInProgress.Entry nextEntry;
+            final Deque<SnapshotsInProgress.Entry> queued = snapshotsToFinalize.get(repository);
+            if (queued == null) {
+                return null;
+            }
+            nextEntry = queued.pollFirst();
+            assert nextEntry != null;
+            final Tuple<SnapshotsInProgress.Entry, Metadata> res = Tuple.tuple(nextEntry, latestKnownMetaData);
+            if (queued.isEmpty()) {
+                snapshotsToFinalize.remove(repository);
+            }
+            if (snapshotsToFinalize.isEmpty()) {
+                latestKnownMetaData = null;
+            }
+            assert assertConsistent();
+            return res;
+        }
+
+        boolean startDeletion(String deleteUUID) {
+            return runningDeletions.add(deleteUUID);
+        }
+
+        void finishDeletion(String deleteUUID) {
+            runningDeletions.remove(deleteUUID);
+        }
+
+        synchronized void addFinalization(SnapshotsInProgress.Entry entry, Metadata metadata) {
+            snapshotsToFinalize.computeIfAbsent(entry.repository(), k -> new LinkedList<>()).add(entry);
+            this.latestKnownMetaData = metadata;
+            assertConsistent();
+        }
+
+        synchronized void clear() {
+            snapshotsToFinalize.clear();
+            runningDeletions.clear();
+        }
+
+        synchronized boolean isEmpty() {
+            return snapshotsToFinalize.isEmpty();
+        }
+
+        synchronized boolean assertConsistent() {
+            assert (latestKnownMetaData == null && snapshotsToFinalize.isEmpty())
+                    || (latestKnownMetaData != null && snapshotsToFinalize.isEmpty() == false) :
+                    "Should not hold on to metadata if there are no more queued snapshots";
+            assert snapshotsToFinalize.values().stream().noneMatch(Collection::isEmpty) : "Found empty queue in " + snapshotsToFinalize;
+            return true;
         }
     }
 }

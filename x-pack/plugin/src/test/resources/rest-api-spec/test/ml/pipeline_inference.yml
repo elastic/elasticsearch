@@ -226,7 +226,7 @@ setup:
 "Test setting results field is invalid":
 
   - do:
-      catch: /search_phase_execution_exception/
+      catch: /action_request_validation_exception/
       search:
         index: store
         body: |
@@ -262,5 +262,5 @@ setup:
               }
             }
           }
-  - match: { error.caused_by.type: "status_exception" }
-  - match: { error.caused_by.reason: "setting option [results_field] to [banana] is not valid for inference aggregations" }
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: setting option [results_field] to [banana] is not valid for inference aggregations;" }

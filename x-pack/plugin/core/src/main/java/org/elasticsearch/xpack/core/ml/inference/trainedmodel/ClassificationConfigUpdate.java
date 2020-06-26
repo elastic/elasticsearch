@@ -270,7 +270,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
-        public Builder setNumTopFeatureImportanceValues(int numTopFeatureImportanceValues) {
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
             this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
             return this;
         }

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -114,10 +113,31 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     protected void validate(ValidationContext context) {
         context.validateHasParent(NAME, name);
         if (modelId == null) {
-            context.addValidationError("Model Id must be set");
+            context.addValidationError("[model_id] must be set");
         }
         if (gapPolicy != BucketHelpers.GapPolicy.SKIP) {
             context.addValidationError("gap policy [" + gapPolicy + "] in not valid for [" + NAME + "] aggregation");
+        }
+
+        if (inferenceConfig != null) {
+            // error if the results field is set and not equal to the only acceptable value
+            String resultsField = inferenceConfig.getResultsField();
+            if (Strings.isNullOrEmpty(resultsField) == false && AGGREGATIONS_RESULTS_FIELD.equals(resultsField) == false) {
+                context.addValidationError("setting option [" + ClassificationConfig.RESULTS_FIELD.getPreferredName()
+                    + "] to [" + resultsField + "] is not valid for inference aggregations");
+            }
+
+            if (inferenceConfig instanceof ClassificationConfigUpdate) {
+                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)inferenceConfig;
+
+                // error if the top classes result field is set and not equal to the only acceptable value
+                String topClassesField = classUpdate.getTopClassesResultsField();
+                if (Strings.isNullOrEmpty(topClassesField) == false &&
+                    ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(topClassesField) == false) {
+                    context.addValidationError("setting option [" + ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD
+                        + "] to [" + topClassesField + "] is not valid for inference aggregations");
+                }
+            }
         }
     }
 
@@ -166,25 +186,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (originalUpdate == null) {
             updated = new ResultsFieldUpdate(AGGREGATIONS_RESULTS_FIELD);
         } else {
-            if (originalUpdate instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)originalUpdate;
-
-                // error if the top classes result field is set and not equal to the only acceptable value
-                String topClassesField = classUpdate.getTopClassesResultsField();
-                if (Strings.isNullOrEmpty(topClassesField) == false &&
-                    ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(topClassesField) == false) {
-                    throw ExceptionsHelper.badRequestException("setting option [{}] to [{}] is not valid for inference aggregations",
-                        ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD, topClassesField);
-                }
-            }
-
-            // error if the results field is set and not equal to the only acceptable value
-            String resultsField = originalUpdate.getResultsField();
-            if (Strings.isNullOrEmpty(resultsField) == false && AGGREGATIONS_RESULTS_FIELD.equals(resultsField) == false) {
-                throw ExceptionsHelper.badRequestException("setting option [{}] to [{}] is not valid for inference aggregations",
-                    ClassificationConfig.RESULTS_FIELD.getPreferredName(), resultsField);
-            }
-
             // Create an update that changes the default results field.
             // This isn't necessary for top classes as the default is the same one used here
             updated = originalUpdate.newBuilder().setResultsField(AGGREGATIONS_RESULTS_FIELD).build();

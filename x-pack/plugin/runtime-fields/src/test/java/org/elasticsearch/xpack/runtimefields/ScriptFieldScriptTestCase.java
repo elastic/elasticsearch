@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.painless.PainlessPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
@@ -57,7 +58,13 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
         throws IOException {
 
         PainlessPlugin painlessPlugin = new PainlessPlugin();
-        painlessPlugin.reloadSPI(Thread.currentThread().getContextClassLoader());
+        painlessPlugin.loadExtensions(new ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked") // We only ever load painless extensions here so it is fairly safe.
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return (List<T>) List.of(new RuntimeFieldsPainlessExtension());
+            }
+        });
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
         Map<String, Object> params = new HashMap<>();
         SourceLookup source = new SourceLookup();

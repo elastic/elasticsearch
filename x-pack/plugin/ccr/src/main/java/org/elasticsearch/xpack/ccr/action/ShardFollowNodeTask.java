@@ -194,7 +194,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         while (hasReadBudget() && partialReadRequests.isEmpty() == false) {
             final Tuple<Long, Long> range = partialReadRequests.remove();
             assert range.v1() <= range.v2() && range.v2() <= lastRequestedSeqNo :
-                "invalid partial range [" + range.v1() + "," + range.v2() + "] last requested seq_no [" + lastRequestedSeqNo + "]";
+                "invalid partial range [" + range.v1() + "," + range.v2() + "]; last requested seq_no [" + lastRequestedSeqNo + "]";
             final long fromSeqNo = range.v1();
             final long maxRequiredSeqNo = range.v2();
             final int requestOpCount = Math.toIntExact(maxRequiredSeqNo - fromSeqNo + 1);
@@ -218,8 +218,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
                 params.getFollowShardId(), numOutstandingReads, from, maxRequiredSeqNo, requestOpCount);
             numOutstandingReads++;
-            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
             lastRequestedSeqNo = maxRequiredSeqNo;
+            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
         }
 
         if (numOutstandingReads == 0 && hasReadBudget()) {

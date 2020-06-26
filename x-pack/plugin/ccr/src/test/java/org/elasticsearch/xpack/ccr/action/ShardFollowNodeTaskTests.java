@@ -1047,7 +1047,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 64L);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(64));
     }

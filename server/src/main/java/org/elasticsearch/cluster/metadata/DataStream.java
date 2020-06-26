@@ -243,24 +243,24 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
 
         /**
-         * Force fully inserts the timestamp field mapping into the provided mapping.
-         * Existing mapping definitions for the timestamp field will be completely overwritten.
-         * Takes into account if the name of the timestamp field is nested.
+         * Creates a map representing the full timestamp field mapping, taking into
+         * account if the timestamp field is nested under object mappers (its path
+         * contains dots).
          */
         public Map<String, Object> getTimestampFieldMapping() {
             String mappingPath = convertFieldPathToMappingPath(name);
             String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
             String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
 
-            Map<String, Object> changes = new HashMap<>();
-            Map<String, Object> current = changes;
+            Map<String, Object> result = new HashMap<>();
+            Map<String, Object> current = result;
             for (String key : parentObjectFieldPath.split("\\.")) {
                 Map<String, Object> map = new HashMap<>();
                 current.put(key, map);
                 current = map;
             }
             current.put(leafFieldName, fieldMapping);
-            return changes;
+            return result;
         }
 
         @Override

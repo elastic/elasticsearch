@@ -877,6 +877,10 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
+        if (template == null) {
+            return List.of();
+        }
+
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
         List<CompressedXContent> mappings = template.composedOf().stream()
             .map(componentTemplates::get)

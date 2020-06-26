@@ -377,21 +377,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
         if (reason != MergeReason.MAPPING_RECOVERY) {
-            // this check will only be performed on the master node when an index is created, or
+            // These checks will only be performed on the master node when an index is created, or
             // there is a call to the update mapping API. For all other cases like the master node
             // restoring mappings from disk or data nodes deserializing cluster state that was sent
-            // by the master node, this check will be skipped.
+            // by the master node, these checks will be skipped.
             // Also, don't take metadata mappers into account for the field limit check
             checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                 + fieldAliasMappers.size() );
             checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
-        }
-
-        if (reason != MergeReason.MAPPING_RECOVERY) {
-            // this check will only be performed on the master node when an index is created, or
-            // there is a call to the update mapping API. For all other cases like the master node
-            // restoring mappings from disk or data nodes deserializing cluster state that was sent
-            // by the master node, this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkDepthLimit(fullPathObjectMappers.keySet());
         }

@@ -1,5 +1,8 @@
 [[analysis-pattern-replace-charfilter]]
-=== Pattern Replace Char Filter
+=== Pattern replace character filter
+++++
+<titleabbrev>Pattern replace</titleabbrev>
+++++
 
 The `pattern_replace` character filter uses a regular expression to match
 characters which should be replaced with the specified replacement string.

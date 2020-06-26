@@ -111,6 +111,17 @@ public interface Function {
     int getInitialPageSize();
 
     /**
+     * Whether this function - given its configuration - supports incremental bucket update used in continuous mode.
+     *
+     * If so, the indexer uses the change collector to update the continuous transform.
+     *
+     * TODO: simplify and remove this method if possible
+     *
+     * @return true if incremental bucket update is supported
+     */
+    boolean supportsIncrementalBucketUpdate();
+
+    /**
      * Build the query for the next iteration
      *
      * @param builder a searchsource builder instance
@@ -118,11 +129,19 @@ public interface Function {
      * @param pageSize the pageSize, defining how much data to request
      * @return the searchSource, expanded with the relevant parts
      */
-    SearchSourceBuilder source(SearchSourceBuilder builder, Map<String, Object> position, int pageSize);
+    SearchSourceBuilder buildSearchQuery(SearchSourceBuilder builder, Map<String, Object> position, int pageSize);
 
-    boolean supportsIncrementalBucketUpdate();
-
-    Stream<IndexRequest> processBuckets(
+    /**
+     * Process the search response and return a stream of index requests.
+     *
+     * @param searchResponse the search response
+     * @param destinationIndex the destination index
+     * @param destinationPipeline the destination pipeline
+     * @param fieldMappings field mappings for the destination
+     * @param stats a stats object to record/collect stats
+     * @return stream of index requests
+     */
+    Stream<IndexRequest> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
@@ -130,5 +149,13 @@ public interface Function {
         TransformIndexerStats stats
     );
 
+    /**
+     * Get the cursor given the search response.
+     *
+     * TODO: we might want to merge this with processSearchResponse
+     *
+     * @param searchResponse the search response
+     * @return the cursor
+     */
     Map<String, Object> getAfterKey(SearchResponse searchResponse);
 }

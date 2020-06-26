@@ -43,7 +43,7 @@ public class Map implements Function {
     }
 
     @Override
-    public SearchSourceBuilder source(SearchSourceBuilder builder, java.util.Map<String, Object> position, int pageSize) {
+    public SearchSourceBuilder buildSearchQuery(SearchSourceBuilder builder, java.util.Map<String, Object> position, int pageSize) {
         builder.size(5000);
         if (position == null) {
             return builder;
@@ -62,7 +62,7 @@ public class Map implements Function {
     }
 
     @Override
-    public Stream<IndexRequest> processBuckets(
+    public Stream<IndexRequest> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,

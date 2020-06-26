@@ -195,7 +195,7 @@ public class Pivot implements Function {
 
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        source(sourceBuilder, null, pageSize);
+        buildSearchQuery(sourceBuilder, null, pageSize);
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -205,7 +205,7 @@ public class Pivot implements Function {
     }
 
     @Override
-    public SearchSourceBuilder source(SearchSourceBuilder builder, Map<String, Object> position, int pageSize) {
+    public SearchSourceBuilder buildSearchQuery(SearchSourceBuilder builder, Map<String, Object> position, int pageSize) {
         cachedCompositeAggregation.aggregateAfter(position);
         cachedCompositeAggregation.size(pageSize);
 
@@ -274,7 +274,7 @@ public class Pivot implements Function {
     }
 
     @Override
-    public Stream<IndexRequest> processBuckets(
+    public Stream<IndexRequest> processSearchResponse(
         final SearchResponse searchResponse,
         final String destinationIndex,
         final String destinationPipeline,

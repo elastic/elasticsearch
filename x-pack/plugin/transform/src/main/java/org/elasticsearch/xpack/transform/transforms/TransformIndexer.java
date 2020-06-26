@@ -584,7 +584,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
         long docsBeforeProcess = getStats().getNumDocuments();
 
-        Stream<IndexRequest> indexRequestStream = function.processBuckets(
+        Stream<IndexRequest> indexRequestStream = function.processSearchResponse(
             searchResponse,
             getConfig().getDestination().getIndex(),
             getConfig().getDestination().getPipeline(),
@@ -712,7 +712,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformConfig config = getConfig();
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
-        function.source(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
+        function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
         // if its either the 1st run or not continuous, do not apply extra filters
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {

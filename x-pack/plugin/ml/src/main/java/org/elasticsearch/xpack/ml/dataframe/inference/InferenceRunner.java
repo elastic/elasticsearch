@@ -73,19 +73,21 @@ public class InferenceRunner {
 
         try {
             InferenceDefinition inferenceDefinition = modelProvider.inflateModelForInference(trainedModelConfig);
-            inferTestDocs(trainedModelConfig, inferenceConfig, inferenceDefinition);
+            TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
+            inferTestDocs(trainedModelConfig, inferenceConfig, inferenceDefinition, testDocsIterator);
             LOGGER.info("[{}] Inference finished", config.getId());
         } catch (IOException e) {
 
         }
     }
 
-    private void inferTestDocs(TrainedModelConfig trainedModelConfig, InferenceConfig inferenceConfig, InferenceDefinition model) {
+    // Visible for testing
+    void inferTestDocs(TrainedModelConfig trainedModelConfig, InferenceConfig inferenceConfig, InferenceDefinition model,
+                       TestDocsIterator testDocsIterator) {
         long totalDocCount = 0;
         long processedDocCount = 0;
         BulkRequest bulkRequest = new BulkRequest();
 
-        TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
         while (testDocsIterator.hasNext()) {
             if (isCancelled) {
                 break;

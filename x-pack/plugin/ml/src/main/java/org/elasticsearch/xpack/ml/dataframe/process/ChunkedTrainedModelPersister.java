@@ -21,14 +21,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -39,7 +36,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,14 +56,14 @@ public class ChunkedTrainedModelPersister {
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameAnalyticsAuditor auditor;
     private final Consumer<Exception> failureHandler;
-    private final List<ExtractedField> fieldNames;
+    private final ExtractedFields extractedFields;
     private volatile boolean readyToStoreNewModel = true;
 
     public ChunkedTrainedModelPersister(TrainedModelProvider provider,
                                         DataFrameAnalyticsConfig analytics,
                                         DataFrameAnalyticsAuditor auditor,
                                         Consumer<Exception> failureHandler,
-                                        List<ExtractedField> fieldNames) {
+                                        ExtractedFields extractedFields) {
         this.provider = provider;
         this.currentModelId = new AtomicReference<>("");
         this.currentChunkedDoc = new AtomicInteger(0);
@@ -75,7 +71,7 @@ public class ChunkedTrainedModelPersister {
         this.analytics = analytics;
         this.auditor = auditor;
         this.failureHandler = failureHandler;
-        this.fieldNames = fieldNames;
+        this.extractedFields = extractedFields;
     }
 
     public void createAndIndexInferenceModelDoc(TrainedModelDefinitionChunk trainedModelDefinitionChunk) {
@@ -182,6 +178,7 @@ public class ChunkedTrainedModelPersister {
         currentModelId.set(modelId);
         currentChunkedDoc.set(0);
         persistedChunkLengths.set(0);
+        List<ExtractedField> fieldNames = extractedFields.getAllFields();
         String dependentVariable = getDependentVariable();
         List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
             .map(ExtractedField::getName)
@@ -205,7 +202,7 @@ public class ChunkedTrainedModelPersister {
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setDefaultFieldMap(defaultFieldMapping)
-            .setInferenceConfig(buildInferenceConfigByAnalyticsType())
+            .setInferenceConfig(analytics.getAnalysis().inferenceConfig(new AnalysisFieldInfo(extractedFields)))
             .build();
     }
 
@@ -219,35 +216,4 @@ public class ChunkedTrainedModelPersister {
         return null;
     }
 
-    InferenceConfig buildInferenceConfigByAnalyticsType() {
-        if (analytics.getAnalysis() instanceof Classification) {
-            Classification classification = ((Classification)analytics.getAnalysis());
-            PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
-            return ClassificationConfig.builder()
-                .setNumTopClasses(classification.getNumTopClasses())
-                .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                .setPredictionFieldType(predictionFieldType)
-                .build();
-        } else if (analytics.getAnalysis() instanceof Regression) {
-            Regression regression = ((Regression)analytics.getAnalysis());
-            return RegressionConfig.builder()
-                .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                .build();
-        }
-        throw ExceptionsHelper.serverError(
-            "analytics type [{}] does not support model creation",
-            null,
-            analytics.getAnalysis().getWriteableName());
-    }
-
-    PredictionFieldType getPredictionFieldType(Classification classification) {
-        String dependentVariable = classification.getDependentVariable();
-        Optional<ExtractedField> extractedField = fieldNames.stream()
-            .filter(f -> f.getName().equals(dependentVariable))
-            .findAny();
-        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
-            extractedField.isPresent() ? extractedField.get().getTypes() : null
-        );
-        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
-    }
 }

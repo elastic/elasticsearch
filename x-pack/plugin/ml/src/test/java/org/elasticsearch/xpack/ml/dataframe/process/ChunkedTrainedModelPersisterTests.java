@@ -15,18 +15,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -36,17 +32,14 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -145,79 +138,13 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
     }
 
-    public void testGetPredictionFieldType() {
-        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
-            .setId(JOB_ID)
-            .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
-            .setDest(new DataFrameAnalyticsDest("my_dest", null))
-            .setAnalysis(randomBoolean() ? new Regression("foo") : new Classification("foo"))
-            .build();
-        List<ExtractedField> extractedFieldList = Arrays.asList(
-            new DocValueField("foo", Collections.emptySet()),
-            new DocValueField("bar", Set.of("keyword")),
-            new DocValueField("baz", Set.of("long")),
-            new DocValueField("bingo", Set.of("boolean")));
-        ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("foo")), equalTo(PredictionFieldType.STRING));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("bar")), equalTo(PredictionFieldType.STRING));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("baz")), equalTo(PredictionFieldType.NUMBER));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("bingo")), equalTo(PredictionFieldType.BOOLEAN));
-    }
-
-    public void testBuildInferenceConfigByAnalyticsType() {
-        List<ExtractedField> extractedFieldList = Collections.singletonList(new DocValueField("foo", Collections.emptySet()));
-        DataFrameAnalyticsConfig.Builder analyticsConfigBuilder = new DataFrameAnalyticsConfig.Builder()
-            .setId(JOB_ID)
-            .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
-            .setDest(new DataFrameAnalyticsDest("my_dest", null));
-        {
-            DataFrameAnalyticsConfig analyticsConfig = analyticsConfigBuilder
-                .setAnalysis(new Regression("foo",
-                    new BoostedTreeParams(null, null, null, null, null, 2),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                    ))
-                .build();
-            ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
-            InferenceConfig inferenceConfig = resultProcessor.buildInferenceConfigByAnalyticsType();
-
-            assertThat(inferenceConfig, instanceOf(RegressionConfig.class));
-            assertThat(((RegressionConfig)inferenceConfig).getNumTopFeatureImportanceValues(), equalTo(2));
-        }
-        {
-            DataFrameAnalyticsConfig analyticsConfig = analyticsConfigBuilder
-                .setAnalysis(new Classification("foo",
-                    new BoostedTreeParams(null, null, null, null, null, 2),
-                    null,
-                    null,
-                    1,
-                    null,
-                    null
-                ))
-                .build();
-            ChunkedTrainedModelPersister resultProcessor = createChunkedTrainedModelPersister(extractedFieldList, analyticsConfig);
-            InferenceConfig inferenceConfig = resultProcessor.buildInferenceConfigByAnalyticsType();
-
-            assertThat(inferenceConfig, instanceOf(ClassificationConfig.class));
-            ClassificationConfig classificationConfig = (ClassificationConfig)inferenceConfig;
-            assertThat(classificationConfig.getNumTopFeatureImportanceValues(), equalTo(2));
-            assertThat(classificationConfig.getNumTopClasses(), equalTo(1));
-            assertThat(classificationConfig.getPredictionFieldType(), equalTo(PredictionFieldType.STRING));
-        }
-    }
-
     private ChunkedTrainedModelPersister createChunkedTrainedModelPersister(List<ExtractedField> fieldNames,
                                                                             DataFrameAnalyticsConfig analyticsConfig) {
         return new ChunkedTrainedModelPersister(trainedModelProvider,
             analyticsConfig,
             auditor,
             (unused)->{},
-            fieldNames);
+            new ExtractedFields(fieldNames, Collections.emptyMap()));
     }
 
 }

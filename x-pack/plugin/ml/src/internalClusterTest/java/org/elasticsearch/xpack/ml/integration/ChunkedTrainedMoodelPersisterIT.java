@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.ChunkedTrainedModelPersister
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
@@ -70,7 +71,7 @@ public class ChunkedTrainedMoodelPersisterIT extends MlSingleNodeTestCase {
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), "test-node"),
             (ex) -> { throw new ElasticsearchException(ex); },
-            extractedFieldList
+            new ExtractedFields(extractedFieldList, Collections.emptyMap())
         );
 
         //Accuracy for size is not tested here

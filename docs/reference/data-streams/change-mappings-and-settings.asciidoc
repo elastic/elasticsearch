@@ -4,7 +4,7 @@
 <titleabbrev>Change mappings and settings</titleabbrev>
 ++++
 
-Each data stream has an <<create-a-data-stream-template,associated index
+Each data stream has a <<create-a-data-stream-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.
@@ -15,13 +15,13 @@ change the mappings or settings of a data stream's backing indices, you have a
 couple options:
 
 * To apply changes to future backing indices, simply update the index
-template associated with the data stream. Mapping and setting changes will be
+template used by the data stream. Mapping and setting changes will be
 automatically applied to any backing indices created after the update.
 +
 .*Example*
 [%collapsible]
 ====
-`logs_data_stream` is an existing index template associated with the
+`logs_data_stream` is an existing index template used by the
 `logs` data stream.
 
 The following <<indices-templates,put index template API>> makes several
@@ -149,8 +149,8 @@ See <<data-streams-use-reindex-to-change-mappings-settings>>.
 
 To change the mappings or settings for every backing index in a data stream, you
 must first create or update an index template so that it contains the
-changes. You can then reindex the existing data stream into a new one associated
-with the template. This applies the mapping and setting changes in the template
+changes. You can then reindex the existing data stream into a new one matching
+the template. This applies the mapping and setting changes in the template
 to each document and backing index of the data stream destination. These changes
 also affect any future backing index created by the new stream.
 
@@ -204,7 +204,7 @@ new template by copying an existing one and modifying it as needed.
 .*Example*
 [%collapsible]
 ====
-`logs_data_stream` is an existing index template associated with the
+`logs_data_stream` is an existing index template used by the
 `logs` data stream.
 
 The following <<indices-templates,put index template API>> request creates

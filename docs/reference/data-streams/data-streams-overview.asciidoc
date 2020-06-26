@@ -10,7 +10,7 @@ documents.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
-The creation of a data stream requires an associated
+The creation of a data stream requires a matching
 <<indices-templates,index template>>. This template acts as a blueprint for
 the stream's backing indices. It contains:
 

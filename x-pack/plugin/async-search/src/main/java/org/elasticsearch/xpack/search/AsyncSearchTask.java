@@ -330,8 +330,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         listener.onResponse(asyncSearchResponse);
     }
 
-    AsyncSearchResponse buildErrorResponse(Exception exception) {
-        return searchResponse.get().buildErrorResponse(this, expirationTimeMillis, exception);
+    AsyncSearchResponse buildErrorResponse(SearchResponse searchResponse, Exception exception) {
+        return this.searchResponse.get().buildErrorResponse(this, expirationTimeMillis, searchResponse, exception);
     }
 
     // checks if the search task should be cancelled

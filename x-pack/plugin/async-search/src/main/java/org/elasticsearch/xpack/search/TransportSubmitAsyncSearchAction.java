@@ -99,8 +99,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                                 searchTask.addCompletionListener(ActionListener.wrap(
                                                     finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}),
                                                     failure -> {
-                                                        //there was an error, store it: in this case we have no results, only the error
-                                                        AsyncSearchResponse finalResponse = searchTask.buildErrorResponse(failure);
+                                                        //there was an error but we can't notify it back to the user as submit returned
+                                                        //we have no results at this point, only the failure
+                                                        AsyncSearchResponse finalResponse = searchTask.buildErrorResponse(
+                                                            initialResp.getSearchResponse(), failure);
                                                         onFinalResponse(searchTask, finalResponse, () -> {});
                                                     }));
                                             } finally {

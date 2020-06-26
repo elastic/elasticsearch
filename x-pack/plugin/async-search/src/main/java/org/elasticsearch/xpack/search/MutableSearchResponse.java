@@ -197,6 +197,7 @@ class MutableSearchResponse {
 
     synchronized AsyncSearchResponse buildErrorResponse(AsyncSearchTask task,
                                                         long expirationTime,
+                                                        SearchResponse searchResponse,
                                                         Exception exception) {
         Exception error;
         if (this.failure == null) {
@@ -206,7 +207,7 @@ class MutableSearchResponse {
             error.addSuppressed(this.failure);
 
         }
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), null,
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
             error, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 

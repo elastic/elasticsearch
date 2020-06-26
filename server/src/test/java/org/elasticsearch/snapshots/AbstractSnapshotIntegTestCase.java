@@ -86,6 +86,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
     private String skipRepoConsistencyCheckReason;
 
     @After
@@ -218,6 +227,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         fail("No nodes for the index " + indexName + " found");
         return null;
+    }
+
+    public static void blockDataNode(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).blockOnDataFiles(true);
     }
 
     public static void blockAllDataNodes(String repository) {

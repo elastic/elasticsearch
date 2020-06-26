@@ -76,7 +76,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             this.keyed = keyed;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -174,7 +174,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         EmptyBucketInfo(StreamInput in) throws IOException {
             rounding = Rounding.read(in);
-            subAggregations = new InternalAggregations(in);
+            subAggregations = InternalAggregations.readFrom(in);
             bounds = in.readOptionalWriteable(ExtendedBounds::new);
         }
 

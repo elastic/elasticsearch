@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -237,8 +238,8 @@ public class DataFrameDataExtractor {
         return context.extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList());
     }
 
-    public List<ExtractedField> getAllExtractedFields() {
-        return context.extractedFields.getAllFields();
+    public ExtractedFields getExtractedFields() {
+        return context.extractedFields;
     }
 
     public DataSummary collectDataSummary() {

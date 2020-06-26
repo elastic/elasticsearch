@@ -56,7 +56,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -64,7 +63,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -792,12 +790,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    /**
-     * {@link NumericTermsAggregator} is the first complex bucking aggregation
-     * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
-     * so this tests that nested works properly inside of it.
-     */
-    public void testNestedUnderLongTerms() throws IOException {
+    public void testNestedUnderTerms() throws IOException {
         int numProducts = scaledRandomIntBetween(1, 100);
         int numResellers = scaledRandomIntBetween(1, 100);
 

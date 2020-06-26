@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -93,6 +94,35 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+    }
+
+    public void testSimpleDataStreamPivot() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
+        String indexName = "reviews_data_stream";
+        createReviewsIndex(indexName,  1000, "date", true);
+        String transformId = "simple_data_stream_pivot";
+        String transformIndex = "pivot_reviews_data_stream";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        createPivotReviewsTransform(transformId,
+            transformIndex,
+            null,
+            null,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            indexName);
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+        client().performRequest(new Request("DELETE", "/_data_stream/" + indexName));
     }
 
     public void testSimplePivotWithQuery() throws Exception {

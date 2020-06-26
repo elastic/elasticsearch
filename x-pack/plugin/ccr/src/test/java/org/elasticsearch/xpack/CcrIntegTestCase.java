@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -475,6 +476,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setMaxReadRequestSize(new ByteSizeValue(between(1, 32 * 1024 * 1024)));
+        request.getParameters().setMaxReadRequestOperationCount(between(1, 10000));
         request.waitForActiveShards(waitForActiveShards);
         return request;
     }

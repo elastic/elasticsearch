@@ -45,7 +45,7 @@ public class DeprecationLogger {
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    DeprecationLogger(Logger parentLogger) {
+    private DeprecationLogger(Logger parentLogger) {
         deprecationLogger = new ThrottlingAndHeaderWarningLogger(parentLogger);
     }
 
@@ -56,6 +56,7 @@ public class DeprecationLogger {
     public static DeprecationLogger getLogger(String name) {
         return new DeprecationLogger(deprecatedLoggerName(name));
     }
+
     private static Logger deprecatedLoggerName(String name) {
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");

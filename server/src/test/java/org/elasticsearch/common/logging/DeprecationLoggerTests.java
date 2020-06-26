@@ -50,8 +50,6 @@ public class DeprecationLoggerTests extends ESTestCase {
         AtomicBoolean supplierCalled = new AtomicBoolean(false);
 
         // mocking the logger used inside DeprecationLogger requires heavy hacking...
-        Logger parentLogger = mock(Logger.class);
-        when(parentLogger.getName()).thenReturn("logger");
         ExtendedLogger mockLogger = mock(ExtendedLogger.class);
         doAnswer(invocationOnMock -> {
             supplierCalled.set(true);
@@ -74,7 +72,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                     return context;
                 }
             });
-            DeprecationLogger deprecationLogger = new DeprecationLogger(parentLogger);
+            DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("logger");
 
             AccessControlContext noPermissionsAcc = new AccessControlContext(
                 new ProtectionDomain[]{new ProtectionDomain(null, new Permissions())}
@@ -91,21 +89,19 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
     }
 
-
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         org.apache.logging.log4j.core.LoggerContext context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
 
-        DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DeprecationLoggerTests.class));
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
         int numberOfLoggersBefore = context.getLoggers().size();
 
         class LoggerTest{
         }
-        DeprecationLogger deprecationLogger2 = new DeprecationLogger(LogManager.getLogger(LoggerTest.class));
+        DeprecationLogger deprecationLogger2 = DeprecationLogger.getLogger(LoggerTest.class);
 
         context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
         int numberOfLoggersAfter = context.getLoggers().size();
 
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore+1));
     }
-
 }

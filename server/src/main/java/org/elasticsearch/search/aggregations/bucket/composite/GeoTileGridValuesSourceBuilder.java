@@ -136,7 +136,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (orig instanceof ValuesSource.GeoPoint) {
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
             // is specified in the builder.
-            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            final MappedFieldType fieldType = config.fieldType();
             CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, geoBoundingBox, GeoTileUtils::longEncode);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
                 missingBucket(), script() != null);

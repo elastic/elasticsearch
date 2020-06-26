@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +31,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -144,7 +144,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
+            DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -367,6 +367,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             String[] src = indexNameExpressionResolver.concreteIndexNames(
                 clusterState,
                 IndicesOptions.lenientExpandOpen(),
+                true,
                 config.getSource().getIndex()
             );
             // If we are running, we should verify that the destination index exists and create it if it does not

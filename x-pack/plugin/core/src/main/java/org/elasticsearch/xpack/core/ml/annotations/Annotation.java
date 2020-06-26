@@ -43,7 +43,8 @@ public class Annotation implements ToXContentObject, Writeable {
         USER,
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED,
-        MODEL_CHANGE;
+        MODEL_CHANGE,
+        CATEGORIZATION_STATUS_CHANGE;
 
         public static Event fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));

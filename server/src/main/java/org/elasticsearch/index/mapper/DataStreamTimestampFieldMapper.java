@@ -33,7 +33,7 @@ import java.util.Map;
 
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
-    public static final String NAME = "_data_stream_timestamp";
+    public static final String NAME = "_timestamp";
 
     public static class Defaults  {
 

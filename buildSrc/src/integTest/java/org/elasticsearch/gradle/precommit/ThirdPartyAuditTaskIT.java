@@ -23,6 +23,15 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Before;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     @Before
@@ -97,6 +106,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testJarHellWithJDK() {
+        setupJarJdkClasspath();
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
             ":clean",
             ":absurd",
@@ -116,6 +126,26 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         );
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
         assertNoDeprecationWarning(result);
+    }
+
+    private void setupJarJdkClasspath() {
+        try {
+            URL originLocation = getClass().getClassLoader()
+                .loadClass("org.elasticsearch.bootstrap.JdkJarHellCheck")
+                .getProtectionDomain()
+                .getCodeSource()
+                .getLocation();
+            File targetFile = new File(
+                getProjectDir("thirdPartyAudit"),
+                "sample_jars/build/testrepo/org/elasticsearch/elasticsearch-core/current/elasticsearch-core-current.jar"
+            );
+            targetFile.getParentFile().mkdirs();
+            Path originalPath = Paths.get(originLocation.toURI());
+            Files.copy(originalPath, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (ClassNotFoundException | URISyntaxException | IOException e) {
+            e.printStackTrace();
+            fail("Cannot setup jdk jar hell classpath");
+        }
     }
 
     public void testElasticsearchIgnoredWithViolations() {

@@ -5,7 +5,7 @@ import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
 plugins {
   id 'java'
   // bring in build-tools onto the classpath
-  id 'elasticsearch.global-build-info' apply false
+  id 'elasticsearch.global-build-info'
 }
 
 plugins.apply(ThirdPartyAuditPrecommitPlugin)
@@ -29,6 +29,7 @@ repositories {
 
 dependencies {
   forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
+  jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
   compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
   implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }

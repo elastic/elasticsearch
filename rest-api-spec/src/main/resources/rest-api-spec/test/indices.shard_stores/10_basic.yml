@@ -115,6 +115,10 @@
   - match: { dry_run: false }
 
   - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
       indices.shard_stores:
         index: simple-data-stream1
 

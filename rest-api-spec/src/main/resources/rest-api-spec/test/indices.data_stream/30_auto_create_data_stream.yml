@@ -27,7 +27,9 @@
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          'timestamp': '2020-12-12'
+          foo: bar
 
   - do:
       search:

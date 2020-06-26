@@ -78,7 +78,7 @@ GET /_nodes/stats/indices/search
 ===== Close search context API
 
 Search contexts are automatically closed when the `keep_alive` has
-been elapsed. However keeping search contexts as a cost, as discussed in the
+been elapsed. However keeping search contexts has a cost, as discussed in the
 <<search-context-keep-alive,previous section>> so search context should be
 explicitly closed as soon as they are no longer used in search requests.
 

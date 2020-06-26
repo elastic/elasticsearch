@@ -344,6 +344,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         } else {
             newMapper = mapper;
         }
+        newMapper.root().fixRedundantIncludes();
 
         // check basic sanity of the new mapping
         List<ObjectMapper> objectMappers = new ArrayList<>();

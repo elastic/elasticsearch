@@ -123,6 +123,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public boolean isIncludeInRoot() {
             return includeInRoot.value();
         }
+
+        public void setIncludeInParent(boolean value) {
+            includeInParent = new Explicit<>(value, true);
+        }
+
+        public void setIncludeInRoot(boolean value) {
+            includeInRoot = new Explicit<>(value, true);
+        }
     }
 
     @SuppressWarnings("rawtypes")
@@ -270,7 +278,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (nested) {
                 builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
             }
-
         }
 
         @SuppressWarnings("rawtypes")

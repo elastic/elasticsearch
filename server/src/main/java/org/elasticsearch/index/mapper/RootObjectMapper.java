@@ -85,35 +85,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(BuilderContext context) {
-            fixRedundantIncludes(this, true);
             return (RootObjectMapper) super.build(context);
-        }
-
-        /**
-         * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
-         * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
-         * itself included into a parent node, for which either {@code isIncludeInRoot} is
-         * {@code true} or which is transitively included in root by a chain of nodes with
-         * {@code isIncludeInParent} returning {@code true}.
-         * @param omb Builder whose children to check.
-         * @param parentIncluded True iff node is a child of root or a node that is included in
-         * root
-         */
-        @SuppressWarnings("rawtypes")
-        private static void fixRedundantIncludes(ObjectMapper.Builder omb, boolean parentIncluded) {
-            for (Object mapper : omb.mappersBuilders) {
-                if (mapper instanceof ObjectMapper.Builder) {
-                    ObjectMapper.Builder child = (ObjectMapper.Builder) mapper;
-                    Nested nested = child.nested;
-                    boolean isNested = nested.isNested();
-                    boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
-                    boolean includedInRoot = isNested && nested.isIncludeInRoot();
-                    if (includeInRootViaParent && includedInRoot) {
-                        child.nested = Nested.newNested(new Explicit<>(true, true), new Explicit<>(false, true));
-                    }
-                    fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
-                }
-            }
         }
 
         @Override
@@ -124,6 +96,34 @@ public class RootObjectMapper extends ObjectMapper {
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
                     dateDetection, numericDetection, settings);
+        }
+    }
+
+    /**
+     * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
+     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
+     * itself included into a parent node, for which either {@code isIncludeInRoot} is
+     * {@code true} or which is transitively included in root by a chain of nodes with
+     * {@code isIncludeInParent} returning {@code true}.
+     */
+    public void fixRedundantIncludes() {
+       fixRedundantIncludes(this, true);
+    }
+
+    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
+        for (Mapper mapper : objectMapper) {
+            if (mapper instanceof ObjectMapper) {
+                ObjectMapper child = (ObjectMapper) mapper;
+                Nested nested = child.nested();
+                boolean isNested = nested.isNested();
+                boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
+                boolean includedInRoot = isNested && nested.isIncludeInRoot();
+                if (includeInRootViaParent && includedInRoot) {
+                    nested.setIncludeInParent(true);
+                    nested.setIncludeInRoot(false);
+                }
+                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+            }
         }
     }
 

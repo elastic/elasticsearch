@@ -430,14 +430,21 @@ public class SparseFileTrackerTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean();
         listenerCalledConsumer.accept(listenerCalled);
 
-        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(start, end, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void aVoid) {
-                for (long i = start; i < end; i++) {
-                    assertThat(fileContents[Math.toIntExact(i)], equalTo(AVAILABLE));
+        final boolean useSubRange = randomBoolean();
+        final long subRangeStart = useSubRange ? randomLongBetween(rangeStart, rangeEnd) : rangeStart;
+        final long subRangeEnd = useSubRange ? randomLongBetween(subRangeStart, rangeEnd) : rangeEnd;
+
+        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
+            Tuple.tuple(rangeStart, rangeEnd),
+            Tuple.tuple(subRangeStart, subRangeEnd),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    for (long i = subRangeStart; i < subRangeEnd; i++) {
+                        assertThat(fileContents[Math.toIntExact(i)], equalTo(AVAILABLE));
+                    }
+                    assertTrue(listenerCalled.compareAndSet(false, true));
                 }
-                assertTrue(listenerCalled.compareAndSet(false, true));
-            }
 
                 @Override
                 public void onFailure(Exception e) {

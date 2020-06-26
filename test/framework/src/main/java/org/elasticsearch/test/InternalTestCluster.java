@@ -1787,6 +1787,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Restarts a node.
+     */
+    public void restartNode(String nodeName) throws Exception {
+        restartNode(nodeName, EMPTY_CALLBACK);
+    }
+
+    /**
      * Restarts a node and calls the callback during restart.
      */
     public synchronized void restartNode(String nodeName, RestartCallback callback) throws Exception {

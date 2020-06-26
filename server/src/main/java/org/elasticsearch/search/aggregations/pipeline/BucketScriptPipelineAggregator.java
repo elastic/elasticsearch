@@ -89,7 +89,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
                     InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
                     aggs.add(simpleValue);
-                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
+                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs),
                         bucket);
                     newBuckets.add(newBucket);
                 }

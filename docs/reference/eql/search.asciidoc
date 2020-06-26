@@ -7,12 +7,13 @@ dev::[]
 
 To start using EQL in {es}, first ensure your event data meets
 <<eql-requirements,EQL requirements>>. You can then use the <<eql-search-api,EQL
-search API>> to search event data stored in one or more {es} indices.
+search API>> to search event data stored in one or more {es} data streams or
+indices.
 
 .*Example*
 [%collapsible]
 ====
-To get started, ingest or add the data to an {es} index.
+To get started, ingest or add the data to an {es} data stream or index.
 
 The following <<docs-bulk,bulk API>> request adds some example log data to the
 `sec_logs` index. This log data follows the {ecs-ref}[Elastic Common Schema

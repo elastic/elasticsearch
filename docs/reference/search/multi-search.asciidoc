@@ -58,8 +58,8 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 Comma-separated list or wildcard (`*`) expression of data streams, indices,
 and index aliases used to limit the request.
 +
-To search all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+To search all data streams and indices in a cluster, use `_all` or omit this
+parameter.
 
 [[search-multi-search-api-query-params]]
 ==== {api-query-parms-title}

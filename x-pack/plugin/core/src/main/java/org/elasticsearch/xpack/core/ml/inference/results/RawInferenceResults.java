@@ -58,6 +58,11 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Object predictedValue() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

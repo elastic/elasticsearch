@@ -12,4 +12,6 @@ import org.elasticsearch.ingest.IngestDocument;
 public interface InferenceResults extends NamedWriteable, ToXContentFragment {
 
     void writeResult(IngestDocument document, String parentResultField);
+
+    Object predictedValue();
 }

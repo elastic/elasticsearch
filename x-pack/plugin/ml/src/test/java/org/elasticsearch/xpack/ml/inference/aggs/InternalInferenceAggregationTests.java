@@ -111,7 +111,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
             assertEquals(featureImportance, parsed.getFeatureImportance());
         } else if (result instanceof ClassificationInferenceResults) {
             ClassificationInferenceResults classification = (ClassificationInferenceResults) result;
-            assertEquals(classification.transformedPredictedValue(), parsed.getValue());
+            assertEquals(classification.predictedValue(), parsed.getValue());
 
             List<FeatureImportance> featureImportance = classification.getFeatureImportance();
             if (featureImportance.isEmpty()) {
@@ -154,7 +154,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         {
             ClassificationInferenceResults results = ClassificationInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertEquals(results.transformedPredictedValue(), internalAgg.getProperty(Collections.singletonList("value")));
+            assertEquals(results.predictedValue(), internalAgg.getProperty(Collections.singletonList("value")));
         }
 
         {

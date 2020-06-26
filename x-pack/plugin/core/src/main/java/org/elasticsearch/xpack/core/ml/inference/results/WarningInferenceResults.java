@@ -60,6 +60,11 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Object predictedValue() {
+        return null;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(NAME, warning);
         return builder;

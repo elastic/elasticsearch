@@ -77,6 +77,11 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
+    public Object predictedValue() {
+        return super.value();
+    }
+
+    @Override
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");

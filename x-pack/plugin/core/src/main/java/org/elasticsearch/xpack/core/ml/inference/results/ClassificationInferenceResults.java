@@ -25,8 +25,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public static final String NAME = "classification";
 
-    private static final String LABEL = "label";
-
     private final String topNumClassesField;
     private final String resultsField;
     private final String classificationLabel;
@@ -130,7 +128,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return classificationLabel == null ? super.valueAsString() : classificationLabel;
     }
 
-    public Object transformedPredictedValue() {
+    @Override
+    public Object predictedValue() {
         return predictionFieldType.transformPredictedValue(value(), valueAsString());
     }
 

@@ -11,10 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,40 +47,24 @@ public class InternalInferenceAggregation extends InternalAggregation {
         throw new UnsupportedOperationException("Reducing an inference aggregation is not supported");
     }
 
+
     @Override
     public Object getProperty(List<String> path) {
+        Object propertyValue;
+
         if (path.isEmpty()) {
-            return this;
+            propertyValue = this;
         } else if (path.size() == 1) {
-            String field = path.get(0);
-            if (CommonFields.VALUE.getPreferredName().equals(field)) {
-                if (inferenceResult instanceof ClassificationInferenceResults) {
-                    return ((ClassificationInferenceResults)inferenceResult).transformedPredictedValue();
-                } else if (inferenceResult instanceof SingleValueInferenceResults) {
-                    return ((SingleValueInferenceResults)inferenceResult).value();
-                } else {
-                    return null;
-                }
-            } else if (SingleValueInferenceResults.FEATURE_IMPORTANCE.equals(field)) {
-                if (inferenceResult instanceof SingleValueInferenceResults) {
-                    SingleValueInferenceResults valueResult = (SingleValueInferenceResults) inferenceResult;
-                    return valueResult.getFeatureImportance();
-                } else {
-                    return null;
-                }
-            } else if (ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(field)) {
-                if (inferenceResult instanceof ClassificationInferenceResults) {
-                    ClassificationInferenceResults classResult = (ClassificationInferenceResults) inferenceResult;
-                    return classResult.getTopClasses();
-                } else {
-                    return null;
-                }
+            if (CommonFields.VALUE.getPreferredName().equals(path.get(0))) {
+                propertyValue = inferenceResult.predictedValue();
             } else {
                 throw invalidPathException(path);
             }
         } else {
             throw invalidPathException(path);
         }
+
+        return propertyValue;
     }
 
     private InvalidAggregationPathException invalidPathException(List<String> path) {

@@ -96,7 +96,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
             InferenceResults inference;
             try {
-                 inference = model.infer(inputFields, configUpdate);
+                inference = model.infer(inputFields, configUpdate);
             } catch (Exception e) {
                 inference = new WarningInferenceResults(e.getMessage());
             }

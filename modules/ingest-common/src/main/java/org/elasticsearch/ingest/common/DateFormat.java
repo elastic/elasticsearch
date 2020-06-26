@@ -46,8 +46,13 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return (date) -> DateFormatters.from(DateFormatter.forPattern("iso8601").parse(date), locale, timezone)
-                                            .withZoneSameInstant(timezone);
+            //
+            return (date) -> {
+                TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
+                //even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
+                return DateFormatters.from(accessor, Locale.ROOT, timezone)
+                                                .withZoneSameInstant(timezone);
+            };
 
         }
     },

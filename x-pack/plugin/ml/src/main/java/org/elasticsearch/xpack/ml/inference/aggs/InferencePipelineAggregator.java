@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 
 public class InferencePipelineAggregator extends PipelineAggregator {
@@ -73,7 +72,9 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
                 if (propertyValue instanceof Number) {
                     double doubleVal = ((Number) propertyValue).doubleValue();
-                    // NaN or infinite values indicate a missing value
+                    // NaN or infinite values indicate a missing value or a
+                    // valid result of an invalid calculation. Either way only
+                    // a valid number will do
                     if (Double.isFinite(doubleVal)) {
                         inputFields.put(aggName, doubleVal);
                     }
@@ -101,7 +102,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 inference = new WarningInferenceResults(e.getMessage());
             }
 
-            final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
+            final List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().map(
                 (p) -> (InternalAggregation) p).collect(Collectors.toList());
 
             InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);

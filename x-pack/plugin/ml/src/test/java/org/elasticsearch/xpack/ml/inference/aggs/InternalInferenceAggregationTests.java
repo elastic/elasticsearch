@@ -174,19 +174,22 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         {
             ClassificationInferenceResults results = ClassificationInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertEquals(results.getFeatureImportance(), internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
         }
 
         {
             RegressionInferenceResults results = RegressionInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertEquals(results.getFeatureImportance(), internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
         }
 
         {
             WarningInferenceResults results = new WarningInferenceResults("a warning from history");
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertNull(internalAgg.getProperty(Collections.singletonList("feature_importance")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("feature_importance")));
         }
     }
 
@@ -194,19 +197,22 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         {
             ClassificationInferenceResults results = ClassificationInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertEquals(results.getTopClasses(), internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
 
         {
             RegressionInferenceResults results = RegressionInferenceResultsTests.createRandomResults();
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertNull(internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
 
         {
             WarningInferenceResults results = new WarningInferenceResults("a warning from history");
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
-            assertNull(internalAgg.getProperty(Collections.singletonList("top_classes")));
+            expectThrows(InvalidAggregationPathException.class,
+                () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
     }
 }

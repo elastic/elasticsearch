@@ -254,7 +254,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate {
         private Integer numTopFeatureImportanceValues;
         private PredictionFieldType predictionFieldType;
 
-        public Builder setNumTopClasses(int numTopClasses) {
+        public Builder setNumTopClasses(Integer numTopClasses) {
             this.numTopClasses = numTopClasses;
             return this;
         }

@@ -1,0 +1,18 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'versionfield'
+  description 'A plugin for a field type to store sofware versions'
+  classname 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-versionfield'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTest.enabled = false

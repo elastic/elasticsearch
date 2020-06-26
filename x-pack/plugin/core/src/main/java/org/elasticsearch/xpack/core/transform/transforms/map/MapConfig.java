@@ -55,5 +55,4 @@ public class MapConfig implements Writeable, ToXContentObject {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-
 }

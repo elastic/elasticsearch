@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
+import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 
 import java.util.Collection;
 import java.util.HashSet;

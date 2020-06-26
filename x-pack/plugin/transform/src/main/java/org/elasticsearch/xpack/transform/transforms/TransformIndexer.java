@@ -20,7 +20,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
@@ -713,11 +713,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         function.source(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
-        AggregationBuilder aggregation = function.aggregation(position != null ? position.getIndexerPosition() : null, pageSize);
-
-        if (aggregation != null) {
-            sourceBuilder.aggregation(aggregation);
-        }
 
         // if its either the 1st run or not continuous, do not apply extra filters
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {

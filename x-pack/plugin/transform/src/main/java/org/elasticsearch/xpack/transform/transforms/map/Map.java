@@ -15,12 +15,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.map.MapConfig;
-import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.Function;
 
 import java.util.Arrays;
@@ -51,11 +49,6 @@ public class Map implements Function {
             return builder;
         }
         return builder.searchAfter((Object[]) position.get("search_after"));
-    }
-
-    @Override
-    public AggregationBuilder aggregation(java.util.Map<String, Object> position, int pageSize) {
-        return null;
     }
 
     @Override

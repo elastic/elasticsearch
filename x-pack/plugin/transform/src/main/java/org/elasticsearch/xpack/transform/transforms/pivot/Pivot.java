@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
-import org.elasticsearch.xpack.transform.transforms.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
@@ -196,8 +195,7 @@ public class Pivot implements Function {
 
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(aggregation(position, pageSize));
-        sourceBuilder.size(0);
+        source(sourceBuilder, null, pageSize);
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -208,15 +206,10 @@ public class Pivot implements Function {
 
     @Override
     public SearchSourceBuilder source(SearchSourceBuilder builder, Map<String, Object> position, int pageSize) {
-        return builder.size(0);
-    }
-
-    @Override
-    public AggregationBuilder aggregation(Map<String, Object> position, int pageSize) {
         cachedCompositeAggregation.aggregateAfter(position);
         cachedCompositeAggregation.size(pageSize);
 
-        return cachedCompositeAggregation;
+        return builder.size(0).aggregation(cachedCompositeAggregation);
     }
 
     @Override

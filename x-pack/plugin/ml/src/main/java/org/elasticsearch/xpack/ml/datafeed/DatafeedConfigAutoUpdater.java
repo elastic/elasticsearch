@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
@@ -47,7 +47,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
     public boolean isAbleToRun(ClusterState latestState) {
         String[] indices = expressionResolver.concreteIndexNames(latestState,
             IndicesOptions.lenientExpandOpenHidden(),
-            AnomalyDetectorsIndex.configIndexName());
+            MlConfigIndex.indexName());
         for (String index : indices) {
             if (latestState.metadata().hasIndex(index) == false) {
                 continue;

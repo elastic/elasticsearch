@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -363,13 +364,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
-    public static final Setting<Boolean> ML_ENABLED =
-            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
+    private static final Setting<Boolean> ML_ENABLED =
+            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.Deprecated, Property.NodeScope);
 
     public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return ML_ENABLED;
         }
 
@@ -514,7 +515,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         Settings.Builder additionalSettings = Settings.builder();
-        Boolean allocationEnabled = ML_ENABLED.get(settings);
+        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, MachineLearning.ML_ROLE);
         if (allocationEnabled != null && allocationEnabled) {
             // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
             // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
@@ -975,7 +976,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         List<String> templateNames =
             Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
-                MlMetaIndex.INDEX_NAME,
+                MlMetaIndex.indexName(),
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME);
@@ -1049,8 +1050,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(MlMetaIndex.INDEX_NAME, "Contains scheduling and anomaly tracking metadata"),
-            new SystemIndexDescriptor(AnomalyDetectorsIndexFields.CONFIG_INDEX, "Contains ML configuration data"),
+            new SystemIndexDescriptor(MlMetaIndex.indexName(), "Contains scheduling and anomaly tracking metadata"),
+            new SystemIndexDescriptor(MlConfigIndex.indexName(), "Contains ML configuration data"),
             new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
         );
     }

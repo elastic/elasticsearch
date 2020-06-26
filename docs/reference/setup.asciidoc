@@ -41,8 +41,6 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::modules/cloud-settings.asciidoc[]
-
 include::setup/jvm-options.asciidoc[]
 
 include::setup/secure-settings.asciidoc[]

@@ -194,6 +194,15 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(found.state(), is(SnapshotState.SUCCESS));
     }
 
+    /**
+     * Tests the following sequence of steps:
+     * 1. Start snapshot of two shards (both located on separate data nodes).
+     * 2. Have one of the shards snapshot completely and the other block
+     * 3. Restart the data node that completed its shard snapshot
+     * 4. Make sure that snapshot status APIs show correct file-counts and -sizes
+     *
+     * @throws Exception on failure
+     */
     public void testCorrectCountsForDoneShards() throws Exception {
         final String indexOne = "index-1";
         final String indexTwo = "index-2";

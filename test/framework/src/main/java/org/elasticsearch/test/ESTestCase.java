@@ -811,7 +811,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(nonSystemVJavaZoneId(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS));
     }
 
     /**
@@ -823,11 +823,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (JavaVersion.current().getVersion().get(0) == 8) {
             ZoneId timeZone;
             do {
-                timeZone = ZoneId.of(nonSystemVJavaZoneId(JAVA_ZONE_IDS));
+                timeZone = ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
             } while (timeZone.equals(ZoneId.of("GMT0")));
             return timeZone;
         } else {
-            return ZoneId.of(nonSystemVJavaZoneId(JAVA_ZONE_IDS));
+            return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
         }
     }
 
@@ -837,7 +837,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * still need to do internally e.g. in bwc serialization and in the extract() method
      * //TODO remove once joda is not supported
      */
-    private static String nonSystemVJavaZoneId(List<String> zoneIds) {
+    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
         return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
             () -> randomFrom(zoneIds));
     }

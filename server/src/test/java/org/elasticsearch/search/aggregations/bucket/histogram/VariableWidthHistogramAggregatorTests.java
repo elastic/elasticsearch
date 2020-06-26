@@ -31,13 +31,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
@@ -51,12 +54,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMERIC_FIELD = "numeric";
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
-    private VariableWidthHistogramAggregationBuilder aggregationBuilder;
 
     public void testNoDocs() throws Exception{
         final List<Number> dataset = Arrays.asList();
@@ -422,6 +428,44 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(1005, buckets.get(1).max(), deltaError);
             });
 
+    }
+
+    public void testAsSubAggregation() throws IOException {
+        AggregationBuilder builder = new TermsAggregationBuilder("t").field("t")
+            .subAggregation(new VariableWidthHistogramAggregationBuilder("v").field("v").setNumBuckets(2));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11)));
+
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30)));
+        };
+        Consumer<LongTerms> verify = terms -> {
+            /*
+             * This is what the result should be but it never gets called because of
+             * the explicit check. We do expect to remove the check in the future,
+             * thus, this stays.
+             */
+            LongTerms.Bucket t1 = terms.getBucketByKey("1");
+            InternalVariableWidthHistogram v1 = t1.getAggregations().get("v");
+            assertThat(
+                v1.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
+                equalTo(List.of(1.0, 10.5))
+            );
+
+            LongTerms.Bucket t2 = terms.getBucketByKey("1");
+            InternalVariableWidthHistogram v2 = t2.getAggregations().get("v");
+            assertThat(
+                v2.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
+                equalTo(List.of(20.0, 30))
+            );
+        };
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(builder, DEFAULT_QUERY, buildIndex, verify, longField("t"), longField("v"))
+        );
+        assertThat(e.getMessage(), containsString("cannot be nested"));
     }
 
 

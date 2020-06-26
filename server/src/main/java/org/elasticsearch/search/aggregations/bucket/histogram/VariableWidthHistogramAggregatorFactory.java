@@ -65,6 +65,13 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException{
+        if (collectsFromSingleBucket == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + VariableWidthHistogramAggregationBuilder.NAME
+                    + "] cannot be nested inside an aggregation that collects more than a single bucket."
+            );
+        }
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             VariableWidthHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {

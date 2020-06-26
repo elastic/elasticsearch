@@ -1,6 +1,8 @@
 [[analysis-lowercase-tokenizer]]
-=== Lowercase Tokenizer
-
+=== Lowercase tokenizer
+++++
+<titleabbrev>Lowercase</titleabbrev>
+++++
 
 The `lowercase` tokenizer, like the
 <<analysis-letter-tokenizer, `letter` tokenizer>> breaks text into terms

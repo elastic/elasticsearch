@@ -931,6 +931,7 @@ setup:
   - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
   - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
   - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
 
 ---
 "Test delete given stopped config":

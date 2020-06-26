@@ -106,7 +106,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
                 aggs.add(new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             }
             newBuckets.add(newBucket);
             index++;
@@ -152,7 +152,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
                 aggs.add(new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             }
             newBuckets.add(newBucket);
             index++;

@@ -1,5 +1,8 @@
 [[analysis-standard-tokenizer]]
-=== Standard Tokenizer
+=== Standard tokenizer
+++++
+<titleabbrev>Standard</titleabbrev>
+++++
 
 The `standard` tokenizer provides grammar based tokenization (based on the
 Unicode Text Segmentation algorithm, as specified in

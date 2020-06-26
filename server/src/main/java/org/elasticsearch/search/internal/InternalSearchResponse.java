@@ -52,7 +52,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     public InternalSearchResponse(StreamInput in) throws IOException {
         super(
                 new SearchHits(in),
-                in.readBoolean() ? new InternalAggregations(in) : null,
+                in.readBoolean() ? InternalAggregations.readFrom(in) : null,
                 in.readBoolean() ? new Suggest(in) : null,
                 in.readBoolean(),
                 in.readOptionalBoolean(),

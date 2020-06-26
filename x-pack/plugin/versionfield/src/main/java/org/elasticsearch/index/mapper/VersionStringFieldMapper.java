@@ -1,24 +1,10 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
 package org.elasticsearch.index.mapper;
-
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -35,16 +21,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xpack.versionfield.VersionEncoder;
+import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -52,8 +40,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.VersionEncoder.encodeVersion;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
 /** A {@link FieldMapper} for software versions. */
 public class VersionStringFieldMapper extends FieldMapper {
@@ -132,8 +120,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        public TypeParser() {
-        }
+        public TypeParser() {}
 
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -210,9 +197,12 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
             if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
-                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
-                        "fields please enable [index_prefixes].");
+                throw new ElasticsearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
             }
             failIfNotIndexed();
             BytesRef encoded = indexedValueForSearch(value);
@@ -259,8 +249,9 @@ public class VersionStringFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
             }
             if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
+                );
             }
             return mode.docValueFormat();
         }
@@ -268,15 +259,21 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException("[range] queries on [version] fields cannot be executed when '" +
-                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+                throw new ElasticsearchException(
+                    "[range] queries on [version] fields cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false."
+                );
             }
             failIfNotIndexed();
             // TODO adrien: run the range on points and doc values
-            return new TermRangeQuery(name(),
+            return new TermRangeQuery(
+                name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower, includeUpper);
+                includeLower,
+                includeUpper
+            );
         }
     }
 
@@ -285,14 +282,15 @@ public class VersionStringFieldMapper extends FieldMapper {
     private SortMode mode;
 
     VersionStringFieldMapper(
-            String simpleName,
-            FieldType fieldType,
-            MappedFieldType mappedFieldType,
-            Explicit<Boolean> ignoreMalformed,
-            String nullValue,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            SortMode mode) {
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
+        Explicit<Boolean> ignoreMalformed,
+        String nullValue,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        SortMode mode
+    ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
@@ -324,7 +322,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 versionString = nullValue;
             } else {
-                versionString =  parser.textOrNull();
+                versionString = parser.textOrNull();
             }
         }
 
@@ -343,7 +341,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 throw e;
             }
         }
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             // TODO adrien: encode the first 16 bytes as points for efficient range query
             Field field = new Field(fieldType().name(), encodedVersion, fieldType);
             context.doc().add(field);
@@ -358,8 +356,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
     }
-
-
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
@@ -385,4 +381,57 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         builder.field("mode", mode);
     }
+
+    public static DocValueFormat VERSION_SEMVER = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "version_semver";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String format(BytesRef value) {
+            return VersionEncoder.decodeVersion(value, SortMode.SEMVER);
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            return VersionEncoder.encodeVersion(value, SortMode.SEMVER);
+        }
+
+        @Override
+        public String toString() {
+            return getWriteableName();
+        }
+    };
+
+    public static DocValueFormat VERSION_NUMERIC = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "version_numeric";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String format(BytesRef value) {
+            return VersionEncoder.decodeVersion(value, SortMode.NATURAL);
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
+        }
+
+        @Override
+        public String toString() {
+            return getWriteableName();
+        }
+    };
+
 }

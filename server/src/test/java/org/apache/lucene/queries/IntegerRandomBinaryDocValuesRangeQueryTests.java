@@ -19,7 +19,7 @@
 package org.apache.lucene.queries;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 
 public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryDocValuesRangeQueryTestCase {
 
@@ -29,8 +29,8 @@ public class IntegerRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinar
     }
 
     @Override
-    protected RangeType rangeType() {
-        return RangeType.INTEGER;
+    protected BasicRangeType rangeType() {
+        return BasicRangeType.INTEGER;
     }
 
     @Override

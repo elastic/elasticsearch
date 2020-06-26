@@ -32,7 +32,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,13 +41,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     private final String fieldName;
     private final QueryType queryType;
-    private final RangeType.LengthType lengthType;
+    private final BasicRangeType.LengthType lengthType;
     private final BytesRef from;
     private final BytesRef to;
     private final Object originalFrom;
     private final Object originalTo;
 
-    public BinaryDocValuesRangeQuery(String fieldName, QueryType queryType, RangeType.LengthType lengthType,
+    public BinaryDocValuesRangeQuery(String fieldName, QueryType queryType, BasicRangeType.LengthType lengthType,
                                      BytesRef from, BytesRef to,
                                      Object originalFrom, Object originalTo) {
         this.fieldName = fieldName;

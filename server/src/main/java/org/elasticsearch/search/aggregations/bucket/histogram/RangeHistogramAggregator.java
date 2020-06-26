@@ -76,7 +76,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
         if (this.valuesSource.rangeType().isNumeric() == false) {
             throw new IllegalArgumentException(
-                "Expected numeric range type but found non-numeric range [" + this.valuesSource.rangeType().name + "]"
+                "Expected numeric range type but found non-numeric range [" + this.valuesSource.rangeType().getName() + "]"
             );
         }
     }

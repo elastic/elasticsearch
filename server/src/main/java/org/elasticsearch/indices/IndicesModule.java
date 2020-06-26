@@ -48,9 +48,8 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.VersionStringFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -112,7 +111,7 @@ public class IndicesModule extends AbstractModule {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
-        for (RangeType type : RangeType.values()) {
+        for (BasicRangeType type : BasicRangeType.values()) {
             mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
@@ -129,7 +128,6 @@ public class IndicesModule extends AbstractModule {
         mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
-        mappers.put(VersionStringFieldMapper.CONTENT_TYPE, new VersionStringFieldMapper.TypeParser());
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

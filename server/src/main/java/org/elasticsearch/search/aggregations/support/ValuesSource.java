@@ -611,6 +611,7 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
+            @Override
             public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
             }

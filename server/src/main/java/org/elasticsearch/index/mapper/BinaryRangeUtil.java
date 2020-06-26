@@ -55,7 +55,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.IP, BinaryRangeUtil::decodeIP);
+        return decodeRanges(encodedRanges, BasicRangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
     private static InetAddress decodeIP(byte[] bytes, int offset, int length) {
@@ -83,7 +83,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.LONG,
+        return decodeRanges(encodedRanges, BasicRangeType.LONG,
             BinaryRangeUtil::decodeLong);
     }
 
@@ -106,19 +106,19 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.DOUBLE,
+        return decodeRanges(encodedRanges, BasicRangeType.DOUBLE,
             BinaryRangeUtil::decodeDouble);
     }
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeType.FLOAT,
+        return decodeRanges(encodedRanges, BasicRangeType.FLOAT,
             BinaryRangeUtil::decodeFloat);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeType rangeType,
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
-        RangeType.LengthType lengthType = rangeType.lengthType;
+        BasicRangeType.LengthType lengthType = rangeType.getLengthType();
         ByteArrayDataInput in = new ByteArrayDataInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
         int numRanges = in.readVInt();

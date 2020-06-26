@@ -54,21 +54,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
-    RangeType type;
+    BasicRangeType type;
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
     private static long nowInMillis;
 
     @Before
     public void setupProperties() {
-        // TODO make this test work with RangeType.VERSION
-        type = randomValueOtherThan(RangeType.VERSION, () -> randomFrom(RangeType.values()));
+        type = randomFrom(BasicRangeType.values());
         nowInMillis = randomNonNegativeLong();
     }
 
     @Override
     protected RangeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        if (type == RangeType.DATE) {
+        if (type == BasicRangeType.DATE) {
             return new RangeFieldType(name, true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, meta);
         }
         return new RangeFieldType(name, type, true, true, meta);
@@ -325,7 +324,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery(FIELDNAME, queryType, from.getMillis(),
+        Query dvQuery = BasicRangeType.DATE.dvRangeQuery(FIELDNAME, queryType, from.getMillis(),
                 to.getMillis(), includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -345,7 +344,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery = IntRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.INTEGER.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = BasicRangeType.INTEGER.dvRangeQuery(FIELDNAME, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -365,7 +364,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.LONG.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = BasicRangeType.LONG.dvRangeQuery(FIELDNAME, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -385,7 +384,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery = FloatRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.FLOAT.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = BasicRangeType.FLOAT.dvRangeQuery(FIELDNAME, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -406,7 +405,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery =  DoubleRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DOUBLE.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = BasicRangeType.DOUBLE.dvRangeQuery(FIELDNAME, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -427,7 +426,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
             indexQuery = InetAddressRange.newIntersectsQuery(FIELDNAME, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.IP.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = BasicRangeType.IP.dvRangeQuery(FIELDNAME, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -467,9 +466,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     }
 
     public void testParseIp() {
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse("::1", randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), BasicRangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), BasicRangeType.IP.parse("::1", randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), BasicRangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
     }
 
     public void testTermQuery() throws Exception {

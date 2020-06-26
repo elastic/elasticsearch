@@ -123,14 +123,14 @@ public class RangeFieldMapper extends FieldMapper {
 
         protected RangeFieldType setupFieldType(BuilderContext context) {
             if (pattern != null) {
-                if (type != RangeType.DATE) {
+                if (type != BasicRangeType.DATE) {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
-                        + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
+                        + " should not define a dateTimeFormatter unless it is a " + BasicRangeType.DATE + " type");
                 }
                 return new RangeFieldType(buildFullName(context), indexed, hasDocValues,
                     DateFormatter.forPattern(pattern).withLocale(locale), meta);
             }
-            if (type == RangeType.DATE) {
+            if (type == BasicRangeType.DATE) {
                 return new RangeFieldType(buildFullName(context), indexed, hasDocValues, Defaults.DATE_FORMATTER, meta);
             }
             return new RangeFieldType(buildFullName(context), type, indexed, hasDocValues, meta);
@@ -161,7 +161,7 @@ public class RangeFieldMapper extends FieldMapper {
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
-                    throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
+                    throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.getName()
                             + "] field types.");
                 } else if (propName.equals("coerce")) {
                     builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
@@ -187,7 +187,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         public RangeFieldType(String name, RangeType type, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            assert type != RangeType.DATE;
+            assert type != BasicRangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
@@ -195,13 +195,13 @@ public class RangeFieldMapper extends FieldMapper {
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        public RangeFieldType(String name, RangeType type) {
+        public RangeFieldType(String name, BasicRangeType type) {
             this(name, type, true, true, Collections.emptyMap());
         }
 
         public RangeFieldType(String name, boolean indexed, boolean hasDocValues, DateFormatter formatter, Map<String, String> meta) {
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.rangeType = RangeType.DATE;
+            this.rangeType = BasicRangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -231,7 +231,7 @@ public class RangeFieldMapper extends FieldMapper {
             if (!super.equals(o)) return false;
             RangeFieldType that = (RangeFieldType) o;
             return Objects.equals(rangeType, that.rangeType) &&
-            (rangeType == RangeType.DATE) ?
+            (rangeType == BasicRangeType.DATE) ?
                 Objects.equals(dateTimeFormatter, that.dateTimeFormatter)
                 : dateTimeFormatter == null && that.dateTimeFormatter == null;
         }
@@ -249,7 +249,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public String typeName() {
-            return rangeType.name;
+            return rangeType.getName();
         }
 
         public DateFormatter dateTimeFormatter() {
@@ -271,7 +271,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (rangeType == RangeType.DATE) {
+            if (rangeType == BasicRangeType.DATE) {
                 DateFormatter dateTimeFormatter = this.dateTimeFormatter;
                 if (format != null) {
                     dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
@@ -385,7 +385,7 @@ public class RangeFieldMapper extends FieldMapper {
                     }
                 }
                 range = new Range(rangeType, from, to, includeFrom, includeTo);
-            } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
+            } else if (fieldType().rangeType == BasicRangeType.IP && start == XContentParser.Token.VALUE_STRING) {
                 range = parseIpRangeFromCidr(parser);
             } else {
                 throw new MapperParsingException("error parsing field ["
@@ -414,12 +414,12 @@ public class RangeFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (fieldType().rangeType == RangeType.DATE
+        if (fieldType().rangeType == BasicRangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
                 && fieldType().dateTimeFormatter().pattern().equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()) == false))) {
             builder.field("format", fieldType().dateTimeFormatter().pattern());
         }
-        if (fieldType().rangeType == RangeType.DATE
+        if (fieldType().rangeType == BasicRangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
                 && fieldType().dateTimeFormatter().locale() != Locale.ROOT))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
@@ -440,7 +440,7 @@ public class RangeFieldMapper extends FieldMapper {
             upper[i >> 3] |= m;
         }
         try {
-            return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
+            return new Range(BasicRangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
         } catch (UnknownHostException bogus) {
             throw new AssertionError(bogus);
         }
@@ -490,9 +490,9 @@ public class RangeFieldMapper extends FieldMapper {
             Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
             Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
             // TODO also handle new VERSION range type, maybe move "toString" to RangeType?
-            sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)f) : f.toString());
+            sb.append(type == BasicRangeType.IP ? InetAddresses.toAddrString((InetAddress)f) : f.toString());
             sb.append(" : ");
-            sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());
+            sb.append(type == BasicRangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
         }

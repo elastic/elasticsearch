@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
-import org.elasticsearch.index.mapper.VersionEncoder.VersionParts;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
+import org.elasticsearch.xpack.versionfield.VersionEncoder.VersionParts;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.VersionEncoder.decodeVersion;
+import static org.elasticsearch.xpack.versionfield.VersionEncoder.decodeVersion;
 
 public class VersionEncoderTests extends ESTestCase {
 
@@ -56,8 +43,8 @@ public class VersionEncoderTests extends ESTestCase {
         assertTrue(encSemver("2.0.0-pre127").compareTo(encSemver("2.0.0-pre128")) < 0);
         assertTrue(encSemver("2.0.0-pre20201231z110026").compareTo(encSemver("2.0.0-pre227")) < 0);
         // some rare ones that fail strict validation
-//        assertTrue(encSemver("12.el2").compareTo(encSemver("12.el11")) < 0);
-//        assertTrue(encSemver("12.el2-1.0-rc5").compareTo(encSemver("12.el2")) < 0);
+        // assertTrue(encSemver("12.el2").compareTo(encSemver("12.el11")) < 0);
+        // assertTrue(encSemver("12.el2-1.0-rc5").compareTo(encSemver("12.el2")) < 0);
     }
 
     private BytesRef encSemver(String s) {
@@ -174,7 +161,7 @@ public class VersionEncoderTests extends ESTestCase {
         }
         // optional build part
         if (randomBoolean()) {
-            sb.append("+").append(randomAlphaOfLengthBetween(1,15));
+            sb.append("+").append(randomAlphaOfLengthBetween(1, 15));
         }
         return sb.toString();
     }

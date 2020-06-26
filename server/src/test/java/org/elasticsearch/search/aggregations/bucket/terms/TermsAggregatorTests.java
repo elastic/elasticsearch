@@ -52,7 +52,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -946,7 +946,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             double start = randomDouble();
             double end = randomDoubleBetween(Math.nextUp(start), Double.MAX_VALUE, false);
-            RangeType rangeType = RangeType.DOUBLE;
+            BasicRangeType rangeType = BasicRangeType.DOUBLE;
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
             final String fieldName = "field";
             final BinaryDocValuesField field = new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)));

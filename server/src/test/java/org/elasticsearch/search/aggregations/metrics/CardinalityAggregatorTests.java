@@ -32,7 +32,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -56,7 +56,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRangeFieldValues() throws IOException {
-        RangeType rangeType = RangeType.DOUBLE;
+        BasicRangeType rangeType = BasicRangeType.DOUBLE;
         final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
         final String fieldName = "rangeField";

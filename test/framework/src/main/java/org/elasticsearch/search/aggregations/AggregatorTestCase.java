@@ -87,11 +87,8 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.VersionEncoder;
-import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
-import org.elasticsearch.index.mapper.VersionStringFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -161,8 +158,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
-        FieldAliasMapper.CONTENT_TYPE, // TODO support alias
-        VersionStringFieldMapper.CONTENT_TYPE // TODO support alias
+        FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
 
     /**
@@ -811,38 +807,33 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } else if (vst.equals(CoreValuesSourceType.RANGE)) {
             Object start;
             Object end;
-            RangeType rangeType;
+            BasicRangeType rangeType;
 
-            if (typeName.equals(RangeType.DOUBLE.typeName())) {
+            if (typeName.equals(BasicRangeType.DOUBLE.typeName())) {
                 start = randomDouble();
-                end = RangeType.DOUBLE.nextUp(start);
-                rangeType = RangeType.DOUBLE;
-            } else if (typeName.equals(RangeType.FLOAT.typeName())) {
+                end = BasicRangeType.DOUBLE.nextUp(start);
+                rangeType = BasicRangeType.DOUBLE;
+            } else if (typeName.equals(BasicRangeType.FLOAT.typeName())) {
                 start = randomFloat();
-                end = RangeType.FLOAT.nextUp(start);
-                rangeType = RangeType.DOUBLE;
-            } else if (typeName.equals(RangeType.IP.typeName())) {
+                end = BasicRangeType.FLOAT.nextUp(start);
+                rangeType = BasicRangeType.DOUBLE;
+            } else if (typeName.equals(BasicRangeType.IP.typeName())) {
                 boolean v4 = randomBoolean();
                 start = randomIp(v4);
-                end = RangeType.IP.nextUp(start);
-                rangeType = RangeType.IP;
-            } else if (typeName.equals(RangeType.LONG.typeName())) {
+                end = BasicRangeType.IP.nextUp(start);
+                rangeType = BasicRangeType.IP;
+            } else if (typeName.equals(BasicRangeType.LONG.typeName())) {
                 start = randomLong();
-                end = RangeType.LONG.nextUp(start);
-                rangeType = RangeType.LONG;
-            } else if (typeName.equals(RangeType.INTEGER.typeName())) {
+                end = BasicRangeType.LONG.nextUp(start);
+                rangeType = BasicRangeType.LONG;
+            } else if (typeName.equals(BasicRangeType.INTEGER.typeName())) {
                 start = randomInt();
-                end = RangeType.INTEGER.nextUp(start);
-                rangeType = RangeType.INTEGER;
-            } else if (typeName.equals(RangeType.DATE.typeName())) {
+                end = BasicRangeType.INTEGER.nextUp(start);
+                rangeType = BasicRangeType.INTEGER;
+            } else if (typeName.equals(BasicRangeType.DATE.typeName())) {
                 start = randomNonNegativeLong();
-                end = RangeType.DATE.nextUp(start);
-                rangeType = RangeType.DATE;
-            } else if (typeName.equals(RangeType.VERSION.typeName())) {
-                // TODO test this
-                start = VersionEncoder.encodeVersion("1.0.0", SortMode.SEMVER);
-                end = VersionEncoder.encodeVersion("2.0.0", SortMode.SEMVER);
-                rangeType = RangeType.VERSION;
+                end = BasicRangeType.DATE.nextUp(start);
+                rangeType = BasicRangeType.DATE;
             } else {
                 throw new IllegalStateException("Unknown type of range [" + typeName + "]");
             }
@@ -933,8 +924,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
      */
-    protected RangeFieldMapper.RangeFieldType rangeField(String name, RangeType rangeType) {
-        if (rangeType == RangeType.DATE) {
+    protected RangeFieldMapper.RangeFieldType rangeField(String name, BasicRangeType rangeType) {
+        if (rangeType == BasicRangeType.DATE) {
             return new RangeFieldMapper.RangeFieldType(name, RangeFieldMapper.Defaults.DATE_FORMATTER);
         }
         return new RangeFieldMapper.RangeFieldType(name, rangeType);

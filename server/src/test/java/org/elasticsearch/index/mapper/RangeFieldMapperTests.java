@@ -53,7 +53,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
 
     @Override
     protected RangeFieldMapper.Builder newBuilder() {
-        return new RangeFieldMapper.Builder("range", RangeType.DATE)
+        return new RangeFieldMapper.Builder("range", BasicRangeType.DATE)
             .format("iso8601");
     }
 
@@ -441,7 +441,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
 
     public void testIllegalArguments() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", RangeType.INTEGER.name)
+            .startObject("properties").startObject("field").field("type", BasicRangeType.INTEGER.getName())
             .field("format", DATE_FORMAT).endObject().endObject().endObject().endObject();
 
         ThrowingRunnable runnable = () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)));

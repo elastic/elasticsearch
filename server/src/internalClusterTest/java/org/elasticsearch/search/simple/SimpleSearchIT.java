@@ -48,7 +48,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -109,115 +108,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .get();
 
         assertHitCount(search, 1L);
-    }
-
-    public void testSimpleVersionRange() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
-        ensureGreen();
-
-        client().admin().indices().preparePutMapping("test")
-
-                .setSource(XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                        .startObject("versionrange").field("type", "version_range").endObject()
-                        .endObject().endObject().endObject())
-                .get();
-
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource("{\"versionrange\":{\"gt\":\"1.1.0\",\"lte\":\"2.2.3\"}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        client().prepareIndex("test")
-        .setId("2")
-        .setSource("{\"versionrange\":{\"gte\":\"4.0.0-beta.2\",\"lte\":\"4.0.0-rc5\"}}", XContentType.JSON)
-        .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        client().prepareIndex("test")
-        .setId("3")
-        .setSource("{\"versionrange\":{\"gte\":\"8.0.0-alpha.1\",\"lte\":\"8.0.0-alpha.9\"}}", XContentType.JSON)
-        .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        client().prepareIndex("test")
-        .setId("4")
-        .setSource("{\"versionrange\":{\"gte\":\"8.0.0-alpha.0\",\"lte\":\"8.0.0-alpha.0.1\"}}", XContentType.JSON)
-        .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        SearchResponse search = client().prepareSearch()
-                .setQuery(rangeQuery("versionrange").gte("0.1.6").lte("2.7.0").relation("within"))
-                .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("1.1.6").lte("1.7.0").relation("contains"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("1.1.6").lte("3.7.0").relation("contains"))
-            .get();
-
-        assertHitCount(search, 0L);
-
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("1.8.6").lte("3.7.0").relation("intersects"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("3.0.0").lte("4.0.0").relation("within"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("3.0.0").lte("4.0.0-rc3").relation("within"))
-            .get();
-
-        assertHitCount(search, 0L);
-
-        search = client().prepareSearch()
-            .setQuery(termQuery("versionrange", "4.0.0-rc3"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("8.0.0-alpha.2").lte("8.0.0-alpha.4").relation("contains"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("1.0.0").lte("1.1.0").relation("intersects"))
-            .get();
-
-        assertHitCount(search, 0L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("1.0.0").lte("1.1.0.0").relation("intersects"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gte("2.2.3").lte("3.0.0").relation("intersects"))
-            .get();
-
-        assertHitCount(search, 1L);
-
-        search = client().prepareSearch()
-            .setQuery(rangeQuery("versionrange").gt("2.2.3").lte("3.0.0").relation("intersects"))
-            .get();
-
-        assertHitCount(search, 0L);
     }
 
     public void testIpCidr() throws Exception {

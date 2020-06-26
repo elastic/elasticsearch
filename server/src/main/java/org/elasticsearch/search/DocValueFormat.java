@@ -31,8 +31,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.VersionEncoder;
-import org.elasticsearch.index.mapper.VersionEncoder.SortMode;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -367,61 +365,6 @@ public interface DocValueFormat extends NamedWriteable {
             return "ip";
         }
     };
-
-    DocValueFormat VERSION_SEMVER = new DocValueFormat() {
-
-        @Override
-        public String getWriteableName() {
-            return "version_semver";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value, SortMode.SEMVER);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value, SortMode.SEMVER);
-        }
-
-        @Override
-        public String toString() {
-            return getWriteableName();
-        }
-    };
-
-    DocValueFormat VERSION_NUMERIC = new DocValueFormat() {
-
-        @Override
-        public String getWriteableName() {
-            return "version_numeric";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value, SortMode.NATURAL);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
-        }
-
-        @Override
-        public String toString() {
-            return getWriteableName();
-        }
-    };
-
 
     final class Decimal implements DocValueFormat {
 

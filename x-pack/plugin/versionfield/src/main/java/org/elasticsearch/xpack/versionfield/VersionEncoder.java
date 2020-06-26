@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.index.mapper.VersionStringFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
@@ -57,7 +45,7 @@ public class VersionEncoder {
     private static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
     static final char PRERELESE_SEPARATOR = '-';
     private static final byte PRERELESE_SEPARATOR_BYTE = (byte) 0x02;
-    static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
+    public static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
     private static final String DOT_SEPARATOR_REGEX = "\\.";
     private static final char DOT_SEPARATOR = '.';
     private static final byte DOT_SEPARATOR_BYTE = (byte) 0x04;
@@ -76,9 +64,7 @@ public class VersionEncoder {
         "(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))"
     );
 
-    private static Pattern LEGAL_BUILDSUFFIX_SEMVER = Pattern.compile(
-        "(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?"
-    );
+    private static Pattern LEGAL_BUILDSUFFIX_SEMVER = Pattern.compile("(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?");
 
     static boolean strictSemverCheck = false;
 
@@ -89,8 +75,7 @@ public class VersionEncoder {
         /**
          * strict semver precedence treats everything alphabetically, e.g. "rc11" &lt; "rc2"
          */
-        SEMVER
-        {
+        SEMVER {
             @Override
             public void encode(String part, BytesRefBuilder result) {
                 result.append(new BytesRef(part));
@@ -98,7 +83,7 @@ public class VersionEncoder {
 
             @Override
             public DocValueFormat docValueFormat() {
-                return DocValueFormat.VERSION_SEMVER;
+                return VersionStringFieldMapper.VERSION_SEMVER;
             }
 
             @Override
@@ -111,8 +96,7 @@ public class VersionEncoder {
          * This mode will order mixed strings so that the numeric parts are treated with numeric ordering,
          * e.g. "rc2" &lt; "rc11", "alpha523" &lt; "alpha1234"
          */
-        NATURAL
-        {
+        NATURAL {
             @Override
             public void encode(String part, BytesRefBuilder result) {
                 prefixDigitGroupsWithLength(part, result);
@@ -120,7 +104,7 @@ public class VersionEncoder {
 
             @Override
             public DocValueFormat docValueFormat() {
-                return DocValueFormat.VERSION_NUMERIC;
+                return VersionStringFieldMapper.VERSION_NUMERIC;
             }
 
             @Override
@@ -130,6 +114,7 @@ public class VersionEncoder {
         };
 
         public abstract void encode(String part, BytesRefBuilder result);
+
         public abstract DocValueFormat docValueFormat();
 
         public static SortMode fromString(String mode) {
@@ -153,7 +138,7 @@ public class VersionEncoder {
      *
      */
     public static BytesRef encodeVersion(String versionString, SortMode mode) {
-        //System.out.println("encoding: " + versionString);
+        // System.out.println("encoding: " + versionString);
         // extract "build" suffix starting with "+"
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
@@ -190,7 +175,7 @@ public class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedVersion.append(new BytesRef(versionParts.buildSuffix));
         }
-        //System.out.println("encoded: " + encodedVersion.get());
+        // System.out.println("encoded: " + encodedVersion.get());
         return encodedVersion.get();
     }
 
@@ -202,34 +187,34 @@ public class VersionEncoder {
     private static void prefixDigitGroupsWithLength(String input, BytesRefBuilder result) {
         int pos = 0;
         while (pos < input.length()) {
-                if (Character.isDigit(input.charAt(pos))) {
-                    // found beginning of number block, so get its length
-                    int start = pos;
-                    BytesRefBuilder number = new BytesRefBuilder();
-                    while (pos < input.length() && Character.isDigit(input.charAt(pos))) {
-                        number.append((byte) input.charAt(pos));
-                        pos++;
-                    }
-                    int length = pos - start;
-                    if (length >= 128) {
-                        throw new IllegalArgumentException("Groups of digits cannot be longer than 127, but found: " + length);
-                    }
-                    result.append(NUMERIC_MARKER_BYTE); // ensure length byte does cause higher sort order comparing to other byte[]
-                    result.append((byte) (length | 0x80)); // add upper bit to mark as length
-                    result.append(number);
-                } else {
-                    if (input.charAt(pos) == DOT_SEPARATOR) {
-                        result.append(DOT_SEPARATOR_BYTE);
-                    } else {
-                        result.append((byte) input.charAt(pos));
-                    }
+            if (Character.isDigit(input.charAt(pos))) {
+                // found beginning of number block, so get its length
+                int start = pos;
+                BytesRefBuilder number = new BytesRefBuilder();
+                while (pos < input.length() && Character.isDigit(input.charAt(pos))) {
+                    number.append((byte) input.charAt(pos));
                     pos++;
                 }
+                int length = pos - start;
+                if (length >= 128) {
+                    throw new IllegalArgumentException("Groups of digits cannot be longer than 127, but found: " + length);
+                }
+                result.append(NUMERIC_MARKER_BYTE); // ensure length byte does cause higher sort order comparing to other byte[]
+                result.append((byte) (length | 0x80)); // add upper bit to mark as length
+                result.append(number);
+            } else {
+                if (input.charAt(pos) == DOT_SEPARATOR) {
+                    result.append(DOT_SEPARATOR_BYTE);
+                } else {
+                    result.append((byte) input.charAt(pos));
+                }
+                pos++;
+            }
         }
     }
 
     public static String decodeVersion(BytesRef version, SortMode mode) {
-        //System.out.println("decoding: " + version);
+        // System.out.println("decoding: " + version);
         int pos = 0;
         StringBuilder sb = new StringBuilder();
         while (pos < version.length && version.bytes[pos] != BUILD_SEPARATOR_BYTE) {
@@ -240,7 +225,7 @@ public class VersionEncoder {
         // add build part if present
         if (pos < version.length && version.bytes[pos] == BUILD_SEPARATOR_BYTE) {
             sb.append(new BytesRef(version.bytes, pos, version.length - pos).utf8ToString());
-            //sb.append(new BytesRef(Arrays.copyOfRange(version.bytes, pos, version.length)).utf8ToString());
+            // sb.append(new BytesRef(Arrays.copyOfRange(version.bytes, pos, version.length)).utf8ToString());
         }
         return sb.toString();
     }
@@ -301,7 +286,7 @@ public class VersionEncoder {
             String versionStringOriginal = versionString;
             String buildSuffix = extractSuffix(versionString, BUILD_SEPARATOR);
             if (buildSuffix != null) {
-               versionString = versionString.substring(0, versionString.length() - buildSuffix.length());
+                versionString = versionString.substring(0, versionString.length() - buildSuffix.length());
             }
 
             // extract "pre-release" suffix starting with "-"

@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
@@ -281,7 +281,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRangeField() throws Exception {
-        RangeType rangeType = RangeType.DOUBLE;
+        BasicRangeType rangeType = BasicRangeType.DOUBLE;
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {

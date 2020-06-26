@@ -435,6 +435,15 @@ job is started and memory usage is reported.
 (long)
 The number of bytes used at the highest peak of memory usage.
 
+`status`::::
+(string)
+The memory usage status. May have one of the following values:
++
+--
+* `ok`: usage stayed below the limit.
+* `hard_limit`: usage surpassed the configured memory limit.
+--
+
 `timestamp`::::
 (date)
 The timestamp when memory usage was calculated.

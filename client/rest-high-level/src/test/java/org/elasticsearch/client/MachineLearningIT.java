@@ -150,6 +150,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Recal
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
@@ -1537,6 +1538,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
+        assertThat(stats.getMemoryUsage().getStatus(), equalTo(MemoryUsage.Status.OK));
+        assertThat(stats.getMemoryUsage().getIncreasedMemoryEstimateBytes(), is(nullValue()));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));
     }
 

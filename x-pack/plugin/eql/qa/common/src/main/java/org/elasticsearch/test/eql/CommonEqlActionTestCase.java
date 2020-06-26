@@ -8,7 +8,6 @@ package org.elasticsearch.test.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -67,7 +66,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
         // Load EQL validation specs
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
-        specs.addAll(EqlSpecLoader.load("/test_queries_supported.toml", true));
+        specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", true));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
         // Validate only currently supported specs

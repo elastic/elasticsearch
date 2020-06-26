@@ -270,7 +270,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             filter,
             fetchSize,
             timestampField,
-                tiebreakerField,
+            tiebreakerField,
             eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,

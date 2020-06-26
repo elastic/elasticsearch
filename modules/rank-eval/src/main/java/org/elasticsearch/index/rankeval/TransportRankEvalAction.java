@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -74,8 +73,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Inject
     public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
                                    ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(RankEvalAction.NAME, transportService, actionFilters,
-              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+        super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

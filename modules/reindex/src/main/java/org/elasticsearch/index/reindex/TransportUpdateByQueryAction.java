@@ -29,7 +29,6 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -52,8 +51,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Inject
     public TransportUpdateByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

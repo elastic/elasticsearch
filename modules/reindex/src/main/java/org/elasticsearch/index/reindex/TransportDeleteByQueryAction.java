@@ -26,7 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,8 +42,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Inject
     public TransportDeleteByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(DeleteByQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new);
+        super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

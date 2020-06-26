@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,7 +51,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
@@ -63,7 +62,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, int allocatedProcessors,
                                LongSupplier relativeTimeProvider, NodeClient client) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;

@@ -44,8 +44,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     @Inject
     public TransportOpenIdConnectLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms,
                                               TokenService tokenService) {
-        super(OpenIdConnectLogoutAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<OpenIdConnectLogoutRequest>) OpenIdConnectLogoutRequest::new);
+        super(OpenIdConnectLogoutAction.NAME, transportService, actionFilters, OpenIdConnectLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }

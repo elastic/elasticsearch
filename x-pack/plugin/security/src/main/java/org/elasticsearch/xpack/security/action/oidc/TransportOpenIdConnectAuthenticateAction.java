@@ -46,8 +46,7 @@ public class TransportOpenIdConnectAuthenticateAction
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                                     ActionFilters actionFilters, AuthenticationService authenticationService,
                                                     TokenService tokenService, SecurityContext securityContext) {
-        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new);
+        super(OpenIdConnectAuthenticateAction.NAME, transportService, actionFilters, OpenIdConnectAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;

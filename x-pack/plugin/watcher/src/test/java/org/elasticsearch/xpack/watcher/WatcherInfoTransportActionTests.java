@@ -68,7 +68,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

@@ -61,7 +61,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = newUsageAction(available);
@@ -78,7 +78,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
 
     private LogstashUsageTransportAction newUsageAction(boolean available) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
         return new LogstashUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null, licenseState);
     }
 }

@@ -34,7 +34,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SPATIAL)).thenReturn(available);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.SPATIAL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new SpatialUsageTransportAction(mock(TransportService.class), null, null,

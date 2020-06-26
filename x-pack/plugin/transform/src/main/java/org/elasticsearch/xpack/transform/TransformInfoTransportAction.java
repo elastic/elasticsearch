@@ -75,7 +75,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
+        return licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM);
     }
 
     @Override

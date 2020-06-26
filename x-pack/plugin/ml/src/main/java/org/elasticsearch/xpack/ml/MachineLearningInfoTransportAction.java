@@ -35,7 +35,7 @@ public class MachineLearningInfoTransportAction extends XPackInfoFeatureTranspor
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+        return licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override

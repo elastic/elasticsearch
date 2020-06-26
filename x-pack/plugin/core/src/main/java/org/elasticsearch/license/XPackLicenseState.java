@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -405,11 +407,19 @@ public class XPackLicenseState {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
+
+        // prepopulate feature last used map with entries for non basic features, which are the ones we
+        // care to actually keep track of
+        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
+        for (Feature feature : Feature.values()) {
+            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0) {
+                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
+            }
+        }
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
                               Status status) {
-
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
@@ -473,6 +483,19 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    /**
+     * Checks whether the given feature is allowed, tracking the last usage time.
+     */
+    public boolean checkFeature(Feature feature) {
+        // TODO: usage tracking is not yet implemented
+        return isAllowed(feature);
+    }
+
+    /**
+     * Checks whether the given feature is allowed by the current license.
+     * <p>
+     * This method should only be used when serializing whether a feature is allowed for telemetry.
+     */
     public boolean isAllowed(Feature feature) {
         return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
@@ -549,7 +572,8 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
+        return executeAgainstStatus(status ->
+            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
     }
 
     /**

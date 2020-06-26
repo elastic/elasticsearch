@@ -30,7 +30,7 @@ public class EnrichInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
+        return licenseState.checkFeature(XPackLicenseState.Feature.ENRICH);
     }
 
     @Override

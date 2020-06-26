@@ -392,6 +392,10 @@ public class TestUtils {
         }
     }
 
+    public static XPackLicenseState newTestLicenseState() {
+        return TestUtils.newTestLicenseState();
+    }
+
     public static void putLicense(Metadata.Builder builder, License license) {
         builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }

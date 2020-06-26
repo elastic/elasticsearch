@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestUtils;
@@ -648,7 +649,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private HttpExporter createHttpExporter(final Settings settings) {
         final Exporter.Config config =
-                new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState(Settings.EMPTY));
+                new Exporter.Config("_http", "http", settings, clusterService(), TestUtils.newTestLicenseState());
 
         final Environment env = TestEnvironment.newEnvironment(buildEnvSettings(settings));
         return new HttpExporter(config, new SSLService(env), new ThreadContext(settings));

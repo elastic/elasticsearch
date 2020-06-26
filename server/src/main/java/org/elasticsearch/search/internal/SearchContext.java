@@ -363,9 +363,9 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Looks up the given field, but does not restrict to fields in the types set on this context.
+     * Given the full name of a field, returns its {@link MappedFieldType}.
      */
-    public abstract MappedFieldType smartNameFieldType(String name);
+    public abstract MappedFieldType fieldType(String name);
 
     public abstract ObjectMapper getObjectMapper(String name);
 

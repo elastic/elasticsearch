@@ -96,14 +96,21 @@ public final class InferenceHelpers {
             return ((Number)value).doubleValue();
         }
         if (value instanceof String) {
-            try {
-                return Double.valueOf((String)value);
-            } catch (NumberFormatException nfe) {
-                assert false : "value is not properly formatted double [" + value + "]";
-                return null;
-            }
+            return stringToDouble((String) value);
         }
         return null;
+    }
+
+    private static Double stringToDouble(String value) {
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.valueOf(value);
+        } catch (NumberFormatException nfe) {
+            assert false : "value is not properly formatted double [" + value + "]";
+            return null;
+        }
     }
 
     public static Map<String, double[]> decodeFeatureImportances(Map<String, String> processedFeatureToOriginalFeatureMap,

@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 
 import java.util.List;
 
@@ -33,7 +33,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     public void testVerifyIndicesPrimaryShardsAreActive() {
 
         // At present the only critical index is the config index
-        String indexName = AnomalyDetectorsIndex.configIndexName();
+        String indexName = MlConfigIndex.indexName();
 
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();

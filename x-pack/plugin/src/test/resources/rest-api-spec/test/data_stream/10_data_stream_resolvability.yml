@@ -54,8 +54,8 @@
 ---
 "Verify data stream resolvability in ilm explain api":
   - skip:
-      version: " - 7.99.99"
-      reason: "wait until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -123,7 +123,7 @@
 
   - do:
       allowed_warnings:
-        - "index template [my-template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+        - "index template [my-ds-rolluptemplate] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-ds-rolluptemplate] will take precedence during new index creation"
       indices.put_index_template:
         name: my-ds-rolluptemplate
         body:

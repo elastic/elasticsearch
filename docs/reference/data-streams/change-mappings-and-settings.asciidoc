@@ -4,7 +4,7 @@
 <titleabbrev>Change mappings and settings</titleabbrev>
 ++++
 
-Each data stream has an <<create-a-data-stream-template,associated composable
+Each data stream has a <<create-a-data-stream-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.
@@ -14,17 +14,17 @@ mappings and settings to include in this template. However, if you later need to
 change the mappings or settings of a data stream's backing indices, you have a
 couple options:
 
-* To apply changes to future backing indices, simply update the composable
-template associated with the data stream. Mapping and setting changes will be
+* To apply changes to future backing indices, simply update the index
+template used by the data stream. Mapping and setting changes will be
 automatically applied to any backing indices created after the update.
 +
 .*Example*
 [%collapsible]
 ====
-`logs_data_stream` is an existing composable template associated with the
+`logs_data_stream` is an existing index template used by the
 `logs` data stream.
 
-The following <<indices-templates,put composable template API>> makes several
+The following <<indices-templates,put index template API>> makes several
 changes to the `logs_data_stream` template:
 
 * It changes the `@timestamp` field mapping from the `date` field datatype to
@@ -148,9 +148,9 @@ See <<data-streams-use-reindex-to-change-mappings-settings>>.
 === Use reindex to change mappings or settings
 
 To change the mappings or settings for every backing index in a data stream, you
-must first create or update a composable template so that it contains the
-changes. You can then reindex the existing data stream into a new one associated
-with the template. This applies the mapping and setting changes in the template
+must first create or update an index template so that it contains the
+changes. You can then reindex the existing data stream into a new one matching
+the template. This applies the mapping and setting changes in the template
 to each document and backing index of the data stream destination. These changes
 also affect any future backing index created by the new stream.
 
@@ -189,11 +189,11 @@ this pattern.
 ----
 ====
 
-. Create or update a composable template. This template should contain the
+. Create or update an index template. This template should contain the
 mappings and settings you'd like to apply to the new data stream's backing
 indices.
 +
-This composable template must meet the
+This index template must meet the
 <<create-a-data-stream-template,requirements for a data stream template>>. It
 should also contain your previously chosen name or wildcard pattern in the
 `index_patterns` property.
@@ -204,11 +204,11 @@ new template by copying an existing one and modifying it as needed.
 .*Example*
 [%collapsible]
 ====
-`logs_data_stream` is an existing composable template associated with the
+`logs_data_stream` is an existing index template used by the
 `logs` data stream.
 
-The following <<indices-templates,put composable template API>> request creates
-a new composable template, `new_logs_data_stream`. `new_logs_data_stream`
+The following <<indices-templates,put index template API>> request creates
+a new index template, `new_logs_data_stream`. `new_logs_data_stream`
 uses the `logs_data_stream` template as its basis, with the following changes:
 
 * The `index_patterns` wildcard pattern matches any index or data stream

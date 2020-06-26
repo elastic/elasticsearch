@@ -85,14 +85,14 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("The [enabled] parameter can't be updated for the object mapping [foo].", e.getMessage());
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
     public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
         MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("The [enabled] parameter can't be updated for the object mapping [disabled].", e.getMessage());
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [disabled]", e.getMessage());
 
         ObjectMapper result = rootObjectMapper.merge(mergeWith, MapperService.MergeReason.INDEX_TEMPLATE);
         assertTrue(result.isEnabled());
@@ -104,7 +104,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper secondMapper = createRootObjectMapper(type, false, Collections.emptyMap());
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
-        assertEquals("The [enabled] parameter can't be updated for the object mapping [" + type + "].", e.getMessage());
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [" + type + "]", e.getMessage());
 
         ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
         assertFalse(result.isEnabled());
@@ -118,7 +118,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
             ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false)));
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
-        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping."));
+        assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
         ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
         assertFalse(result.nested().isIncludeInParent());

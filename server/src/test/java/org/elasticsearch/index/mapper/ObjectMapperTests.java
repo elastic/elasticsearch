@@ -312,7 +312,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         .endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE));
-        assertThat(e.getMessage(), containsString("Can't merge a non object mapping [object.field2] with an object mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
 
         String secondUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
@@ -327,7 +327,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         .endObject());
         e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondUpdate), MergeReason.INDEX_TEMPLATE));
-        assertThat(e.getMessage(), containsString("Can't merge a non object mapping [object.field1] with an object mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
     public void testEmptyName() throws Exception {

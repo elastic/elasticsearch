@@ -275,7 +275,7 @@ public class JobManager {
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
-                    Matcher matcher = Pattern.compile("Can't merge a non object mapping \\[(.*)\\] with an object mapping")
+                    Matcher matcher = Pattern.compile("can't merge a non object mapping \\[(.*)\\] with an object mapping")
                         .matcher(e.getMessage());
                     if (matcher.matches()) {
                         String msg = Messages.getMessage(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, matcher.group(1));

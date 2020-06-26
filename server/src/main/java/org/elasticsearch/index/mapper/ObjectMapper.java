@@ -87,11 +87,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public void merge(Nested mergeWith, MergeReason reason) {
             if (isNested()) {
                 if (!mergeWith.isNested()) {
-                    throw new IllegalArgumentException("Cannot change object mapping from nested to non-nested.");
+                    throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
                 }
             } else {
                 if (mergeWith.isNested()) {
-                    throw new IllegalArgumentException("Cannot change object mapping from non-nested to nested.");
+                    throw new IllegalArgumentException("cannot change object mapping from non-nested to nested");
                 }
             }
 
@@ -104,10 +104,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             } else {
                 if (includeInParent.value() != mergeWith.includeInParent.value()) {
-                    throw new MapperException("The [include_in_parent] parameter can't be updated on a nested object mapping.");
+                    throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
                 }
                 if (includeInRoot.value() != mergeWith.includeInRoot.value()) {
-                    throw new MapperException("The [include_in_root] parameter can't be updated on a nested object mapping.");
+                    throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
                 }
             }
         }
@@ -479,7 +479,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         if (!(mergeWith instanceof ObjectMapper)) {
-            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
+            throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
@@ -499,7 +499,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 this.enabled = mergeWith.enabled;
             }
         } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
+            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -514,7 +514,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException("Can't merge a non object mapping [" +
+                    throw new IllegalArgumentException("can't merge a non object mapping [" +
                         mergeWithMapper.name() + "] with an object mapping");
                 }
 

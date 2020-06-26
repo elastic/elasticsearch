@@ -973,7 +973,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("Can't merge a non object mapping [field2] with an object mapping"));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     /**
@@ -1037,7 +1037,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("Can't merge a non object mapping [field2] with an object mapping"));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     public void testPutExistingComponentTemplateIsNoop() throws Exception {

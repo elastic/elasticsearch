@@ -47,7 +47,7 @@ snapshot request.
 
 NOTE: You must register a snapshot before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
 
-The snapshot process is incremental. When creating a  snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
+The snapshot process is incremental. When creating a snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
 
 The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the data stream or index that {es} is snapshotting. Only one snapshot process can run in the cluster at any time.
 

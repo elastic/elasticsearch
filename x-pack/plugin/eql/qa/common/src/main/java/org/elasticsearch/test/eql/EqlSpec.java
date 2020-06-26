@@ -19,9 +19,10 @@ public class EqlSpec {
     private long[] expectedEventIds;
 
     // flag to dictate which modes are supported for the test
-    // at least one must be true
-    private boolean caseSensitive = false;
-    private boolean caseInsensitive = false;
+    // null -> apply the test to both modes (case sensitive and case insensitive)
+    // TRUE -> case sensitive
+    // FALSE -> case insensitive
+    private Boolean caseSensitive = null;
 
     public String description() {
         return description;
@@ -63,20 +64,12 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public void caseSensitive(boolean caseSensitive) {
+    public void caseSensitive(Boolean caseSensitive) {
         this.caseSensitive = caseSensitive;
     }
 
-    public void caseInsensitive(boolean caseInsensitive) {
-        this.caseInsensitive = caseInsensitive;
-    }
-
-    public boolean caseSensitive() {
+    public Boolean caseSensitive() {
         return this.caseSensitive;
-    }
-
-    public boolean caseInsensitive() {
-        return this.caseInsensitive;
     }
 
     @Override
@@ -86,11 +79,7 @@ public class EqlSpec {
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 
-        if (caseInsensitive) {
-            str = appendWithComma(str, "case_insensitive", Boolean.toString(caseInsensitive));
-        }
-
-        if (caseSensitive) {
+        if (caseSensitive != null) {
             str = appendWithComma(str, "case_sensitive", Boolean.toString(caseSensitive));
         }
 
@@ -117,13 +106,12 @@ public class EqlSpec {
         EqlSpec that = (EqlSpec) other;
 
         return Objects.equals(this.query(), that.query())
-                && Objects.equals(this.caseSensitive, that.caseSensitive)
-                && Objects.equals(this.caseInsensitive, that.caseInsensitive);
+                && Objects.equals(this.caseSensitive, that.caseSensitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, this.caseSensitive, this.caseInsensitive);
+        return Objects.hash(this.query, this.caseSensitive);
     }
 
     private static String appendWithComma(String str, String name, String append) {

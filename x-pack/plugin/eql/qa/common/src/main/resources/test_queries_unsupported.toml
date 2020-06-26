@@ -16,8 +16,6 @@
 
 # java.lang.NullPointerException: Cannot invoke "java.lang.Long.longValue()" because "value" is null
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "Sequence: 1-1-1."
 query = '''
 sequence
@@ -29,8 +27,6 @@ expected_event_ids  = [1, 2, 3]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "Sequence: 1-many-many."
 query = '''
 sequence
@@ -42,8 +38,6 @@ expected_event_ids  = [1, 2, 3]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where serial_event_id <= 3]
@@ -55,8 +49,6 @@ expected_event_ids = [1, 2, 3,
                       3, 4, 5]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]
@@ -67,8 +59,6 @@ expected_event_ids = [1, 2, 3,
                       2, 3, 4]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]
@@ -78,8 +68,6 @@ sequence
 expected_event_ids  = [1, 2, 3]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where serial_event_id <= 4]
@@ -93,8 +81,6 @@ expected_event_ids  = [1, 2, 3, 4,
                        4, 5, 6, 7]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]
@@ -107,8 +93,6 @@ expected_event_ids  = [1, 2, 3, 4,
                        3, 4, 5, 6]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]
@@ -120,8 +104,6 @@ expected_event_ids  = [1, 2, 3, 4,
                        2, 3, 4, 5]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]
@@ -133,8 +115,6 @@ expected_event_ids  = [1, 2, 3, 4]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]        by unique_pid
@@ -146,8 +126,6 @@ expected_event_ids  = [48, 53,
                        97, 98]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true]        by unique_pid,  process_path
@@ -159,8 +137,6 @@ expected_event_ids  = [48, 53,
                        97, 98]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
@@ -171,8 +147,6 @@ sequence
 expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
@@ -181,49 +155,6 @@ sequence
   [file where opcode == 0]    by unique_pid,  process_path
 '''
 expected_event_ids  = [54, 55, 61, 67]
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence
-  [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-until
-  [file where opcode == 2]    by unique_pid
-'''
-expected_event_ids  = []
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence
-  [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-until
-  [file where opcode == 200]  by unique_pid
-'''
-expected_event_ids  = [54, 55, 61, 67]
-
-[[queries]]
-case_sensitive = true
-case_insensitive = true
-query = '''
-sequence
-  [process where opcode == 1] by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-until
-  [file where opcode == 200]  by unique_pid,  process_path
-'''
-expected_event_ids  = [54, 55, 61, 67]
-
 
 
 #############################
@@ -231,27 +162,19 @@ expected_event_ids  = [54, 55, 61, 67]
 #############################
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = 'process where true | head 6'
 expected_event_ids  = [1, 2, 3, 4, 5, 6]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = 'process where missing_field != null'
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [1, 2, 3, 4, 5]
 query = 'process where bad_field == null | head 5'
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 tags = ["comparisons", "pipes"]
 query = '''
 process where serial_event_id <= 8 and serial_event_id > 7
@@ -260,8 +183,6 @@ process where serial_event_id <= 8 and serial_event_id > 7
 expected_event_ids  = [8]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where true
 | filter serial_event_id <= 10
@@ -270,8 +191,6 @@ process where true
 expected_event_ids  = [7, 8, 9, 10]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where true
 | filter serial_event_id <= 10
@@ -281,8 +200,6 @@ process where true
 expected_event_ids  = [7, 8]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where true
 | head 1000
@@ -294,8 +211,6 @@ expected_event_ids  = [9, 10]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "check that comparisons against null values return null"
 expected_event_ids = []
 query = '''
@@ -305,23 +220,17 @@ process where null == (exit_code > -1)
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "check that comparisons against null values return null"
 expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
 query = 'process where null == (exit_code > -1) | head 7'
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "check that comparisons against null values return null"
 expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
 query = 'process where null == (-1 < exit_code) | head 7'
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = 'process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)'
 expected_event_ids  = [7, 8]
 
@@ -367,8 +276,6 @@ process where process_name == "VMACTHLP.exe" and unique_pid == 12
 expected_event_ids  = [12]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 | unique process_name
@@ -392,8 +299,6 @@ process where process_name in ("python.exe", "smss.exe", "Explorer.exe")
 expected_event_ids  = [3, 34, 48]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 | unique length(process_name) == length("python.exe")
@@ -409,8 +314,6 @@ process where process_name in ("Python.exe", "smss.exe", "explorer.exe")
 expected_event_ids  = [3, 48]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 | unique process_name
@@ -420,8 +323,6 @@ process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 expected_event_ids  = [34]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 | unique process_name
@@ -431,8 +332,6 @@ process where process_name in ("python.exe", "smss.exe", "explorer.exe")
 expected_event_ids  = [34]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe")
 | unique process_name parent_process_name
@@ -440,8 +339,6 @@ process where process_name in ("python.exe", "smss.exe")
 expected_event_ids  = [3, 48, 50, 54, 78]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe")
 | unique process_name, parent_process_name
@@ -449,8 +346,6 @@ process where process_name in ("python.exe", "smss.exe")
 expected_event_ids  = [3, 48, 50, 54, 78]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("python.exe", "smss.exe")
 | head 5
@@ -466,8 +361,6 @@ registry where length(bytes_written_string_list) == 2 and bytes_written_string_l
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 file where file_name == "csrss.exe" and opcode=0
   and descendant of [process where opcode in (1,3) and process_name="cmd.exe"]
@@ -475,8 +368,6 @@ file where file_name == "csrss.exe" and opcode=0
 expected_event_ids  = [72]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where opcode=1 and process_name == "csrss.exe"
   and descendant of [file where file_name == "csrss.exe" and opcode=0]
@@ -484,8 +375,6 @@ process where opcode=1 and process_name == "csrss.exe"
 expected_event_ids  = [73]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where opcode=1 and process_name == "smss.exe"
   and descendant of [
@@ -499,8 +388,6 @@ expected_event_ids  = [78]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 file where true
 | tail 3
@@ -508,8 +395,6 @@ file where true
 expected_event_ids  = [92, 95, 96]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where opcode in (1,3) and process_name in (parent_process_name, "System")
 '''
@@ -532,8 +417,6 @@ file where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [2, 1, 4, 3, 5]
 query = '''
 process where true
@@ -542,8 +425,6 @@ process where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [2, 1, 4, 3, 5]
 query = '''
 process where true
@@ -552,8 +433,6 @@ process where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [2, 1, 4, 3, 5]
 query = '''
 process where true
@@ -562,8 +441,6 @@ process where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [2, 1]
 query = '''
 process where true
@@ -573,8 +450,6 @@ process where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [1, 2, 3, 4, 5]
 query = '''
 process where true
@@ -585,8 +460,6 @@ process where true
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
@@ -599,8 +472,6 @@ until
 expected_event_ids  = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
@@ -613,8 +484,6 @@ until
 expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
@@ -627,8 +496,6 @@ until
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "Sequence: non-field based join."
 query = '''
 sequence
@@ -640,8 +507,6 @@ expected_event_ids  = [1, 2,
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 note = "Sequence: multiple non-field based joins."
 query = '''
 sequence
@@ -652,8 +517,6 @@ expected_event_ids  = [1, 2,
                        2, 3]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [file where event_subtype_full == "file_create_event"] by file_path
@@ -669,8 +532,6 @@ expected_event_ids  = [67, 68,
                        74, 75]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence with maxspan=1d
   [file where event_subtype_full == "file_create_event"] by file_path
@@ -686,8 +547,6 @@ expected_event_ids  = [67, 68,
                        74, 75]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence with maxspan=1h
   [file where event_subtype_full == "file_create_event"] by file_path
@@ -703,8 +562,6 @@ expected_event_ids  = [67, 68,
                        74, 75]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence with maxspan=1m
   [file where event_subtype_full == "file_create_event"] by file_path
@@ -720,8 +577,6 @@ expected_event_ids  = [67, 68,
                        74, 75]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence with maxspan=10s
    [file where event_subtype_full == "file_create_event"] by file_path
@@ -737,8 +592,6 @@ expected_event_ids  = [67, 68,
                        74, 75]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence with maxspan=500ms
   [file where event_subtype_full == "file_create_event"] by file_path
@@ -751,8 +604,6 @@ sequence with maxspan=500ms
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [file where opcode=0] by unique_pid
@@ -762,8 +613,6 @@ sequence
 expected_event_ids  = [55, 61]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [file where opcode=0] by unique_pid
@@ -773,8 +622,6 @@ sequence
 expected_event_ids  = [87, 92]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [file where opcode=0 and file_name="*.exe"] by unique_pid
@@ -785,8 +632,6 @@ until [process where opcode=5000] by unique_ppid
 expected_event_ids  = [55, 61]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [file where opcode=0 and file_name="*.exe"] by unique_pid
@@ -797,8 +642,6 @@ until [process where opcode=1] by unique_ppid
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join
   [file where opcode=0 and file_name="*.exe"] by unique_pid
@@ -809,8 +652,6 @@ until [process where opcode=1] by unique_ppid
 expected_event_ids  = [61, 59]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by user_name
   [process where opcode in (1,3) and process_name="smss.exe"]
@@ -819,8 +660,6 @@ join by user_name
 expected_event_ids  = [78, 48]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by unique_pid
   [process where opcode=1]
@@ -830,8 +669,6 @@ join by unique_pid
 expected_event_ids  = [54, 55, 61]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by string(unique_pid)
   [process where opcode=1]
@@ -841,8 +678,6 @@ join by string(unique_pid)
 expected_event_ids  = [54, 55, 61]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by unique_pid
   [process where opcode=1]
@@ -853,8 +688,6 @@ until [file where opcode == 2]
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by string(unique_pid), unique_pid, unique_pid * 2
   [process where opcode=1]
@@ -865,8 +698,6 @@ until [file where opcode == 2]
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join
   [file where opcode=0 and file_name="svchost.exe"] by unique_pid
@@ -875,8 +706,6 @@ join
 expected_event_ids  = [55, 56]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by unique_pid
   [process where opcode in (1,3) and process_name="python.exe"]
@@ -885,8 +714,6 @@ join by unique_pid
 expected_event_ids  = [54, 55]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by user_name
   [process where opcode in (1,3) and process_name="python.exe"]
@@ -895,8 +722,6 @@ join by user_name
 expected_event_ids  = [48, 78]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join
   [process where opcode in (1,3) and process_name="python.exe"]
@@ -905,8 +730,6 @@ join
 expected_event_ids  = [48, 3, 50, 78]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = '''
 process where fake_field == "*"
@@ -915,8 +738,6 @@ process where fake_field == "*"
 [[queries]]
 # no longer valid, since this returns `null`, and `not null` is still null
 # expected_event_ids  = [1, 2, 3, 4]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = '''
 process where fake_field != "*"
@@ -926,8 +747,6 @@ process where fake_field != "*"
 [[queries]]
 # no longer valid, since this returns `null`, and `not null` is still null
 # expected_event_ids  = [1, 2, 3, 4]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = '''
 process where not (fake_field == "*")
@@ -935,24 +754,18 @@ process where not (fake_field == "*")
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = '''
 registry where invalid_field_name != null
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 query = '''
 registry where length(bad_field) > 0
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [1, 55, 57, 63, 75304]
 query = '''
 any where true
@@ -960,8 +773,6 @@ any where true
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where opcode=1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ]
@@ -969,8 +780,6 @@ process where opcode=1 and process_name in ("services.exe", "smss.exe", "lsass.e
 expected_event_ids  = [62, 68, 78]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ]
@@ -978,8 +787,6 @@ process where process_name in ("services.exe", "smss.exe", "lsass.exe")
 expected_event_ids  = [62, 64, 68, 69, 78, 80]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where opcode=2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ]
@@ -987,8 +794,6 @@ process where opcode=2 and process_name in ("services.exe", "smss.exe", "lsass.e
 expected_event_ids  = [64, 69, 80]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name="svchost.exe"
   and child of [file where file_name="svchost.exe" and opcode=0]
@@ -996,8 +801,6 @@ process where process_name="svchost.exe"
 expected_event_ids  = [56, 58]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name="svchost.exe"
   and not child of [file where file_name="svchost.exe" and opcode=0]
@@ -1006,8 +809,6 @@ process where process_name="svchost.exe"
 expected_event_ids  = [11, 13, 15]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name="lsass.exe"
   and child of [
@@ -1018,8 +819,6 @@ process where process_name="lsass.exe"
 expected_event_ids  = [62, 64]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 file where child of [
   process where child of [
@@ -1031,8 +830,6 @@ file where child of [
 expected_event_ids  = [91]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 file where process_name = "python.exe"
 | unique unique_pid
@@ -1040,8 +837,6 @@ file where process_name = "python.exe"
 expected_event_ids  = [55, 95]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 file where event of [process where process_name = "python.exe" ]
 | unique unique_pid
@@ -1049,23 +844,17 @@ file where event of [process where process_name = "python.exe" ]
 expected_event_ids  = [55, 95]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where process_name = "python.exe"
 '''
 expected_event_ids  = [48, 50, 51, 54, 93]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = 'process where event of [process where process_name = "python.exe" ]'
 expected_event_ids  = [48, 50, 51, 54, 93]
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence by user_name
   [file where opcode=0] by file_path
@@ -1077,8 +866,6 @@ sequence by user_name
 expected_event_ids  = [88, 89, 90, 91]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence by user_name
   [file where opcode=0] by pid,file_path
@@ -1089,8 +876,6 @@ until
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence by user_name
   [file where opcode=0] by pid,file_path
@@ -1102,8 +887,6 @@ until
 expected_event_ids  = [55, 59, 61, 65]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence by pid
   [file where opcode=0] by file_path
@@ -1115,8 +898,6 @@ sequence by pid
 expected_event_ids = []
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 join by user_name
   [file where true] by pid,file_path
@@ -1126,8 +907,6 @@ join by user_name
 expected_event_ids  = [55, 56, 59, 58]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 sequence
   [process where true] by unique_pid
@@ -1138,8 +917,6 @@ sequence
 expected_event_ids  = [54, 55, 56, 54, 61, 62, 54, 67, 68, 54, 72, 73]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [11, 60, 63]
 query = '''
 any where process_name == "svchost.exe"
@@ -1147,8 +924,6 @@ any where process_name == "svchost.exe"
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [63, 60, 11]
 query = '''
 any where process_name == "svchost.exe"
@@ -1157,8 +932,6 @@ any where process_name == "svchost.exe"
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [60]
 query = '''
 any where process_name == "svchost.exe"
@@ -1167,8 +940,6 @@ any where process_name == "svchost.exe"
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [11]
 query = '''
 any where process_name == "svchost.exe"
@@ -1235,16 +1006,12 @@ registry where length(bytes_written_string_list) > 0 and bytes_written_string_li
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [57]
 query = '''
 registry where bytes_written_string_list[0] == 'en-US'
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [57]
 query = '''
 registry where bytes_written_string_list[1] == 'en'
@@ -1252,40 +1019,30 @@ registry where bytes_written_string_list[1] == 'en'
 
 # character classes aren't supported. custom tests made in test_queries_supported.toml
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where matchLite(command_line, ?'.*?net1\s+localgroup\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where matchLite(command_line, ?'.*?net1\s+\w+\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where matchLite(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 expected_event_ids  = [98]
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [98]
 query = '''
 process where match(command_line, ?'.*?net1\s+\w{4,15}\s+.*?')
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where matchLite(command_line, ?'.*?net1\s+[localgrup]{4,15}\s+.*?')
 '''
@@ -1435,8 +1192,6 @@ expected_event_ids  = [88, 91, 92]
 description = "check substring ranges"
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id
 '''
@@ -1461,8 +1216,6 @@ description = "check that case insensitive comparisons are performed for fields.
 
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [57]
 description = "test arraySearch functionality for lists of strings, and lists of objects"
 query = '''
@@ -1494,8 +1247,6 @@ registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'))
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - true"
 query = '''
@@ -1504,8 +1255,6 @@ network where mysterious_field
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 description = "test arraySearch - false"
 query = '''
@@ -1513,8 +1262,6 @@ network where mysterious_field and arraySearch(mysterious_field.subarray, s, fal
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - conditional"
 query = '''
@@ -1522,8 +1269,6 @@ network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - conditional"
 query = '''
@@ -1531,8 +1276,6 @@ network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - nested"
 query = '''
@@ -1542,8 +1285,6 @@ network where mysterious_field
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - nested with cross-check pass"
 query = '''
@@ -1553,8 +1294,6 @@ network where mysterious_field
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - nested with cross-check pass"
 query = '''
@@ -1564,8 +1303,6 @@ network where mysterious_field
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids  = [75305]
 description = "test arraySearch - nested with cross-check pass"
 query = '''
@@ -1575,8 +1312,6 @@ network where mysterious_field
 '''
 
 [[queries]]
-case_sensitive = true
-case_insensitive = true
 expected_event_ids = []
 description = "test 'safe()' wrapper for exception handling"
 query = '''

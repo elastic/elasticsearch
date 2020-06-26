@@ -13,6 +13,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
@@ -54,8 +55,20 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
 
     protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
 
-    protected final List<R> execute(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder, String script, MappedFieldType... types)
-        throws IOException {
+    protected final List<R> execute(
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder,
+        String script,
+        MappedFieldType... types
+    ) throws IOException {
+        return execute(indexBuilder, script, f -> new MatchAllDocsQuery(), types);
+    }
+
+    protected final List<R> execute(
+        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder,
+        String script,
+        Function<LF, Query> query,
+        MappedFieldType... types
+    ) throws IOException {
 
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
@@ -86,7 +99,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                     IndexSearcher searcher = newSearcher(reader);
                     LF leafFactory = newLeafFactory(factory, params, source, fieldData);
                     List<R> result = new ArrayList<>();
-                    searcher.search(new MatchAllDocsQuery(), new Collector() {
+                    searcher.search(query.apply(leafFactory), new Collector() {
                         @Override
                         public ScoreMode scoreMode() {
                             return ScoreMode.COMPLETE_NO_SCORES;

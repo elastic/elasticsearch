@@ -73,20 +73,34 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     public void testTwoDocValuesValues() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(
-                List.of(
-                    new SortedSetDocValuesField("foo", new BytesRef("cat")),
-                    new SortedSetDocValuesField("foo", new BytesRef("chicken"))
-                )
-            );
-            iw.addDocument(
-                List.of(new SortedSetDocValuesField("foo", new BytesRef("dog")), new SortedSetDocValuesField("foo", new BytesRef("pig")))
-            );
-        };
+        assertThat(execute(farmAnimals(), ADD_O, new KeywordFieldType("foo")), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
+    }
+
+    public void testTermQuery() throws IOException {
+        assertThat(execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "cat"), new KeywordFieldType("foo")), equalTo(List.of()));
         assertThat(
-            execute(indexBuilder, "for (String s: doc['foo']) {value(s + 'o')}", new KeywordFieldType("foo")),
-            equalTo(List.of("cato", "chickeno", "dogo", "pigo"))
+            execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "cato"), new KeywordFieldType("foo")),
+            equalTo(List.of("cato", "pigo"))
+        );
+        assertThat(
+            execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "dogo"), new KeywordFieldType("foo")),
+            equalTo(List.of("chickeno", "dogo"))
+        );
+    }
+
+    public void testPrefixQuery() throws IOException {
+        assertThat(execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "catdog"), new KeywordFieldType("foo")), equalTo(List.of()));
+        assertThat(
+            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "cat"), new KeywordFieldType("foo")),
+            equalTo(List.of("cato", "pigo"))
+        );
+        assertThat(
+            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "dogo"), new KeywordFieldType("foo")),
+            equalTo(List.of("chickeno", "dogo"))
+        );
+        assertThat(
+            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "c"), new KeywordFieldType("foo")),
+            equalTo(List.of("cato", "pigo", "chickeno", "dogo"))
         );
     }
 
@@ -113,4 +127,20 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     ) throws IOException {
         return leafFactory.newInstance(context, result::add);
     }
+
+    private CheckedConsumer<RandomIndexWriter, IOException> farmAnimals() {
+        return iw -> {
+            iw.addDocument(
+                List.of(new SortedSetDocValuesField("foo", new BytesRef("cat")), new SortedSetDocValuesField("foo", new BytesRef("pig")))
+            );
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("foo", new BytesRef("chicken")),
+                    new SortedSetDocValuesField("foo", new BytesRef("dog"))
+                )
+            );
+        };
+    }
+
+    private static final String ADD_O = "for (String s: doc['foo']) {value(s + 'o')}";
 }

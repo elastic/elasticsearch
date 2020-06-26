@@ -25,6 +25,7 @@ PUT /_snapshot/my_repository
 -----------------------------------
 PUT /_snapshot/my_repository/my_snapshot
 -----------------------------------
+// TEST[s/my_snapshot/my_snapshot?wait_for_completion=true/]
 
 [[create-snapshot-api-request]]
 ==== {api-request-title}

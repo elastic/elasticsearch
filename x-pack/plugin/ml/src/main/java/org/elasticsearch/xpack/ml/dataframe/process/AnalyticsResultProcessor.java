@@ -161,8 +161,7 @@ public class AnalyticsResultProcessor {
         }
         MemoryUsage memoryUsage = result.getMemoryUsage();
         if (memoryUsage != null) {
-            statsHolder.setMemoryUsage(memoryUsage);
-            statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+            processMemoryUsage(memoryUsage);
         }
         OutlierDetectionStats outlierDetectionStats = result.getOutlierDetectionStats();
         if (outlierDetectionStats != null) {
@@ -185,5 +184,10 @@ public class AnalyticsResultProcessor {
         LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
         auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
+    }
+
+    private void processMemoryUsage(MemoryUsage memoryUsage) {
+        statsHolder.setMemoryUsage(memoryUsage);
+        statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
     }
 }

@@ -262,7 +262,7 @@ A reindex can be used to:
 * Convert an existing index alias and collection of time-based indices into a
   data stream.
 
-* Apply a new or updated <<create-a-data-stream-template,composable template>>
+* Apply a new or updated <<create-a-data-stream-template,index template>>
   by reindexing an existing data stream into a new one. This applies mapping
   and setting changes in the template to each document and backing index of the
   data stream destination. See

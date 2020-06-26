@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +51,10 @@ import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -77,6 +82,18 @@ import static org.junit.Assume.assumeTrue;
 @Timeout(millis = 20 * 60 * 1000) // 20 min
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackagingTestCase extends Assert {
+
+    /**
+     * Annotation for tests which exhibit a known issue and are temporarily disabled.
+     */
+    @Documented
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @TestGroup(enabled = false, sysProperty = "tests.awaitsfix")
+    @interface AwaitsFix {
+        /** Point to JIRA entry. */
+        String bugUrl();
+    }
 
     protected final Logger logger = LogManager.getLogger(getClass());
 

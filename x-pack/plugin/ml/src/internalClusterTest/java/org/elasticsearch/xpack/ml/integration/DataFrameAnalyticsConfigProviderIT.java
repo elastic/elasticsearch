@@ -342,7 +342,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             assertThat(exceptionHolder.get(), is(instanceOf(ElasticsearchStatusException.class)));
             ElasticsearchStatusException e = (ElasticsearchStatusException) exceptionHolder.get();
             assertThat(e.status(), is(equalTo(RestStatus.CONFLICT)));
-            assertThat(e.getMessage(), is(equalTo("Cannot update analytics [config-id] while its status is analyzing")));
+            assertThat(e.getMessage(), is(equalTo("Cannot update analytics [config-id] unless it's stopped")));
         }
     }
 

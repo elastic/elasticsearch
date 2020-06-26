@@ -149,8 +149,7 @@ public class DataFrameAnalyticsConfigProvider {
             // Analytics is stopped, therefore it is safe to proceed with the udpate
             return;
         }
-        // Changing model memory limit requires task restart, therefore it cannot be safely updated when the task is running
-        if (update.getModelMemoryLimit() != null && update.getModelMemoryLimit().equals(originalConfig.getModelMemoryLimit()) == false) {
+        if (update.requiresRestart(originalConfig)) {
             throw ExceptionsHelper.conflictStatusException(
                 Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_CANNOT_UPDATE_IN_CURRENT_STATE, analyticsId, analyticsState));
         }

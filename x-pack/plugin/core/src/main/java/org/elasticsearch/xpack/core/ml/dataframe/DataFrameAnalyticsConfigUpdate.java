@@ -123,6 +123,13 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         return builder;
     }
 
+    /**
+     * Whether this update applied to the given source config requires analytics task restart.
+     */
+    public boolean requiresRestart(DataFrameAnalyticsConfig source) {
+        return getModelMemoryLimit() != null && getModelMemoryLimit().equals(source.getModelMemoryLimit()) == false;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {

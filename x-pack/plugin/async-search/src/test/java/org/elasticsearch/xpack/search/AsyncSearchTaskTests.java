@@ -194,7 +194,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                AsyncSearchResponse asyncSearchResponse = task.buildErrorResponse(e);
+                AsyncSearchResponse asyncSearchResponse = task.buildErrorResponse(null, e);
                 assertTrue(response.compareAndSet(null, asyncSearchResponse));
                 latch.countDown();
             }

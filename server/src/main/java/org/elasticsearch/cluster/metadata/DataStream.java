@@ -223,7 +223,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), FIELD_MAPPING_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapOrdered(), FIELD_MAPPING_FIELD);
         }
 
         private final String name;

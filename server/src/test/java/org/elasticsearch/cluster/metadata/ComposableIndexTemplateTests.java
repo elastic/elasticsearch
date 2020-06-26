@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -71,12 +72,12 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         Template template = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
 
-        if (dataStreamTemplate != null || randomBoolean()) {
+        if (randomBoolean()) {
             if (randomBoolean()) {
                 settings = randomSettings();
             }
             if (dataStreamTemplate != null || randomBoolean()) {
-                mappings = randomMappings(dataStreamTemplate);
+                mappings = randomMappings();
             }
             if (randomBoolean()) {
                 aliases = randomAliases();
@@ -111,13 +112,9 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
+    private static CompressedXContent randomMappings() {
         try {
-            if (dataStreamTemplate != null) {
-                return new CompressedXContent("{\"properties\":{\"" + dataStreamTemplate.getTimestampField() + "\":{\"type\":\"date\"}}}");
-            } else {
-                return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
-            }
+            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
             fail("got an IO exception creating fake mappings: " + e);
             return null;
@@ -148,7 +145,8 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         if (randomBoolean()) {
             return null;
         } else {
-            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
+            Map<String, Object> fieldMapping = randomBoolean() ? new HashMap<>(Map.of("type", "date_nanos")) : null;
+            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8), fieldMapping);
         }
     }
 
@@ -167,7 +165,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             case 1:
                 return new ComposableIndexTemplate(orig.indexPatterns(),
                     randomValueOtherThan(orig.template(), () -> new Template(randomSettings(),
-                        randomMappings(orig.getDataStreamTemplate()), randomAliases())),
+                        randomMappings(), randomAliases())),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),

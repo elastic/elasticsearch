@@ -48,7 +48,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -256,9 +255,6 @@ public class DataStreamIT extends ESIntegTestCase {
             "      \"properties\": {\n" +
             "        \"baz_field\": {\n" +
             "          \"type\": \"keyword\"\n" +
-            "        },\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
             "        }\n" +
             "      }\n" +
             "    }";
@@ -319,22 +315,6 @@ public class DataStreamIT extends ESIntegTestCase {
         expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 2))).actionGet());
-    }
-
-    public void testTimeStampValidationNoFieldMapping() throws Exception {
-        // Adding a template without a mapping for timestamp field and expect template creation to fail.
-        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
-        createTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                new Template(null, new CompressedXContent("{}"), null),
-                null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
-        );
-
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
-        assertThat(e.getCause().getCause().getMessage(), equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
     }
 
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {
@@ -519,18 +499,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testNestedTimestampField() throws Exception {
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"event\": {\n" +
-            "          \"properties\": {\n" +
-            "            \"@timestamp\": {\n" +
-            "              \"type\": \"date\"" +
-            "            }\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";;
-        putComposableIndexTemplate("id1", "event.@timestamp", mapping, List.of("logs-foo*"));
+        putComposableIndexTemplate("id1", "event.@timestamp", null, List.of("logs-foo*"));
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -555,18 +524,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\",\n" +
-            "          \"format\": \"yyyy-MM\",\n" +
-            "          \"meta\": {\n" +
-            "            \"x\": \"y\"\n" +
-            "          },\n" +
-            "          \"store\": true\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        Map<String, Object> mapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
         putComposableIndexTemplate("id1", "@timestamp", mapping, List.of("logs-foo*"));
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
@@ -680,18 +638,20 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns) throws IOException {
-        String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
-        putComposableIndexTemplate(id, timestampFieldName, mapping, patterns);
+        putComposableIndexTemplate(id, timestampFieldName, null, patterns);
     }
 
-    static void putComposableIndexTemplate(String id, String timestampFieldName, String mapping, List<String> patterns) throws IOException {
+    static void putComposableIndexTemplate(String id,
+                                           String timestampFieldName,
+                                           Map<String, Object> timestampFieldMapping,
+                                           List<String> patterns) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(null, new CompressedXContent(mapping), null),
+                null,
                 null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
+                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName, timestampFieldMapping))
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

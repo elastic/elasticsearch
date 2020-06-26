@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -888,10 +889,15 @@ public class MetadataIndexTemplateService {
             .map(Template::mappings)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        // Add the actual index template's mappings, since it takes the highest precedence
+        // Add the actual index template's mappings, since it has a higher precedence than component templates
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
+        // Add the mapping of a data stream's timestamp field if available, since it has the highest precedence:
+        Optional.ofNullable(template.getDataStreamTemplate())
+            .map(DataStreamTemplate::getFullMapping)
+            .ifPresent(mappings::add);
+
         return Collections.unmodifiableList(mappings);
     }
 
@@ -1040,7 +1046,8 @@ public class MetadataIndexTemplateService {
                 // Parse mappings to ensure they are valid after being composed
                 List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
                 try {
-                    Map<String, Object> finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
+                    Map<String, Object> finalMappings =
+                        MetadataCreateIndexService.parseV2Mappings("{}", template.getDataStreamTemplate(), mappings, xContentRegistry);
 
                     MapperService dummyMapperService = tempIndexService.mapperService();
                     if (finalMappings.isEmpty() == false) {

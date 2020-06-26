@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -496,6 +498,7 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
+                // This is an existing data stream, use the original timestamp field mapping
                 dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
             }
         }
@@ -520,8 +523,9 @@ public class MetadataCreateIndexService {
                                                         final ClusterState currentState,
                                                         final String templateName,
                                                         final NamedXContentRegistry xContentRegistry) throws Exception {
+        final ComposableIndexTemplate template = currentState.metadata().templatesV2().get(templateName);
         final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
-            MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
+            template.getDataStreamTemplate(), MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
         return mappings;
     }
 
@@ -562,7 +566,9 @@ public class MetadataCreateIndexService {
      * not merged, instead they replace any previous field definition.
      */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> parseV2Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
+    static Map<String, Object> parseV2Mappings(String mappingsJson,
+                                               DataStreamTemplate dataStreamTemplate,
+                                               List<CompressedXContent> templateMappings,
                                                NamedXContentRegistry xContentRegistry) throws Exception {
         Map<String, Object> requestMappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
@@ -591,6 +597,15 @@ public class MetadataCreateIndexService {
                 if (maybeProperties != null) {
                     properties = mergeFailingOnReplacement(properties, maybeProperties);
                 }
+            }
+        }
+
+        // Apply default timestamp field mapping.
+        if (dataStreamTemplate != null) {
+            String path = dataStreamTemplate.getTimestampField().replace(".", ".properties.");
+            Map<String, Object> timeStampFieldMapping = ObjectPath.eval(path, properties);
+            if (timeStampFieldMapping == null) {
+                properties = mergeFailingOnReplacement(properties, DataStreamTemplate.generateDefaultMapping(path));
             }
         }
 

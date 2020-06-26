@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,11 +34,16 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.convertFieldPathToMappingPath;
 
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
@@ -246,36 +253,53 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
-            args -> new DataStreamTemplate((String) args[0])
+            args -> new DataStreamTemplate((String) args[0], (Map<String, Object>) args[1])
         );
+
+        static ParseField TIMESTAMP_FIELD_MAPPING = new ParseField("timestamp_field_mapping");
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), TIMESTAMP_FIELD_MAPPING);
         }
 
         private final String timestampField;
+        private final Map<String, Object> timestampFieldMapping;
+
+        public DataStreamTemplate(String timestampField, Map<String, Object> timestampFieldMapping) {
+            this.timestampField = timestampField;
+            this.timestampFieldMapping = timestampFieldMapping;
+        }
 
         public DataStreamTemplate(String timestampField) {
-            this.timestampField = timestampField;
+            this(timestampField, null);
         }
 
         public String getTimestampField() {
             return timestampField;
         }
 
+        public Map<String, Object> getTimestampFieldMapping() {
+            return timestampFieldMapping;
+        }
+
         DataStreamTemplate(StreamInput in) throws IOException {
-            this(in.readString());
+            this(in.readString(), in.readMap());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(timestampField);
+            out.writeMap(timestampFieldMapping);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), timestampField);
+            if (timestampFieldMapping != null) {
+                builder.field(TIMESTAMP_FIELD_MAPPING.getPreferredName(), timestampFieldMapping);
+            }
             builder.endObject();
             return builder;
         }
@@ -285,12 +309,58 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return timestampField.equals(that.timestampField);
+            return timestampField.equals(that.timestampField) &&
+                Objects.equals(timestampFieldMapping, that.timestampFieldMapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(timestampField);
+            return Objects.hash(timestampField, timestampFieldMapping);
+        }
+
+        public CompressedXContent getFullMapping() {
+            if (timestampFieldMapping == null) {
+                return null;
+            }
+
+            String mappingPath = convertFieldPathToMappingPath(timestampField);
+            String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
+            String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
+
+            Map<String, Object> changes = new HashMap<>();
+            Map<String, Object> current = changes;
+            for (String key : parentObjectFieldPath.split("\\.")) {
+                Map<String, Object> map = new HashMap<>();
+                current.put(key, map);
+                current = map;
+            }
+            current.put(leafFieldName, getTimestampFieldMapping());
+
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.value(changes);
+                return new CompressedXContent(BytesReference.bytes(builder));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        public static Map<String, Object> generateDefaultMapping(String path) {
+            if (path.contains(".")) {
+                String parentObjectFieldPath = path.substring(0, path.lastIndexOf('.'));
+                String leafFieldName = path.substring(path.lastIndexOf('.') + 1);
+
+                Map<String, Object> changes = new HashMap<>();
+                Map<String, Object> current = changes;
+                for (String key : parentObjectFieldPath.split("\\.")) {
+                    Map<String, Object> map = new HashMap<>();
+                    current.put(key, map);
+                    current = map;
+                }
+                current.put(leafFieldName, new HashMap<>(Map.of("type", "date")));
+                return changes;
+            } else {
+                return new HashMap<>(Map.of(path, new HashMap<>(Map.of("type", "date"))));
+            }
         }
     }
 }

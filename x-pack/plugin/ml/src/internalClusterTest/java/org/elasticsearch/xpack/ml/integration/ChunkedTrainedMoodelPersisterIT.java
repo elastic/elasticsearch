@@ -77,8 +77,8 @@ public class ChunkedTrainedMoodelPersisterIT extends MlSingleNodeTestCase {
         //Accuracy for size is not tested here
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         persister.createAndIndexInferenceModelMetadata(modelSizeInfo);
-        for (String chunk : chunks) {
-            persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(chunk, totalSize));
+        for (int i = 0; i < chunks.size(); i++) {
+            persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(chunks.get(i), i, i == (chunks.size() - 1)));
         }
 
         PlainActionFuture<Tuple<Long, Set<String>>> getIdsFuture = new PlainActionFuture<>();

@@ -452,10 +452,22 @@ public class TrainedModelProvider {
                         String compressedString = docs.stream()
                             .map(TrainedModelDefinitionDoc::getCompressedString)
                             .collect(Collectors.joining());
-                        if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                            listener.onFailure(ExceptionsHelper.serverError(
-                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                            return;
+                        // BWC for when we tracked the total definition length
+                        // TODO: remove in 9
+                        if (docs.get(0).getTotalDefinitionLength() != null) {
+                            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                                listener.onFailure(ExceptionsHelper.serverError(
+                                    Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                                return;
+                            }
+                        } else {
+                            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+                            // Either we are missing the last doc, or some previous doc
+                            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+                                listener.onFailure(ExceptionsHelper.serverError(
+                                    Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                                return;
+                            }
                         }
                         builder.setDefinitionFromString(compressedString);
                     } catch (ResourceNotFoundException ex) {

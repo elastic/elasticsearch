@@ -52,6 +52,7 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
             .setDefinitionLength(definition.length())
             .setDocNum(docNum)
             .setCompressedString(definition)
+            .setEos(isEos())
             .build();
     }
 

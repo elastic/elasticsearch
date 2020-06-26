@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -326,11 +327,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             @Override
             public void onResponse(ShardSearchRequest rewritten) {
                 // fork the execution in the search thread pool
-                try {
-                    runAsync(shard, () -> executeDfsPhase(request, task, keepStatesInContext), listener);
-                } catch (Exception exc) {
-                    listener.onFailure(exc);
-                }
+                runAsync(getExecutor(shard), () -> executeDfsPhase(request, task, keepStatesInContext), listener);
             }
 
             @Override
@@ -409,12 +406,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             return;
                         }
                     }
-                    // fork the execution in the search thread pool
-                    runAsync(shard, () -> {
-                        try (releasable) {
-                            return executeQueryPhase(orig, task, readerContext);
-                        }
-                    }, listener);
                 } catch (Exception exc) {
                     try {
                         listener.onFailure(exc);
@@ -423,6 +414,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         removeReaderContext(readerContext.id().getId());
                     }
                 }
+                // fork the execution in the search thread pool
+                runAsync(getExecutor(shard), () -> {
+                    try (releasable) {
+                        return executeQueryPhase(orig, task, readerContext);
+                    }
+                }, ActionListener.runAfter(listener, releasable::close));
             }
 
             @Override
@@ -440,22 +437,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private <T> void runAsync(IndexShard shard, CheckedSupplier<T, Exception> command, ActionListener<T> listener) {
-        Executor executor = getExecutor(shard);
-        executor.execute(() -> {
-            T result;
-            try {
-                result = command.get();
-            } catch (Exception exc) {
-                listener.onFailure(exc);
-                return;
-            }
-            listener.onResponse(result);
-        });
-    }
-
-    private <T> void runAsync(SearchContextId id, CheckedSupplier<T, IOException> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(ActionRunnable.supply(listener, executable::get));
+    private <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
+        executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request,
@@ -501,7 +484,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeQueryPhase(InternalScrollSearchRequest request,
                                   SearchShardTask task,
                                   ActionListener<ScrollQuerySearchResult> listener) {
-        runAsync(request.contextId(), () -> {
+        runAsync(getExecutor(request.contextId()), () -> {
             final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId());
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (Releasable ignored = readerContext.markAsUsed();
@@ -530,7 +513,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
-        runAsync(request.contextId(), () -> {
+        runAsync(getExecutor(request.contextId()), () -> {
             final ReaderContext readerContext = findReaderContext(request.contextId());
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
             readerContext.setAggregatedDfs(request.dfs());
@@ -569,7 +552,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeFetchPhase(InternalScrollSearchRequest request, SearchShardTask task,
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
-        runAsync(request.contextId(), () -> {
+        runAsync(getExecutor(request.contextId()), () -> {
             final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId());
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (Releasable ignored = readerContext.markAsUsed();
@@ -597,7 +580,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
-        runAsync(request.contextId(), () -> {
+        runAsync(getExecutor(request.contextId()), () -> {
             final ReaderContext readerContext = findReaderContext(request.contextId());
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
             try (Releasable ignored = readerContext.markAsUsed();
@@ -1143,36 +1126,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+     * It uses a light weight searcher that can only access the statistics of the fields in order to avoid opening a
+     * full reader on frozen indices.
      * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
      * shard.
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        final boolean hasRefreshPending;
+        final ReaderContext readerContext = request.readerId() != null ? getReaderContext(request.readerId()) :  null;
+        final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed() : null;
+        final IndexService indexService;
         final Engine.Searcher canMatchSearcher;
-        if (request.readerId() != null) {
-            final ReaderContext readerContext = findReaderContext(request.readerId());
+        final boolean hasRefreshPending;
+        if (readerContext != null) {
             readerContext.indexShard().getSearchOperationListener().validateSearchContext(readerContext, request);
             checkKeepAliveLimit(request.keepAlive().millis());
             readerContext.keepAlive(request.keepAlive().millis());
-            Releasable releasable = readerContext.markAsUsed();
-            try {
-                final Engine.Searcher searcher = readerContext.acquireSearcher("can_match");
-                canMatchSearcher = new Engine.Searcher(searcher.source(), searcher.getDirectoryReader(),
-                    searcher.getSimilarity(), searcher.getQueryCache(), searcher.getQueryCachingPolicy(),
-                    Releasables.wrap(searcher, releasable));
-                releasable = null;
-            } finally {
-                Releasables.close(releasable);
-            }
+            indexService = readerContext.indexService();
+            canMatchSearcher = readerContext.acquireSearcher("can_match");
             hasRefreshPending = false;
         } else {
+            indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(request.shardId().getId());
             hasRefreshPending = indexShard.hasRefreshPending();
             canMatchSearcher = indexShard.acquireSearcher("can_match");
         }
-        try (Releasable ignored = canMatchSearcher) {
+
+        try (markAsUsed; Releasable ignored = canMatchSearcher) {
             final boolean aliasFilterCanMatch = request.getAliasFilter()
                 .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,

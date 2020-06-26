@@ -20,6 +20,8 @@ POST /twitter/_search_context?keep_alive=1m
 The result from the above request includes a `id`, which should
 be passed to the `id` of the `search_context` parameter of a search request.
 
+[source,console]
+--------------------------------------------------
 POST /_search <1>
 {
     "size": 100,
@@ -33,6 +35,8 @@ POST /_search <1>
 	    "keep_alive": "1m"  <3>
     }
 }
+--------------------------------------------------
+// TEST[catch:missing]
 
 <1> A search request with `search_context` must not specify `index`, `routing`,
 and `preferences` as these parameters are copied from the `search_context`.

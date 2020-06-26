@@ -1137,8 +1137,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
                     collapse = CollapseBuilder.fromXContent(parser);
                 } else if (SEARCH_CONTEXT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchContextBuilder = SearchContextBuilder.
-                        fromXContent(parser);
+                    searchContextBuilder = SearchContextBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

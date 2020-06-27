@@ -79,6 +79,9 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             for (Object item : list) {
                 assertThat(item, instanceOf(HashMap.class));
                 Map<String, Object> entry = (Map<String, Object>) item;
+                Long ts = (Long) entry.get("timestamp");
+                // currently this is windows filetime
+                entry.put("@timestamp", winFileTimeToUnix(ts));
                 bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
@@ -89,6 +92,14 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             assertFalse(bulkResponse.hasFailures());
             isSetUp = true;
         }
+
+    }
+    private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
+    private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
+
+    public static long winFileTimeToUnix(final long filetime) {
+        long ts = (filetime / FILETIME_ONE_MILLISECOND);
+        return ts - FILETIME_EPOCH_DIFF;
     }
 
     private static void cleanupData(CommonEqlActionTestCase tc) throws Exception {

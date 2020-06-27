@@ -143,17 +143,20 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
-            int[] docIds = Arrays.copyOfRange(context.docIdsToLoad(), context.docIdsToLoadFrom(), context.docIdsToLoadSize());
-            int[] sortedDocIds = docIds.clone();
-            Arrays.sort(sortedDocIds);
+            DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+            }
+            Arrays.sort(docs);
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                int docId = sortedDocIds[index];
+                int docId = docs[index].docId;
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                 int subDocId = docId - subReaderContext.docBase;
@@ -168,7 +171,8 @@ public class FetchPhase implements SearchPhase {
                         storedToRequestedFields, subReaderContext);
                 }
 
-                hits[index] = searchHit;
+                sortedHits[index] = searchHit;
+                hits[docs[index].index] = searchHit;
                 hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
                 for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                     fetchSubPhase.hitExecute(context, hitContext);
@@ -179,21 +183,31 @@ public class FetchPhase implements SearchPhase {
             }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, hits);
+                fetchSubPhase.hitsExecute(context, sortedHits);
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
             }
 
-            // re-sort final hits to original order
-            List originalOrder = Arrays.stream(docIds).boxed().collect(Collectors.toList());
-            Comparator<SearchHit> hitsComparator = Comparator.comparing(o -> originalOrder.indexOf(o.docId()));
-            Arrays.sort(hits, hitsComparator);
-
             TotalHits totalHits = context.queryResult().getTotalHits();
             context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    static class DocIdToIndex implements Comparable<DocIdToIndex> {
+        final int docId;
+        final int index;
+
+        DocIdToIndex(int docId, int index) {
+            this.docId = docId;
+            this.index = index;
+        }
+
+        @Override
+        public int compareTo(DocIdToIndex o) {
+            return Integer.compare(docId, o.docId);
         }
     }
 

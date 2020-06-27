@@ -329,11 +329,13 @@ public class RestClientDocumentation {
         }
         {
             //tag::rest-client-config-request-options-timeouts
-            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-            RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
-            requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000);
-            builder.setRequestConfig(requestConfigBuilder.build());
-            RequestOptions options = builder.build();
+            RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(5000)
+                .setSocketTimeout(60000)
+                .build();
+            RequestOptions options = RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(requestConfig)
+                .build();
             //end::rest-client-config-request-options-timeouts
         }
         {

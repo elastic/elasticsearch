@@ -101,7 +101,12 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         },
         "sort": [
           1607252645000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607252645000"
+          ]
+        }
       },
       {
         "_index": "sec_logs",
@@ -124,7 +129,12 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         },
         "sort": [
           1607339167000
-        ]
+        ],
+        "fields": {
+          "@timestamp": [
+            "1607339167000"
+          ]
+        }
       }
     ]
   }
@@ -169,6 +179,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
 
 The API returns the following response. Matching events in
 the `hits.sequences.events` property are sorted by
@@ -216,11 +227,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -243,11 +249,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000
@@ -293,6 +294,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event.
@@ -341,11 +343,6 @@ contains the shared `agent.id` value for each matching event.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -368,11 +365,6 @@ contains the shared `agent.id` value for each matching event.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000

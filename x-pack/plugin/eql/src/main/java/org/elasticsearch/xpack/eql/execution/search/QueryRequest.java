@@ -4,12 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.assembler;
+package org.elasticsearch.xpack.eql.execution.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.eql.session.Payload;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-public interface Executable {
+public interface QueryRequest {
 
-    void execute(ActionListener<Payload> resultsListener);
+    SearchSourceBuilder searchSource();
 }

@@ -39,12 +39,11 @@ class SequenceRuntime implements Executable {
 
     private long startTime;
 
-    SequenceRuntime(List<Criterion> criteria, QueryClient queryClient, Limit limit) {
+    SequenceRuntime(List<Criterion> criteria, QueryClient queryClient, TimeValue maxSpan, Limit limit) {
         this.criteria = criteria;
         this.numberOfStages = criteria.size();
         this.queryClient = queryClient;
-        boolean hasTiebreaker = criteria.get(0).tiebreakerExtractor() != null;
-        this.stateMachine = new SequenceStateMachine(numberOfStages, hasTiebreaker, limit);
+        this.stateMachine = new SequenceStateMachine(numberOfStages, maxSpan, limit);
     }
 
     @Override

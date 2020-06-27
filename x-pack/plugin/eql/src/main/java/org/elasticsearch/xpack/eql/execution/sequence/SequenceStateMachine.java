@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 
@@ -28,18 +29,21 @@ public class SequenceStateMachine {
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
-    
+    private final long maxSpanInMillis;
+
     private int offset = 0;
     private int limit = -1;
     private boolean limitReached = false;
 
     @SuppressWarnings("rawtypes")
-    public SequenceStateMachine(int stages, boolean hasTiebreaker, Limit limit) {
+    public SequenceStateMachine(int stages, TimeValue maxSpan, Limit limit) {
         this.completionStage = stages - 1;
 
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new LinkedList<>();
+
+        this.maxSpanInMillis = maxSpan.millis();
 
         // limit && offset
         if (limit != null) {
@@ -71,15 +75,19 @@ public class SequenceStateMachine {
         if (frame == null || frame.isEmpty()) {
             return false;
         }
-        // pick the sequence with the highest (for ASC) / lowest (for DESC) timestamp lower than current match timestamp
-        Tuple<Sequence, Integer> neighbour = frame.before(ordinal);
-        if (neighbour == null) {
+        Tuple<Sequence, Integer> before = frame.before(ordinal);
+        if (before == null) {
             return false;
         }
-        Sequence sequence = neighbour.v1();
+        Sequence sequence = before.v1();
         // eliminate the match and all previous values from the frame
-        frame.trim(neighbour.v2() + 1);
-        // update sequence
+        frame.trim(before.v2() + 1);
+        
+        // check maxspan before continuing the sequence
+        if (maxSpanInMillis > 0 && (ordinal.timestamp - sequence.startTimestamp() >= maxSpanInMillis)) {
+            return false;
+        }
+
         sequence.putMatch(stage, hit, ordinal);
 
         // remove the frame and keys early (as the key space is large)

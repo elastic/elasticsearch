@@ -57,6 +57,10 @@ public class Sequence {
         return matches[currentStage].ordinal();
     }
 
+    public long startTimestamp() {
+        return matches[0].ordinal().timestamp;
+    }
+
     public List<SearchHit> hits() {
         List<SearchHit> hits = new ArrayList<>(matches.length);
         for (Match m : matches) {

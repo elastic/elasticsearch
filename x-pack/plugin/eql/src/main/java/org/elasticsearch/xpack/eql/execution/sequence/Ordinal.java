@@ -10,8 +10,8 @@ import java.util.Objects;
 
 public class Ordinal implements Comparable<Ordinal> {
 
-    private final long timestamp;
-    private final Comparable<Object> tiebreaker;
+    final long timestamp;
+    final Comparable<Object> tiebreaker;
 
     public Ordinal(long timestamp, Comparable<Object> tiebreaker) {
         this.timestamp = timestamp;

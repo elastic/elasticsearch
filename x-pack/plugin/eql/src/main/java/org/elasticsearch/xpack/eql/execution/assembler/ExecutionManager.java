@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -43,6 +44,7 @@ public class ExecutionManager {
                                Attribute timestamp,
                                Attribute tiebreaker,
                                OrderDirection direction,
+                               TimeValue maxSpan,
                                Limit limit) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
         
@@ -66,7 +68,7 @@ public class ExecutionManager {
             // base query remains descending, the rest need to flip
             criteria.add(new Criterion(request.searchSource(), keyExtractors, tsExtractor, tbExtractor, i > 0 && descending));
         }
-        return new SequenceRuntime(criteria, new BasicQueryClient(session), limit);
+        return new SequenceRuntime(criteria, new BasicQueryClient(session), maxSpan, limit);
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

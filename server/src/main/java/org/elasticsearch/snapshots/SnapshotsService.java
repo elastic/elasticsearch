@@ -1054,6 +1054,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
         endingSnapshots.remove(snapshot);
         failListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), e);
+        assert repositoryOperations.assertNotQueued(snapshot);
     }
 
     /**
@@ -1586,6 +1587,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void failAllListenersOnMasterFailOver(Exception e) {
         synchronized (currentlyFinalizing) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                repositoryOperations.clear();
                 for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
                     failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
                 }
@@ -2272,6 +2274,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         synchronized boolean isEmpty() {
             return snapshotsToFinalize.isEmpty();
+        }
+
+        synchronized boolean assertNotQueued(Snapshot snapshot) {
+            assert snapshotsToFinalize.getOrDefault(snapshot.getRepository(), new LinkedList<>()).stream()
+                    .noneMatch(entry -> entry.snapshot().equals(snapshot)) : "Snapshot [" + snapshot + "] is still in finalization queue";
+            return true;
         }
 
         synchronized boolean assertConsistent() {

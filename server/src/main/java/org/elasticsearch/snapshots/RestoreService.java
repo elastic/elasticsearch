@@ -216,9 +216,7 @@ public class RestoreService implements ClusterStateApplier {
                 } else {
                     globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
                     dataStreams = globalMetadata.dataStreams();
-                    if (request.includeGlobalState() == false) {
-                        dataStreams.keySet().retainAll(requestedDataStreams);
-                    }
+                    dataStreams.keySet().retainAll(requestedDataStreams);
                 }
                 requestIndices.removeAll(dataStreams.keySet());
                 Set<String> dataStreamIndices = dataStreams.values().stream()

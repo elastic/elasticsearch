@@ -10,6 +10,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -22,8 +23,8 @@ public class Criterion implements QueryRequest {
     private final HitExtractor tiebreakerExtractor;
 
     // search after markers
-    private Object[] startMarker;
-    private Object[] stopMarker;
+    private Ordinal startMarker;
+    private Ordinal stopMarker;
 
     //TODO: should accept QueryRequest instead of another SearchSourceBuilder
     public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
@@ -54,54 +55,45 @@ public class Criterion implements QueryRequest {
         return tiebreakerExtractor;
     }
 
-    public long timestamp(SearchHit hit) {
-        Object ts = timestampExtractor.extract(hit);
-        if (ts instanceof Number) {
-            return ((Number) ts).longValue();
-        }
-        throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
-    }
-
     @SuppressWarnings({ "unchecked" })
-    public Comparable<Object> tiebreaker(SearchHit hit) {
-        if (tiebreakerExtractor == null) {
-            return null;
+    public Ordinal ordinal(SearchHit hit) {
+
+        Object ts = timestampExtractor.extract(hit);
+        if (ts instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
         }
-        Object tb = tiebreakerExtractor.extract(hit);
-        if (tb instanceof Comparable) {
-            return (Comparable<Object>) tb;
+
+        long timestamp = ((Number) ts).longValue();
+        Comparable<Object> tiebreaker = null;
+
+        if (tiebreakerExtractor != null) {
+            Object tb = tiebreakerExtractor.extract(hit);
+            if (tb instanceof Comparable == false) {
+                throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+            }
+            tiebreaker = (Comparable<Object>) tb;
         }
-        throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+        return new Ordinal(timestamp, tiebreaker);
     }
 
-    public Object[] startMarker() {
+    public Ordinal startMarker() {
         return startMarker;
     }
 
-    public Object[] stopMarker() {
+    public Ordinal stopMarker() {
         return stopMarker;
     }
 
-    private Object[] marker(SearchHit hit) {
-        long timestamp = timestamp(hit);
-        Object tiebreaker = null;
-        if (tiebreakerExtractor() != null) {
-            tiebreaker = tiebreaker(hit);
-        }
-
-        return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
+    public void startMarker(Ordinal ordinal) {
+        startMarker = ordinal;
     }
 
-    public void startMarker(SearchHit hit) {
-        startMarker = marker(hit);
+    public void stopMarker(Ordinal ordinal) {
+        stopMarker = ordinal;
     }
 
-    public void stopMarker(SearchHit hit) {
-        stopMarker = marker(hit);
-    }
-
-    public Criterion useMarker(Object[] marker) {
-        searchSource.searchAfter(marker);
+    public Criterion useMarker(Ordinal marker) {
+        searchSource.searchAfter(marker.toArray());
         return this;
     }
 }

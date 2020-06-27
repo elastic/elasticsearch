@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.payload.ReversePayload;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
+import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
 import org.elasticsearch.xpack.eql.execution.sequence.Sequence;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceStateMachine;
@@ -73,8 +74,7 @@ class SequenceRuntime implements Executable {
             // narrow by the previous stage timestamp marker
 
             Criterion previous = criteria.get(stage - 1);
-            // if DESC, flip the markers (the stop becomes the start due to the reverse order), otherwise keep it accordingly
-            Object[] marker = descending && stage == 1 ? previous.stopMarker() : previous.startMarker();
+            Ordinal marker = previous.startMarker();
             currentCriterion.useMarker(marker);
         }
         
@@ -98,23 +98,28 @@ class SequenceRuntime implements Executable {
     private void findMatches(int currentStage, List<SearchHit> hits) {
         // update criterion
         Criterion criterion = criteria.get(currentStage);
-        criterion.startMarker(hits.get(0));
-        criterion.stopMarker(hits.get(hits.size() - 1));
 
+        boolean start = true;
         // break the results per key
         // when dealing with descending order, queries outside the base are ASC (search_before)
         // so look at the data in reverse (that is DESC)
+        Ordinal last = null;
         for (Iterator<SearchHit> it = descending ? new ReversedIterator<>(hits) : hits.iterator(); it.hasNext();) {
             SearchHit hit = it.next();
-
             KeyAndOrdinal ko = key(hit, criterion);
+
+            last = ko.ordinal;
+
+            if (start) {
+                start = false;
+                criterion.startMarker(ko.ordinal);
+            }
+
             if (currentStage == 0) {
-                Sequence seq = new Sequence(ko.key, numberOfStages, ko.timestamp, ko.tiebreaker, hit);
-                long tStart = (long) criterion.startMarker()[0];
-                long tStop = (long) criterion.stopMarker()[0];
-                stateMachine.trackSequence(seq, tStart, tStop);
+                Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+                stateMachine.trackSequence(seq);
             } else {
-                stateMachine.match(currentStage, ko.key, ko.timestamp, ko.tiebreaker, hit);
+                stateMachine.match(currentStage, ko.key, ko.ordinal, hit);
 
                 // early skip in case of reaching the limit
                 // check the last stage to avoid calling the state machine in other stages
@@ -123,6 +128,8 @@ class SequenceRuntime implements Executable {
                 }
             }
         }
+
+        criterion.stopMarker(last);
     }
 
     private KeyAndOrdinal key(SearchHit hit, Criterion criterion) {
@@ -139,7 +146,7 @@ class SequenceRuntime implements Executable {
             key = new SequenceKey(docKeys);
         }
 
-        return new KeyAndOrdinal(key, criterion.timestamp(hit), criterion.tiebreaker(hit));
+        return new KeyAndOrdinal(key, criterion.ordinal(hit));
     }
 
     private Payload sequencePayload() {

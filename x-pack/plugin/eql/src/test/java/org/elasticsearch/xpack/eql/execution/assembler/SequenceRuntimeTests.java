@@ -186,7 +186,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         SequenceRuntime runtime = new SequenceRuntime(criteria, (r, l) -> {
             Map<Integer, Tuple<String, String>> evs = events.get(r.searchSource().size());
             l.onResponse(new TestPayload(evs));
-        }, null);
+        }, TimeValue.MINUS_ONE, null);
 
         // finally make the assertion at the end of the listener
         runtime.execute(wrap(this::checkResults, ex -> {

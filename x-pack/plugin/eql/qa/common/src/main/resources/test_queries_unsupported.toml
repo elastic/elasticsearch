@@ -224,18 +224,6 @@ sequence
 '''
 expected_event_ids  = [1, 2, 2, 3]
 
-
-[[queries]]
-query = '''
-sequence with maxspan=1d
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2'''
-expected_event_ids  = [67, 68, 69, 70, 72, 73, 74, 75]
-
 [[queries]]
 query = '''
 sequence with maxspan=1h
@@ -268,17 +256,6 @@ sequence with maxspan=10s
 | head 4
 | tail 2'''
 expected_event_ids  = [67, 68, 69, 70, 72, 73, 74, 75]
-
-[[queries]]
-query = '''
-sequence with maxspan=0.5s
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2'''
-expected_event_ids = []
 
 [[queries]]
 query = '''

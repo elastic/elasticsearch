@@ -7,7 +7,6 @@ package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -17,6 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Keeps track of the contents of a file that may not be completely present.
@@ -57,17 +57,42 @@ public class SparseFileTracker {
     }
 
     /**
-     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill.
+     * Called before reading a range from the file to ensure that this range is present. Returns a list of gaps for the caller to fill. The
+     * range from the file is defined by {@code range} but the listener is executed as soon as a (potentially smaller) sub range
+     * {@code subRange} becomes available.
      *
-     * @param start    The (inclusive) start of the desired range
-     * @param end      The (exclusive) end of the desired range
-     * @param listener Listener for when this range is fully available
+     * @param range    A tuple that contains the (inclusive) start and (exclusive) end of the desired range
+     * @param subRange A tuple that contains the (inclusive) start and (exclusive) end of the listener's range
+     * @param listener Listener for when the listening range is fully available
      * @return A collection of gaps that the client should fill in to satisfy this range
      * @throws IllegalArgumentException if invalid range is requested
      */
-    public List<Gap> waitForRange(final long start, final long end, final ActionListener<Void> listener) {
+    public List<Gap> waitForRange(final Tuple<Long, Long> range, final Tuple<Long, Long> subRange, final ActionListener<Void> listener) {
+        final long start = range.v1();
+        final long end = range.v2();
         if (end < start || start < 0L || length < end) {
             throw new IllegalArgumentException("invalid range [start=" + start + ", end=" + end + ", length=" + length + "]");
+        }
+
+        if (subRange.v2() < subRange.v1() || subRange.v1() < 0L || length < subRange.v2()) {
+            throw new IllegalArgumentException(
+                "invalid range to listen to [start=" + subRange.v1() + ", end=" + subRange.v2() + ", length=" + length + "]"
+            );
+        }
+        if (subRange.v1() < start || end < subRange.v2()) {
+            throw new IllegalArgumentException(
+                "unable to listen to range [start="
+                    + subRange.v1()
+                    + ", end="
+                    + subRange.v2()
+                    + "] when range is [start="
+                    + start
+                    + ", end="
+                    + end
+                    + ", length="
+                    + length
+                    + "]"
+            );
         }
 
         final List<Gap> gaps = new ArrayList<>();
@@ -94,7 +119,11 @@ public class SparseFileTracker {
 
                 final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
                 if (existingRanges.isEmpty()) {
-                    final Range newPendingRange = new Range(targetRange.start, end, PlainListenableActionFuture.newListenableFuture());
+                    final Range newPendingRange = new Range(
+                        targetRange.start,
+                        end,
+                        new ProgressListenableActionFuture(targetRange.start, end)
+                    );
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(targetRange.start, end));
@@ -109,12 +138,12 @@ public class SparseFileTracker {
                         }
                         targetRange.start = Math.min(end, firstExistingRange.end);
                     } else {
+                        final long newPendingRangeEnd = Math.min(end, firstExistingRange.start);
                         final Range newPendingRange = new Range(
                             targetRange.start,
-                            Math.min(end, firstExistingRange.start),
-                            PlainListenableActionFuture.newListenableFuture()
+                            newPendingRangeEnd,
+                            new ProgressListenableActionFuture(targetRange.start, newPendingRangeEnd)
                         );
-
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
                         gaps.add(new Gap(targetRange.start, newPendingRange.end));
@@ -129,16 +158,40 @@ public class SparseFileTracker {
             if (pendingRanges.isEmpty() == false) {
                 assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
                 assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
+                assert pendingRanges.size() != 1 || gaps.size() <= 1 : gaps;
 
-                if (pendingRanges.size() == 1) {
-                    assert gaps.size() <= 1 : gaps;
-                    pendingRanges.get(0).completionListener.addListener(listener);
-                } else {
-                    final GroupedActionListener<Void> groupedActionListener = new GroupedActionListener<>(
-                        ActionListener.map(listener, ignored -> null),
-                        pendingRanges.size()
-                    );
-                    pendingRanges.forEach(pendingRange -> pendingRange.completionListener.addListener(groupedActionListener));
+                // Pending ranges that needs to be filled before executing the listener
+                final List<Range> requiredRanges = (start == subRange.v1() && end == subRange.v2())
+                    ? pendingRanges
+                    : pendingRanges.stream()
+                        .filter(pendingRange -> pendingRange.start < subRange.v2())
+                        .filter(pendingRange -> subRange.v1() < pendingRange.end)
+                        .sorted(Comparator.comparingLong(r -> r.start))
+                        .collect(Collectors.toList());
+
+                switch (requiredRanges.size()) {
+                    case 0:
+                        // no need to wait for the gaps to be filled, the listener can be executed immediately
+                        listener.onResponse(null);
+                        break;
+                    case 1:
+                        final Range requiredRange = requiredRanges.get(0);
+                        requiredRange.completionListener.addListener(
+                            ActionListener.map(listener, progress -> null),
+                            Math.min(requiredRange.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
+                        );
+                        break;
+                    default:
+                        final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
+                            ActionListener.map(listener, progress -> null),
+                            requiredRanges.size()
+                        );
+                        requiredRanges.forEach(
+                            r -> r.completionListener.addListener(
+                                groupedActionListener,
+                                Math.min(r.end, subRange != null ? subRange.v2() : Long.MAX_VALUE)
+                            )
+                        );
                 }
 
                 return Collections.unmodifiableList(gaps);
@@ -203,7 +256,7 @@ public class SparseFileTracker {
     }
 
     private void onGapSuccess(final long start, final long end) {
-        final PlainListenableActionFuture<Void> completionListener;
+        final ProgressListenableActionFuture completionListener;
 
         synchronized (mutex) {
             assert invariant();
@@ -249,11 +302,30 @@ public class SparseFileTracker {
             assert invariant();
         }
 
-        completionListener.onResponse(null);
+        completionListener.onResponse(end);
+    }
+
+    private void onGapProgress(long start, long end, long value) {
+        final ProgressListenableActionFuture completionListener;
+
+        synchronized (mutex) {
+            assert invariant();
+
+            final Range range = new Range(start, end, null);
+            final SortedSet<Range> existingRanges = ranges.tailSet(range);
+            assert existingRanges.isEmpty() == false;
+
+            final Range existingRange = existingRanges.first();
+            assert existingRange.start == start && existingRange.end == end && existingRange.isPending();
+            completionListener = existingRange.completionListener;
+            assert invariant();
+        }
+
+        completionListener.onProgress(value);
     }
 
     private void onGapFailure(long start, long end, Exception e) {
-        final PlainListenableActionFuture<Void> completionListener;
+        final ProgressListenableActionFuture completionListener;
 
         synchronized (mutex) {
             assert invariant();
@@ -313,7 +385,7 @@ public class SparseFileTracker {
     /**
      * Represents a gap in the file that a client should fill in.
      */
-    public class Gap implements ActionListener<Void> {
+    public class Gap {
         /**
          * Inclusive start point of this range
          */
@@ -330,12 +402,14 @@ public class SparseFileTracker {
             this.end = end;
         }
 
-        @Override
-        public void onResponse(Void aVoid) {
+        public void onCompletion() {
             onGapSuccess(start, end);
         }
 
-        @Override
+        public void onProgress(long value) {
+            onGapProgress(start, end, value);
+        }
+
         public void onFailure(Exception e) {
             onGapFailure(start, end, e);
         }
@@ -358,9 +432,9 @@ public class SparseFileTracker {
         long end;
 
         @Nullable // if not pending
-        final PlainListenableActionFuture<Void> completionListener;
+        final ProgressListenableActionFuture completionListener;
 
-        Range(long start, long end, PlainListenableActionFuture<Void> completionListener) {
+        Range(long start, long end, @Nullable ProgressListenableActionFuture completionListener) {
             assert start <= end : start + "-" + end;
             this.start = start;
             this.end = end;

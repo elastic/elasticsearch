@@ -131,11 +131,11 @@ dependencies {
     java12Compile sourceSets.main.output
   }
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
-  internalClusterTestCompile(project(":test:framework")) {
+  internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
@@ -326,7 +326,7 @@ thirdPartyAudit.ignoreMissingClasses(
 
 thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
@@ -346,5 +346,3 @@ tasks.named('internalClusterTest').configure {
     systemProperty 'es.datastreams_feature_enabled', 'true'
   }
 }
-
-

@@ -893,6 +893,10 @@ See <<ilm-existing-indices-apply>>.
 
 See <<ilm-existing-indices-reindex>>.
 
+[role="exclude",id="analysis-pathhierarchy-tokenizer-examples"]
+=== Path hierarchy tokenizer examples
+
+See <<analysis-pathhierarchy-tokenizer-detailed-examples>>.
 
 ////
 [role="exclude",id="search-request-body"]
@@ -912,5 +916,10 @@ See <<paginate-search-results>>.
 [role="exclude",id="request-body-search-source-filtering"]
 ==== Source filtering
 
-See <<search-fields>>.
+See <<source-filtering, source filtering>>.
+
+[role="exclude",id="request-body-search-docvalue-fields"]
+==== Doc value fields
+
+See <<docvalue-fields, doc value fields>>.
 ////

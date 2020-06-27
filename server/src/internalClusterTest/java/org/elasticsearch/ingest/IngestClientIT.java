@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,7 +63,7 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (nodeOrdinal % 2 == 0) {
-            return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
+            return Settings.builder().put(nonIngestNode()).put(super.nodeSettings(nodeOrdinal)).build();
         }
         return super.nodeSettings(nodeOrdinal);
     }
@@ -438,8 +439,10 @@ public class IngestClientIT extends ESIntegTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factories = new HashMap<>(super.getProcessors(parameters));
             factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
-            factories.put("fail", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", new RuntimeException()));
-            factories.put("onfailure_processor", (processorFactories, tag, config) -> new TestProcessor(tag, "fail", document -> {
+            factories.put("fail", (processorFactories, tag, description, config) ->
+                new TestProcessor(tag, "fail", description, new RuntimeException()));
+            factories.put("onfailure_processor", (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail",
+                description, document -> {
                 String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
                 document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
             }));

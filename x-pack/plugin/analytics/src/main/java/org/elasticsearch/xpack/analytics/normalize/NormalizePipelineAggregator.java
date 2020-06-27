@@ -67,7 +67,7 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs), bucket);
+            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
             newBuckets.add(newBucket);
         }
 

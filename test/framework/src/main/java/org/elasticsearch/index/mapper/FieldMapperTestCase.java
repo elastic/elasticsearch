@@ -19,21 +19,32 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> extends ESSingleNodeTestCase {
 
@@ -64,58 +75,37 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         });
     }
 
-    private Object dummyNullValue = "dummyvalue";
-
-    /** Sets the null value used by the modifier for null value testing. This should be set in an @Before method. */
-    protected void setDummyNullValue(Object value) {
-        dummyNullValue = value;
-    }
-
-    protected boolean supportsDocValues() {
-        return true;
-    }
-
-    protected boolean supportsStore() {
-        return true;
+    protected Set<String> unsupportedProperties() {
+        return Collections.emptySet();
     }
 
     private final List<Modifier> modifiers = new ArrayList<>(Arrays.asList(
         new Modifier("analyzer", false, (a, b) -> {
-            a.indexAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            a.indexAnalyzer(new NamedAnalyzer("b", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.indexAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
         }),
         new Modifier("boost", true, (a, b) -> {
-           a.fieldType().setBoost(1.1f);
-           b.fieldType().setBoost(1.2f);
+           a.boost(1.1f);
+           b.boost(1.2f);
         }),
-        new Modifier("doc_values", supportsDocValues() == false, (a, b) -> {
-            if (supportsDocValues()) {
-                a.docValues(true);
-                b.docValues(false);
-            }
+        new Modifier("doc_values", false, (a, b) -> {
+            a.docValues(true);
+            b.docValues(false);
         }),
-        booleanModifier("eager_global_ordinals", true, (a, t) -> a.fieldType().setEagerGlobalOrdinals(t)),
+        booleanModifier("eager_global_ordinals", true, (a, t) -> a.setEagerGlobalOrdinals(t)),
+        booleanModifier("index", false, (a, t) -> a.index(t)),
         booleanModifier("norms", false, FieldMapper.Builder::omitNorms),
-        new Modifier("null_value", true, (a, b) -> {
-            a.fieldType().setNullValue(dummyNullValue);
-        }),
         new Modifier("search_analyzer", true, (a, b) -> {
-            a.searchAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            a.searchAnalyzer(new NamedAnalyzer("b", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.searchAnalyzer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
         }),
         new Modifier("search_quote_analyzer", true, (a, b) -> {
-            a.searchQuoteAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            a.searchQuoteAnalyzer(new NamedAnalyzer("b", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            a.searchQuoteAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
         }),
-        new Modifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("a", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("b", new BM25Similarity()));
-        }),
-        new Modifier("store", supportsStore() == false, (a, b) -> {
-            if (supportsStore()) {
-                a.store(true);
-                b.store(false);
-            }
+        new Modifier("store", false, (a, b) -> {
+            a.store(true);
+            b.store(false);
         }),
         new Modifier("term_vector", false, (a, b) -> {
             a.storeTermVectors(true);
@@ -190,6 +180,9 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             assertThat(e.getMessage(), containsString("bogustype"));
         }
         for (Modifier modifier : modifiers) {
+            if (unsupportedProperties().contains(modifier.property)) {
+                continue;
+            }
             builder1 = newBuilder();
             builder2 = newBuilder();
             modifier.apply(builder1, builder2);
@@ -203,6 +196,54 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
                 assertThat(e.getMessage(), containsString(modifier.property));
             }
         }
+    }
+
+    public void testSerialization() throws IOException {
+        for (Modifier modifier : modifiers) {
+            if (unsupportedProperties().contains(modifier.property)) {
+                continue;
+            }
+            T builder1 = newBuilder();
+            T builder2 = newBuilder();
+            modifier.apply(builder1, builder2);
+            assertSerializes(modifier.property + "-a", builder1);
+            assertSerializes(modifier.property + "-b", builder2);
+        }
+    }
+
+    protected Settings getIndexMapperSettings() {
+        return Settings.EMPTY;
+    }
+
+    protected void assertSerializes(String indexname, T builder) throws IOException {
+
+        // TODO can we do this without building an entire index?
+        IndexService index = createIndex("serialize-" + indexname, getIndexMapperSettings());
+        MapperService mapperService = index.mapperService();
+
+        Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
+
+        String mappings = mappingsToString(builder.build(context), false);
+        String mappingsWithDefault = mappingsToString(builder.build(context), true);
+
+        mapperService.merge("_doc", new CompressedXContent(mappings), MapperService.MergeReason.MAPPING_UPDATE);
+
+        Mapper rebuilt = mapperService.documentMapper().mappers().getMapper(builder.name);
+        String reparsed = mappingsToString(rebuilt, false);
+        String reparsedWithDefault = mappingsToString(rebuilt, true);
+
+        assertThat(reparsed, equalTo(mappings));
+        assertThat(reparsedWithDefault, equalTo(mappingsWithDefault));
+    }
+
+    private String mappingsToString(ToXContent builder, boolean includeDefaults) throws IOException {
+        ToXContent.Params params = includeDefaults ?
+            new ToXContent.MapParams(Map.of("include_defaults", "true")) : ToXContent.EMPTY_PARAMS;
+        XContentBuilder x = JsonXContent.contentBuilder();
+        x.startObject().startObject("properties");
+        builder.toXContent(x, params);
+        x.endObject().endObject();
+        return Strings.toString(x);
     }
 
 }

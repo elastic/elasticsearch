@@ -20,23 +20,22 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a null constant.
  */
 public class ENull extends AExpression {
 
-    public ENull(Location location) {
-        super(location);
+    public ENull(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
         }
@@ -60,7 +59,7 @@ public class ENull extends AExpression {
 
         NullNode nullNode = new NullNode();
 
-        nullNode.setLocation(location);
+        nullNode.setLocation(getLocation());
         nullNode.setExpressionType(output.actual);
 
         output.expressionNode = nullNode;

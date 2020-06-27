@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -55,7 +57,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -83,7 +87,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
+            requests.add(DocWriteRequest.readDocumentRequest(null, in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
@@ -372,5 +376,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             return globalDefault;
         }
         return value;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

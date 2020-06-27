@@ -48,6 +48,8 @@ public class ExecutionManager {
         
         List<Criterion> criteria = new ArrayList<>(plans.size() - 1);
         
+        boolean descending = direction == OrderDirection.DESC;
+        
         // build a criterion for each query
         for (int i = 0; i < plans.size() - 1; i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -61,9 +63,10 @@ public class ExecutionManager {
             // TODO: this could be generalized into an exec only query
             Check.isTrue(query instanceof EsQueryExec, "Expected a query but got [{}]", query.getClass());
             QueryRequest request = ((EsQueryExec) query).queryRequest(session);
-            criteria.add(new Criterion(request.searchSource(), keyExtractors, tsExtractor, tbExtractor));
+            // base query remains descending, the rest need to flip
+            criteria.add(new Criterion(request.searchSource(), keyExtractors, tsExtractor, tbExtractor, i > 0 && descending));
         }
-        return new SequenceRuntime(criteria, new BasicQueryClient(session), direction == OrderDirection.DESC, limit);
+        return new SequenceRuntime(criteria, new BasicQueryClient(session), limit);
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

@@ -38,11 +38,6 @@ public class ReversePayload implements Payload {
     }
 
     @Override
-    public Object[] nextKeys() {
-        return delegate.nextKeys();
-    }
-
-    @Override
     public <V> List<V> values() {
         return delegate.values();
     }

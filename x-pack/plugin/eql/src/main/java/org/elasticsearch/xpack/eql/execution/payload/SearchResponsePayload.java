@@ -18,7 +18,7 @@ public class SearchResponsePayload extends AbstractPayload {
     private final List<SearchHit> hits;
 
     public SearchResponsePayload(SearchResponse response) {
-        super(response.isTimedOut(), response.getTook(), null);
+        super(response.isTimedOut(), response.getTook());
         hits = Arrays.asList(response.getHits().getHits());
     }
 

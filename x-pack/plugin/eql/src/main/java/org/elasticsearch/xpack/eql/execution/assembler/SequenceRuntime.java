@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.eql.execution.payload.ReversePayload;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
@@ -19,10 +18,8 @@ import org.elasticsearch.xpack.eql.execution.sequence.Sequence;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceStateMachine;
 import org.elasticsearch.xpack.eql.session.Payload;
-import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
-import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -39,18 +36,15 @@ class SequenceRuntime implements Executable {
     private final int numberOfStages;
     private final SequenceStateMachine stateMachine;
     private final QueryClient queryClient;
-    private final boolean descending;
 
     private long startTime;
 
-    SequenceRuntime(List<Criterion> criteria, QueryClient queryClient, boolean descending, Limit limit) {
+    SequenceRuntime(List<Criterion> criteria, QueryClient queryClient, Limit limit) {
         this.criteria = criteria;
         this.numberOfStages = criteria.size();
         this.queryClient = queryClient;
         boolean hasTiebreaker = criteria.get(0).tiebreakerExtractor() != null;
         this.stateMachine = new SequenceStateMachine(numberOfStages, hasTiebreaker, limit);
-
-        this.descending = descending;
     }
 
     @Override
@@ -74,8 +68,8 @@ class SequenceRuntime implements Executable {
             // narrow by the previous stage timestamp marker
 
             Criterion previous = criteria.get(stage - 1);
-            Ordinal marker = previous.startMarker();
-            currentCriterion.useMarker(marker);
+            // pass the next marker along
+            currentCriterion.useMarker(previous.nextMarker());
         }
         
         log.info("Querying stage {}", stage);
@@ -95,41 +89,39 @@ class SequenceRuntime implements Executable {
     }
 
     // hits are guaranteed to be non-empty
-    private void findMatches(int currentStage, List<SearchHit> hits) {
+    private void findMatches(int stage, List<SearchHit> hits) {
         // update criterion
-        Criterion criterion = criteria.get(currentStage);
+        Criterion criterion = criteria.get(stage);
 
-        boolean start = true;
         // break the results per key
         // when dealing with descending order, queries outside the base are ASC (search_before)
         // so look at the data in reverse (that is DESC)
-        Ordinal last = null;
-        for (Iterator<SearchHit> it = descending ? new ReversedIterator<>(hits) : hits.iterator(); it.hasNext();) {
-            SearchHit hit = it.next();
+        Ordinal firstOrdinal = null, ordinal = null;
+        for (SearchHit hit : criterion.iterateable(hits)) {
             KeyAndOrdinal ko = key(hit, criterion);
 
-            last = ko.ordinal;
+            ordinal = ko.ordinal;
 
-            if (start) {
-                start = false;
-                criterion.startMarker(ko.ordinal);
+            if (firstOrdinal == null) {
+                firstOrdinal = ordinal;
             }
 
-            if (currentStage == 0) {
-                Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+            if (stage == 0) {
+                Sequence seq = new Sequence(ko.key, numberOfStages, ordinal, hit);
                 stateMachine.trackSequence(seq);
             } else {
-                stateMachine.match(currentStage, ko.key, ko.ordinal, hit);
+                stateMachine.match(stage, ko.key, ordinal, hit);
 
                 // early skip in case of reaching the limit
                 // check the last stage to avoid calling the state machine in other stages
                 if (stateMachine.reachedLimit()) {
-                    return;
+                    break;
                 }
             }
         }
 
-        criterion.stopMarker(last);
+        criterion.startMarker(firstOrdinal);
+        criterion.stopMarker(ordinal);
     }
 
     private KeyAndOrdinal key(SearchHit hit, Criterion criterion) {
@@ -152,8 +144,7 @@ class SequenceRuntime implements Executable {
     private Payload sequencePayload() {
         List<Sequence> completed = stateMachine.completeSequences();
         TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-        SequencePayload payload = new SequencePayload(completed, false, tookTime, null);
-        return descending ? new ReversePayload(payload) : payload;
+        return new SequencePayload(completed, false, tookTime);
     }
 
     private boolean hasFinished(int stage) {

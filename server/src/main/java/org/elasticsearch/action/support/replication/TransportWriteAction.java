@@ -80,19 +80,16 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        if (rerouteBypassed() == false) {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
-        } else {
-            return () -> {};
-        }
+        assert supportsRerouteAction() : "checkOperationLimits should be be called if reroute not supported by action";
+        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
     }
 
     @Override
     protected Releasable checkPrimaryLimits(Request request) {
-        if (rerouteBypassed()) {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
-        } else {
+        if (supportsRerouteAction()) {
             return () -> {};
+        } else {
+            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
         }
     }
 
@@ -100,8 +97,8 @@ public abstract class TransportWriteAction<
      * Some actions bypass the reroute phase and directly call the primary action. If this is the case, we
      * need to mark the WRITE bytes when the primary request is received.
      */
-    protected boolean rerouteBypassed() {
-        return false;
+    protected boolean supportsRerouteAction() {
+        return true;
     }
 
     protected long primaryOperationSize(Request request) {

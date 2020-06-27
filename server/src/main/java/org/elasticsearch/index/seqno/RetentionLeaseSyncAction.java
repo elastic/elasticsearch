@@ -147,8 +147,8 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected boolean rerouteBypassed() {
-        return true;
+    protected boolean supportsRerouteAction() {
+        return false;
     }
 
     @Override

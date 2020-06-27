@@ -92,8 +92,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected boolean rerouteBypassed() {
-        return true;
+    protected boolean supportsRerouteAction() {
+        return false;
     }
 
     @Override

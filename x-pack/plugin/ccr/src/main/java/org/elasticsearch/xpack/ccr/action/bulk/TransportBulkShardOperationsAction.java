@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
@@ -35,6 +37,8 @@ import java.util.List;
 
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+
+    private final WriteMemoryLimits writeMemoryLimits;
 
     @Inject
     public TransportBulkShardOperationsAction(
@@ -58,6 +62,19 @@ public class TransportBulkShardOperationsAction
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
                 ThreadPool.Names.WRITE, false, writeMemoryLimits);
+        this.writeMemoryLimits = writeMemoryLimits;
+    }
+
+    @Override
+    protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
+        // This is executed on the follower coordinator node and we need to mark the bytes.
+        Releasable releasable = writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            super.doExecute(task, request, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
     }
 
     @Override

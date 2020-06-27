@@ -4,8 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.listener;
+package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,6 +33,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class RuntimeUtils {
+
+    static final Logger QUERY_LOG = LogManager.getLogger(QueryClient.class);
 
     private RuntimeUtils() {}
 

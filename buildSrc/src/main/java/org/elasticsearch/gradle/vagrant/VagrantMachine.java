@@ -75,7 +75,6 @@ public class VagrantMachine {
             execSpec.setEnvironment(System.getenv()); // pass through env
             execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
             execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
-            execSpec.environment("VAGRANT_LOG", "debug");
             extension.getHostEnv().forEach(execSpec::environment);
 
             execSpec.args(vagrantSpec.command);

@@ -99,14 +99,14 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         },
-        "sort": [
-          1607252645000
-        ],
         "fields": {
           "@timestamp": [
             "1607252645000"
           ]
-        }
+        },        
+        "sort": [
+          1607252645000
+        ]
       },
       {
         "_index": "sec_logs",
@@ -127,14 +127,14 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         },
-        "sort": [
-          1607339167000
-        ],
         "fields": {
           "@timestamp": [
             "1607339167000"
           ]
-        }
+        },
+        "sort": [
+          1607339167000
+        ]
       }
     ]
   }
@@ -500,11 +500,16 @@ tiebreaker for events with the same timestamp.
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         },
+        "fields": {
+          "@timestamp": [
+            "1607252645000"
+          ]
+        },
         "sort": [
           1607252645000,                                <1>
           "edwCRnyD"                                    <2>
-        ]
-      },
+          ]
+        },
             {
         "_index": "sec_logs",
         "_id": "3",
@@ -523,6 +528,11 @@ tiebreaker for events with the same timestamp.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
+        },
+        "fields": {
+          "@timestamp": [
+            "1607339167000"
+          ]
         },
         "sort": [
           1607339167000,                                <1>

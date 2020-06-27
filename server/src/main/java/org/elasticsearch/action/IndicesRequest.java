@@ -40,6 +40,13 @@ public interface IndicesRequest {
      */
     IndicesOptions indicesOptions();
 
+    /**
+     * Determines whether the action should be applied to data streams
+     */
+    default boolean includeDataStreams() {
+        return false;
+    }
+
     interface Replaceable extends IndicesRequest {
         /**
          * Sets the indices that the action relates to.

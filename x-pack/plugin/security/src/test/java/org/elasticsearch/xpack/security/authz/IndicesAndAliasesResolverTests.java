@@ -81,6 +81,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -1569,7 +1570,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final Authentication authentication =
             new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
         rolesStore.getRoles(user, authentication, rolesListener);
-        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), action, metadata.getIndicesLookup());
+        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), getRequestInfo(action), metadata.getIndicesLookup());
     }
 
     public static IndexMetadata.Builder indexBuilder(String index) {

@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
@@ -37,12 +38,13 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
 
     public HistoBackedValueCountAggregator(
             String name,
-            HistogramValuesSource.Histogram valuesSource,
+            ValuesSourceConfig valuesSourceConfig,
             SearchContext aggregationContext,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
         }

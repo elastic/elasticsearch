@@ -74,10 +74,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -191,10 +188,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

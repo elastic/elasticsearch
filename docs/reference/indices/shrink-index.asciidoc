@@ -69,6 +69,11 @@ of shards in the index is a prime number it can only be shrunk into a single
 primary shard. Before shrinking, a (primary or replica) copy of every shard
 in the index must be present on the same node.
 
+The current write index on a data stream cannot be shrunk. In order to shrink
+the current write index, the data stream must first be
+<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+and then the previous write index can be shrunk.
+
 [[how-shrink-works]]
 ===== How shrinking works
 
@@ -79,8 +84,8 @@ A shrink operation:
 
 . Hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
-  into the new index, which is a much more time consuming process. Also if using 
-  multiple data paths, shards on different data paths require a full copy of 
+  into the new index, which is a much more time consuming process. Also if using
+  multiple data paths, shards on different data paths require a full copy of
   segment files if they are not on the same disk since hardlinks don’t work across
   disks)
 

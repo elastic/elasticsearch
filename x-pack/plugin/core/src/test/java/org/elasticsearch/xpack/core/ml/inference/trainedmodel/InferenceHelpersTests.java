@@ -17,18 +17,18 @@ import static org.hamcrest.Matchers.nullValue;
 public class InferenceHelpersTests extends ESTestCase {
 
     public void testToDoubleFromNumbers() {
-        assertThat(0.5, equalTo(InferenceHelpers.toDouble(0.5)));
-        assertThat(0.5, equalTo(InferenceHelpers.toDouble(0.5)));
-        assertThat(5.0, equalTo(InferenceHelpers.toDouble(5L)));
-        assertThat(5.0, equalTo(InferenceHelpers.toDouble(5)));
-        assertThat(0.5, equalTo(InferenceHelpers.toDouble(0.5f)));
+        assertThat(InferenceHelpers.toDouble(0.5), equalTo(0.5));
+        assertThat(InferenceHelpers.toDouble(5L), equalTo(5.0));
+        assertThat(InferenceHelpers.toDouble(5), equalTo(5.0));
+        assertThat(InferenceHelpers.toDouble(0.5f), equalTo(0.5));
     }
 
     public void testToDoubleFromString() {
-        assertThat(0.5, equalTo(InferenceHelpers.toDouble("0.5")));
-        assertThat(-0.5, equalTo(InferenceHelpers.toDouble("-0.5")));
-        assertThat(5.0, equalTo(InferenceHelpers.toDouble("5")));
-        assertThat(-5.0, equalTo(InferenceHelpers.toDouble("-5")));
+        assertThat(InferenceHelpers.toDouble(""), is(nullValue()));
+        assertThat(InferenceHelpers.toDouble("0.5"), equalTo(0.5));
+        assertThat(InferenceHelpers.toDouble("-0.5"), equalTo(-0.5));
+        assertThat(InferenceHelpers.toDouble("5"), equalTo(5.0));
+        assertThat(InferenceHelpers.toDouble("-5"), equalTo(-5.0));
 
         // if ae are turned off, then we should get a null value
         // otherwise, we should expect an assertion failure telling us that the string is improperly formatted

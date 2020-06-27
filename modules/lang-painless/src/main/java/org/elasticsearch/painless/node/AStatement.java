@@ -20,10 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -105,14 +104,14 @@ public abstract class AStatement extends ANode {
     /**
      * Standard constructor with location used for error tracking.
      */
-    AStatement(Location location) {
-        super(location);
+    AStatement(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         throw new UnsupportedOperationException();
     }
 }

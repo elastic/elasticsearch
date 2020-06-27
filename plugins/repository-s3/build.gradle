@@ -50,10 +50,10 @@ dependencies {
   // and whitelist this hack in JarHell
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 
-  testCompile project(':test:fixtures:s3-fixture')
+  testImplementation project(':test:fixtures:s3-fixture')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'

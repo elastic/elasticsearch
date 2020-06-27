@@ -399,7 +399,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
         flushJob(jobId, false);
 
-        Consumer<CategorizerStats> checkStatsAt100000 = stats -> {
+        Consumer<CategorizerStats> checkStatsAt1000000 = stats -> {
             assertThat(stats.getTimestamp().toEpochMilli(), is(1000000L));
             if ("nodes".equals(stats.getPartitionFieldValue())) {
                 assertThat(stats.getCategorizationStatus(), equalTo(CategorizationStatus.WARN));
@@ -428,7 +428,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         List<CategorizerStats> stats = getCategorizerStats(jobId);
         assertThat(stats, hasSize(2));
         for (int i = 0; i < 2; ++i) {
-            checkStatsAt100000.accept(stats.get(i));
+            checkStatsAt1000000.accept(stats.get(i));
         }
 
         postData(jobId, json.toString().replace("1000000", "2000000"));
@@ -455,7 +455,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
             } else {
                 // The other stats documents are left over from the flush and should not have been updated,
                 // so should be identical to how they were then
-                checkStatsAt100000.accept(stats.get(i));
+                checkStatsAt1000000.accept(stats.get(i));
             }
         }
 

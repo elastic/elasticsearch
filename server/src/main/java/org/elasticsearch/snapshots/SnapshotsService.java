@@ -374,10 +374,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 dataStreams.put(dataStreamName, dataStream);
             }
-        }
-        builder.dataStreams(dataStreams);
-        metadata = builder.build();
-        return metadata;
+        };
+        return builder.dataStreams(dataStreams).build();
     }
 
     /**

@@ -1041,7 +1041,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                                     boolean upgrade, boolean upgradeOnlyAncientSegments,
-                                    @Nullable String forceMergeUUID) throws EngineException, IOException;
+                                    String forceMergeUUID) throws EngineException, IOException;
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the

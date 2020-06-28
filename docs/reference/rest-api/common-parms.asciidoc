@@ -430,8 +430,8 @@ end::index-total[]
 tag::bulk-index[]
 `_index`::
 (Optional, string)
-The name of the target index.
-Required if not specified as a path parameter.
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
 end::bulk-index[]
 
 tag::index-metric[]

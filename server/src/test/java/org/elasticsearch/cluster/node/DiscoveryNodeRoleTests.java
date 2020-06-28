@@ -33,11 +33,11 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> DiscoveryNode.setPossibleRoles(Set.of(
+                () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -45,7 +45,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                         new DiscoveryNodeRole("foo", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -56,11 +56,11 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> DiscoveryNode.setPossibleRoles(Set.of(
+                () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo_1", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -68,7 +68,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                         new DiscoveryNodeRole("foo_2", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 

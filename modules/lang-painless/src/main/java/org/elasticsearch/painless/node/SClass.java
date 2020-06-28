@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,23 +44,23 @@ public class SClass extends ANode {
         return functionNodes;
     }
 
-    public void buildClassScope(ScriptRoot scriptRoot) {
+    public void buildClassScope(ScriptScope scriptScope) {
         for (SFunction function : functionNodes) {
-            function.buildClassScope(scriptRoot);
+            function.buildClassScope(scriptScope);
         }
     }
 
-    public ClassNode writeClass(ScriptRoot scriptRoot) {
-        buildClassScope(scriptRoot);
+    public ClassNode analyze(ScriptScope scriptScope) {
+        buildClassScope(scriptScope);
 
         ClassNode classNode = new ClassNode();
 
         for (SFunction function : functionNodes) {
-            classNode.addFunctionNode(function.writeFunction(classNode, scriptRoot));
+            classNode.addFunctionNode(function.analyze(classNode, scriptScope));
         }
 
         classNode.setLocation(getLocation());
-        classNode.setScriptRoot(scriptRoot);
+        classNode.setScriptScope(scriptScope);
 
         return classNode;
     }

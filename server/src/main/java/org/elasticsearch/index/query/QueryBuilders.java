@@ -73,7 +73,7 @@ public final class QueryBuilders {
     }
     
     /**
-     * Creates a text query with type "BOOL" for the provided field name and text.
+     * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
      *
      * @param name The field name.
      * @param text The query text (to be analyzed).

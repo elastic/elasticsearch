@@ -64,7 +64,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
         super(in);
         docCount = in.readVLong();
-        aggregations = new InternalAggregations(in);
+        aggregations = InternalAggregations.readFrom(in);
     }
 
     @Override
@@ -128,7 +128,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
                 aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
             }
-            InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
+            InternalAggregations reducedSubAggs = InternalAggregations.from(aggs);
             reduced = create(reducedSubAggs);
         }
         return super.reducePipelines(reduced, reduceContext, pipelineTree);

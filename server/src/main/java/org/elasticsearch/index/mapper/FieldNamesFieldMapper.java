@@ -127,7 +127,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            super(Defaults.NAME, true, false, Collections.emptyMap());
+            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {

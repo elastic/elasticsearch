@@ -62,6 +62,12 @@ public abstract class SourceGenerator {
         // set fetch size
         if (size != null) {
             int sz = size;
+            if (container.limit() != null) {
+                Limit limit = container.limit();
+                // negative limit means DESC order but since the results are ordered ASC
+                // pagination becomes mute (since all the data needs to be returned)
+                sz = limit.limit > 0 ? Math.min(limit.total, size) : limit.total;
+            }
 
             if (source.size() == -1) {
                 source.size(sz);

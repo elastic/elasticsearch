@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,9 +27,12 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +52,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
+        return new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
     }
 
     @Override
@@ -88,7 +92,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int k = 1; k <= numBackingIndices; k++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
         DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
@@ -118,7 +122,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace), newBackingIndex);
@@ -143,7 +147,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
@@ -159,9 +163,72 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex));
     }
+
+    public void testInsertTimestampFieldMapping() {
+        TimestampField timestampField = new TimestampField("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
+
+        Map<String, Object> mappings = Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword")))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        Map<String, Object> expectedMapping = Map.of("_doc", Map.of("properties", Map.of("my_field", Map.of("type", "keyword"),
+            "@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")))));
+        assertThat(mappings, equalTo(expectedMapping));
+
+        // ensure that existing @timestamp definitions get overwritten:
+        mappings = Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword"),
+            "@timestamp", new HashMap<>(Map.of("type", "keyword")) ))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("my_field", Map.of("type", "keyword"), "@timestamp",
+            Map.of("type", "date", "meta", Map.of("x", "y")))));
+        assertThat(mappings, equalTo(expectedMapping));
+    }
+
+    public void testInsertNestedTimestampFieldMapping() {
+        TimestampField timestampField = new TimestampField("event.attr.@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
+
+        Map<String, Object> mappings = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword")))))))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        Map<String, Object> expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword"),
+                "@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        assertThat(mappings, equalTo(expectedMapping));
+
+        // ensure that existing @timestamp definitions get overwritten:
+        mappings = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword"),
+                "@timestamp", new HashMap<>(Map.of("type", "keyword")) ))))))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("my_field", Map.of("type", "keyword"),
+                "@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        assertThat(mappings, equalTo(expectedMapping));
+
+        // no event and attr parent objects
+        mappings = Map.of("_doc", Map.of("properties", new HashMap<>()));
+        timestampField.insertTimestampFieldMapping(mappings);
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        assertThat(mappings, equalTo(expectedMapping));
+
+        // no attr parent object
+        mappings = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", new HashMap<>()))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        assertThat(mappings, equalTo(expectedMapping));
+
+        // Empty attr parent object
+        mappings = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties",
+            Map.of("attr", Map.of("properties", new HashMap<>()))))));
+        timestampField.insertTimestampFieldMapping(mappings);
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", new HashMap<>(Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        assertThat(mappings, equalTo(expectedMapping));
+    }
+
 }

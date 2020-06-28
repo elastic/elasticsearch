@@ -478,6 +478,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         assertTrue(response.status() == RestStatus.CREATED);
     }
 
+    public void testDeprecatedSimilarityParameter() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("field")
+            .field("type", "long")
+            .field("similarity", "bm25")
+            .endObject().endObject().endObject().endObject());
+
+        parser.parse("type", new CompressedXContent(mapping));
+        assertWarnings("The [similarity] parameter has no effect on field [field] and will be removed in 8.0");
+    }
+
     private void parseRequest(NumberType type, BytesReference content) throws IOException {
         createDocumentMapper(type).parse(new SourceToParse("test", "1", content, XContentType.JSON));
     }

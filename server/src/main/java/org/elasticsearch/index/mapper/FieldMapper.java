@@ -32,8 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +68,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected NamedAnalyzer indexAnalyzer;
         protected NamedAnalyzer searchAnalyzer;
         protected NamedAnalyzer searchQuoteAnalyzer;
-        protected SimilarityProvider similarity;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -156,11 +153,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return builder;
-        }
-
-        public T similarity(SimilarityProvider similarity) {
-            this.similarity = similarity;
             return builder;
         }
 
@@ -374,10 +366,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } else if (mappedFieldType.indexAnalyzer().name().equals(otherm.indexAnalyzer().name()) == false) {
             conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
-
-        if (Objects.equals(mappedFieldType.similarity(), otherm.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
     }
 
     /**
@@ -421,12 +409,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
         if (includeDefaults || fieldType.stored() != storedByDefault()) {
             builder.field("store", fieldType.stored());
-        }
-
-        if (fieldType().similarity() != null) {
-            builder.field("similarity", fieldType().similarity().name());
-        } else if (includeDefaults) {
-            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
         }
 
         multiFields.toXContent(builder, params);

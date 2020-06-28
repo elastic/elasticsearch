@@ -72,7 +72,7 @@ POST _reindex
 ==== {api-description-title}
 
 // tag::docs-reindex-api-desc-tag[]
-Extracts the document source from the source index and indexes the documents into the destination index.
+Extracts the <<mapping-source-field,document source>> from the source index and indexes the documents into the destination index.
 You can copy all documents to the destination index, or reindex a subset of the documents.
 // end::docs-reindex-api-desc-tag[]
 

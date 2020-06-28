@@ -17,6 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
+import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.session.Results.Type;
@@ -29,11 +30,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class SequenceRuntimeTests extends ESTestCase {
+public class SequenceSpecTests extends ESTestCase {
 
     private final List<Map<Integer, Tuple<String, String>>> events;
     private final List<List<String>> matches;
@@ -76,11 +79,15 @@ public class SequenceRuntimeTests extends ESTestCase {
         }
     }
 
-    class TestCriterion extends Criterion {
+    class TestCriterion extends Criterion<BoxedQueryRequest> {
         private final int ordinal;
+        private boolean unused = true;
 
-        TestCriterion(int ordinal) {
-            super(SearchSourceBuilder.searchSource().size(ordinal), keyExtractors, tsExtractor, tbExtractor, false);
+        TestCriterion(final int ordinal) {
+            super(ordinal,
+                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource().query(matchAllQuery()).size(ordinal), "timestamp", null),
+                  keyExtractors,
+                  tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;
         }
 
@@ -93,6 +100,12 @@ public class SequenceRuntimeTests extends ESTestCase {
             return ordinal;
         }
 
+        public boolean use() {
+            boolean u = unused;
+            unused = false;
+            return u;
+        }
+
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
@@ -103,7 +116,7 @@ public class SequenceRuntimeTests extends ESTestCase {
                 return false;
             }
 
-            SequenceRuntimeTests.TestCriterion other = (SequenceRuntimeTests.TestCriterion) obj;
+            SequenceSpecTests.TestCriterion other = (SequenceSpecTests.TestCriterion) obj;
             return ordinal == other.ordinal;
         }
 
@@ -157,7 +170,7 @@ public class SequenceRuntimeTests extends ESTestCase {
     }
 
 
-    public SequenceRuntimeTests(String testName, int lineNumber, SeriesSpec spec) {
+    public SequenceSpecTests(String testName, int lineNumber, SeriesSpec spec) {
         this.lineNumber = lineNumber;
         this.events = spec.eventsPerCriterion;
         this.matches = spec.matches;
@@ -175,21 +188,29 @@ public class SequenceRuntimeTests extends ESTestCase {
     
     public void test() {
         int stages = events.size();
-        List<Criterion> criteria = new ArrayList<>(stages);
+        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion
         for (int i = 0; i < stages; i++) {
             // set the index as size in the search source
             criteria.add(new TestCriterion(i));
         }
-        
+
         // convert the results through a test specific payload
-        SequenceRuntime runtime = new SequenceRuntime(criteria, (r, l) -> {
-            Map<Integer, Tuple<String, String>> evs = events.get(r.searchSource().size());
+        Matcher matcher = new Matcher(stages, TimeValue.MINUS_ONE, null);
+        
+        QueryClient testClient = (r, l) -> {
+            int ordinal = r.searchSource().size();
+            if (ordinal != Integer.MAX_VALUE) {
+                r.searchSource().size(Integer.MAX_VALUE);
+            }
+            Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? emptyMap() : events.get(ordinal);
             l.onResponse(new TestPayload(evs));
-        }, TimeValue.MINUS_ONE, null);
+        };
+        
+        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
 
         // finally make the assertion at the end of the listener
-        runtime.execute(wrap(this::checkResults, ex -> {
+        window.execute(wrap(this::checkResults, ex -> {
             throw ExceptionsHelper.convertToRuntime(ex);
         }));
     }

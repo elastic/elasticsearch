@@ -53,6 +53,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray maxes;
     DoubleArray sumOfSqrs;
     DoubleArray compensationOfSqrs;
+    DoubleArray m2Array;
 
     ExtendedStatsAggregator(
         String name,
@@ -78,6 +79,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
             sumOfSqrs = bigArrays.newDoubleArray(1, true);
             compensationOfSqrs = bigArrays.newDoubleArray(1, true);
+            m2Array = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -96,6 +98,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
+        final M2Calculator m2Calculator = new M2Calculator(0, 0, 0, 0);
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -110,16 +113,19 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     maxes = bigArrays.resize(maxes, overSize);
                     sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
                     compensationOfSqrs = bigArrays.resize(compensationOfSqrs, overSize);
+                    m2Array = bigArrays.resize(m2Array, overSize);
                     mins.fill(from, overSize, Double.POSITIVE_INFINITY);
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
+
+                    long originalCount = counts.get(bucket);
                     counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
-                    // Compute the sum and sum of squires for double values with Kahan summation algorithm
+                    // Compute the sum and sum of squares for double values with Kahan summation algorithm
                     // which is more accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
@@ -129,10 +135,15 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
                     compensatedSumOfSqr.reset(sumOfSqr, compensationOfSqr);
 
+                    double m2 = m2Array.get(bucket);
+                    m2Calculator.reset(m2, originalCount, sumOfSqr);
+
+
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
                         compensatedSum.add(value);
                         compensatedSumOfSqr.add(value * value);
+                        m2Calculator.add(value);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
@@ -141,6 +152,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     compensations.set(bucket, compensatedSum.delta());
                     sumOfSqrs.set(bucket, compensatedSumOfSqr.value());
                     compensationOfSqrs.set(bucket, compensatedSumOfSqr.delta());
+                    m2Array.set(bucket, m2Calculator.value());
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
@@ -208,17 +220,31 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     private double variancePopulation(long owningBucketOrd) {
-        double sum = sums.get(owningBucketOrd);
+        double m2 =  m2Array.get(owningBucketOrd);
+        long count = counts.get(owningBucketOrd);
+
+        if(count < 1){
+            return Double.NaN;
+        }
+        return m2 / count;
+        /*double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        return variance < 0  ? 0 : variance;*/
     }
 
     private double varianceSampling(long owningBucketOrd) {
-        double sum = sums.get(owningBucketOrd);
+        double m2 =  m2Array.get(owningBucketOrd);
+        long count = counts.get(owningBucketOrd);
+
+        if(count < 2){
+            return Double.NaN;
+        }
+        return m2 / (count - 1);
+        /*double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        return variance < 0  ? 0 : variance;*/
     }
 
     @Override
@@ -238,6 +264,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public void doClose() {
-        Releasables.close(counts, maxes, mins, sumOfSqrs, compensationOfSqrs, sums, compensations);
+        Releasables.close(counts, maxes, mins, sumOfSqrs, compensationOfSqrs, sums, compensations, m2Array);
     }
 }

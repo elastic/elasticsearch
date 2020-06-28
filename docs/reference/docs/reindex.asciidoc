@@ -76,8 +76,6 @@ Extracts the <<mapping-source-field,document source>> from the source index and 
 You can copy all documents to the destination index, or reindex a subset of the documents.
 // end::docs-reindex-api-desc-tag[]
 
-Extracts the <<mapping-source-field,document source>> from the reindex request's source and indexes the documents into the destination.
-You can copy all documents to the destination, or reindex a subset of the documents.
 
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
 snapshot of the source but its destination must be **different** so

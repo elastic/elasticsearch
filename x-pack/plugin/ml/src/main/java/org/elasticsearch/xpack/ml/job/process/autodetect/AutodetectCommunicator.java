@@ -220,6 +220,10 @@ public class AutodetectCommunicator implements Closeable {
                 autodetectProcess.writeUpdateModelPlotMessage(update.getModelPlotConfig());
             }
 
+            if (update.getPerPartitionCategorizationConfig() != null) {
+                autodetectProcess.writeUpdatePerPartitionCategorizationMessage(update.getPerPartitionCategorizationConfig());
+            }
+
             // Filters have to be written before detectors
             if (update.getFilter() != null) {
                 autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(update.getFilter()));
@@ -246,14 +250,15 @@ public class AutodetectCommunicator implements Closeable {
     public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
-            return waitFlushToCompletion(flushId);
+            return waitFlushToCompletion(flushId, params.isWaitForNormalization());
         }, handler);
     }
 
     public void forecastJob(ForecastParams params, BiConsumer<Void, Exception> handler) {
         BiConsumer<Void, Exception> forecastConsumer = (aVoid, e) -> {
             if (e == null) {
-                FlushJobParams flushParams = FlushJobParams.builder().build();
+                // Forecasting does not care about normalization of the local data as it is not being queried
+                FlushJobParams flushParams = FlushJobParams.builder().waitForNormalization(false).build();
                 flushJob(flushParams, (flushAcknowledgement, flushException) -> {
                     if (flushException != null) {
                         String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", job.getId());
@@ -280,7 +285,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     @Nullable
-    FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
+    FlushAcknowledgement waitFlushToCompletion(String flushId, boolean waitForNormalization) throws Exception {
         LOGGER.debug("[{}] waiting for flush", job.getId());
 
         FlushAcknowledgement flushAcknowledgement;
@@ -296,10 +301,12 @@ public class AutodetectCommunicator implements Closeable {
         }
 
         if (processKilled == false) {
-            LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.
-            autodetectResultProcessor.waitUntilRenormalizerIsIdle();
+            if (waitForNormalization) {
+                LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
+                autodetectResultProcessor.waitUntilRenormalizerIsIdle();
+            }
 
             LOGGER.debug("[{}] Flush completed", job.getId());
         }

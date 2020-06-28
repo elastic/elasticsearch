@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,12 +41,13 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     public MissingAggregator(
             String name,
             AggregatorFactories factories,
-            ValuesSource valuesSource,
+            ValuesSourceConfig valuesSourceConfig,
             SearchContext aggregationContext,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
     }
 
     @Override

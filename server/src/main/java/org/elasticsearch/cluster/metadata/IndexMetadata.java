@@ -96,7 +96,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         new ClusterBlock(9, "index metadata (api)", false, false, false,
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
-        new ClusterBlock(12, "index read-only / allow delete (api)", false, false,
+        new ClusterBlock(12, "disk usage exceeded flood-stage watermark, index has read-only-allow-delete block", false, false,
             true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {
@@ -1618,5 +1618,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             factor = 1;
         }
         return factor;
+    }
+
+    /**
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
+     * E.g.
+     * - For ".ds-logs-000002" it will return 2
+     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
+     * number
+     */
+    public static int parseIndexNameCounter(String indexName) {
+        int numberIndex = indexName.lastIndexOf("-");
+        if (numberIndex == -1) {
+            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
+        }
+        try {
+            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+                indexName.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
     }
 }

@@ -169,6 +169,16 @@ public class TypeParsers {
         }
     }
 
+    public static void checkNull(String propName, Object propNode) {
+        if (false == propName.equals("null_value") && propNode == null) {
+            /*
+             * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
+             * than send them a null pointer exception later.
+             */
+            throw new MapperParsingException("[" + propName + "] must not have a [null] value");
+        }
+    }
+
     /**
      * Parse the {@code meta} key of the mapping.
      */
@@ -225,13 +235,7 @@ public class TypeParsers {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
             final Object propNode = entry.getValue();
-            if (false == propName.equals("null_value") && propNode == null) {
-                /*
-                 * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
-                 * than send them a null pointer exception later.
-                 */
-                throw new MapperParsingException("[" + propName + "] must not have a [null] value");
-            }
+            checkNull(propName, propNode);
             if (propName.equals("store")) {
                 builder.store(XContentMapValues.nodeBooleanValue(propNode, name + ".store"));
                 iterator.remove();
@@ -248,8 +252,8 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
-                builder.similarity(similarityProvider);
+                deprecationLogger.deprecate("similarity",
+                    "The [similarity] parameter has no effect on field [" + name + "] and will be removed in 8.0");
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                 iterator.remove();
@@ -273,7 +277,7 @@ public class TypeParsers {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
+                    deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
                         "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
                         "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
                         "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +
@@ -393,7 +397,7 @@ public class TypeParsers {
         builder.copyTo(copyToBuilder.build());
     }
 
-    private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
+    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
         SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
         if (similarityProvider == null) {
             throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");

@@ -56,6 +56,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -119,7 +120,7 @@ public class DatafeedJobTests extends ESTestCase {
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
-        flushJobResponse = new FlushJobAction.Response(true, new Date());
+        flushJobResponse = new FlushJobAction.Response(true, Instant.now());
         delayedDataDetector = mock(DelayedDataDetector.class);
         when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
         currentTime = 0;
@@ -215,7 +216,7 @@ public class DatafeedJobTests extends ESTestCase {
         long latestFinalBucketEndTimeMs = 5000;
         long latestRecordTimeMs = 5000;
 
-        FlushJobAction.Response skipTimeResponse = new FlushJobAction.Response(true, new Date(10000L));
+        FlushJobAction.Response skipTimeResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(10000L));
         when(flushJobFuture.actionGet()).thenReturn(skipTimeResponse);
 
         long frequencyMs = 1000;
@@ -240,7 +241,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testRealtimeRun() throws Exception {
-        flushJobResponse = new FlushJobAction.Response(true, new Date(2000));
+        flushJobResponse = new FlushJobAction.Response(true, Instant.ofEpochMilli(2000));
         Bucket bucket = mock(Bucket.class);
         when(bucket.getTimestamp()).thenReturn(new Date(2000));
         when(bucket.getEpoch()).thenReturn(2L);
@@ -260,6 +261,7 @@ public class DatafeedJobTests extends ESTestCase {
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("59000");
+        flushRequest.setWaitForNormalization(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
@@ -296,7 +298,8 @@ public class DatafeedJobTests extends ESTestCase {
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationCreateTime))
                 .setModifiedUsername(XPackUser.NAME)
-                .setType("annotation")
+                .setType(Annotation.Type.ANNOTATION)
+                .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
             BytesReference expectedSource =
                 BytesReference.bytes(expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
@@ -342,7 +345,8 @@ public class DatafeedJobTests extends ESTestCase {
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationUpdateTime))
                 .setModifiedUsername(XPackUser.NAME)
-                .setType("annotation")
+                .setType(Annotation.Type.ANNOTATION)
+                .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
             BytesReference expectedSource =
                 BytesReference.bytes(expectedUpdatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
@@ -110,10 +110,11 @@ public class UnusedStateRemover implements MlDataRemover {
         // and remove cluster service as a member all together.
         jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
 
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        while (jobsIterator.hasNext()) {
-            Deque<Job.Builder> jobs = jobsIterator.next();
-            jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        while (iterator.hasNext()) {
+            Deque<String> docIds = iterator.next();
+            docIds.stream().map(Job::extractJobIdFromDocumentId).filter(Objects::nonNull).forEach(jobIds::add);
         }
         return jobIds;
     }
@@ -121,7 +122,7 @@ public class UnusedStateRemover implements MlDataRemover {
     private Set<String> getDataFrameAnalyticsJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, AnomalyDetectorsIndex.configIndexName(),
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, MlConfigIndex.indexName(),
             QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();

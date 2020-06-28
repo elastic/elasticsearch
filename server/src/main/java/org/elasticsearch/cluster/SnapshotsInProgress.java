@@ -50,10 +50,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
+
 /**
  * Meta data about snapshots that are currently executing
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
+
+    public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(List.of());
 
     private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
 
@@ -90,6 +94,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final boolean partial;
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
+        private final List<String> dataStreams;
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
@@ -99,13 +104,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     String failure, Map<String, Object> userMetadata, Version version) {
+                     List<String> dataStreams, long startTime, long repositoryStateId,
+                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
+                     Version version) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
             this.partial = partial;
             this.indices = indices;
+            this.dataStreams = dataStreams;
             this.startTime = startTime;
             if (shards == null) {
                 this.shards = ImmutableOpenMap.of();
@@ -135,25 +142,32 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
+                     List<String> dataStreams, long startTime, long repositoryStateId,
+                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata, Version version) {
+            this(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
+                null, userMetadata, version);
+        }
+
+        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      Map<String, Object> userMetadata, Version version) {
-            this(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null, userMetadata,
-                version);
+            this(snapshot, includeGlobalState, partial, state, indices, Collections.emptyList(), startTime, repositoryStateId, shards,
+                null, userMetadata, version);
         }
 
         public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Version version, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.startTime, repositoryStateId, shards,
-                failure, entry.userMetadata, version);
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.dataStreams, entry.startTime,
+                repositoryStateId, shards, failure, entry.userMetadata, version);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.dataStreams, entry.startTime,
                 entry.repositoryStateId, shards, entry.failure, entry.userMetadata, entry.version);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.dataStreams, entry.startTime,
                  entry.repositoryStateId, shards, failure, entry.userMetadata, entry.version);
         }
 
@@ -200,6 +214,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public long startTime() {
             return startTime;
+        }
+
+        public List<String> dataStreams() {
+            return dataStreams;
         }
 
         @Override
@@ -291,6 +309,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
             builder.endArray();
+            builder.array(DATA_STREAMS, dataStreams.toArray(new String[0]));
             builder.endObject();
             return builder;
         }
@@ -464,12 +483,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private final List<Entry> entries;
 
-    public SnapshotsInProgress(List<Entry> entries) {
-        this.entries = entries;
+    public static SnapshotsInProgress of(List<Entry> entries) {
+        if (entries.isEmpty()) {
+            return EMPTY;
+        }
+        return new SnapshotsInProgress(Collections.unmodifiableList(entries));
     }
 
-    public SnapshotsInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+    private SnapshotsInProgress(List<Entry> entries) {
+        this.entries = entries;
     }
 
     public List<Entry> entries() {
@@ -531,11 +553,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 // generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             }
+
+            List<String> dataStreams;
+            if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+                dataStreams = in.readStringList();
+            } else {
+                dataStreams = Collections.emptyList();
+            }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
                                    state,
                                    Collections.unmodifiableList(indexBuilder),
+                                   dataStreams,
                                    startTime,
                                    repositoryStateId,
                                    builder.build(),
@@ -573,6 +603,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
             }
+            if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+                out.writeStringCollection(entry.dataStreams);
+            }
         }
     }
 
@@ -584,6 +617,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final String PARTIAL = "partial";
     private static final String STATE = "state";
     private static final String INDICES = "indices";
+    private static final String DATA_STREAMS = "data_streams";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String START_TIME = "start_time";
     private static final String REPOSITORY_STATE_ID = "repository_state_id";

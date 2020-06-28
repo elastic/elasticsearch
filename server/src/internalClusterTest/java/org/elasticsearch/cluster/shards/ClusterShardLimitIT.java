@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,13 +42,14 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends ESIntegTestCase {
-    private static final String shardsPerNodeKey = Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
+    private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
@@ -328,7 +329,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
     private int ensureMultipleDataNodes(int dataNodes) {
         if (dataNodes == 1) {
-            internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
+            internalCluster().startNode(dataNode());
             assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").setLocal(true)
                 .execute().actionGet().isTimedOut(), equalTo(false));
             dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();

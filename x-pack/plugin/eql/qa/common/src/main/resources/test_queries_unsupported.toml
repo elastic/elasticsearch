@@ -13,16 +13,19 @@
 # expected_event_ids  = [1]
 
 [[queries]]
-query = 'process where true | head 6'
-expected_event_ids  = [1, 2, 3, 4, 5, 6]
+expected_event_ids = []
+query = 'process where missing_field != null'
+
+# fails because of string check - msbuild does not match MSBuild
+[[queries]]
+query = '''
+sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
+expected_event_ids  = [75273, 75304]
+description = "test that process sequences are working correctly"
 
 [[queries]]
 expected_event_ids = []
 query = 'process where missing_field != null'
-
-[[queries]]
-expected_event_ids  = [1, 2, 3, 4, 5]
-query = 'process where bad_field == null | head 5'
 
 [[queries]]
 tags = ["comparisons", "pipes"]
@@ -55,25 +58,6 @@ process where true
 | tail 2
 '''
 expected_event_ids  = [9, 10]
-
-[[queries]]
-note = "check that comparisons against null values return false"
-expected_event_ids = []
-query = '''
-process where not (exit_code > -1)
-  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
-| head 10
-'''
-
-[[queries]]
-note = "check that comparisons against null values return false"
-expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
-query = 'process where not (exit_code > -1) | head 7'
-
-[[queries]]
-note = "check that comparisons against null values return false"
-expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
-query = 'process where not (-1 < exit_code) | head 7'
 
 [[queries]]
 query = 'process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)'
@@ -175,12 +159,6 @@ expected_event_ids  = [78]
 
 [[queries]]
 query = '''
-file where true
-| tail 3'''
-expected_event_ids  = [92, 95, 96]
-
-[[queries]]
-query = '''
 process where opcode in (1,3) and process_name in (parent_process_name, "SYSTEM")
 '''
 expected_event_ids  = [2, 50, 51]
@@ -232,22 +210,6 @@ process where true
 [[queries]]
 query = '''
 sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id = 5]
-'''
-expected_event_ids  = [4, 5]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid
-  [process where true] by unique_ppid
-'''
-expected_event_ids  = [1, 2, 2, 3]
-
-[[queries]]
-query = '''
-sequence
   [process where serial_event_id<3] by unique_pid * 2
   [process where true] by unique_ppid * 2
 '''
@@ -262,17 +224,6 @@ sequence
 '''
 expected_event_ids  = [1, 2, 2, 3]
 
-
-[[queries]]
-query = '''
-sequence
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2'''
-expected_event_ids  = [67, 68, 69, 70, 72, 73, 74, 75]
 
 [[queries]]
 query = '''
@@ -328,30 +279,6 @@ sequence with maxspan=0.5s
 | head 4
 | tail 2'''
 expected_event_ids = []
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id < 5]
-'''
-expected_event_ids  = [1, 2, 2, 3, 3, 4]
-
-[[queries]]
-query = '''
-sequence
-  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
-  [process where opcode == 1] by unique_ppid
-'''
-expected_event_ids  = [55, 56]
-
-[[queries]]
-query = '''
-sequence
-  [file where opcode=0] by unique_pid
-  [file where opcode=0] by unique_pid
-| head 1'''
-expected_event_ids  = [55, 61]
 
 [[queries]]
 query = '''
@@ -490,6 +417,59 @@ registry where length(bad_field) > 0
 '''
 
 [[queries]]
+expected_event_ids  = [1, 2, 3, 4, 5]
+query = 'process where bad_field == null | head 5'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code >= 0'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where 0 <= exit_code'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code <= 0'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code < 1'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code > -1'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where -1 < exit_code'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids = []
+query = '''
+process where not (exit_code > -1)
+  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
+| head 10
+'''
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+query = 'process where not (exit_code > -1) | head 7'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+query = 'process where not (-1 < exit_code) | head 7'
+
+[[queries]]
 expected_event_ids  = [1, 55, 57, 63, 75304]
 query = '''
 any where true
@@ -564,40 +544,6 @@ expected_event_ids  = [48, 50, 51, 54, 93]
 
 [[queries]]
 query = '''
-sequence
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by user_name
-  [file where file_name="lsass.exe"] by file_path, process_path
-  [process where true] by process_path, parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by pid
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids = []
-
-[[queries]]
-query = '''
-sequence by user_name
-  [file where opcode=0] by file_path
-  [process where opcode=1] by process_path
-  [process where opcode=2] by process_path
-  [file where opcode=2] by file_path
-| tail 1'''
-expected_event_ids  = [88, 89, 90, 91]
-
-[[queries]]
-query = '''
 sequence by user_name
   [file where opcode=0] by pid,file_path
   [file where opcode=2] by pid,file_path
@@ -613,16 +559,6 @@ sequence by user_name
 until [process where opcode=5] by ppid,process_path
 | head 2'''
 expected_event_ids  = [55, 59, 61, 65]
-
-[[queries]]
-query = '''
-sequence by pid
-  [file where opcode=0] by file_path
-  [process where opcode=1] by process_path
-  [process where opcode=2] by process_path
-  [file where opcode=2] by file_path
-| tail 1'''
-expected_event_ids = []
 
 [[queries]]
 query = '''
@@ -838,12 +774,6 @@ process where process_name != original_file_name
 | filter length(original_file_name) > 0'''
 expected_event_ids = []
 description = "check that case insensitive comparisons are performed for fields."
-
-[[queries]]
-query = '''
-sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
-expected_event_ids  = [75273, 75304]
-description = "test that process sequences are working correctly"
 
 [[queries]]
 expected_event_ids  = [57]

@@ -6,7 +6,7 @@
 
 Adds or removes index aliases.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -42,7 +42,7 @@ searching, and routing values. An alias cannot have the same name as an index.
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-aliases-api-request-body]]
@@ -93,8 +93,8 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(String)
-Comma-separated list or wildcard expression of index alias names to
+(Array of strings)
+Array of index alias names to
 add, remove, or delete.
 +
 If the `alias` parameter is not specified,
@@ -102,7 +102,7 @@ this parameter is required for the `add` or `remove` action.
 
 `filter`::
 (Optional, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 +
 See <<filtered>> for an example.
 
@@ -112,6 +112,10 @@ If `true`, the alias will be excluded from wildcard expressions by default,
 unless overriden in the request using the `expand_wildcards` parameter,
 similar to <<index-hidden,hidden indices>>. This property must be set to the
 same value on all indices that share an alias. Defaults to `false`.
+
+`must_exist`::
+(Optional, boolean)
+If `true`, the alias to remove must exist. Defaults to `false`.
 
 `is_write_index`::
 (Optional, boolean)
@@ -130,7 +134,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 +
 See <<aliases-routing>> for an example.
 

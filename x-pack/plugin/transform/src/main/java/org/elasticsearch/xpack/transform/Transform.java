@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
@@ -128,6 +129,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
+    public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
+    public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
 
     // How many times the transform task can retry on an non-critical failure
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
@@ -148,17 +151,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     /**
      * Setting whether transform (the coordinator task) can run on this node.
      */
-    public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
+    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
         settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
+        Property.Deprecated,
         Property.NodeScope
     );
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        protected Setting<Boolean> roleSetting() {
+        public Setting<Boolean> legacySetting() {
             return TRANSFORM_ENABLED_NODE;
+        }
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return super.isEnabledByDefault(settings) && DiscoveryNode.isDataNode(settings);
         }
 
     };
@@ -264,12 +273,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
-        TransformCheckpointService checkpointService = new TransformCheckpointService(
-            settings,
-            clusterService,
-            configManager,
-            auditor
-        );
+        TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
@@ -337,7 +341,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         Settings.Builder additionalSettings = Settings.builder();
 
-        additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
+        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
 
         return additionalSettings.build();
     }

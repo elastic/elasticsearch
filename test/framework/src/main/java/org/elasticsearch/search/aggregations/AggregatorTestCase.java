@@ -76,6 +76,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -160,7 +161,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
 
-
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
      * can be useful when testing aggregations on field aliases.
@@ -176,7 +176,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             MappedFieldType fieldType = entry.getValue();
 
             when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-            when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
+            when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
 
@@ -232,9 +232,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MultiBucketConsumer bucketConsumer,
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
+        throws IOException {
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder
-            .rewrite(searchContext.getQueryShardContext())
+        A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
             .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
@@ -422,7 +426,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         a.postCollection();
         @SuppressWarnings("unchecked")
         A result = (A) a.buildTopLevel();
-        InternalAggregationTestCase.assertMultiBucketConsumer(result, bucketConsumer);
         return result;
     }
 
@@ -493,7 +496,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.postCollection();
             InternalAggregation agg = a.buildTopLevel();
             aggs.add(agg);
-            InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
             return (A) root.buildEmptyAggregation();
@@ -715,7 +717,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
-                    ValuesSourceType vst = fieldType.getValuesSourceType();
+                    ValuesSourceType vst = fieldToVST(fieldType);
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     AssertionError failure = null;
                     try {
@@ -739,6 +741,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+        return fieldType.fielddataBuilder("")
+                                .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
+    }
+
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
      *
@@ -748,7 +755,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
-        ValuesSourceType vst = fieldType.getValuesSourceType();
+        ValuesSourceType vst = fieldToVST(fieldType);
         Document doc = new Document();
         String json;
 
@@ -872,6 +879,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * Hook for checking things after all {@link Aggregator}s have been closed.
+     */
+    protected void afterClose() {}
+
+    /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
@@ -885,35 +897,37 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code double}.
      */
     protected NumberFieldMapper.NumberFieldType doubleField(String name) {
-        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        result.setName(name);
-        return result;
+        return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+    }
+
+    /**
+     * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a {@code geo_point}.
+     */
+    protected GeoPointFieldMapper.GeoPointFieldType geoPointField(String name) {
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
-        KeywordFieldMapper.KeywordFieldType result = new KeywordFieldMapper.KeywordFieldType();
-        result.setName(name);
-        return result;
+        return new KeywordFieldMapper.KeywordFieldType(name);
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code long}.
      */
     protected NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        result.setName(name);
-        return result;
+        return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
      */
     protected RangeFieldMapper.RangeFieldType rangeField(String name, RangeType rangeType) {
-        RangeFieldMapper.RangeFieldType result = new RangeFieldMapper.Builder(name, rangeType).fieldType();
-        result.setName(name);
-        return result;
+        if (rangeType == RangeType.DATE) {
+            return new RangeFieldMapper.RangeFieldType(name, RangeFieldMapper.Defaults.DATE_FORMATTER);
+        }
+        return new RangeFieldMapper.RangeFieldType(name, rangeType);
     }
 }

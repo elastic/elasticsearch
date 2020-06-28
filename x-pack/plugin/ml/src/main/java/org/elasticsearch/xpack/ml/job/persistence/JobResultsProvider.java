@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -372,7 +373,7 @@ public class JobResultsProvider {
     @SuppressWarnings("unchecked")
     public static int countFields(Map<String, Object> mapping) {
         Object propertiesNode = mapping.get("properties");
-        if (propertiesNode != null && propertiesNode instanceof Map) {
+        if (propertiesNode instanceof Map) {
             mapping = (Map<String, Object>) propertiesNode;
         } else {
             return 0;
@@ -591,7 +592,7 @@ public class JobResultsProvider {
                 .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId)));
+            msearch.add(createDocIdSearch(MlMetaIndex.indexName(), MlFilter.documentId(filterId)));
         }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
@@ -800,11 +801,13 @@ public class JobResultsProvider {
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
+     * @param categoryId a specific category ID to retrieve, or <code>null</code> to retrieve as many as possible
+     * @param partitionFieldValue the partition field value to filter on, or <code>null</code> for no filtering
      * @param augment Should the category definition be augmented with a Grok pattern?
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
-    public void categoryDefinitions(String jobId, Long categoryId, boolean augment, Integer from, Integer size,
+    public void categoryDefinitions(String jobId, Long categoryId, String partitionFieldValue, boolean augment, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
                                     Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
@@ -817,15 +820,24 @@ public class JobResultsProvider {
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
+        QueryBuilder categoryIdQuery;
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         if (categoryId != null) {
-            sourceBuilder.query(QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId));
+            categoryIdQuery = QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId);
         } else if (from != null && size != null) {
+            categoryIdQuery = QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName());
             sourceBuilder.from(from).size(size)
-                    .query(QueryBuilders.existsQuery(CategoryDefinition.CATEGORY_ID.getPreferredName()))
                     .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
         } else {
             throw new IllegalStateException("Both categoryId and pageParams are not specified");
+        }
+        if (partitionFieldValue != null) {
+            QueryBuilder partitionQuery =
+                QueryBuilders.termQuery(CategoryDefinition.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
+            QueryBuilder combinedQuery = QueryBuilders.boolQuery().must(categoryIdQuery).must(partitionQuery);
+            sourceBuilder.query(combinedQuery);
+        } else {
+            sourceBuilder.query(categoryIdQuery);
         }
         sourceBuilder.trackTotalHits(true);
         searchRequest.source(sourceBuilder);
@@ -1093,6 +1105,37 @@ public class JobResultsProvider {
         return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
     }
 
+    public QueryPage<CategorizerStats> categorizerStats(String jobId, int from, int size) {
+        SearchResponse searchResponse;
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        LOGGER.trace("ES API CALL: search categorizer stats from index {} from {} size {}", indexName, from, size);
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            searchResponse = client.prepareSearch(indexName)
+                .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
+                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
+                .setFrom(from).setSize(size)
+                .setTrackTotalHits(true)
+                .get();
+        }
+
+        List<CategorizerStats> results = new ArrayList<>();
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            BytesReference source = hit.getSourceRef();
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
+                results.add(categorizerStats);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to parse categorizerStats", e);
+            }
+        }
+
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+    }
+
     /**
      * Get the job's model size stats.
      */
@@ -1250,7 +1293,7 @@ public class JobResultsProvider {
     }
 
     public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
-        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(query.build())
                 .setTrackTotalHits(true);
@@ -1294,9 +1337,11 @@ public class JobResultsProvider {
             .setScript(new Script("ctx._source.forecast_status='failed';" +
                 "ctx._source.forecast_messages=['" + JOB_FORECAST_NATIVE_PROCESS_KILLED + "']"));
 
-        client.execute(UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
             response -> {
-                LOGGER.info("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                if (response.getUpdated() > 0) {
+                    LOGGER.warn("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                }
                 if (response.getBulkFailures().size() > 0) {
                     LOGGER.warn(
                         "[{}] failed to set [{}] forecasts to failed. Bulk failures experienced {}",
@@ -1391,7 +1436,7 @@ public class JobResultsProvider {
                     currentJobs.removeAll(jobIdsToRemove);
                     Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, updatedCalendar.documentId());
+                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -1402,9 +1447,7 @@ public class JobResultsProvider {
 
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, updateRequest,
                             ActionListener.<UpdateResponse>wrap(
-                                    response -> {
-                                        handler.accept(updatedCalendar);
-                                    },
+                                    response -> handler.accept(updatedCalendar),
                                     errorHandler)
                             , client::update);
 
@@ -1416,7 +1459,7 @@ public class JobResultsProvider {
     }
 
     public void calendars(CalendarQueryBuilder queryBuilder, ActionListener<QueryPage<Calendar>> listener) {
-        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setTrackTotalHits(true)
                 .setSource(queryBuilder.build()).request();
@@ -1457,7 +1500,7 @@ public class JobResultsProvider {
                             .filter(jId -> jobId.equals(jId) == false)
                             .collect(Collectors.toList());
                         Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
-                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, newCalendar.documentId());
+                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), newCalendar.documentId());
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
                         } catch (IOException e) {
@@ -1481,7 +1524,7 @@ public class JobResultsProvider {
     }
 
     public void calendar(String calendarId, ActionListener<Calendar> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, Calendar.documentId(calendarId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), Calendar.documentId(calendarId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

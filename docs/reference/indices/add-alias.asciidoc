@@ -6,7 +6,7 @@
 
 Creates or updates an index alias.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -46,7 +46,7 @@ Name of the index alias to create or update.
 [[add-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[add-alias-api-request-body]]
@@ -54,9 +54,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `filter`::
 (Required, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 
 [[add-alias-api-example]]
 ==== {api-examples-title}

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.collapse;
 
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -213,7 +212,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
+        if (fieldType.isSearchable() == false && (innerHits != null && !innerHits.isEmpty())) {
             throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }

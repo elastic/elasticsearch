@@ -2,7 +2,7 @@
 == Index APIs
 
 Index APIs are used to manage individual indices,
-index settings, data streams, aliases, mappings, and index templates.
+index settings, aliases, mappings, and index templates.
 
 [float]
 [[index-management]]
@@ -31,13 +31,6 @@ index settings, data streams, aliases, mappings, and index templates.
 * <<indices-get-field-mapping>>
 
 [float]
-[[data-stream-management]]
-=== Data stream management:
-* <<indices-create-data-stream>>
-* <<indices-delete-data-stream>>
-* <<indices-get-data-stream>>
-
-[float]
 [[alias-management]]
 === Alias management:
 * <<indices-add-alias>>
@@ -57,8 +50,11 @@ index settings, data streams, aliases, mappings, and index templates.
 [[index-templates]]
 === Index templates:
 * <<indices-templates>>
-* <<indices-delete-template>>
+* <<indices-put-template>>
 * <<indices-get-template>>
+* <<indices-delete-template>>
+* <<indices-component-template>>
+* <<getting-component-templates>>
 * <<indices-template-exists>>
 
 [float]
@@ -156,9 +152,3 @@ include::indices/apis/unfreeze.asciidoc[]
 include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
-
-include::indices/create-data-stream.asciidoc[]
-
-include::indices/get-data-stream.asciidoc[]
-
-include::indices/delete-data-stream.asciidoc[]

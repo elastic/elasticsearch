@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
+import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -159,9 +160,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         logger.info("--> phaseDef: {}", phaseDef);
 
         assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, phaseDef, "phase"),
-            contains(new Step.StepKey("phase", "freeze", FreezeAction.NAME),
+            contains(
+                new Step.StepKey("phase", "freeze", CheckNotDataStreamWriteIndexStep.NAME),
+                new Step.StepKey("phase", "freeze", FreezeAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocateAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
+                new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),
                 new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)));

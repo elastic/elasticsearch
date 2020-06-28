@@ -98,7 +98,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
-        final M2Calculator m2Calculator = new M2Calculator(0, 0, 0, 0);
+        final M2Calculator m2Calculator = new M2Calculator(0, 0, 0);
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override

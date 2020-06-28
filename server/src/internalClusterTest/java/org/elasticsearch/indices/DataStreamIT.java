@@ -68,7 +68,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Map;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
@@ -607,7 +606,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingViaDataStream() throws Exception {
-        createIndexTemplate("id1", "logs-*", "@timestamp");
+        putComposableIndexTemplate("id1", "@timestamp", List.of("logs-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().admin().indices().createDataStream(createDataStreamRequest).actionGet();
 
@@ -634,7 +633,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testUpdateIndexSettingsViaDataStream() throws Exception {
-        createIndexTemplate("id1", "logs-*", "@timestamp");
+        putComposableIndexTemplate("id1", "@timestamp", List.of("logs-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().admin().indices().createDataStream(createDataStreamRequest).actionGet();
 

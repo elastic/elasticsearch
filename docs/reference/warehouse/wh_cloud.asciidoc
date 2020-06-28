@@ -36,8 +36,8 @@ Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply a
 [[repositories-url-allowed]]
 // tag::repositories-url-allowed[]
 `repositories.url.allowed_urls` {ess-icon}::
-Enables whitelisting of <<snapshots-read-only-repository,read-only URL repositories>>.
-// end::cloud-repositories-url-allowed[]
+Specifies the <<snapshots-read-only-repository,read-only URL repositories>> that snapshots can be restored from.
+// end::repositories-url-allowed[]
 
 [[cloud-reindex-remote-whitelist]]
 // tag::cloud-reindex-remote-whitelist[]

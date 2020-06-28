@@ -241,13 +241,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
-                    // TODO
-                    //.with(REALM_FIELD_NAME, realm)
                     .withRestUriAndMethod(request)
                     .withRequestId(requestId)
                     .withSubject(authentication)
-                    // TODO
-                    //.withPrincipal(user)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withOpaqueId(threadContext)
@@ -267,13 +263,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
-                        // TODO
-                        //.with(REALM_FIELD_NAME, realm)
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        // TODO
-                        //.withPrincipal(user)
+                        .withSubject(authentication)
                         .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -810,18 +803,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withSubject(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
-            if (authentication.getUser().isRunAs()) {
-                logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
-                        .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
-                        .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
-            } else {
-                logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
-            }
             if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-                final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
-                final String apiKeyName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
-                logEntry.with(API_KEY_ID_FIELD_NAME, apiKeyId)
-                        .with(API_KEY_NAME_FIELD_NAME, apiKeyName);
+                logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY))
+                        .with(API_KEY_NAME_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY))
+                        .with(PRINCIPAL_REALM_FIELD_NAME,
+                                (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME));
+            } else {
+                if (authentication.getUser().isRunAs()) {
+                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
+                            .with(PRINCIPAL_RUN_BY_FIELD_NAME, authentication.getUser().authenticatedUser().principal())
+                            .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                } else {
+                    logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+                }
             }
             return this;
         }

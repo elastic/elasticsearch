@@ -72,7 +72,7 @@ public final class InternalAutoDateHistogram extends
             this.format = format;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -163,7 +163,7 @@ public final class InternalAutoDateHistogram extends
                 roundingInfos[i] = new RoundingInfo(in);
             }
             roundingIdx = in.readVInt();
-            emptySubAggregations = new InternalAggregations(in);
+            emptySubAggregations = InternalAggregations.readFrom(in);
         }
 
         void writeTo(StreamOutput out) throws IOException {

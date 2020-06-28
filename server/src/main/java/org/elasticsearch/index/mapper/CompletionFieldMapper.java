@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -195,12 +194,12 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, meta);
+        public CompletionFieldType(String name, FieldType luceneFieldType, Map<String, String> meta) {
+            super(name, true, false, new TextSearchInfo(luceneFieldType, null), meta);
         }
 
         public CompletionFieldType(String name) {
-            this(name, Collections.emptyMap());
+            this(name, Defaults.FIELD_TYPE, Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {
@@ -396,15 +395,14 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), meta);
+            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), this.fieldType, meta);
             ft.setContextMappings(contextMappings);
             ft.setPreservePositionIncrements(preservePositionIncrements);
             ft.setPreserveSep(preserveSeparators);
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setSearchAnalyzer(searchAnalyzer);
             ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
-            ft.setSimilarity(similarity);
-            return new CompletionFieldMapper(name, this.fieldType, ft, context.indexSettings(),
+            return new CompletionFieldMapper(name, this.fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
 
@@ -434,9 +432,9 @@ public class CompletionFieldMapper extends FieldMapper {
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings,
+    public CompletionFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 

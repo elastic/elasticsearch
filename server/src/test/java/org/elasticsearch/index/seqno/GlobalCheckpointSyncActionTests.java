@@ -116,7 +116,8 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
-            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
+            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard,
+                ActionTestUtils.assertNoFailureListener(r -> {}));
         }
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {

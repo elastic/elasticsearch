@@ -77,7 +77,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new TypeFieldMapper(Defaults.FIELD_TYPE, indexSettings);
+            return new TypeFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
@@ -202,8 +202,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TypeFieldMapper(FieldType fieldType, IndexSettings indexSettings) {
-        super(fieldType, new TypeFieldType(), indexSettings.getSettings());
+    private TypeFieldMapper(FieldType fieldType) {
+        super(fieldType, new TypeFieldType());
     }
 
     @Override

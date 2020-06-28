@@ -26,7 +26,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -73,7 +72,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         @Override
         public RankFeatureFieldMapper build(BuilderContext context) {
             return new RankFeatureFieldMapper(name, fieldType, new RankFeatureFieldType(buildFullName(context), meta, positiveScoreImpact),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, positiveScoreImpact);
+                multiFieldsBuilder.build(this, context), copyTo, positiveScoreImpact);
         }
     }
 
@@ -99,7 +98,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, true, false, meta);
+            super(name, true, false, TextSearchInfo.NONE, meta);
             this.positiveScoreImpact = positiveScoreImpact;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -142,9 +141,8 @@ public class RankFeatureFieldMapper extends FieldMapper {
     private final boolean positiveScoreImpact;
 
     private RankFeatureFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                   Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
-                                   boolean positiveScoreImpact) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                   MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.positiveScoreImpact = positiveScoreImpact;
     }

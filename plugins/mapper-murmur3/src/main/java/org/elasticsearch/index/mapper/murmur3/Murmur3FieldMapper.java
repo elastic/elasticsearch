@@ -27,7 +27,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -66,7 +66,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             return new Murmur3FieldMapper(name, fieldType, new Murmur3FieldType(buildFullName(context), meta),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -93,7 +93,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
         public Murmur3FieldType(String name, Map<String, String> meta) {
-            super(name, false, true, meta);
+            super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         protected Murmur3FieldType(Murmur3FieldType ref) {
@@ -128,8 +128,8 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     protected Murmur3FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+            MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override

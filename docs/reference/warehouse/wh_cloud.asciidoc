@@ -39,8 +39,8 @@ Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply a
 Specifies the <<snapshots-read-only-repository,read-only URL repositories>> that snapshots can be restored from.
 // end::repositories-url-allowed[]
 
-[[cloud-reindex-remote-whitelist]]
-// tag::cloud-reindex-remote-whitelist[]
+[[reindex-remote-whitelist]]
+// tag::reindex-remote-whitelist[]
 `reindex.remote.whitelist` {ess-icon}::
 Whitelists the hosts that can be <<reindex-from-remote,reindexed from remotely>>. Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
 // end::cloud-reindex-remote-whitelist[]

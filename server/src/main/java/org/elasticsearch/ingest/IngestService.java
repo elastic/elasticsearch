@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -410,6 +411,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 Pipeline pipeline = holder.pipeline;
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
+                        logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                            pipelineId, indexRequest.index(), indexRequest.id()), e);
                         onFailure.accept(slot, e);
                     }
 
@@ -423,6 +426,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 });
             } catch (Exception e) {
+                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                    pipelineId, indexRequest.index(), indexRequest.id()), e);
                 onFailure.accept(slot, e);
                 if (counter.decrementAndGet() == 0) {
                     onCompletion.accept(originalThread, null);

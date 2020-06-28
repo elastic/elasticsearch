@@ -33,8 +33,8 @@ See <<open-index-api-desc,Open index API>> for more information.
 Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply an ingest pipeline to transform and enrich a document before indexing. Default: `true`.
 // end::cloud-node-ingest-tag[]
 
-[[cloud-repositories-url-allowed]]
-// tag::cloud-repositories-url-allowed[]
+[[repositories-url-allowed]]
+// tag::repositories-url-allowed[]
 `repositories.url.allowed_urls` {ess-icon}::
 Enables whitelisting of <<snapshots-read-only-repository,read-only URL repositories>>.
 // end::cloud-repositories-url-allowed[]

@@ -1,5 +1,8 @@
 [[analysis-simple-analyzer]]
-=== Simple Analyzer
+=== Simple analyzer
+++++
+<titleabbrev>Simple</titleabbrev>
+++++
 
 The `simple` analyzer breaks text into terms whenever it encounters a
 character which is not a letter. All terms are lower cased.

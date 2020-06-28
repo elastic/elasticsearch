@@ -10,8 +10,8 @@ documents.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
-The creation of a data stream requires an associated
-<<indices-templates,composable template>>. This template acts as a blueprint for
+The creation of a data stream requires a matching
+<<indices-templates,index template>>. This template acts as a blueprint for
 the stream's backing indices. It contains:
 
 * A name or wildcard (`*`) pattern for the data stream.
@@ -22,7 +22,7 @@ the stream's backing indices. It contains:
 
 * The mappings and settings applied to each backing index when it's created.
 
-The same composable template can be used to create multiple data streams.
+The same index template can be used to create multiple data streams.
 See <<set-up-a-data-stream>>.
 
 [discrete]

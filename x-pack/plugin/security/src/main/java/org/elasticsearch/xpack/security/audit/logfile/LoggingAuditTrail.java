@@ -479,9 +479,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
-                                         String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+                                    String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
-        final String[] indices = index == null ? null : new String[]{index};
+        final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getUser();
         if (User.isInternal(user) && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
@@ -504,12 +504,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
                 if (restAddress != null) {
                     logEntryBuilder
-                            .with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                            .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
+                        .with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
                 } else if (remoteAddress != null) {
                     logEntryBuilder
-                            .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
-                            .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
+                        .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
                 }
                 logger.info(AUDIT_MARKER, logEntryBuilder.build());
             }
@@ -694,7 +694,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty())) == false) {
+                        Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
@@ -933,7 +933,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
          * a singleton list of the empty string ([""]).
          */
         EventFilterPolicy(String name, Predicate<String> ignorePrincipalsPredicate, Predicate<String> ignoreRealmsPredicate,
-                          Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate) {
+                Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate) {
             this.name = name;
             // "null" values are "unexpected" and should not match any ignore policy
             this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
@@ -1080,8 +1080,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             this.roles = () -> authorizationInfo.filter(info -> {
                 final Object value = info.asMap().get("user.roles");
                 return value instanceof String[] &&
-                        ((String[]) value).length != 0 &&
-                        Arrays.stream((String[]) value).anyMatch(Objects::nonNull);
+                    ((String[]) value).length != 0 &&
+                    Arrays.stream((String[]) value).anyMatch(Objects::nonNull);
             }).map(info -> Arrays.stream((String[]) info.asMap().get("user.roles"))).orElse(Stream.of(""));
             this.indices = () -> indices.filter(i -> i.length > 0).filter(a -> Arrays.stream(a).anyMatch(Objects::nonNull))
                     .map(Arrays::stream).orElse(Stream.of(""));

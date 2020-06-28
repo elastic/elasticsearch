@@ -122,7 +122,8 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        StringBuilder idBuilder = new StringBuilder(documentIdPrefix(jobId) + logTime.toEpochMilli());
+        StringBuilder idBuilder = new StringBuilder(documentIdPrefix(jobId));
+        idBuilder.append(logTime.toEpochMilli());
         if (partitionFieldName != null) {
             idBuilder.append('_').append(MachineLearningField.valuesToId(partitionFieldValue));
         }

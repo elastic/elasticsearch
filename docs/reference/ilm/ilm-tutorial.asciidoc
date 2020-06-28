@@ -28,7 +28,7 @@ To automate rollover and management of a data stream with {ilm-init}, you:
 
 . <<ilm-gs-create-policy, Create a lifecycle policy>> that defines the appropriate
 phases and actions.
-. <<ilm-gs-apply-policy, Create a composable template>> to create the data stream and
+. <<ilm-gs-apply-policy, Create an index template>> to create the data stream and
 apply the ILM policy and the indices settings and mappings configurations for the backing
 indices.
 . <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>>
@@ -98,9 +98,9 @@ For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 
 [discrete]
 [[ilm-gs-apply-policy]]
-=== Create a composable template to create the data stream and apply the lifecycle policy
+=== Create an index template to create the data stream and apply the lifecycle policy
 
-To set up a data stream, first create a composable template to specify the lifecycle policy. Because
+To set up a data stream, first create an index template to specify the lifecycle policy. Because
 the template is for a data stream, it must also include a `data_stream` definition.
 
 For example, you might create a `timeseries_template` to use for a future data stream
@@ -111,7 +111,7 @@ To enable the {ilm-init} to manage the data stream, the template configures one 
 * `index.lifecycle.name` specifies the name of the lifecycle policy to apply to the data stream.
 
 You can use the {kib} Create template wizard to add the template.
-This wizard invokes the put _index_template API to create the <<indices-templates,composable index template>>
+This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
 with the options you specify.
 
 The underlying request looks like this:
@@ -156,7 +156,7 @@ You can also invoke this API directly to add templates.
 === Create the data stream
 
 To get things started, index a document into the name or wildcard pattern defined
-in the `index_patterns` of the <<indices-templates,composable index template>>. As long
+in the `index_patterns` of the <<indices-templates,index template>>. As long
 as an existing data stream, index, or index alias does not already use the name, the index
 request automatically creates a corresponding data stream with a single backing index.
 {es} automatically indexes the request's documents into this backing index, which also
@@ -179,7 +179,7 @@ POST timeseries/_doc
 When a rollover condition in the lifecycle policy is met, the `rollover` action:
 
 * Creates the second generation backing index, named `.ds-timeseries-000002`.
-Because it is a backing index of the `timeseries` data stream, the configuration from the `timeseries_template` composable template is applied to the new index.
+Because it is a backing index of the `timeseries` data stream, the configuration from the `timeseries_template` index template is applied to the new index.
 * As it is the latest generation index of the `timeseries` data stream, the newly created
 backing index `.ds-timeseries-000002` becomes the data stream's write index.
 

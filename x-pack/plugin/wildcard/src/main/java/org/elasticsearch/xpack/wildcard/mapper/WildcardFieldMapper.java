@@ -55,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -848,6 +849,12 @@ public class WildcardFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+        
+        @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }
+        
 
         @Override
         public Query existsQuery(QueryShardContext context) {

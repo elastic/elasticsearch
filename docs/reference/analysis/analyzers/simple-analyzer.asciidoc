@@ -1,5 +1,8 @@
 [[analysis-simple-analyzer]]
-=== Simple Analyzer
+=== Simple analyzer
+++++
+<titleabbrev>Simple</titleabbrev>
+++++
 
 The `simple` analyzer breaks text into terms at any non-letter character, such
 as numbers, spaces, hyphens and apostrophes, discards non-letter characters, 

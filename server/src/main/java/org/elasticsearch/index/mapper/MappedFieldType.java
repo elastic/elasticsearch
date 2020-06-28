@@ -129,6 +129,11 @@ public abstract class MappedFieldType {
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
+    
+    /** Returns the field family type, as used in field capabilities */
+    public String familyTypeName() {
+        return typeName();
+    }
 
     public String name() {
         return name;

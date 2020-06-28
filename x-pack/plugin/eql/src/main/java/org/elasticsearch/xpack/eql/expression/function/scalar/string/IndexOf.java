@@ -39,11 +39,11 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgument {
 
-    private final Expression source, substring, start;
+    private final Expression input, substring, start;
 
-    public IndexOf(Source source, Expression src, Expression substring, Expression start, Configuration configuration) {
-        super(source, Arrays.asList(src, substring, start != null ? start : new Literal(source, null, DataTypes.NULL)), configuration);
-        this.source = src;
+    public IndexOf(Source source, Expression input, Expression substring, Expression start, Configuration configuration) {
+        super(source, Arrays.asList(input, substring, start != null ? start : new Literal(source, null, DataTypes.NULL)), configuration);
+        this.input = input;
         this.substring = substring;
         this.start = arguments().get(2);
     }
@@ -59,7 +59,7 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -74,47 +74,47 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
 
     @Override
     protected Pipe makePipe() {
-        return new IndexOfFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(substring),
-                Expressions.pipe(start), isCaseSensitive());
+        return new IndexOfFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(substring), Expressions.pipe(start),
+            isCaseSensitive());
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && substring.foldable() && start.foldable();
+        return input.foldable() && substring.foldable() && start.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), substring.fold(), start.fold(), isCaseSensitive());
+        return doProcess(input.fold(), substring.fold(), start.fold(), isCaseSensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, IndexOf::new, source, substring, start, configuration());
+        return NodeInfo.create(this, IndexOf::new, input, substring, start, configuration());
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate substringScript = asScript(substring);
         ScriptTemplate startScript = asScript(start);
 
-        return asScriptFrom(sourceScript, substringScript, startScript);
+        return asScriptFrom(inputScript, substringScript, startScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s)"),
                 "indexOf",
-                sourceScript.template(),
+                inputScript.template(),
                 substringScript.template(),
                 startScript.template(),
                 "{}"),
                 paramsBuilder()
-                        .script(sourceScript.params())
-                        .script(substringScript.params())
-                        .script(startScript.params())
-                        .variable(isCaseSensitive())
-                        .build(), dataType());
+                    .script(inputScript.params())
+                    .script(substringScript.params())
+                    .script(startScript.params())
+                    .variable(isCaseSensitive())
+                    .build(), dataType());
     }
 
     @Override

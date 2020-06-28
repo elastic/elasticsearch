@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -31,9 +32,8 @@ public final class ScriptFieldMapper extends FieldMapper {
 
     private static final FieldType FIELD_TYPE = new FieldType();
 
-    ScriptFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                      Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, FIELD_TYPE, mappedFieldType, indexSettings, multiFields, copyTo);
+    ScriptFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, FIELD_TYPE, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
@@ -49,7 +49,7 @@ public final class ScriptFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        //TODO I think that this one needs to be overridden
+        //TODO overrice this
     }
 
     @Override
@@ -93,23 +93,23 @@ public final class ScriptFieldMapper extends FieldMapper {
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
             }
-            //TODO copy to and multi_fields... look at what needs to be done.
-            return new ScriptFieldMapper(name, mappedFieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            //TODO copy to and multi_fields... not sure what needs to be done.
+            return new ScriptFieldMapper(name, mappedFieldType, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final ScriptService scriptService;
+        private final SetOnce<ScriptService> scriptService = new SetOnce<>();
 
-        public TypeParser(ScriptService scriptService) {
-            this.scriptService = scriptService;
+        public void setScriptService(ScriptService scriptService) {
+            this.scriptService.set(scriptService);
         }
 
         @Override
         public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
-            Builder builder = new Builder(name, scriptService);
+            Builder builder = new Builder(name, scriptService.get());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -124,7 +124,7 @@ public final class ScriptFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [script] cannot be null.");
                     }
-                    //TODO this should become an object and support the usual script syntax
+                    //TODO this should become an object and support the usual script syntax, including lang and params
                     builder.script(new Script(XContentMapValues.nodeStringValue(propNode, name + ".script")));
                     iterator.remove();
                 }

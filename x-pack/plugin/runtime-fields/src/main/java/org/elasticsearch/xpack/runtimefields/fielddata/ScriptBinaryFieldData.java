@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -25,21 +27,24 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class ScriptBinaryFieldData extends AbstractIndexComponent
-    implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData> {
+    implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
-        private final StringScriptFieldScript.LeafFactory scriptFactory;
 
-        public Builder(StringScriptFieldScript.LeafFactory scriptFactory) {
+        private final StringScriptFieldScript.Factory scriptFactory;
+
+        public Builder(StringScriptFieldScript.Factory scriptFactory) {
             this.scriptFactory = scriptFactory;
         }
 
@@ -51,12 +56,18 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     }
 
     private final String fieldName;
-    private final StringScriptFieldScript.LeafFactory scriptFactory;
+    private final StringScriptFieldScript.Factory scriptFactory;
+    private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName, StringScriptFieldScript.LeafFactory scriptFactory) {
+    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName, StringScriptFieldScript.Factory scriptFactory) {
         super(indexSettings);
         this.fieldName = fieldName;
         this.scriptFactory = scriptFactory;
+    }
+
+    public void setSearchLookup(SearchLookup searchLookup) {
+        //TODO wire the params from the mappings definition, we don't parse them yet
+        this.leafFactory.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup));
     }
 
     @Override
@@ -84,17 +95,15 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     @Override
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-
         ScriptBinaryResult scriptBinaryResult = new ScriptBinaryResult();
         return new ScriptBinaryLeafFieldData(
-            new ScriptBinaryDocValues(scriptFactory.newInstance(context, scriptBinaryResult::accept), scriptBinaryResult));
+            new ScriptBinaryDocValues(leafFactory.get().newInstance(context, scriptBinaryResult::accept), scriptBinaryResult));
     }
 
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
         final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
-
     }
 
     @Override

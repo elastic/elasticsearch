@@ -10,6 +10,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
@@ -21,7 +22,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     private final StringScriptFieldScript.Factory scriptFactory;
 
     RuntimeKeywordMappedFieldType(String name, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, false, false, meta);
+        super(name, false, false, TextSearchInfo.NONE, meta);
         this.scriptFactory = scriptFactory;
     }
 
@@ -48,15 +49,14 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     @Override
     public String typeName() {
         //TODO not sure what we should return here: the runtime type or the field type?
-        // why is the same string returned from three methods?
+        // why is the same string returned from three different methods?
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        //TODO need to find an ok way to get SourceLookup from the QueryShardContext, as well as the rest of the stuff
-        StringScriptFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(null, null, null);
-        return new ScriptBinaryFieldData.Builder(leafFactory);
+        //TODO once we get SearchLookup as an argument here, we can already call scriptFactory.newFactory here and pass through the result
+        return new ScriptBinaryFieldData.Builder(scriptFactory);
     }
 
     @Override

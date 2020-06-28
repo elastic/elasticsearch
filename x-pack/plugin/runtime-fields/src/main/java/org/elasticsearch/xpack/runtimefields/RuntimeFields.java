@@ -33,11 +33,11 @@ import java.util.function.Supplier;
 
 public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin {
 
-    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+    private final ScriptFieldMapper.TypeParser scriptTypeParser = new ScriptFieldMapper.TypeParser();
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, new ScriptFieldMapper.TypeParser(scriptService.get()));
+        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, scriptTypeParser);
     }
 
     @Override
@@ -52,7 +52,8 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        this.scriptService.set(scriptService);
+        //looks like createComponents gets called after getMappers
+        this.scriptTypeParser.setScriptService(scriptService);
         return Collections.emptyList();
     }
 }

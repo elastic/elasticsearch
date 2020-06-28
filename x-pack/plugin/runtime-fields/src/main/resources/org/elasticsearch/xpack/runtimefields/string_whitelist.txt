@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the Elastic License.
 #
 
-# The whitelist for long-valued runtime fields
+# The whitelist for string-valued runtime fields
 
 class org.elasticsearch.xpack.runtimefields.StringScriptFieldScript @no_import {
 }

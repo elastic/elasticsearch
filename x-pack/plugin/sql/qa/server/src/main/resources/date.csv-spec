@@ -248,7 +248,7 @@ FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC NULLS LAST LIMIT 10
 7      | 06
 ;
 
-dateTimeParseHaving
+dateParseHaving
 schema::max:ts|df_birth_date:s
 SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
 HAVING DATE_PARSE(DATETIME_FORMAT(MAX(birth_date), 'dd/MM/uuuu'), 'dd/MM/uuuu') > '1961-10-20'::date  ORDER BY 1 DESC NULLS LAST;

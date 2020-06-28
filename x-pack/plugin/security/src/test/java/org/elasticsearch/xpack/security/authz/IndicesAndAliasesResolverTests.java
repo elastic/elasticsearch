@@ -82,6 +82,8 @@ import java.util.Set;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -1531,13 +1533,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDataStreamResolution() {
         {
-            final User user = new User("data-steam-tester1", "data_stream_test1");
-            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+            final User user = new User("data-stream-tester1", "data_stream_test1");
 
             // Resolve data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
+            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1552,25 +1554,54 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(resolvedIndices.getRemote(), emptyIterable());
         }
         {
-            final User user = new User("data-steam-tester2", "data_stream_test2");
-            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
+            final User user = new User("data-stream-tester2", "data_stream_test2");
 
             // Resolve *all* data streams:
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
+            final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
         }
     }
 
+    public void testDataStreamsAreNotVisibleWhenNotIncludedByRequest() {
+        final User user = new User("data-stream-tester2", "data_stream_test2");
+        GetAliasesRequest request = new GetAliasesRequest("*");
+        assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
+        assertThat(request.includeDataStreams(), is(false));
+
+        final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foo")));
+        assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
+    }
+
+    public void testDataStreamsAreVisibleWhenIncludedByRequest() {
+        final User user = new User("data-stream-tester2", "data_stream_test2");
+        SearchRequest request = new SearchRequest("*");
+        assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
+        assertThat(request.includeDataStreams(), is(true));
+
+        final List<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, request);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        assertThat(resolvedIndices.getLocal(), hasItem("logs-foo"));
+        assertThat(resolvedIndices.getLocal(), hasItem("logs-foobar"));
+    }
+
     private List<String> buildAuthorizedIndices(User user, String action) {
+        return buildAuthorizedIndices(user, action, TransportRequest.Empty.INSTANCE);
+    }
+
+    private List<String> buildAuthorizedIndices(User user, String action, TransportRequest request) {
         PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
         final Authentication authentication =
             new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
         rolesStore.getRoles(user, authentication, rolesListener);
-        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), getRequestInfo(action), metadata.getIndicesLookup());
+        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), getRequestInfo(request, action),
+            metadata.getIndicesLookup());
     }
 
     public static IndexMetadata.Builder indexBuilder(String index) {

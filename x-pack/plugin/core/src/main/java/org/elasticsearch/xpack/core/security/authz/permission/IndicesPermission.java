@@ -216,7 +216,7 @@ public final class IndicesPermission {
                 // check for privilege granted directly on the requested index/alias
                 if (group.check(action, indexOrAlias) ||
                     // check for privilege granted on parent data stream if a backing index
-                    (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
+                    (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
                         indexAbstraction.getParentDataStream() != null &&
                         group.check(action, indexAbstraction.getParentDataStream().getName()))) {
                     granted = true;

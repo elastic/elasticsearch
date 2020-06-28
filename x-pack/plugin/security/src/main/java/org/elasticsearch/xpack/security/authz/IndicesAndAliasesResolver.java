@@ -421,6 +421,9 @@ class IndicesAndAliasesResolver {
     private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
                                           boolean includeDataStreams, boolean dateMathExpression) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        if (indexAbstraction == null) {
+            return false;
+        }
         final boolean isHidden = indexAbstraction.isHidden();
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.

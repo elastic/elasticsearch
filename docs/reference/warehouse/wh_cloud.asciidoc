@@ -43,4 +43,4 @@ Specifies the <<snapshots-read-only-repository,read-only URL repositories>> that
 // tag::reindex-remote-whitelist[]
 `reindex.remote.whitelist` {ess-icon}::
 Specifies the hosts that can be <<reindex-from-remote,reindexed from remotely>>. Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
-// end::cloud-reindex-remote-whitelist[]
+// end::reindex-remote-whitelist[]

@@ -135,16 +135,6 @@ public class EqlParser {
         }
 
         @Override
-        public void exitPipe(EqlBaseParser.PipeContext context) {
-            Token token = context.PIPE().getSymbol();
-            throw new ParsingException(
-                "Pipes are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
             Token token = context.relationship;
             throw new ParsingException(

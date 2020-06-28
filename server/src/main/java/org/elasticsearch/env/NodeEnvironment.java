@@ -35,6 +35,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
@@ -60,7 +61,6 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1159,26 +1159,27 @@ public final class NodeEnvironment  implements Closeable {
     private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
         List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
-            throw new IllegalStateException("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false, but has shard data: "
-                + shardDataPaths
-                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s role but has shard data: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.DATA_ROLE.roleName(),
+                shardDataPaths
             );
+            throw new IllegalStateException(message);
         }
     }
 
     private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
-            throw new IllegalStateException("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false and "
-                + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has index metadata: "
-                + indexMetadataPaths
-                + ". Use 'elasticsearch-node repurpose' tool to clean up"
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s and %s roles but has index metadata: %s. Use 'elasticsearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.DATA_ROLE.roleName(),
+                DiscoveryNodeRole.MASTER_ROLE.roleName(),
+                indexMetadataPaths
             );
+            throw new IllegalStateException(message);
         }
     }
 

@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -54,6 +55,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
     protected RangeFieldMapper.Builder newBuilder() {
         return new RangeFieldMapper.Builder("range", RangeType.DATE)
             .format("iso8601");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Before

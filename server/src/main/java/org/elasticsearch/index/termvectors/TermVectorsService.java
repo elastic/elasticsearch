@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -184,7 +184,7 @@ public class TermVectorsService  {
             return false;
         }
         // and must be indexed
-        if (fieldType.indexOptions() == IndexOptions.NONE) {
+        if (fieldType.isSearchable() == false) {
             return false;
         }
         return true;
@@ -200,7 +200,7 @@ public class TermVectorsService  {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (fieldType.storeTermVectors() &&
+            if (fieldType.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE &&
                     (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }
@@ -333,10 +333,12 @@ public class TermVectorsService  {
     public static String[] getValues(IndexableField[] fields) {
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
-            if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
-                result.add(field.binaryValue().utf8ToString());
-            } else if (field.fieldType() instanceof StringFieldType) {
-                result.add(field.stringValue());
+            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+                if (field.binaryValue() != null) {
+                    result.add(field.binaryValue().utf8ToString());
+                } else {
+                    result.add(field.stringValue());
+                }
             }
         }
         return result.toArray(new String[0]);

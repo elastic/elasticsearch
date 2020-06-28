@@ -36,7 +36,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -78,7 +77,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private final Collator collator;
 
         public CollationFieldType(String name, boolean isSearchable, boolean hasDocValues, Collator collator, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
@@ -459,7 +458,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public ICUCollationKeywordFieldMapper build(BuilderContext context) {
             final Collator collator = buildCollator();
             CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed, hasDocValues, collator, meta);
-            return new ICUCollationKeywordFieldMapper(name, fieldType, ft, context.indexSettings(),
+            return new ICUCollationKeywordFieldMapper(name, fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
                 alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, ignoreAbove, collator, nullValue);
         }
@@ -565,12 +564,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final String nullValue;
 
     protected ICUCollationKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
+                                             MultiFields multiFields, CopyTo copyTo, String rules, String language,
                                              String country, String variant,
                                              String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
                                              boolean numeric, String variableTop, boolean hiraganaQuaternaryMode,
                                              int ignoreAbove, Collator collator, String nullValue) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert collator.isFrozen();
         this.rules = rules;
         this.language = language;
@@ -659,7 +658,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || (mappedFieldType.isSearchable() && fieldType.indexOptions() != IndexOptions.DOCS)) {
+        if (fieldType.indexOptions() != IndexOptions.NONE && (includeDefaults || fieldType.indexOptions() != IndexOptions.DOCS)) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
         if (nullValue != null) {

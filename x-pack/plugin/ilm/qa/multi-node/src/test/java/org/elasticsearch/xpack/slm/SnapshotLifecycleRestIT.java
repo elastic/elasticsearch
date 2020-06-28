@@ -15,7 +15,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -48,10 +51,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -461,6 +465,48 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }
     }
 
+    public void testDataStreams() throws Exception {
+        String dataStreamName = "ds-test";
+        String repoId = "ds-repo";
+        String policyName = "ds-policy";
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        Template template = new Template(null, new CompressedXContent(mapping), null);
+        createComposableTemplate(client(), "ds-template", dataStreamName, template);
+
+        client().performRequest(new Request("PUT", "_data_stream/" + dataStreamName));
+
+        // Create a snapshot repo
+        initializeRepo(repoId);
+
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, dataStreamName, true);
+
+        final String snapshotName = executePolicy(policyName);
+
+        // Check that the executed snapshot is created
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                Map<String, Object> snapshotResponseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                assertThat(snapshotResponseMap.size(), greaterThan(0));
+                final Map<String, Object> snapshot = extractSnapshot(snapshotResponseMap, snapshotName);
+                assertEquals(Collections.singletonList(dataStreamName), snapshot.get("data_streams"));
+                assertEquals(Collections.singletonList(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), snapshot.get("indices"));
+            } catch (ResponseException e) {
+                fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+            }
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public void testSLMXpackInfo() {
         Map<String, Object> features = (Map<String, Object>) getLocation("/_xpack").get("features");
@@ -549,13 +595,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> extractMetadata(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
+        return (Map<String, Object>) extractSnapshot(snapshotResponseMap, snapshotPrefix).get("metadata");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> extractSnapshot(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
         List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
             .findFirst()
             .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
             .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
         return snapResponse.stream()
             .filter(snapshot -> ((String) snapshot.get("snapshot")).startsWith(snapshotPrefix))
-            .map(snapshot -> (Map<String, Object>) snapshot.get("metadata"))
             .findFirst()
             .orElse(null);
     }

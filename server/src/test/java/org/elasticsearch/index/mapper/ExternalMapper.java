@@ -27,7 +27,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -93,7 +92,7 @@ public class ExternalMapper extends FieldMapper {
             context.path().remove();
 
             return new ExternalMapper(name, buildFullName(context), fieldType, generatedValue, mapperName, binMapper, boolMapper,
-                pointMapper, shapeMapper, stringMapper, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, true);
+                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, context), copyTo, true);
         }
 
         @Override
@@ -124,7 +123,7 @@ public class ExternalMapper extends FieldMapper {
     static class ExternalFieldType extends TermBasedFieldType {
 
         ExternalFieldType(String name, boolean indexed, boolean hasDocValues) {
-            super(name, indexed, hasDocValues, Collections.emptyMap());
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected ExternalFieldType(ExternalFieldType ref) {
@@ -163,9 +162,9 @@ public class ExternalMapper extends FieldMapper {
     public ExternalMapper(String simpleName, String contextName, FieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
+                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper,
                           MultiFields multiFields, CopyTo copyTo, boolean indexed) {
-        super(simpleName, fieldType, new ExternalFieldType(contextName, indexed, false), indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, new ExternalFieldType(contextName, indexed, false), multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;

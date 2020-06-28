@@ -70,8 +70,8 @@ meaning the request waits for complete search results.
 If this parameter is specified and the request completes during this period,
 complete search results are returned.
 +
-If the request does not complete during this period, partial results, if
-available, are returned.
+If the request does not complete during this period, the response returns an
+`is_partial` value of `true` and no search results.
 
 [role="child_attributes"]
 [[get-async-eql-search-api-response-body]]

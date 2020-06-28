@@ -1042,7 +1042,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (context.getMapperService().getLuceneFieldType(TEXT_FIELD_NAME).omitNorms() == false) {
+        if (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
@@ -1052,7 +1052,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             String value = (quoted ? "\"" : "") + TEXT_FIELD_NAME + (quoted ? "\"" : "");
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
-            if (context.getMapperService().getLuceneFieldType(TEXT_FIELD_NAME).omitNorms() == false) {
+            if (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));

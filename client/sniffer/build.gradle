@@ -53,7 +53,7 @@ tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /commons-.*/, to: 'commons'
 }
@@ -68,12 +68,6 @@ testingConventions {
     Tests {
       baseClass 'org.elasticsearch.client.RestClientTestCase'
     }
-  }
-}
-
-dependencyLicenses {
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
   }
 }
 

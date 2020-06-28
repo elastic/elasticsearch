@@ -1,8 +1,8 @@
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: change after backporting
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.resolve_index:
@@ -30,15 +30,17 @@
   - match: {indices.6.name: my_remote_cluster:closed_index}
   - match: {indices.6.aliases.0: aliased_closed_index}
   - match: {indices.6.attributes.0: closed}
-  - match: {indices.7.name: my_remote_cluster:field_caps_index_1}
+  - match: {indices.7.name: my_remote_cluster:field_caps_empty_index}
   - match: {indices.7.attributes.0: open}
-  - match: {indices.8.name: my_remote_cluster:field_caps_index_3}
+  - match: {indices.8.name: my_remote_cluster:field_caps_index_1}
   - match: {indices.8.attributes.0: open}
-  - match: {indices.9.name: my_remote_cluster:single_doc_index}
+  - match: {indices.9.name: my_remote_cluster:field_caps_index_3}
   - match: {indices.9.attributes.0: open}
-  - match: {indices.10.name: my_remote_cluster:test_index}
-  - match: {indices.10.aliases.0: aliased_test_index}
+  - match: {indices.10.name: my_remote_cluster:single_doc_index}
   - match: {indices.10.attributes.0: open}
+  - match: {indices.11.name: my_remote_cluster:test_index}
+  - match: {indices.11.aliases.0: aliased_test_index}
+  - match: {indices.11.attributes.0: open}
   - match: {aliases.0.name: my_remote_cluster:aliased_closed_index}
   - match: {aliases.0.indices.0: closed_index}
   - match: {aliases.1.name: my_remote_cluster:aliased_test_index}

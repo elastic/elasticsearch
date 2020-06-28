@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -80,6 +79,7 @@ public class NumberFieldMapper extends FieldMapper {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
     }
@@ -141,7 +141,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             return new NumberFieldMapper(name, fieldType, new NumberFieldType(buildFullName(context), type, indexed, hasDocValues, meta),
-                ignoreMalformed(context), coerce(context), nullValue, context.indexSettings(),
+                ignoreMalformed(context), coerce(context), nullValue,
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -904,7 +904,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
             this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);    // allows match queries on number fields
@@ -1029,10 +1029,9 @@ public class NumberFieldMapper extends FieldMapper {
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
             Number nullValue,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
         this.nullValue = nullValue;

@@ -87,10 +87,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
     }
 
-    public void testPipesUnsupported() {
-        assertEquals("1:20: Pipes are not supported", errorParsing("process where true | head 6"));
-    }
-
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
                 errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +

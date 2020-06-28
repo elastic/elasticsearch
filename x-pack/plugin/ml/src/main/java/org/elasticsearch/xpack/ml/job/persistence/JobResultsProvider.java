@@ -592,7 +592,7 @@ public class JobResultsProvider {
                 .add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
-            msearch.add(createDocIdSearch(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId)));
+            msearch.add(createDocIdSearch(MlMetaIndex.indexName(), MlFilter.documentId(filterId)));
         }
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, msearch.request(),
@@ -1293,7 +1293,7 @@ public class JobResultsProvider {
     }
 
     public void scheduledEvents(ScheduledEventsQueryBuilder query, ActionListener<QueryPage<ScheduledEvent>> handler) {
-        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequestBuilder request = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(query.build())
                 .setTrackTotalHits(true);
@@ -1339,7 +1339,9 @@ public class JobResultsProvider {
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
             response -> {
-                LOGGER.info("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                if (response.getUpdated() > 0) {
+                    LOGGER.warn("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                }
                 if (response.getBulkFailures().size() > 0) {
                     LOGGER.warn(
                         "[{}] failed to set [{}] forecasts to failed. Bulk failures experienced {}",
@@ -1434,7 +1436,7 @@ public class JobResultsProvider {
                     currentJobs.removeAll(jobIdsToRemove);
                     Calendar updatedCalendar = new Calendar(calendar.getId(), new ArrayList<>(currentJobs), calendar.getDescription());
 
-                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, updatedCalendar.documentId());
+                    UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), updatedCalendar.documentId());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -1457,7 +1459,7 @@ public class JobResultsProvider {
     }
 
     public void calendars(CalendarQueryBuilder queryBuilder, ActionListener<QueryPage<Calendar>> listener) {
-        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.INDEX_NAME)
+        SearchRequest searchRequest = client.prepareSearch(MlMetaIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setTrackTotalHits(true)
                 .setSource(queryBuilder.build()).request();
@@ -1498,7 +1500,7 @@ public class JobResultsProvider {
                             .filter(jId -> jobId.equals(jId) == false)
                             .collect(Collectors.toList());
                         Calendar newCalendar = new Calendar(calendar.getId(), ids, calendar.getDescription());
-                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.INDEX_NAME, newCalendar.documentId());
+                        UpdateRequest updateRequest = new UpdateRequest(MlMetaIndex.indexName(), newCalendar.documentId());
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             updateRequest.doc(newCalendar.toXContent(builder, ToXContent.EMPTY_PARAMS));
                         } catch (IOException e) {
@@ -1522,7 +1524,7 @@ public class JobResultsProvider {
     }
 
     public void calendar(String calendarId, ActionListener<Calendar> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, Calendar.documentId(calendarId));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), Calendar.documentId(calendarId));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getDocResponse) {

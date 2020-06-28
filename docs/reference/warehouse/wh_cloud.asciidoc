@@ -4,20 +4,20 @@ This file contains warehouse information for {ess} as it relates to {es}.
 NOTE: This file is not published anywhere in the {ess} or {es} documentation. Instead, it contains settings, notes, and other information that is pulled into other files using `include::` directives.
 
 === Settings
-[[cloud-auto-create-index]]
-// tag::cloud-auto-create-index-tag[]
+[[auto-create-index]]
+// tag::auto-create-index-tag[]
 `action.auto_create_index` {ess-icon}::
 <<index-creation,Automatically create an index>> if it doesn't already exist and apply any configured index templates. Default: `true`.
-// end::cloud-auto-create-index-tag[]
+// end::auto-create-index-tag[]
 
-[[cloud-action-destructive-requires-name]]
-// tag::cloud-action-destructive-requires-name-tag[]
+[[action-destructive-requires-name]]
+// tag::action-destructive-requires-name-tag[]
 `action.destructive_requires_name` {ess-icon}::
 When set to `true`, you must <<indices-delete-index,specify the index name>> to delete an index. It is not possible to `delete _all` or use wildcards.
-// end::cloud-action-destructive-requires-name-tag[]
+// end::action-destructive-requires-name-tag[]
 
-[[cloud-cluster-indices-close-enable]]
-// tag::cloud-cluster-indices-close-enable-tag[]
+[[cluster-indices-close-enable]]
+// tag::cluster-indices-close-enable-tag[]
 `cluster.indices.close.enable` {ess-icon}::
 Enables closing indices in {es} version 2.2 and later. You might enable this setting temporarily to change the analyzer configuration for an existing index. We strongly recommend leaving this set to `false` (the default) otherwise.
 +
@@ -25,13 +25,13 @@ IMPORTANT: Closed indices are a data loss risk because they are not included whe
 +
 See <<open-index-api-desc,Open index API>> for more information.
 
-// end::cloud-cluster-indices-close-enable-tag[]
+// end::cluster-indices-close-enable-tag[]
 
-[[cloud-node-ingest]]
-// tag::cloud-node-ingest-tag[]
+[[node-ingest]]
+// tag::node-ingest-tag[]
 `node.ingest` {ess-icon}::
 Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply an ingest pipeline to transform and enrich a document before indexing. Default: `true`.
-// end::cloud-node-ingest-tag[]
+// end::node-ingest-tag[]
 
 [[repositories-url-allowed]]
 // tag::repositories-url-allowed[]

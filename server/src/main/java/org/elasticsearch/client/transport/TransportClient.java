@@ -141,14 +141,12 @@ public abstract class TransportClient extends AbstractClient {
                         .put(pluginsService.updatedSettings())
                         .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
                         .build();
-        final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
-                DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
-                pluginsService.filterPlugins(Plugin.class)
-                        .stream()
-                        .map(Plugin::getRoles)
-                        .flatMap(Set::stream))
-                .collect(Collectors.toSet());
-        DiscoveryNode.setPossibleRoles(possibleRoles);
+        final Set<DiscoveryNodeRole> possibleRoles = pluginsService.filterPlugins(Plugin.class)
+            .stream()
+            .map(Plugin::getRoles)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+        DiscoveryNode.setAdditionalRoles(possibleRoles);
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));

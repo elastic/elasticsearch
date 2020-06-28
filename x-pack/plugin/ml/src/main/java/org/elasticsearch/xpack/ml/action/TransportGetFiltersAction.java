@@ -54,7 +54,7 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
 
     @Override
     protected String[] getIndices() {
-        return new String[]{MlMetaIndex.INDEX_NAME};
+        return new String[]{MlMetaIndex.indexName()};
     }
 
     @Override

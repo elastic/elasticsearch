@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 /**
  * Encapsulates information about how to perform text searches over a field
@@ -39,20 +40,30 @@ public class TextSearchInfo {
      *
      * Note that the results of {@link #isStored()} for this may not be accurate
      */
-    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE);
+    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null);
 
     /**
      * Specifies that this field does not support text searching of any kind
      */
-    public static final TextSearchInfo NONE = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE);
+    public static final TextSearchInfo NONE = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null);
 
     private final FieldType luceneFieldType;
+    private final SimilarityProvider similarity;
 
     /**
-     * Create a TextSearchInfo by wrapping a lucene FieldType
+     * Create a new TextSearchInfo
+     *
+     * @param luceneFieldType   the lucene {@link FieldType} of the field to be searched
+     * @param similarity        defines which Similarity to use when searching.  If set to {@code null}
+     *                          then the default Similarity will be used.
      */
-    public TextSearchInfo(FieldType luceneFieldType) {
+    public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity) {
         this.luceneFieldType = luceneFieldType;
+        this.similarity = similarity;
+    }
+
+    public SimilarityProvider getSimilarity() {
+        return similarity;
     }
 
     /**

@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -361,6 +363,17 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public List<String> getProgressPhases() {
         return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        PredictionFieldType predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
+        return ClassificationConfig.builder()
+            .setResultsField(predictionFieldName)
+            .setNumTopClasses(numTopClasses)
+            .setNumTopFeatureImportanceValues(getBoostedTreeParams().getNumTopFeatureImportanceValues())
+            .setPredictionFieldType(predictionFieldType)
+            .build();
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

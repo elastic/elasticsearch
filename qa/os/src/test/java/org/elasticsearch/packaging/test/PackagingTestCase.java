@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +51,10 @@ import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -77,6 +82,18 @@ import static org.junit.Assume.assumeTrue;
 @Timeout(millis = 20 * 60 * 1000) // 20 min
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackagingTestCase extends Assert {
+
+    /**
+     * Annotation for tests which exhibit a known issue and are temporarily disabled.
+     */
+    @Documented
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @TestGroup(enabled = false, sysProperty = "tests.awaitsfix")
+    @interface AwaitsFix {
+        /** Point to JIRA entry. */
+        String bugUrl();
+    }
 
     protected final Logger logger = LogManager.getLogger(getClass());
 
@@ -217,7 +234,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand(true));
+            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -249,14 +266,27 @@ public abstract class PackagingTestCase extends Assert {
      * Run the command to start Elasticsearch, but don't wait or test for success.
      * This method is useful for testing failure conditions in startup. To await success,
      * use {@link #startElasticsearch()}.
+     * @param password Password for password-protected keystore, null for no password;
+     *                 this option will fail for non-archive distributions
+     * @param daemonize Run Elasticsearch in the background
+     * @param useTty Use a tty for inputting the password rather than standard input;
+     *               this option will fail for non-archive distributions
      * @return Shell results of the startup command.
      * @throws Exception when command fails immediately.
      */
-    public Shell.Result runElasticsearchStartCommand(boolean daemonize) throws Exception {
+    public Shell.Result runElasticsearchStartCommand(String password, boolean daemonize, boolean useTty) throws Exception {
+        if (password != null) {
+            assertTrue("Only archives support user-entered passwords", distribution().isArchive());
+        }
+
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                return Archives.runElasticsearchStartCommand(installation, sh, null, daemonize);
+                if (useTty) {
+                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                } else {
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                }
             case DEB:
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
@@ -307,21 +337,11 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
-     * the start command, use {@link #runElasticsearchStartCommand(boolean)}.
+     * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand(true));
-    }
-
-    public Shell.Result startElasticsearchStandardInputPassword(String password, boolean daemonize) {
-        assertTrue("Only archives support passwords on standard input", distribution().isArchive());
-        return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
-    }
-
-    public Shell.Result startElasticsearchTtyPassword(String password, boolean daemonize) throws Exception {
-        assertTrue("Only archives support passwords on TTY", distribution().isArchive());
-        return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
@@ -400,7 +420,7 @@ public abstract class PackagingTestCase extends Assert {
      * use the temporary directory.
      */
     public void withCustomConfig(CheckedConsumer<Path, Exception> action) throws Exception {
-        Path tempDir = Files.createTempDirectory(getRootTempDir(), "custom-config");
+        Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
 

@@ -341,19 +341,19 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     public void testOkToDeleteSnapshots() {
         final Snapshot snapshot = new Snapshot("repo", new SnapshotId("name", "uuid"));
 
-        SnapshotsInProgress inProgress = new SnapshotsInProgress(
-            new SnapshotsInProgress.Entry(
+        SnapshotsInProgress inProgress = SnapshotsInProgress.of(
+            Collections.singletonList(new SnapshotsInProgress.Entry(
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId("name", "id")), 0, 0,
                 ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
-                VersionUtils.randomVersion(random())));
+                VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
-        SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
+        SnapshotDeletionsInProgress delInProgress = SnapshotDeletionsInProgress.of(
                 Collections.singletonList(new SnapshotDeletionsInProgress.Entry(
                         Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
@@ -362,7 +362,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
-        RepositoryCleanupInProgress cleanupInProgress = new RepositoryCleanupInProgress(new RepositoryCleanupInProgress.Entry("repo", 0));
+        RepositoryCleanupInProgress cleanupInProgress =
+            new RepositoryCleanupInProgress(Collections.singletonList(new RepositoryCleanupInProgress.Entry("repo", 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(RepositoryCleanupInProgress.TYPE, cleanupInProgress)
             .build();

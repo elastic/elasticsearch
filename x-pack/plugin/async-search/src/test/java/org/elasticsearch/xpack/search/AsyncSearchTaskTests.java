@@ -12,6 +12,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
@@ -183,7 +185,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             .asSerialized(InternalAggregations::new, new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             serializedAggs, 1);
-        task.getSearchProgressActionListener().onFailure(new Exception("boom"));
+        task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         task.addCompletionListener(new ActionListener<>() {

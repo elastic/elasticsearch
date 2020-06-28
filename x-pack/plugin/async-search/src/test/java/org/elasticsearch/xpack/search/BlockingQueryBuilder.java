@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A query builder that blocks shard execution based on a {@link QueryLatch}
@@ -33,12 +34,17 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
 
     private final long randomUID;
 
+    public static synchronized QueryLatch blockAfterShards(int numShards) {
+        assert queryLatch == null;
+        return queryLatch = QueryLatch.blockAfterShards(numShards);
+    }
+
     /**
      * Creates a new query latch with an expected number of <code>numShardFailures</code>.
      */
     public static synchronized QueryLatch acquireQueryLatch(int numShardFailures) {
         assert queryLatch == null;
-        return queryLatch = new QueryLatch(numShardFailures);
+        return queryLatch = QueryLatch.alwaysBlock(numShardFailures);
     }
 
     /**
@@ -129,19 +135,36 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
      *  is called.
      */
     static class QueryLatch implements Closeable {
-        private volatile CountDownLatch countDownLatch;
+        private final AtomicInteger processedShards = new AtomicInteger(0);
+        private final AtomicInteger waitingShards = new AtomicInteger(0);
         private final Set<Integer> failedShards = new HashSet<>();
+        private final int blockAfterShards;
+        private volatile CountDownLatch countDownLatch;
         private int numShardFailures;
 
-        QueryLatch(int numShardFailures) {
+        static QueryLatch blockAfterShards(int blockAfterShards) {
+            return new QueryLatch(blockAfterShards, 0);
+        }
+
+        static QueryLatch alwaysBlock(int numShardFailures) {
+            return new QueryLatch(-1, numShardFailures);
+        }
+
+        private QueryLatch(int blockAfterShards, int numShardFailures) {
             this.countDownLatch = new CountDownLatch(1);
             this.numShardFailures = numShardFailures;
+            this.blockAfterShards = blockAfterShards;
         }
 
         private void await(int shardId) throws IOException, InterruptedException {
             CountDownLatch last = countDownLatch;
+            int processedShards = this.processedShards.getAndIncrement();
             if (last != null) {
-                last.await();
+                if (processedShards >= blockAfterShards) {
+                    waitingShards.incrementAndGet();
+                    last.await();
+                    waitingShards.decrementAndGet();
+                }
             }
             synchronized (this) {
                 // ensure that we fail on replicas too
@@ -153,6 +176,10 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
                     throw new IOException("boom");
                 }
             }
+        }
+
+        int getWaitingShards() {
+            return waitingShards.get();
         }
 
         public synchronized void countDownAndReset() {

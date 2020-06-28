@@ -412,7 +412,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertFalse(response.isRunning());
         assertTrue(response.isPartial());
-        assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertNotNull(response.getFailure());
         ensureTaskNotRunning(response.getId());
     }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -130,17 +131,7 @@ class MutableSearchResponse {
         //note that when search fails, we may have gotten partial results before the failure. In that case async
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
-        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(exc);
-        if (rootCauses == null || rootCauses.length == 0) {
-            this.failure = new ElasticsearchException(exc.getMessage(), exc) {
-                @Override
-                protected String getExceptionName() {
-                    return getExceptionName(getCause());
-                }
-            };
-        } else {
-            this.failure = rootCauses[0];
-        }
+        this.failure = ExceptionsHelper.convertToElastic(exc);
         this.frozen = true;
     }
 
@@ -203,9 +194,8 @@ class MutableSearchResponse {
         if (this.failure == null) {
             error = exception;
         } else {
-            error = exception;
-            error.addSuppressed(this.failure);
-
+            error = this.failure;
+            error.addSuppressed(exception);
         }
         return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
             error, isPartial, frozen == false, task.getStartTime(), expirationTime);

@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 
 /**
  * Exception thrown when the circuit breaker trips
@@ -34,6 +36,20 @@ public class CircuitBreakingException extends ElasticsearchException {
     private final long bytesWanted;
     private final long byteLimit;
     private final CircuitBreaker.Durability durability;
+
+    @Override
+    public void printStackTrace(PrintWriter s) {
+        System.out.println("printStackTrace!!!");
+        Thread.dumpStack();
+        super.printStackTrace(s);
+    }
+
+    @Override
+    public void printStackTrace(PrintStream s) {
+        System.out.println("printStackTrace!!!");
+        Thread.dumpStack();
+        super.printStackTrace(s);
+    }
 
     public CircuitBreakingException(StreamInput in) throws IOException {
         super(in);

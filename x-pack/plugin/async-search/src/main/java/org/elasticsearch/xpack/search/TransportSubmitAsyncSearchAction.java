@@ -99,8 +99,15 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                                 searchTask.addCompletionListener(ActionListener.wrap(
                                                     finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}),
                                                     failure -> {
-                                                        //there was an error but we can't notify it back to the user as submit returned
-                                                        //we have no results at this point, only the failure
+                                                        //This completion listener will only be invoked when search terminates,
+                                                        //either with a final response or a failure. In practice, we can't have a
+                                                        //completion listener failure when we receive a final response, because that
+                                                        //is already reduced and we only return it as-is. What may happen is that a
+                                                        //search fatal failure occurs, but we had partial results from previous
+                                                        //partial reductions, and we fail to finally reduce those in the attempt of
+                                                        //returning them together with the search failure.
+                                                        //We can't notify the failure back to the user as submit already returned.
+                                                        //Then we store the failure with an empty search response as a best effort.
                                                         AsyncSearchResponse finalResponse = searchTask.buildErrorResponse(
                                                             initialResp.getSearchResponse(), failure);
                                                         onFinalResponse(searchTask, finalResponse, () -> {});

@@ -99,8 +99,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = request.getConcreteIndex() == null ?
-                indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(),
-                    true, true, System.currentTimeMillis(), request.indices())
+                indexNameExpressionResolver.concreteIndices(state, request, true)
                 : new Index[] {request.getConcreteIndex()};
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {

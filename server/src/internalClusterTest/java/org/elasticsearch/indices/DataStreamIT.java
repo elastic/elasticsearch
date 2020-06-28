@@ -623,13 +623,13 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
 
+        expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")));
         putMapping("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", "logs-foobar").get();
         // Only the mapping of th latest backing index should be updated:
         getMappingsResponse = getMapping("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
-        assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(),
-            equalTo(Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")))));
+        assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
     }
 
     public void testUpdateIndexSettingsViaDataStream() throws Exception {
@@ -644,16 +644,16 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndex2));
         assertTrue(rolloverResponse.isRolledOver());
 
+        // The index settings of all backing indices should be updated:
         GetSettingsResponse getSettingsResponse = getSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        // Only the index settings of th latest backing index should be updated:
         updateSettings(Settings.builder().put("index.number_of_replicas", 0), "logs-foobar").get();
         getSettingsResponse = getSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
-        assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
+        assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("0"));
     }
 

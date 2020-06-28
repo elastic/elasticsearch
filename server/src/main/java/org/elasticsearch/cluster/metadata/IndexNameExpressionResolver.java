@@ -161,9 +161,9 @@ public class IndexNameExpressionResolver {
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams,
-                                   boolean resolveDataStreamToWriteIndex, long startTime, String... indexExpressions) {
-        Context context = new Context(state, options, startTime, false, resolveDataStreamToWriteIndex, includeDataStreams);
+    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, long startTime,
+                                   String... indexExpressions) {
+        Context context = new Context(state, options, startTime, false, false, includeDataStreams);
         return concreteIndices(context, indexExpressions);
     }
 

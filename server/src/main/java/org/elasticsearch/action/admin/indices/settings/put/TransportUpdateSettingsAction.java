@@ -89,8 +89,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     @Override
     protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(),
-            true, true, System.currentTimeMillis(), request.indices());
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request, true);
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
                 .indices(concreteIndices)
                 .settings(request.settings())

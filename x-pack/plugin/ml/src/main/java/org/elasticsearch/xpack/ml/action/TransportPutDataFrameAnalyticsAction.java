@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -169,7 +168,7 @@ public class TransportPutDataFrameAnalyticsAction
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
+                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
                 ));
         }
@@ -183,7 +182,7 @@ public class TransportPutDataFrameAnalyticsAction
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure
             ));
         } else {
@@ -203,7 +202,7 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
                                               Map<String, String> headers,
-                                              ActionListener<IndexResponse> listener) {
+                                              ActionListener<DataFrameAnalyticsConfig> listener) {
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
@@ -221,7 +220,7 @@ public class TransportPutDataFrameAnalyticsAction
                         auditor.info(
                             config.getId(),
                             Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getWriteableName()));
-                        listener.onResponse(indexResponse);
+                        listener.onResponse(config);
                     },
                     listener::onFailure)),
                 listener::onFailure));

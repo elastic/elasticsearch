@@ -584,7 +584,7 @@ public abstract class TransportReplicationAction<
                     Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                     AsyncReplicaAction.this.onFailure(e);
                 }));
-                // TODO: Evaludate if we still need to catch this exception
+                // TODO: Evaluate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);

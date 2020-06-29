@@ -86,7 +86,9 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkPrimaryLimits(Request request) {
-        if (supportsRerouteAction()) {
+        // If reroute is supported, the parent task is the reroute task. If the node-id is the same, we have
+        // already accounted the bytes.
+        if (supportsRerouteAction() && request.getParentTask().getNodeId().equals(clusterService.localNode().getId())) {
             return () -> {};
         } else {
             return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));

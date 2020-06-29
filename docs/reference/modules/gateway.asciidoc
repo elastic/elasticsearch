@@ -18,10 +18,10 @@ recover the cluster state and the cluster's data:
 
     If the expected number of nodes is not achieved, the recovery process waits
     for the configured amount of time before trying to recover regardless.
-    Defaults to `5m` if one of the `expected_data_nodes` settings is configured.
+    Defaults to `5m`.
 
 Once the `recover_after_time` duration has timed out, recovery will start
-as long as the following conditions are met:
+as long as the following condition is met:
 
 `gateway.recover_after_data_nodes`::
 
@@ -32,10 +32,9 @@ These settings can be configured in `elasticsearch.yml` as follows:
 [source,yaml]
 --------------------------------------------------
 gateway.expected_data_nodes: 3
-gateway.recover_after_time: 600000 <1>
+gateway.recover_after_time: 600s
 gateway.recover_after_data_nodes: 3
 --------------------------------------------------
-<1> `gateway.recover_after_time` is set in milliseconds.
 
 NOTE: These settings only take effect on a full cluster restart.
 

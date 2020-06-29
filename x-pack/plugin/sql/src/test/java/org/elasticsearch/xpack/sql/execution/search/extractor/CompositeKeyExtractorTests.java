@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCase<CompositeKeyExtractor> {
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor() {
-        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomSafeZone(), randomBoolean());
+        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomZone(), randomBoolean());
     }
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor(ZoneId zoneId) {
@@ -73,7 +73,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     }
 
     public void testExtractDate() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomSafeZone(), true);
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), true);
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));

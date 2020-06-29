@@ -4,7 +4,7 @@
 <titleabbrev>Create snapshot</titleabbrev>
 ++++
 
-Takes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
+Takes a <<snapshot-restore,snapshot>> of a cluster or specified
 indices.
 
 ////
@@ -40,9 +40,9 @@ PUT /_snapshot/my_repository/my_snapshot
 You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, which is a
 backup taken from a running {es} cluster.
 
-By default, a snapshot includes all data streams and open indices in the
+By default, a snapshot includes all open indices in the
 cluster, as well as the cluster state.  You can change this behavior by
-specifying a list of data streams and indices to back up in the body of the
+specifying a list of indices to back up in the body of the
 snapshot request.
 
 NOTE: You must register a snapshot before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
@@ -78,15 +78,15 @@ Name of the snapshot to create. This name must be unique in the snapshot reposit
 (Optional, boolean)
 If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
 +
-If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
+If `true`, the request ignores and indices in `indices` that are missing or closed.
 
 `indices`::
 (Optional, string)
-A comma-separated list of data streams and indices to include in the snapshot.
+A comma-separated list of indices to include in the snapshot.
 <<multi-index,Multi-index syntax>> is supported.
 +
-By default, a snapshot includes all data streams and indices in the cluster. If this
-argument is provided, the snapshot only includes the specified data streams and clusters.
+By default, a snapshot includes all indices in the cluster. If this
+argument is provided, the snapshot only includes the specified clusters.
 
 `include_global_state`::
 +

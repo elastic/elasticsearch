@@ -388,7 +388,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // If the request rewrites to "match none" we can shortcut the query phase
                     // entirely. Otherwise we fork the execution in the search thread pool.
                     ShardSearchRequest canMatchRequest = new ShardSearchRequest(orig);
-                    try (Engine.Searcher searcher = readerContext.acquireSearcher("can_match")) {
+                    try (Engine.Searcher searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
                         QueryShardContext context = readerContext.indexService().newQueryShardContext(canMatchRequest.shardId().id(),
                             searcher, canMatchRequest::nowInMillis, canMatchRequest.getClusterAlias());
                         Rewriteable.rewrite(canMatchRequest.getRewriteable(), context, true);
@@ -1145,13 +1145,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             checkKeepAliveLimit(request.keepAlive().millis());
             readerContext.keepAlive(request.keepAlive().millis());
             indexService = readerContext.indexService();
-            canMatchSearcher = readerContext.acquireSearcher("can_match");
+            canMatchSearcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             hasRefreshPending = false;
         } else {
             indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(request.shardId().getId());
             hasRefreshPending = indexShard.hasRefreshPending();
-            canMatchSearcher = indexShard.acquireSearcher("can_match");
+            canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
         }
 
         try (markAsUsed; canMatchSearcher) {

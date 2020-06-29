@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ComposableIndexTemplateTests extends AbstractDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
@@ -70,7 +73,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
         Template template = null;
-        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+        DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
 
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -141,12 +144,12 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         }
     }
 
-    private static ComposableIndexTemplate.DataStreamTemplate randomDataStreamTemplate() {
+    private static DataStreamTemplate randomDataStreamTemplate() {
         if (randomBoolean()) {
             return null;
         } else {
             Map<String, Object> fieldMapping = randomBoolean() ? new HashMap<>(Map.of("type", "date_nanos")) : null;
-            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8), fieldMapping);
+            return new DataStreamTemplate(randomAlphaOfLength(8), fieldMapping);
         }
     }
 
@@ -216,5 +219,29 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
+    }
+
+    public void testGetFullMapping() {
+        DataStreamTemplate template = new DataStreamTemplate("my_field", Map.of("my", "payload"));
+        Map<String, Object> expectedMapping = Map.of("_doc", Map.of("properties", Map.of("my_field", Map.of("my", "payload"))));
+        assertThat(template.getFullMapping(), equalTo(expectedMapping));
+
+        template = new DataStreamTemplate("object.my_field", Map.of("my", "payload"));
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("object", Map.of("properties",
+            Map.of("my_field", Map.of("my", "payload"))))));
+        assertThat(template.getFullMapping(), equalTo(expectedMapping));
+
+        template = new DataStreamTemplate("object.another_field.my_field", Map.of("my", "payload"));
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("object", Map.of("properties",
+            Map.of("another_field", Map.of("properties",  Map.of("my_field", Map.of("my", "payload"))))))));
+        assertThat(template.getFullMapping(), equalTo(expectedMapping));
+    }
+
+    public void testGetDefaultMappingSnippet() {
+        Map<String, Object> result = DataStreamTemplate.getDefaultMappingSnippet("my_field");
+        assertThat(result, equalTo(Map.of("my_field", Map.of("type", "date"))));
+
+        result = DataStreamTemplate.getDefaultMappingSnippet("my.first.field");
+        assertThat(result, equalTo(Map.of("my", Map.of("first", Map.of("field", Map.of("type", "date"))))));
     }
 }

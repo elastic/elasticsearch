@@ -253,19 +253,28 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         public void insertTimestampFieldMapping(Map<String, Object> mappings) {
             assert mappings.containsKey("_doc");
 
-            String mappingPath = convertFieldPathToMappingPath(name);
-            String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
-            String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
+            String mappingPath = "_doc." + convertFieldPathToMappingPath(name);
+            Map<String, Object> update = inflate(mappingPath, fieldMapping);
+            XContentHelper.update(mappings, update, false);
+        }
 
-            Map<String, Object> changes = new HashMap<>();
-            Map<String, Object> current = changes;
-            for (String key : parentObjectFieldPath.split("\\.")) {
-                Map<String, Object> map = new HashMap<>();
-                current.put(key, map);
-                current = map;
+        static Map<String, Object> inflate(String path, Map<String, Object> payload) {
+            if (path.contains(".")) {
+                String parentObjectFieldPath = path.substring(0, path.lastIndexOf('.'));
+                String leafFieldName = path.substring(path.lastIndexOf('.') + 1);
+
+                Map<String, Object> changes = new HashMap<>();
+                Map<String, Object> current = changes;
+                for (String key : parentObjectFieldPath.split("\\.")) {
+                    Map<String, Object> map = new HashMap<>();
+                    current.put(key, map);
+                    current = map;
+                }
+                current.put(leafFieldName, new HashMap<>(payload));
+                return changes;
+            } else {
+                return new HashMap<>(Map.of(path, new HashMap<>(payload)));
             }
-            current.put(leafFieldName, fieldMapping);
-            XContentHelper.update(mappings, changes, false);
         }
 
         @Override

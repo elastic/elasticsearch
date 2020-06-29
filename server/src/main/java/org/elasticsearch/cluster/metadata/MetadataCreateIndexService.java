@@ -605,7 +605,7 @@ public class MetadataCreateIndexService {
             String path = dataStreamTemplate.getTimestampField().replace(".", ".properties.");
             Map<String, Object> timeStampFieldMapping = ObjectPath.eval(path, properties);
             if (timeStampFieldMapping == null) {
-                properties = mergeFailingOnReplacement(properties, DataStreamTemplate.generateDefaultMapping(path));
+                properties = mergeFailingOnReplacement(properties, DataStreamTemplate.getDefaultMappingSnippet(path));
             }
         }
 

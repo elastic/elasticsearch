@@ -25,8 +25,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,15 +32,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.inflate;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.convertFieldPathToMappingPath;
 
 /**
@@ -320,49 +317,33 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return Objects.hash(timestampField, timestampFieldMapping);
         }
 
-        public CompressedXContent getFullMapping() {
+        /**
+         * Returns a full mapping based on the {@link #getTimestampField()} and {@link #getTimestampFieldMapping()}.
+         *
+         * {@link #getTimestampFieldMapping()} only returns the mapping snippet for the timestamp field, which
+         * can't be used directly by composable templates' merge logic, since that needs a full mapping with
+         * a '_doc' json object which then contains a 'properties' json object. Also the field name should be
+         * specified and if the timestamp fieldname contains dots then that should be splitted on object
+         * field mappers.
+         *
+         * @return a mapping that can be used by composable index templates to merge with other templates
+         */
+        @Nullable
+        public Map<String, Object> getFullMapping() {
             if (timestampFieldMapping == null) {
                 return null;
             }
 
-            String mappingPath = convertFieldPathToMappingPath(timestampField);
-            String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
-            String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
-
-            Map<String, Object> changes = new HashMap<>();
-            Map<String, Object> current = changes;
-            for (String key : parentObjectFieldPath.split("\\.")) {
-                Map<String, Object> map = new HashMap<>();
-                current.put(key, map);
-                current = map;
-            }
-            current.put(leafFieldName, getTimestampFieldMapping());
-
-            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                builder.value(changes);
-                return new CompressedXContent(BytesReference.bytes(builder));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            String mappingPath = "_doc." + convertFieldPathToMappingPath(timestampField);
+            return inflate(mappingPath, timestampFieldMapping);
         }
 
-        public static Map<String, Object> generateDefaultMapping(String path) {
-            if (path.contains(".")) {
-                String parentObjectFieldPath = path.substring(0, path.lastIndexOf('.'));
-                String leafFieldName = path.substring(path.lastIndexOf('.') + 1);
-
-                Map<String, Object> changes = new HashMap<>();
-                Map<String, Object> current = changes;
-                for (String key : parentObjectFieldPath.split("\\.")) {
-                    Map<String, Object> map = new HashMap<>();
-                    current.put(key, map);
-                    current = map;
-                }
-                current.put(leafFieldName, new HashMap<>(Map.of("type", "date")));
-                return changes;
-            } else {
-                return new HashMap<>(Map.of(path, new HashMap<>(Map.of("type", "date"))));
-            }
+        /**
+         * @return A mapping snippet with a default timestamp field definition for the provided path.
+         *         If the path contains object notation then the returned map is inflated.
+         */
+        public static Map<String, Object> getDefaultMappingSnippet(String path) {
+            return inflate(path, Map.of("type", "date"));
         }
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.CollectionStatistics;
@@ -49,8 +48,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class SimilarityService extends AbstractIndexComponent {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
     public static final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> BUILT_IN;

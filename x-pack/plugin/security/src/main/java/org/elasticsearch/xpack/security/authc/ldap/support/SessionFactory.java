@@ -159,7 +159,7 @@ public abstract class SessionFactory {
         } else if (hostnameVerificationExists) {
             final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
-            new DeprecationLogger(logger).deprecate(deprecationKey,
+            DeprecationLogger.getLogger(logger.getName()).deprecate(deprecationKey,
                 "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
                 fullSettingKey, RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
             if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {

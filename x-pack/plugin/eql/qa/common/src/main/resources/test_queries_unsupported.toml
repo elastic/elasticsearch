@@ -862,116 +862,6 @@ process where original_file_name == process_name and length(original_file_name) 
 expected_event_ids  = [97, 98, 75273, 75303]
 description = "check that case insensitive comparisons are performed for fields."
 
-
-[[queries]]
-case_insensitive = true
-query = '''
-file where opcode=0 and endsWith(file_name, 'loREr.exe')
-'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and serial_event_id = 88 and startsWith('explorer.exeaAAAA', 'EXPLORER.exe')
-#'''
-#expected_event_ids  = [88]
-#description = "check built-in string functions"
-
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and indexOf(file_name, 'plore') == 2 and indexOf(file_name, '.pf') == null
-#'''
-#expected_event_ids  = [88]
-#description = "check built-in string functions"
-
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-[[queries]]
-case_sensitive = true
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2
-'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2
-#'''
-#expected_event_ids  = [88, 92]
-#description = "check built-in string functions"
-
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-[[queries]]
-case_sensitive = true
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) != null
-'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and indexOf(file_name, 'plorer.', 2) != null
-#'''
-#expected_event_ids  = [88, 92]
-#description = "check built-in string functions"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2
-#'''
-#expected_event_ids  = [88, 92]
-#description = "check substring ranges"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-[[queries]]
-case_sensitive = true
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2
-'''
-expected_event_ids  = [88]
-description = "check substring ranges"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-[[queries]]
-case_sensitive = true
-query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0
-'''
-expected_event_ids  = [88]
-description = "check substring ranges"
-
-# TODO: this function needs to be updated to contain case-sensitive toggles
-# currently it's always case-insensitive
-#[[queries]]
-#case_insensitive = true
-#query = '''
-#file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0
-#'''
-#expected_event_ids  = [88, 92]
-#description = "check substring ranges"
-
 [[queries]]
 case_insensitive = true
 query = '''
@@ -1136,20 +1026,6 @@ query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
 
-[[queries]]
-case_insensitive = true
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e") == "yst"
-'''
-
-[[queries]]
-case_insensitive = true
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e", false) == "yst"
-'''
-
 # TODO: update toggles for this function
 [[queries]]
 case_sensitive = true
@@ -1157,15 +1033,6 @@ expected_event_ids = [1, 2, 42]
 query = '''
 process where between(process_name, "s", "e", false) == "t"
 '''
-
-# TODO: update toggles for this function
-#[[queries]]
-#case_insensitive = true
-#expected_event_ids = [1]
-#query = '''
-#process where between(process_name, "s", "e", true) == "ystem Idle Proc"
-#'''
-
 
 # TODO: add toggles to this function so it's not always insensitive
 [[queries]]
@@ -1183,8 +1050,3 @@ process where length(between(process_name, 'g', 'e')) > 0
 #process where length(between(process_name, 'g', 'e')) > 0
 #'''
 
-#[[queries]]
-#expected_event_ids = []
-#query = '''
-#process where length(between(process_name, 'g', 'z')) > 0
-#'''

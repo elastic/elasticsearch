@@ -30,6 +30,17 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
+/**
+ * LocalModels implement reference counting for proper accounting in
+ * the {@link CircuitBreaker}. When the model is not longer used {@link #release()}
+ * must be called and if the reference count == 0 then the model's bytes
+ * will be removed from the circuit breaker.
+ *
+ * The class is constructed with an initial reference count of 1 and its
+ * bytes <em>must</em> have been added to the circuit breaker before construction.
+ * New references must call {@link #acquire()} and {@link #release()} as the model
+ * is used.
+ */
 public class LocalModel {
 
     private final InferenceDefinition trainedModelDefinition;
@@ -45,7 +56,7 @@ public class LocalModel {
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final AtomicLong referenceCount;
 
-    public LocalModel(String modelId,
+    LocalModel(String modelId,
                       String nodeId,
                       InferenceDefinition trainedModelDefinition,
                       TrainedModelInput input,
@@ -189,35 +200,12 @@ public class LocalModel {
         return referenceCount.incrementAndGet();
     }
 
-    long release() {
+    public long release() {
         if (referenceCount.decrementAndGet() == 0) {
             // no references to this model, it no longer needs to be accounted for
             trainedModelCircuitBreaker.addWithoutBreaking(-ramBytesUsed());
         }
 
         return referenceCount.get();
-    }
-
-    /**
-     * Used for translating field names in according to the passed `fieldMappings` parameter.
-     *
-     * This mutates the `fields` parameter in-place.
-     *
-     * Fields are only appended. If the expected field name already exists, it is not created/overwritten.
-     *
-     * Original fields are not deleted.
-     *
-     * @param fields Fields to map against
-     * @param fieldMapping Field originalName to expectedName string mapping
-     */
-    public static void mapFieldsIfNecessary(Map<String, Object> fields, Map<String, String> fieldMapping) {
-        if (fieldMapping != null) {
-            fieldMapping.forEach((src, dest) -> {
-                Object srcValue = MapHelper.dig(src, fields);
-                if (srcValue != null) {
-                    fields.putIfAbsent(dest, srcValue);
-                }
-            });
-        }
     }
 }

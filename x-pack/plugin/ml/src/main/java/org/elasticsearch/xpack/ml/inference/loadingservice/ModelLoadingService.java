@@ -60,6 +60,12 @@ import java.util.concurrent.TimeUnit;
  * mode the model is not cached. All other uses will cache the model
  *
  * If more than one processor references the same model, that model will only be cached once.
+ *
+ * LocalModels are created with a reference count of 1 accounting for the reference the
+ * cache holds. When models are evicted from the cache the reference count is decremented.
+ * The {@code getModelForX} methods automatically increment the model's reference count
+ * it is up to the consumer to call {@link LocalModel#release()} when the model is no
+ * longer used.
  */
 public class ModelLoadingService implements ClusterStateListener {
 

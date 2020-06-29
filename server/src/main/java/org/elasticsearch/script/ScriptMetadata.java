@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,7 +50,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptMetadata.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptMetadata.class);
 
     /**
      * A builder used to modify the currently stored scripts data held within

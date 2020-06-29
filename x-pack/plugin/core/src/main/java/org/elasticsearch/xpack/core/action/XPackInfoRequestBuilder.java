@@ -32,9 +32,4 @@ public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoReque
         request.setCategories(categories);
         return this;
     }
-
-    public XPackInfoRequestBuilder setLicenseVersion(int licenseVersion) {
-        request.setLicenseVersion(licenseVersion);
-        return this;
-    }
 }

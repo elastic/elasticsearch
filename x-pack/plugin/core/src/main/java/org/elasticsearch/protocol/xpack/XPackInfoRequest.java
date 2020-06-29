@@ -42,7 +42,6 @@ public class XPackInfoRequest extends ActionRequest {
 
     private boolean verbose;
     private EnumSet<Category> categories = EnumSet.noneOf(Category.class);
-    private int licenseVersion = License.VERSION_CURRENT;
 
     public XPackInfoRequest() {
     }
@@ -56,8 +55,8 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
-        if (in.getVersion().after(Version.V_7_8_0)) {
-            this.licenseVersion = in.readVInt();
+        if (hasLicenseVersionField(in.getVersion())) {
+            int ignoredLicenseVersion = in.readVInt();
         }
     }
 
@@ -77,14 +76,6 @@ public class XPackInfoRequest extends ActionRequest {
         return categories;
     }
 
-    public int getLicenseVersion() {
-        return licenseVersion;
-    }
-
-    public void setLicenseVersion(int licenseVersion) {
-        this.licenseVersion = licenseVersion;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -97,8 +88,12 @@ public class XPackInfoRequest extends ActionRequest {
         for (Category category : categories) {
             out.writeString(category.name());
         }
-        if (out.getVersion().after(Version.V_7_8_0)) {
-            out.writeVInt(this.licenseVersion);
+        if (hasLicenseVersionField(out.getVersion())) {
+            out.writeVInt(License.VERSION_CURRENT);
         }
+    }
+
+    private static boolean hasLicenseVersionField(Version streamVersion) {
+        return streamVersion.onOrAfter(Version.V_7_8_1) && streamVersion.before(Version.V_8_0_0);
     }
 }

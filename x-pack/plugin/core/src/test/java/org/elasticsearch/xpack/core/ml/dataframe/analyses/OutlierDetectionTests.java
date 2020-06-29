@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<OutlierDetection> {
 
@@ -112,6 +113,11 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
         OutlierDetection outlierDetection = createRandom();
         assertThat(outlierDetection.persistsState(), is(false));
         expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocId("foo"));
+    }
+
+    public void testInferenceConfig() {
+        OutlierDetection outlierDetection = createRandom();
+        assertThat(outlierDetection.inferenceConfig(null), is(nullValue()));
     }
 
     @Override

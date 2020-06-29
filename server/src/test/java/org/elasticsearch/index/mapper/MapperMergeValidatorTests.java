@@ -42,8 +42,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 singletonList(objectMapper),
                 emptyList(),
-                singletonList(aliasMapper),
-                new FieldTypeLookup()));
+                singletonList(aliasMapper)));
         assertEquals("Field [some.path] is defined both as an object and a field.", e.getMessage());
     }
 
@@ -56,8 +55,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 Arrays.asList(field, invalidField),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Field [invalid] is defined both as an alias and a concrete field.", e.getMessage());
     }
@@ -71,8 +69,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 singletonList(field),
-                Arrays.asList(alias, invalidAlias),
-                new FieldTypeLookup()));
+                Arrays.asList(alias, invalidAlias)));
 
         assertEquals("Invalid [path] value [alias] for field alias [invalid-alias]: an alias" +
             " cannot refer to another alias.", e.getMessage());
@@ -85,8 +82,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Invalid [path] value [invalid-alias] for field alias [invalid-alias]: an alias" +
             " cannot refer to itself.", e.getMessage());
@@ -99,8 +95,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Invalid [path] value [non-existent] for field alias [invalid-alias]: an alias" +
             " must refer to an existing field in the mappings.", e.getMessage());

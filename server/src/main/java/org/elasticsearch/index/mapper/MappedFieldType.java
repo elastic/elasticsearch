@@ -46,7 +46,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -63,12 +62,11 @@ public abstract class MappedFieldType {
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
+    private final TextSearchInfo textSearchInfo;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
-    protected boolean hasPositions;
-    private SimilarityProvider similarity;
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
 
@@ -80,17 +78,17 @@ public abstract class MappedFieldType {
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
-        this.similarity = ref.similarity();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
         this.meta = ref.meta;
-        this.hasPositions = ref.hasPositions;
+        this.textSearchInfo = ref.textSearchInfo;
     }
 
-    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
+    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         setBoost(1.0f);
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.docValues = hasDocValues;
+        this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
     }
 
@@ -124,20 +122,24 @@ public abstract class MappedFieldType {
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
             Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
-            Objects.equals(similarity, fieldType.similarity) &&
             Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), meta);
+            eagerGlobalOrdinals, meta);
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
+    
+    /** Returns the field family type, as used in field capabilities */
+    public String familyTypeName() {
+        return typeName();
+    }
 
     public String name() {
         return name;
@@ -149,10 +151,6 @@ public abstract class MappedFieldType {
 
     public void setBoost(float boost) {
         this.boost = boost;
-    }
-
-    public boolean hasPositions() {
-        return hasPositions;
     }
 
     public boolean hasDocValues() {
@@ -181,14 +179,6 @@ public abstract class MappedFieldType {
 
     public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
         this.searchQuoteAnalyzer = analyzer;
-    }
-
-    public SimilarityProvider similarity() {
-        return similarity;
-    }
-
-    public void setSimilarity(SimilarityProvider similarity) {
-        this.similarity = similarity;
     }
 
     /** Given a value that comes from the stored fields API, convert it to the
@@ -410,5 +400,17 @@ public abstract class MappedFieldType {
      */
     public void updateMeta(Map<String, String> meta) {
         this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
+
+    /**
+     * Returns information on how any text in this field is indexed
+     *
+     * Fields that do not support any text-based queries should return
+     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * only simple match queries, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     */
+    public TextSearchInfo getTextSearchInfo() {
+        return textSearchInfo;
     }
 }

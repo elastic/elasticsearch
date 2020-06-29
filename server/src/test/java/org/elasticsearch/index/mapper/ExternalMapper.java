@@ -123,7 +123,7 @@ public class ExternalMapper extends FieldMapper {
     static class ExternalFieldType extends TermBasedFieldType {
 
         ExternalFieldType(String name, boolean indexed, boolean hasDocValues) {
-            super(name, indexed, hasDocValues, Collections.emptyMap());
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected ExternalFieldType(ExternalFieldType ref) {

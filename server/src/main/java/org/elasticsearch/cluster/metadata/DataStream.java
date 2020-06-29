@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
@@ -240,14 +239,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
 
         public TimestampField(StreamInput in) throws IOException {
-            // TODO: remove bwc logic when backporting:
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                this.name = in.readString();
-                this.fieldMapping = null;
-            } else {
-                this.name = in.readString();
-                this.fieldMapping = in.readMap();
-            }
+            this.name = in.readString();
+            this.fieldMapping = in.readMap();
         }
 
         /**
@@ -277,13 +270,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // TODO: remove bwc logic when backporting:
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeString(name);
-            } else {
-                out.writeString(name);
-                out.writeMap(fieldMapping);
-            }
+            out.writeString(name);
+            out.writeMap(fieldMapping);
         }
 
         @Override

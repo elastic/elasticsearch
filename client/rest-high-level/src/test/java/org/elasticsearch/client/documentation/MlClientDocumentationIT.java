@@ -3119,7 +3119,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             UpdateDataFrameAnalyticsRequest request = new UpdateDataFrameAnalyticsRequest(update);
 
             // tag::update-data-frame-analytics-execute-listener
-            ActionListener<PutDataFrameAnalyticsResponse> listener = new ActionListener<>() {
+            ActionListener<PutDataFrameAnalyticsResponse> listener = new ActionListener<PutDataFrameAnalyticsResponse>() {
                 @Override
                 public void onResponse(PutDataFrameAnalyticsResponse response) {
                     // <1>

@@ -70,7 +70,7 @@ public class TransportUpdateDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(Task task, UpdateDataFrameAnalyticsAction.Request request, ClusterState state,
+    protected void masterOperation(UpdateDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
 
         useSecondaryAuthIfAvailable(securityContext, () -> {

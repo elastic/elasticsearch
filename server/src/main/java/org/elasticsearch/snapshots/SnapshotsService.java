@@ -847,7 +847,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         endingSnapshots.remove(snapshot);
                         completeListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), result);
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, result.v2().state());
-                        runNextQueuedOperation(result.v1(), repository);
+                        runNextQueuedOperation(result.v1(), repository, true);
                     }, e -> handleFinalizationFailure(e, entry, repositoryData)));
         } catch (Exception e) {
             handleFinalizationFailure(e, entry, repositoryData);
@@ -887,14 +887,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryData current repository data
      * @param repository     repository name
      */
-    private void runNextQueuedOperation(RepositoryData repositoryData, String repository) {
+    private void runNextQueuedOperation(RepositoryData repositoryData, String repository, boolean attemptDelete) {
         synchronized (currentlyFinalizing) {
             assert currentlyFinalizing.contains(repository);
             final Tuple<SnapshotsInProgress.Entry, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
             if (nextFinalization == null) {
-                final boolean removed = currentlyFinalizing.remove(repository);
-                assert removed;
-                runReadyDeletions(repositoryData, repository);
+                if (attemptDelete) {
+                    runReadyDeletions(repositoryData, repository);
+                } else {
+                    final boolean removed = currentlyFinalizing.remove(repository);
+                    assert removed;
+                }
             } else {
                 logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
                 finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
@@ -935,6 +938,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (deletionToRun != null) {
                     deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
+                } else {
+                    runNextQueuedOperation(repositoryData, repository, false);
                 }
             }
         });
@@ -1040,7 +1045,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 failSnapshotCompletionListeners(snapshot, failure);
-                runNextQueuedOperation(repositoryData, snapshot.getRepository());
+                runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
             }
         });
     }
@@ -1264,6 +1269,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private SnapshotDeletionsInProgress.Entry newDelete;
 
+            private boolean reusedExistingDelete = false;
+
             private final Collection<SnapshotsInProgress.Entry> completedSnapshots = new ArrayList<>();
 
             @Override
@@ -1332,6 +1339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             && entry.getSnapshots().containsAll(snapshotIds)).findFirst();
                     if (foundDuplicate.isPresent()) {
                         newDelete = foundDuplicate.get();
+                        reusedExistingDelete = true;
                         return currentState;
                     }
                 }
@@ -1363,7 +1371,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 addDeleteListener(newDelete.uuid(), listener);
+                if (reusedExistingDelete) {
+                    return;
+                }
                 if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    final boolean added = currentlyFinalizing.add(repoName);
+                    assert added;
                     deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
                 } else {
                     for (SnapshotsInProgress.Entry completedSnapshot : completedSnapshots) {
@@ -1496,8 +1509,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry,
                                                RepositoryData repositoryData, Version minNodeVersion) {
         if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
-            boolean added = currentlyFinalizing.add(deleteEntry.repository());
-            assert added : "Tried to start snapshot delete while already running operation on repository [" + deleteEntry + "]";
+            assert currentlyFinalizing.contains(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED :
                     "incorrect state for entry [" + deleteEntry + "]";
@@ -1656,8 +1668,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             synchronized (currentlyFinalizing) {
                 repositoryOperations.finishDeletion(deleteEntry.uuid());
                 deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
-                assert currentlyFinalizing.contains(deleteEntry.repository());
-                currentlyFinalizing.remove(deleteEntry.repository());
+                final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
+                assert removed;
             }
             handleListeners(deleteListeners);
             if (newFinalizations.isEmpty()) {

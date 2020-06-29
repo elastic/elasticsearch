@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
@@ -178,8 +176,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,
         LegacyGeoShapeFieldMapper.GeoShapeFieldType> {

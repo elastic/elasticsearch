@@ -226,13 +226,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
-<<<<<<< HEAD
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
-=======
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
->>>>>>> 67022ae4468... [DOCS] Reformats the update by query API. (#46199)
 
 [[docs-delete-by-query-api-request-body]]
 ==== {api-request-body-title}

@@ -145,7 +145,6 @@ number of slices.
 Whether query or update performance dominates the runtime depends on the
 documents being reindexed and cluster resources.
 
-
 [[docs-update-by-query-api-path-params]]
 ==== {api-path-parms-title}
 

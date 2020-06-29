@@ -145,13 +145,8 @@ number of slices.
 Whether query or update performance dominates the runtime depends on the
 documents being reindexed and cluster resources.
 
-<<<<<<< HEAD
-[float]
-==== URL parameters
-=======
 [[docs-update-by-query-api-path-params]]
 ==== {api-path-parms-title}
->>>>>>> 67022ae4468... [DOCS] Reformats the update by query API. (#46199)
 
 `<index>`::
 (Optional, string) A comma-separated list of index names to search. Use `_all`

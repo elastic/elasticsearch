@@ -24,7 +24,11 @@ import java.util.Objects;
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
     public static final EnrichStatsAction INSTANCE = new EnrichStatsAction();
-    public static final String NAME = "cluster:admin/xpack/enrich/stats";
+    public static final String NAME = "cluster:monitor/xpack/enrich/stats";
+    /**
+     * The BWC_NAME was used up to 7.8.x
+     */
+    public static final String BWC_NAME = "cluster:admin/xpack/enrich/stats";
 
     private EnrichStatsAction() {
         super(NAME, Response::new);

@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
@@ -385,6 +386,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PutDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsAction.INSTANCE,
                 GetDataFrameAnalyticsStatsAction.INSTANCE,
+                UpdateDataFrameAnalyticsAction.INSTANCE,
                 DeleteDataFrameAnalyticsAction.INSTANCE,
                 StartDataFrameAnalyticsAction.INSTANCE,
                 StopDataFrameAnalyticsAction.INSTANCE,

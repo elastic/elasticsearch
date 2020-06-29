@@ -22,7 +22,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
-public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
+public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {
 
     private static final String ROLES =
                     "role_a:\n" +

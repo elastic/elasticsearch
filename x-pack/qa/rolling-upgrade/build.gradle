@@ -128,6 +128,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
+      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
     ]
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
     if (Version.fromString(oldVersion).before('7.4.0')) {

@@ -502,6 +502,7 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
@@ -626,6 +627,7 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event. Matching events in
@@ -682,11 +684,6 @@ the events in ascending, lexicographic order.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -710,11 +707,6 @@ the events in ascending, lexicographic order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000

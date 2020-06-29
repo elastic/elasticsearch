@@ -210,13 +210,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
                     request.indicesOptions(), true, request.indices()));
 
-                Map<String, DataStream> allDataStreams = currentState.metadata().dataStreams();
-                List<String> dataStreams;
-                if (request.includeGlobalState()) {
-                    dataStreams = new ArrayList<>(allDataStreams.keySet());
-                } else {
-                    dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
-                }
+                final List<String> dataStreams =
+                        indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
                 newSnapshot = new SnapshotsInProgress.Entry(
@@ -507,9 +502,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        final Metadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Remove global state from the cluster state
-            Metadata.Builder builder = Metadata.builder();
+            builder = Metadata.builder();
             for (IndexId index : snapshot.indices()) {
                 final IndexMetadata indexMetadata = metadata.index(index.getName());
                 if (indexMetadata == null) {
@@ -518,21 +514,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     builder.put(indexMetadata, false);
                 }
             }
-
-            Map<String, DataStream> dataStreams = new HashMap<>();
-            for (String dataStreamName : snapshot.dataStreams()) {
-                DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-                if (dataStream == null) {
-                    assert snapshot.partial() : "Data stream [" + dataStreamName +
-                        "] was deleted during a snapshot but snapshot was not partial.";
-                } else {
-                    dataStreams.put(dataStreamName, dataStream);
-                }
-            }
-            builder.dataStreams(dataStreams);
-            metadata = builder.build();
+        } else {
+            builder = Metadata.builder(metadata);
         }
-        return metadata;
+        // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation
+        Map<String, DataStream> dataStreams = new HashMap<>();
+        for (String dataStreamName : snapshot.dataStreams()) {
+            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                assert snapshot.partial() : "Data stream [" + dataStreamName +
+                        "] was deleted during a snapshot but snapshot was not partial.";
+            } else {
+                dataStreams.put(dataStreamName, dataStream);
+            }
+        };
+        return builder.dataStreams(dataStreams).build();
     }
 
     /**

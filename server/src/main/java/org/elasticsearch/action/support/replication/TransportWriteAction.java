@@ -80,27 +80,18 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        assert supportsRerouteAction() : "checkOperationLimits should be be called if reroute not supported by action";
         return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request) {
-        // If reroute is supported, the parent task is the reroute task. If the node-id is the same, we have
-        // already accounted the bytes.
-        if (supportsRerouteAction() && request.getParentTask().getNodeId().equals(clusterService.localNode().getId())) {
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
+        // If the reroute this primary request was submitted by a reroute on this local node, we have already
+        // accounted the bytes.
+        if (rerouteWasLocal) {
             return () -> {};
         } else {
             return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
         }
-    }
-
-    /**
-     * Some actions bypass the reroute phase and directly call the primary action. If this is the case, we
-     * need to mark the WRITE bytes when the primary request is received.
-     */
-    protected boolean supportsRerouteAction() {
-        return true;
     }
 
     protected long primaryOperationSize(Request request) {

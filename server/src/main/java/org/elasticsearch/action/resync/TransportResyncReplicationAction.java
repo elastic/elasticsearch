@@ -92,11 +92,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected boolean supportsRerouteAction() {
-        return false;
-    }
-
-    @Override
     protected void dispatchedShardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
             ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener) {
         ActionListener.completeWith(listener,

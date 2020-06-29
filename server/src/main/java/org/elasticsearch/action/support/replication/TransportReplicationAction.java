@@ -24,6 +24,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -285,7 +286,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        Releasable releasable = checkPrimaryLimits(request.getRequest());
+        Releasable releasable = checkPrimaryLimits(request.getRequest(), request.rerouteWasLocal());
         ActionListener<Response> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
 
@@ -296,7 +297,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected Releasable checkPrimaryLimits(final Request request) {
+    protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal) {
         return () -> {};
     }
 
@@ -371,8 +372,7 @@ public abstract class TransportReplicationAction<
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(primaryRequest.getRequest(), primary.allocationId().getRelocationId(),
-                            primaryRequest.getPrimaryTerm()),
-                        transportOptions,
+                            primaryRequest.getPrimaryTerm()), transportOptions,
                         new ActionListenerResponseHandler<>(onCompletionListener, reader) {
                             @Override
                             public void handleResponse(Response response) {
@@ -750,7 +750,7 @@ public abstract class TransportReplicationAction<
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
             performAction(node, transportPrimaryAction, true,
-                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id())));
+                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id()), true));
         }
 
         private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
@@ -1102,19 +1102,31 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
+        private final boolean rerouteWasLocal;
 
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm  = in.readVLong();
+            // TODO: Change after backport
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                rerouteWasLocal = in.readBoolean();
+            } else {
+                rerouteWasLocal = false;
+            }
             request = requestReader.read(in);
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {
+            this(request, targetAllocationID, primaryTerm, false);
+        }
+
+        public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm, boolean rerouteWasLocal) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
+            this.rerouteWasLocal = rerouteWasLocal;
         }
 
         @Override
@@ -1145,7 +1157,12 @@ public abstract class TransportReplicationAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
+            out.writeBoolean(rerouteWasLocal);
             request.writeTo(out);
+        }
+
+        public boolean rerouteWasLocal() {
+            return rerouteWasLocal;
         }
 
         public R getRequest() {

@@ -121,7 +121,7 @@ public class HistogramFieldMapper extends FieldMapper {
         public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
-            TypeParsers.parseMeta(builder, name, node);
+            builder.meta(TypeParsers.parseMeta(name, node));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();

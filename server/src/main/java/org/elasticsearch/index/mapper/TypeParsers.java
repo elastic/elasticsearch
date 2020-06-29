@@ -273,8 +273,8 @@ public class TypeParsers {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name, Mapper.TypeParser.ParserContext parserContext,
-                                          String propName, Object propNode) {
+    public static boolean parseMultiField(Consumer<Mapper.Builder> multiFieldsBuilder, String name,
+                                          Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to

@@ -98,7 +98,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private T value;
         private boolean frozen = false;
 
-        public Parameter(String name, boolean updateable, T defaultValue, BiFunction<String, Object, T> parser, Function<FieldMapper, T> merger) {
+        public Parameter(String name, boolean updateable, T defaultValue,
+                         BiFunction<String, Object, T> parser, Function<FieldMapper, T> merger) {
             this.name = name;
             this.defaultValue = defaultValue;
             this.value = defaultValue;
@@ -155,15 +156,18 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return builder;
         }
 
-        public static Parameter<Boolean> boolParam(String name, boolean updateable, Function<FieldMapper, Boolean> merger, boolean defaultValue) {
+        public static Parameter<Boolean> boolParam(String name, boolean updateable,
+                                                   Function<FieldMapper, Boolean> merger, boolean defaultValue) {
             return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeBooleanValue(o), merger);
         }
 
-        public static Parameter<Float> floatParam(String name, boolean updateable, Function<FieldMapper, Float> merger, float defaultValue) {
+        public static Parameter<Float> floatParam(String name, boolean updateable,
+                                                  Function<FieldMapper, Float> merger, float defaultValue) {
             return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeFloatValue(o), merger);
         }
 
-        public static Parameter<String> stringParam(String name, boolean updateable, Function<FieldMapper, String> merger, String defaultValue) {
+        public static Parameter<String> stringParam(String name, boolean updateable,
+                                                    Function<FieldMapper, String> merger, String defaultValue) {
             return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), merger);
         }
     }

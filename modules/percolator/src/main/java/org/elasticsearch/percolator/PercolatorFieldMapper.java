@@ -157,8 +157,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
             builder.docValues(true);
-            builder.indexOptions(IndexOptions.NONE);
-            builder.store(false);
             return builder.build(context);
         }
 

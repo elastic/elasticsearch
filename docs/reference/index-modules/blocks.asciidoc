@@ -137,11 +137,10 @@ The API returns following response:
 {
     "acknowledged" : true,
     "shards_acknowledged" : true,
-    "indices" : {
-        "my_index" : {
-            "blocked" : true
-        }
-    }
+    "indices" : [ {
+        "name" : "my_index",
+        "blocked" : true
+    } ]
 }
 --------------------------------------------------
 

@@ -65,11 +65,11 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     @Override
     protected void addCustomFields(final XContentBuilder builder, final Params params) throws IOException {
         super.addCustomFields(builder, params);
-        builder.startObject("indices");
+        builder.startArray("indices");
         for (AddBlockResult index : indices) {
             index.toXContent(builder, params);
         }
-        builder.endObject();
+        builder.endArray();
     }
 
     @Override
@@ -142,22 +142,22 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject(index.getName());
+            builder.startObject();
             {
+                builder.field("name", index.getName());
                 if (hasFailures()) {
-                    builder.field("blocked", false);
                     if (exception != null) {
                         builder.startObject("exception");
                         ElasticsearchException.generateFailureXContent(builder, params, exception, true);
                         builder.endObject();
                     } else {
-                        builder.startObject("failed_shards");
+                        builder.startArray("failed_shards");
                         for (AddBlockShardResult shard : shards) {
                             if (shard.hasFailures()) {
                                 shard.toXContent(builder, params);
                             }
                         }
-                        builder.endObject();
+                        builder.endArray();
                     }
                 } else {
                     builder.field("blocked", true);
@@ -207,8 +207,9 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject(String.valueOf(id));
+            builder.startObject();
             {
+                builder.field("id", String.valueOf(id));
                 builder.startArray("failures");
                 if (failures != null) {
                     for (Failure failure : failures) {

@@ -981,6 +981,28 @@ query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
 
+
+[[queries]]
+note = "Sequence: non-field based join."
+query = '''
+sequence
+  [process where serial_event_id<3] by unique_pid * 2
+  [process where true] by unique_ppid * 2
+'''
+expected_event_ids  = [1, 2,
+                       2, 3]
+
+
+[[queries]]
+note = "Sequence: multiple non-field based joins."
+query = '''
+sequence
+  [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
+  [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
+'''
+expected_event_ids  = [1, 2,
+                       2, 3]
+
 # TODO: update toggles for this function
 [[queries]]
 case_sensitive = true

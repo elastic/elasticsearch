@@ -29,7 +29,7 @@ By default, all data streams and indices in the snapshot are restored, but the c
 *not* restored. It's possible to select specific data streams or indices that should be restored as well
 as to allow the global cluster state from being restored by using `indices` and
 `include_global_state` options in the restore request body. The list
-supports <<multi-index,multi index syntax>>.
+supports <<multi-index,multi-target syntax>>.
 
 [WARNING]
 ====

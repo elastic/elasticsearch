@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,10 +23,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RestGetTransformActionDeprecated.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();

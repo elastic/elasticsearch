@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.joda;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
@@ -50,8 +49,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 public class Joda {
-
-    private static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Joda.class));
+    private static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Joda.class);
 
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).

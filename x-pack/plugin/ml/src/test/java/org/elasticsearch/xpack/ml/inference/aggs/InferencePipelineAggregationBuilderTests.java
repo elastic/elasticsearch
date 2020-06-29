@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
@@ -66,9 +65,6 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
         builder.setModelId(randomAlphaOfLength(6));
 
         if (randomBoolean()) {
-            builder.setGapPolicy(randomFrom(BucketHelpers.GapPolicy.values()));
-        }
-        if (randomBoolean()) {
             InferenceConfigUpdate config;
             if (randomBoolean()) {
                 config = ClassificationConfigUpdateTests.randomClassificationConfigUpdate();
@@ -103,11 +99,9 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
 
         aggregationBuilder.setModelId(null);
-        aggregationBuilder.setGapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS);
         aggregationBuilder.validate(validationContext);
         List<String> errors = validationContext.getValidationException().validationErrors();
         assertEquals("[model_id] must be set", errors.get(0));
-        assertEquals("gap policy [INSERT_ZEROS] in not valid for [inference] aggregation", errors.get(1));
     }
 
     public void testValidate_invalidResultsField() {
@@ -116,7 +110,6 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
 
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", null);
-        aggregationBuilder.setGapPolicy(BucketHelpers.GapPolicy.SKIP);
         aggregationBuilder.setInferenceConfig(regressionConfigUpdate);
         aggregationBuilder.validate(validationContext);
         List<String> errors = validationContext.getValidationException().validationErrors();
@@ -129,7 +122,6 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
 
         ClassificationConfigUpdate configUpdate = new ClassificationConfigUpdate(1, null, "some_other_field", null, null);
-        aggregationBuilder.setGapPolicy(BucketHelpers.GapPolicy.SKIP);
         aggregationBuilder.setInferenceConfig(configUpdate);
         aggregationBuilder.validate(validationContext);
         List<String> errors = validationContext.getValidationException().validationErrors();

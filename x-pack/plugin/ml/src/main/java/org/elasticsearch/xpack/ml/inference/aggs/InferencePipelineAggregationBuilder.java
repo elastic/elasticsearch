@@ -15,11 +15,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -29,14 +27,12 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
 
@@ -59,20 +55,12 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         PARSER.declareString(InferencePipelineAggregationBuilder::setModelId, MODEL_ID);
         PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
             (p, c, n) -> p.namedObject(InferenceConfigUpdate.class, n, c), INFERENCE_CONFIG);
-        PARSER.declareField(InferencePipelineAggregationBuilder::setGapPolicy, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return BucketHelpers.GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
-            }
-            throw new IllegalArgumentException(
-                "Unsupported token [" + p.currentToken() + "] parsing inference aggregation " + GAP_POLICY.getPreferredName());
-        }, GAP_POLICY, ObjectParser.ValueType.STRING);
     }
 
     private final Map<String, String> bucketPathMap;
     private String modelId;
     private InferenceConfigUpdate inferenceConfig;
     private final SetOnce<ModelLoadingService> modelLoadingService;
-    private BucketHelpers.GapPolicy gapPolicy = BucketHelpers.GapPolicy.SKIP;
 
     public static InferencePipelineAggregationBuilder parse(SetOnce<ModelLoadingService> modelLoadingService,
                                                             String pipelineAggregatorName,
@@ -93,7 +81,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         modelId = in.readString();
         bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
-        gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
         this.modelLoadingService = modelLoadingService;
     }
 
@@ -105,18 +92,11 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         this.inferenceConfig = inferenceConfig;
     }
 
-    void setGapPolicy(BucketHelpers.GapPolicy gapPolicy) {
-        this.gapPolicy = gapPolicy;
-    }
-
     @Override
     protected void validate(ValidationContext context) {
         context.validateHasParent(NAME, name);
         if (modelId == null) {
             context.addValidationError("[model_id] must be set");
-        }
-        if (gapPolicy != BucketHelpers.GapPolicy.SKIP) {
-            context.addValidationError("gap policy [" + gapPolicy + "] in not valid for [" + NAME + "] aggregation");
         }
 
         if (inferenceConfig != null) {
@@ -146,7 +126,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         out.writeString(modelId);
         out.writeMap(bucketPathMap, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalNamedWriteable(inferenceConfig);
-        gapPolicy.writeTo(out);
     }
 
     @Override
@@ -208,7 +187,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             builder.field(inferenceConfig.getName(), inferenceConfig);
             builder.endObject();
         }
-        builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
         return builder;
     }
 
@@ -219,7 +197,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), bucketPathMap, modelId, inferenceConfig, gapPolicy);
+        return Objects.hash(super.hashCode(), bucketPathMap, modelId, inferenceConfig);
     }
 
     @Override
@@ -231,7 +209,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         InferencePipelineAggregationBuilder other = (InferencePipelineAggregationBuilder) obj;
         return Objects.equals(bucketPathMap, other.bucketPathMap)
             && Objects.equals(modelId, other.modelId)
-            && Objects.equals(gapPolicy, other.gapPolicy)
             && Objects.equals(inferenceConfig, other.inferenceConfig);
     }
 }

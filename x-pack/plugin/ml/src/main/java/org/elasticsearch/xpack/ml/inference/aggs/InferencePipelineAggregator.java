@@ -30,9 +30,9 @@ import java.util.stream.Collectors;
 
 public class InferencePipelineAggregator extends PipelineAggregator {
 
-    private Map<String, String> bucketPathMap;
-    private InferenceConfigUpdate configUpdate;
-    private Model model;
+    private final Map<String, String> bucketPathMap;
+    private final InferenceConfigUpdate configUpdate;
+    private final Model model;
 
     public InferencePipelineAggregator(String name, Map<String,
                                        String> bucketPathMap,

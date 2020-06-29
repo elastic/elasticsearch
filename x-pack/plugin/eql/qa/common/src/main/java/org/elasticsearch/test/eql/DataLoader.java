@@ -31,6 +31,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
+
 public class DataLoader {
 
     private static final String TEST_DATA = "/test_data.json";
@@ -64,7 +67,10 @@ public class DataLoader {
         try (XContentParser parser = p.apply(JsonXContent.jsonXContent, DataLoader.class.getResourceAsStream(TEST_DATA))) {
             List<Object> list = parser.list();
             for (Object item : list) {
-                bulk.add(new IndexRequest(testIndexName).source((Map<String, Object>) item, XContentType.JSON));
+                assertThat(item, instanceOf(Map.class));
+                Map<String, Object> entry = (Map<String, Object>) item;
+                transformDataset(entry);
+                bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
 
@@ -76,6 +82,23 @@ public class DataLoader {
                 LogManager.getLogger(DataLoader.class).info("Data loaded");
             }
         }
+    }
+
+    private static void transformDataset(Map<String, Object> entry) {
+        Object object = entry.get("timestamp");
+        assertThat(object, instanceOf(Long.class));
+        Long ts = (Long) object;
+        // currently this is windows filetime
+        entry.put("@timestamp", winFileTimeToUnix(ts));
+    }
+
+
+    private static final long FILETIME_EPOCH_DIFF = 11644473600000L;
+    private static final long FILETIME_ONE_MILLISECOND = 10 * 1000;
+
+    public static long winFileTimeToUnix(final long filetime) {
+        long ts = (filetime / FILETIME_ONE_MILLISECOND);
+        return ts - FILETIME_EPOCH_DIFF;
     }
 
     private static XContentParser createParser(XContent xContent, InputStream data) throws IOException {

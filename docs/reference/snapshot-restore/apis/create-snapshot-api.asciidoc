@@ -158,7 +158,6 @@ The API returns the following response:
     "version_id": <version_id>,
     "version": <version>,
     "indices": [],
-    "data_streams": [],
     "include_global_state": false,
     "metadata": {
       "taken_by": "user123",

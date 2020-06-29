@@ -231,4 +231,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(mappings, equalTo(expectedMapping));
     }
 
+    public void testDataStreamsAreImmutable() {
+        DataStream ds = randomInstance();
+        expectThrows(UnsupportedOperationException.class, () -> ds.getIndices().clear());
+        expectThrows(UnsupportedOperationException.class, () -> ds.getTimeStampField().getFieldMapping().clear());
+    }
+
 }

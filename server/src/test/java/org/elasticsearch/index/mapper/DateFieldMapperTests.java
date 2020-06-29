@@ -416,7 +416,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate), false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapper.merge(update.mapping()));
+                () -> mapper.merge(update.mapping(), MergeReason.MAPPING_UPDATE));
         assertEquals("mapper [date] cannot be changed from type [date] to [text]", e.getMessage());
     }
 

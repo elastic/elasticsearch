@@ -66,7 +66,6 @@ import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -709,7 +708,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -775,7 +774,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -982,8 +981,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
-                containsString("Can't merge a non object mapping [field2] with an object mapping [field2]")));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     /**
@@ -1047,9 +1045,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
-                    containsString("Can't merge a non object mapping [field2] with an object mapping [field2]"),
-                    containsString("mapper [field2] cannot be changed from type [text] to [ObjectMapper]")));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     public void testPutExistingComponentTemplateIsNoop() throws Exception {

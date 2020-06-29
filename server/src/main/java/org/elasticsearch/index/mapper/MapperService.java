@@ -94,6 +94,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         MAPPING_UPDATE,
         /**
+         * Merge mappings from a composable index template.
+         */
+        INDEX_TEMPLATE,
+        /**
          * Recovery of an existing mapping, for instance because of a restart,
          * if a shard was moved to a different node or for administrative
          * purposes.
@@ -340,6 +344,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         internalMerge(mappingSourcesCompressed, reason);
     }
 
+    public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
+        CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
+        internalMerge(Collections.singletonMap(type, content), reason);
+    }
+
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
         internalMerge(indexMetadata, reason, false);
     }
@@ -466,10 +475,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // compute the merged DocumentMapper
             DocumentMapper oldMapper = this.mapper;
             if (oldMapper != null) {
-                newMapper = oldMapper.merge(mapper.mapping());
+                newMapper = oldMapper.merge(mapper.mapping(), reason);
             } else {
                 newMapper = mapper;
             }
+
+            newMapper.root().fixRedundantIncludes();
 
             // check basic sanity of the new mapping
             List<ObjectMapper> objectMappers = new ArrayList<>();
@@ -502,7 +513,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
-            if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            if (reason != MergeReason.MAPPING_RECOVERY) {
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
                 // the master node restoring mappings from disk or data nodes
@@ -512,19 +523,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                     + fieldAliasMappers.size());
                 checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
+                checkNestedFieldsLimit(fullPathObjectMappers);
+                checkDepthLimit(fullPathObjectMappers.keySet());
             }
 
             results.put(newMapper.type(), newMapper);
-        }
-
-        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            // this check will only be performed on the master node when there is
-            // a call to the update mapping API. For all other cases like
-            // the master node restoring mappings from disk or data nodes
-            // deserializing cluster state that was sent by the master node,
-            // this check will be skipped.
-            checkNestedFieldsLimit(fullPathObjectMappers);
-            checkDepthLimit(fullPathObjectMappers.keySet());
         }
         checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
 

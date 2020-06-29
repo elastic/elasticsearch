@@ -377,12 +377,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (indicesOptions != null) {
             builder.setIndicesOptions(indicesOptions);
         }
-
         if (headers.isEmpty() == false) {
-            // Adjust the request, adding security headers from the current thread context
             builder.setHeaders(filterSecurityHeaders(headers));
         }
-
         return builder.build();
     }
 

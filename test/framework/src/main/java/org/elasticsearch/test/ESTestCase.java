@@ -53,7 +53,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -345,14 +344,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    @BeforeClass
-    public static void setPossibleRoles() {
-        DiscoveryNode.setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
-    }
-
     @AfterClass
-    public static void clearPossibleRoles() {
-        DiscoveryNode.setPossibleRoles(Set.of());
+    public static void clearAdditionalRoles() {
+        DiscoveryNode.setAdditionalRoles(Set.of());
     }
 
     /**
@@ -1439,4 +1433,5 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new AssertionError();
         }
     }
+
 }

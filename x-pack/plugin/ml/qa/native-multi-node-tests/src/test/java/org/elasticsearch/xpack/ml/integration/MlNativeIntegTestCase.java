@@ -181,7 +181,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     protected Set<String> excludeTemplates() {
         return new HashSet<>(Arrays.asList(
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlMetaIndex.INDEX_NAME,
+            MlMetaIndex.indexName(),
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobResultsIndexPrefix(),
             InferenceIndexConstants.LATEST_INDEX_NAME,

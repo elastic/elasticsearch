@@ -14,11 +14,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.hamcrest.core.IsInstanceOf;
@@ -249,7 +249,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         DatafeedConfig bar2 = putDatafeedConfig(createDatafeedConfig("bar-2", "j4"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("not-used", "j5"), Collections.emptyMap());
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         // Test datafeed IDs only
         SortedSet<String> expandedIds =
@@ -302,7 +302,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
     public void testExpandDatafeedsWithTaskData() throws Exception {
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(MlTasks.datafeedTaskId("foo-1"),
@@ -330,7 +330,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         putDatafeedConfig(createDatafeedConfig("foo-2", "j2"), Collections.emptyMap());
         putDatafeedConfig(createDatafeedConfig("bar-1", "j3"), Collections.emptyMap());
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         AtomicReference<Set<String>> datafeedIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

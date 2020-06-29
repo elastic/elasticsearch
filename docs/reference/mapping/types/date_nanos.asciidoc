@@ -24,7 +24,9 @@ This means that it will accept dates with optional timestamps, which conform
 to the formats supported by
 <<strict-date-time,`strict_date_optional_time`>> including up to nine second
 fractionals or milliseconds-since-the-epoch (thus losing precision on the
-nano second part).
+nano second part). Using <<strict-date-time,`strict_date_optional_time`>> will 
+format the result up to only three second fractionals. To
+print and parse up to nine digits of resolution, use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>>.
 
 For instance:
 
@@ -96,4 +98,3 @@ same mapping parameters than with the `date` field can be used.
 
 Aggregations are still on millisecond resolution, even when using a `date_nanos`
 field. This limitation also affects <<transforms,{transforms}>>.
-

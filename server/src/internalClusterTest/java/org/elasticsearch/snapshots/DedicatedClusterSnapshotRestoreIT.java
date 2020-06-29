@@ -115,6 +115,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -734,7 +735,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode();
         logger.info("--> start second node");
         // Make sure the first node is elected as master
-        internalCluster().startNode(Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false));
+        internalCluster().startNode(nonMasterNode());
         // Register mock repositories
         for (int i = 0; i < 5; i++) {
             client().admin().cluster().preparePutRepository("test-repo" + i)

@@ -873,7 +873,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         IntStream.range(0, 1000).forEach(i -> executorService.submit(() -> {}));
         readyLatch.await();
 
-        try (final RestClient restClient = createRestClient(nodeInfos, null, "http")) {
+        try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
             final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
                 (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
 

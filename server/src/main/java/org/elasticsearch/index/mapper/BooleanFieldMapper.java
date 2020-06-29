@@ -100,7 +100,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public BooleanFieldMapper build(BuilderContext context) {
             return new BooleanFieldMapper(name,
                 new BooleanFieldType(buildFullName(context), indexed.getValue(), docValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo, nullValue.getValue(), stored.getValue());
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -109,7 +109,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            builder.parse(name, node);
+            builder.parse(name, parserContext, node);
             return builder;
         }
     }
@@ -219,10 +219,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     private final boolean stored;
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                 MultiFields multiFields, CopyTo copyTo, Boolean nullValue, boolean stored) {
+                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.nullValue = nullValue;
-        this.stored = stored;
+        this.nullValue = builder.nullValue.getValue();
+        this.stored = builder.stored.getValue();
     }
 
     @Override

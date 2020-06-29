@@ -172,7 +172,7 @@ public class RangeFieldMapper extends FieldMapper {
                 } else if (propName.equals("format")) {
                     builder.format(propNode.toString());
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }

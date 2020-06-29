@@ -41,24 +41,20 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMapper.Builder> {
+public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+
     private IndexService indexService;
     private DocumentMapperParser parser;
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity");
-    }
 
     @Before
     public void setup() {
@@ -283,11 +279,6 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
-    }
-
-    @Override
-    protected BooleanFieldMapper.Builder newBuilder() {
-        return new BooleanFieldMapper.Builder("boolean");
     }
 
 }

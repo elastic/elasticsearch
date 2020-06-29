@@ -67,11 +67,17 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        final Parameter<Boolean> stored = Parameter.boolParam("stored", false, m -> toType(m).stored, false);
+        final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
         final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
 
         public Builder(String name) {
             super(name);
+        }
+
+        // For testing
+        public Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.update(hasDocValues);
+            return this;
         }
 
         @Override
@@ -82,7 +88,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo, stored.getValue(), hasDocValues.getValue());
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -91,7 +97,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         public BinaryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(name);
-            builder.parse(name, node);
+            builder.parse(name, parserContext, node);
             return builder;
         }
     }
@@ -170,10 +176,10 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                MultiFields multiFields, CopyTo copyTo, boolean stored, boolean hasDocValues) {
+                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.stored = stored;
-        this.hasDocValues = hasDocValues;
+        this.stored = builder.stored.getValue();
+        this.hasDocValues = builder.hasDocValues.getValue();
     }
 
     @Override

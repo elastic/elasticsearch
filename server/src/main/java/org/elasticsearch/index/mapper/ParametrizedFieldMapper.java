@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import joptsimple.internal.Strings;
 import org.apache.lucene.document.FieldType;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -43,27 +44,31 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
-    public ParametrizedFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
-    }
-
     @Override
     public final ParametrizedFieldMapper merge(Mapper mergeWith) {
 
-        if (mergeWith instanceof ParametrizedFieldMapper == false) {
-            throw new IllegalArgumentException("mapper [" + mappedFieldType.name() + "] cannot be changed from type ["
+        if (mergeWith instanceof FieldMapper == false) {
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
                 + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException("mapper [" + mappedFieldType.name() + "] cannot be changed from type ["
+            throw new IllegalArgumentException("mapper [" + name() + "] cannot be changed from type ["
                 + contentType() + "] to [" + ((FieldMapper) mergeWith).contentType() + "]");
         }
 
         ParametrizedFieldMapper.Builder builder = getMergeBuilder();
-        Conflicts conflicts = new Conflicts(simpleName());
+        Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(new BuilderContext(null, null));
+        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+    }
+
+    private static ContentPath parentPath(String name) {
+        int endPos = name.lastIndexOf(".");
+        if (endPos == -1) {
+            return new ContentPath(0);
+        }
+        return new ContentPath(name.substring(endPos));
     }
 
     @Override
@@ -77,6 +82,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         builder.field("type", contentType());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         getMergeBuilder().toXContent(builder, includeDefaults);
+        multiFields.toXContent(builder, params);
+        copyTo.toXContent(builder, params);
         return builder.endObject();
     }
 
@@ -85,8 +92,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private final T defaultValue;
         private final BiFunction<String, Object, T> parser;
         private final Function<FieldMapper, T> merger;
-        private final String name;
-        private final boolean updateable;
+        public final String name;
+        public final boolean updateable;
         private boolean acceptsNull = false;
         private T value;
         private boolean frozen = false;
@@ -185,21 +192,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     }
 
-    public abstract static class Builder extends FieldMapper.Builder<Builder> {
+    public abstract static class Builder extends Mapper.Builder<Builder> {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
-        protected CopyTo copyTo = CopyTo.empty();
+        protected CopyTo.Builder copyTo = new CopyTo.Builder();
 
         protected final Parameter<Map<String, String>> meta
             = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
 
         protected Builder(String name) {
-            super(name, new FieldType());
+            super(name);
         }
 
         protected Builder init(FieldMapper base) {
             for (Parameter<?> param : getParameters()) {
                 param.init(base);
+            }
+            for (Mapper subField : base.multiFields) {
+                multiFieldsBuilder.add(subField);
             }
             return this;
         }
@@ -211,6 +221,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 }
                 param.merge(in, conflicts);
             }
+            for (Mapper newSubField : in.multiFields) {
+                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
+            }
+            this.copyTo.reset(in.copyTo);
         }
 
         protected abstract List<Parameter<?>> getParameters();
@@ -229,7 +243,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return builder;
         }
 
-        public final void parse(String name, Map<String, Object> fieldNode) {
+        public final void parse(String name, TypeParser.ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {
                 paramsMap.put(param.name, param);
@@ -239,6 +253,16 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
+                if (Objects.equals("fields", propName)) {
+                    TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
+                    iterator.remove();
+                    continue;
+                }
+                if (Objects.equals("copy_to", propName)) {
+                    TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                    iterator.remove();
+                    continue;
+                }
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
                     throw new MapperParsingException("unknown parameter [" + propName

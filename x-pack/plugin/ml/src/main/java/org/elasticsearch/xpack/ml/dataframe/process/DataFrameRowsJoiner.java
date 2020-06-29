@@ -162,15 +162,19 @@ class DataFrameRowsJoiner implements AutoCloseable {
         @Override
         public DataFrameDataExtractor.Row next() {
             DataFrameDataExtractor.Row row = null;
-            while ((row == null || row.shouldSkip()) && hasNext()) {
+            while (shouldHaveMatch(row) == false && hasNext()) {
                 advanceToNextBatchIfNecessary();
                 row = currentDataFrameRows.get(currentDataFrameRowsIndex++);
             }
 
-            if (row == null || row.shouldSkip()) {
+            if (shouldHaveMatch(row) == false) {
                 throw ExceptionsHelper.serverError("no more data frame rows could be found while joining results");
             }
             return row;
+        }
+
+        private boolean shouldHaveMatch(DataFrameDataExtractor.Row row) {
+            return row != null && row.shouldSkip() == false && row.isTraining();
         }
 
         private void advanceToNextBatchIfNecessary() {

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
+import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -74,6 +75,7 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner createInferenceRunner() {
-        return new InferenceRunner(client, trainedModelProvider, resultsPersisterService, parentTaskId, config, progressTracker);
+        return new InferenceRunner(client, trainedModelProvider, resultsPersisterService, parentTaskId, config, progressTracker,
+            new DataCountsTracker());
     }
 }

@@ -35,7 +35,9 @@ public class ProgressTracker {
         phases.add(new PhaseProgress(LOADING_DATA, 0));
         analysisProgressPhases.forEach(analysisPhase -> phases.add(new PhaseProgress(analysisPhase, 0)));
         phases.add(new PhaseProgress(WRITING_RESULTS, 0));
-        phases.add(new PhaseProgress(INFERENCE, 0));
+        if (hasInferencePhase) {
+            phases.add(new PhaseProgress(INFERENCE, 0));
+        }
         return new ProgressTracker(phases);
     }
 

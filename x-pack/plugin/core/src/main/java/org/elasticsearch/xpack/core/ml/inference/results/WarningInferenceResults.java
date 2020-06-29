@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -62,7 +63,9 @@ public class WarningInferenceResults implements InferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
-        return Collections.singletonMap("warning", warning);
+        Map<String, Object> asMap = new LinkedHashMap<>();
+        asMap.put("warning", warning);
+        return asMap;
     }
 
     @Override

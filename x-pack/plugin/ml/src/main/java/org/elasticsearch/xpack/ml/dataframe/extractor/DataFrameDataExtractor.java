@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
@@ -64,6 +66,7 @@ public class DataFrameDataExtractor {
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
+    private final SetOnce<CrossValidationSplitter> crossValidationSplitter = new SetOnce<>();
 
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
@@ -93,6 +96,13 @@ public class DataFrameDataExtractor {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
+
+        if (crossValidationSplitter.get() == null) {
+            // We lazily create the cross validation splitter as its creation
+            // may involve a search
+            crossValidationSplitter.set(context.crossValidationSplitterFactory.create());
+        }
+
         Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
         if (!hits.isPresent()) {
             hasNext = false;
@@ -202,7 +212,8 @@ public class DataFrameDataExtractor {
                 }
             }
         }
-        return new Row(extractedValues, hit);
+        boolean isTraining = extractedValues == null ? false : crossValidationSplitter.get().isTraining(extractedValues);
+        return new Row(extractedValues, hit, isTraining);
     }
 
     private List<Row> continueScroll() throws IOException {
@@ -307,14 +318,17 @@ public class DataFrameDataExtractor {
 
     public static class Row {
 
-        private SearchHit hit;
+        private final SearchHit hit;
 
         @Nullable
-        private String[] values;
+        private final String[] values;
 
-        private Row(String[] values, SearchHit hit) {
+        private final boolean isTraining;
+
+        private Row(String[] values, SearchHit hit, boolean isTraining) {
             this.values = values;
             this.hit = hit;
+            this.isTraining = isTraining;
         }
 
         @Nullable
@@ -328,6 +342,10 @@ public class DataFrameDataExtractor {
 
         public boolean shouldSkip() {
             return values == null;
+        }
+
+        public boolean isTraining() {
+            return isTraining;
         }
 
         public int getChecksum() {

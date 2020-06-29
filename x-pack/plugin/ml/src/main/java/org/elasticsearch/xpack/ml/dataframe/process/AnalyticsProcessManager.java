@@ -35,8 +35,6 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
@@ -170,9 +168,7 @@ public class AnalyticsProcessManager {
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, config, task);
-            processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
-                DataCounts::documentId);
+            writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
             process.flushStream();
 
@@ -187,6 +183,9 @@ public class AnalyticsProcessManager {
             LOGGER.info("[{}] Result processor has completed", config.getId());
 
             runInference(parentTaskClient, task, processContext);
+
+            processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
+                DataCounts::documentId);
 
             refreshDest(parentTaskClient, config);
             refreshIndices(parentTaskClient, config.getId());
@@ -224,12 +223,9 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalyticsConfig config, DataFrameAnalyticsTask task) throws IOException {
+                               DataFrameAnalyticsTask task) throws IOException {
         ProgressTracker progressTracker = task.getStatsHolder().getProgressTracker();
         DataCountsTracker dataCountsTracker = task.getStatsHolder().getDataCountsTracker();
-        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(
-                new ParentTaskAssigningClient(client, task.getParentTaskId()), config, dataExtractor.getFieldNames())
-                .create();
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -249,9 +245,10 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
-                        crossValidationSplitter.process(record, dataCountsTracker::incrementTrainingDocsCount,
-                            dataCountsTracker::incrementTestDocsCount);
-                        process.writeRecord(record);
+                        if (row.isTraining()) {
+                            dataCountsTracker.incrementTrainingDocsCount();
+                            process.writeRecord(record);
+                        }
                     }
                 }
                 rowsProcessed += rows.get().size();
@@ -330,7 +327,8 @@ public class AnalyticsProcessManager {
         if (inferenceConfig != null) {
             refreshDest(parentTaskClient, processContext.config);
             InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, trainedModelProvider, resultsPersisterService,
-                task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker());
+                task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker(),
+                task.getStatsHolder().getDataCountsTracker());
             inferenceRunner.run(processContext.resultProcessor.get().getLatestModelConfig(), inferenceConfig);
         }
     }

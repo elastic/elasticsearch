@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
+import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -48,16 +49,19 @@ public class InferenceRunner {
     private final TaskId parentTaskId;
     private final DataFrameAnalyticsConfig config;
     private final ProgressTracker progressTracker;
+    private final DataCountsTracker dataCountsTracker;
     private volatile boolean isCancelled;
 
     public InferenceRunner(Client client, TrainedModelProvider modelProvider, ResultsPersisterService resultsPersisterService,
-                           TaskId parentTaskId, DataFrameAnalyticsConfig config, ProgressTracker progressTracker) {
+                           TaskId parentTaskId, DataFrameAnalyticsConfig config, ProgressTracker progressTracker,
+                           DataCountsTracker dataCountsTracker) {
         this.client = Objects.requireNonNull(client);
         this.modelProvider = Objects.requireNonNull(modelProvider);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.config = Objects.requireNonNull(config);
         this.progressTracker = Objects.requireNonNull(progressTracker);
+        this.dataCountsTracker = Objects.requireNonNull(dataCountsTracker);
     }
 
     public void cancel() {
@@ -100,6 +104,7 @@ public class InferenceRunner {
             }
 
             for (SearchHit doc : batch) {
+                dataCountsTracker.incrementTestDocsCount();
                 InferenceResults inferenceResults = model.infer(prepareForInference(trainedModelConfig, doc), inferenceConfig);
                 bulkRequest.add(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
@@ -130,7 +135,7 @@ public class InferenceRunner {
         resultsMap.put(DestinationIndex.IS_TRAINING, false);
 
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
-        source.put(resultField + "-java", resultsMap);
+        source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
         indexRequest.id(hit.getId());
         indexRequest.source(source);

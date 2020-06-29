@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -130,6 +131,32 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         this.fieldName = fieldName;
     }
 
+    public void validate(FieldTypeLookup lookup) {
+        if (fieldName == null) {
+            // not configured, so skip the validation
+            return;
+        }
+
+        MappedFieldType fieldType = lookup.get(fieldName);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] points to a non existing field");
+        }
+
+        if (DateFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false &&
+            DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(fieldType.typeName()) == false) {
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] is of type [" +
+                fieldType.typeName() + "], but [" + DateFieldMapper.CONTENT_TYPE + "," + DateFieldMapper.DATE_NANOS_CONTENT_TYPE +
+                "] is expected");
+        }
+
+        if (fieldType.isSearchable() == false) {
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] is not indexed");
+        }
+        if (fieldType.hasDocValues() == false) {
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] doesn't have doc values");
+        }
+    }
+
     @Override
     public void preParse(ParseContext context) throws IOException {
 
@@ -153,7 +180,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         long numberOfValues =
-            Arrays.stream(fields).filter(indexableField -> indexableField.fieldType().pointDimensionCount() > 0).count();
+            Arrays.stream(fields)
+                .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
+                .count();
         if (numberOfValues > 1) {
             throw new IllegalArgumentException("data stream timestamp field [" + fieldName + "] encountered multiple values");
         }
@@ -161,11 +190,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        if (includeDefaults == false && fieldName == null) {
+        if (fieldName == null) {
             return builder;
         }
 
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.startObject(simpleName());
         doXContentBody(builder, includeDefaults, params);
         builder.field("field_name", fieldName);

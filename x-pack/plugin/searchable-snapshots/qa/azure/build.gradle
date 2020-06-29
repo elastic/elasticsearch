@@ -63,7 +63,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.azure.container', azureContainer
-    systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests"
+    systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
   }
 }
 

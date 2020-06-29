@@ -26,7 +26,7 @@ public class ConcatFunctionPipe extends Pipe {
     }
 
     @Override
-    public final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final ConcatFunctionPipe replaceChildren(List<Pipe> newChildren) {
         return new ConcatFunctionPipe(source(), expression(), newChildren);
     }
 
@@ -85,6 +85,10 @@ public class ConcatFunctionPipe extends Pipe {
         return new ConcatFunctionProcessor(processors);
     }
 
+    List<Pipe> values() {
+        return values;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(values);
@@ -100,6 +104,6 @@ public class ConcatFunctionPipe extends Pipe {
             return false;
         }
 
-        return Objects.equals(values, ((ConcatFunctionPipe) obj).values);
+        return Objects.equals(values(), ((ConcatFunctionPipe) obj).values());
     }
 }

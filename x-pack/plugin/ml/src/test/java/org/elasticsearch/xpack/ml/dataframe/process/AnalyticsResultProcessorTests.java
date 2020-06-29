@@ -15,13 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
@@ -45,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -214,18 +211,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
     }
 
-    public void testGetPredictionFieldType() {
-        List<ExtractedField> extractedFieldList = Arrays.asList(
-            new DocValueField("foo", Collections.emptySet()),
-            new DocValueField("bar", Set.of("keyword")),
-            new DocValueField("baz", Set.of("long")),
-            new DocValueField("bingo", Set.of("boolean")));
-        AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("foo")), equalTo(PredictionFieldType.STRING));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("bar")), equalTo(PredictionFieldType.STRING));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("baz")), equalTo(PredictionFieldType.NUMBER));
-        assertThat(resultProcessor.getPredictionFieldType(new Classification("bingo")), equalTo(PredictionFieldType.BOOLEAN));
-    }
 
     @SuppressWarnings("unchecked")
     public void testProcess_GivenInferenceModelFailedToStore() {
@@ -271,12 +256,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor(List<ExtractedField> fieldNames) {
+
         return new AnalyticsResultProcessor(analyticsConfig,
             dataFrameRowsJoiner,
             statsHolder,
             trainedModelProvider,
             auditor,
             statsPersister,
-            fieldNames);
+            new ExtractedFields(fieldNames, Collections.emptyMap()));
     }
 }

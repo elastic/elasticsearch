@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -212,7 +211,7 @@ public class TransportPutDataFrameAnalyticsAction
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
-            AnomalyDetectorsIndex.configIndexName(),
+            MlConfigIndex.indexName(),
             MlConfigIndex::mapping,
             client,
             clusterState,

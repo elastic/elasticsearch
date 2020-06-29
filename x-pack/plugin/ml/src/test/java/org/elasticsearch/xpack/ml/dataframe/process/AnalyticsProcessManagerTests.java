@@ -103,6 +103,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             OutlierDetectionTests.createRandom()).build();
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
+        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(), Collections.emptyMap()));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
@@ -180,7 +181,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getAllExtractedFields();
+        inOrder.verify(dataExtractor).getExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
         verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
     }
@@ -239,7 +240,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getAllExtractedFields();
+        inOrder.verify(dataExtractor).getExtractedFields();
         // stop
         inOrder.verify(dataExtractor).cancel();
         inOrder.verify(process).kill();

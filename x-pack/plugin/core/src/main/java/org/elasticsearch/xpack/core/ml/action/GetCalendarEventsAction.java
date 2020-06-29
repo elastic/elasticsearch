@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -125,8 +126,7 @@ public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
 
-            boolean calendarIdIsAll = GetCalendarsAction.Request.ALL.equals(calendarId);
-            if (jobId != null && calendarIdIsAll == false) {
+            if (jobId != null && Strings.isAllOrWildcard(calendarId) == false) {
                 e = ValidateActions.addValidationError("If " + Job.ID.getPreferredName() + " is used " +
                         Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "'", e);
             }

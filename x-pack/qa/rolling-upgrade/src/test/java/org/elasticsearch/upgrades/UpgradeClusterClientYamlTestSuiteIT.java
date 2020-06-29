@@ -36,23 +36,31 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+        try {
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+        } catch (AssertionError e) {
+            throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
+        }
     }
 
     @Before
     public void waitForWatcher() throws Exception {
         // Wait for watcher to be in started state in order to avoid errors due
         // to manually executing watches prior for watcher to be ready:
-        assertBusy(() -> {
-            Response response = client().performRequest(new Request("GET", "_watcher/stats"));
-            Map<String, Object> responseBody = entityAsMap(response);
-            List<?> stats = (List<?>) responseBody.get("stats");
-            assertThat(stats.size(), greaterThanOrEqualTo(3));
-            for (Object stat : stats) {
-                Map<?, ?> statAsMap = (Map<?, ?>) stat;
-                assertThat(statAsMap.get("watcher_state"), equalTo("started"));
-            }
-        }, 1, TimeUnit.MINUTES);
+        try {
+            assertBusy(() -> {
+                Response response = client().performRequest(new Request("GET", "_watcher/stats"));
+                Map<String, Object> responseBody = entityAsMap(response);
+                List<?> stats = (List<?>) responseBody.get("stats");
+                assertThat(stats.size(), greaterThanOrEqualTo(3));
+                for (Object stat : stats) {
+                    Map<?, ?> statAsMap = (Map<?, ?>) stat;
+                    assertThat(statAsMap.get("watcher_state"), equalTo("started"));
+                }
+            }, 1, TimeUnit.MINUTES);
+        } catch (AssertionError e) {
+            throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
+        }
     }
 
     @Override

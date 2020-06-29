@@ -221,6 +221,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
@@ -245,7 +246,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
+                          Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -291,6 +293,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         this.directoryFactories = directoryFactories;
+        this.recoveryStateFactories = recoveryStateFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -639,7 +642,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -710,7 +713,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -744,14 +747,38 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     public IndexShard createShard(
-            final ShardRouting shardRouting,
-            final RecoveryState recoveryState,
-            final PeerRecoveryTargetService recoveryTargetService,
-            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
-            final RepositoriesService repositoriesService,
-            final Consumer<IndexShard.ShardFailure> onShardFailure,
-            final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+        final ShardRouting shardRouting,
+        final PeerRecoveryTargetService recoveryTargetService,
+        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RepositoriesService repositoriesService,
+        final Consumer<IndexShard.ShardFailure> onShardFailure,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final DiscoveryNode targetNode,
+        final DiscoveryNode sourceNode) throws IOException {
+        IndexService indexService = indexService(shardRouting.index());
+        RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
+
+        return createShard(shardRouting,
+            recoveryState,
+            recoveryTargetService,
+            recoveryListener,
+            repositoriesService,
+            onShardFailure,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer);
+    }
+
+    @Override
+    public IndexShard createShard(
+        final ShardRouting shardRouting,
+        final RecoveryState recoveryState,
+        final PeerRecoveryTargetService recoveryTargetService,
+        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RepositoriesService repositoriesService,
+        final Consumer<IndexShard.ShardFailure> onShardFailure,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
@@ -759,7 +786,7 @@ public class IndicesService extends AbstractLifecycleComponent
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             mapping -> {
-                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
+                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS :
                     "mapping update consumer only required by local shards recovery";
                 client.admin().indices().preparePutMapping()
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid

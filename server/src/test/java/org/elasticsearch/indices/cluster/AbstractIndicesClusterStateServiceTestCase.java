@@ -22,6 +22,7 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -225,6 +226,29 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Nullable
         public MockIndexService indexService(Index index) {
             return indices.get(index.getUUID());
+        }
+
+        @Override
+        public MockIndexShard createShard(
+            final ShardRouting shardRouting,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RepositoriesService repositoriesService,
+            final Consumer<IndexShard.ShardFailure> onShardFailure,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final DiscoveryNode a,
+            final DiscoveryNode b) throws IOException {
+            RecoveryState recoveryState = new RecoveryState(shardRouting, a, b);
+
+            return createShard(shardRouting,
+                recoveryState,
+                recoveryTargetService,
+                recoveryListener,
+                repositoriesService,
+                onShardFailure,
+                globalCheckpointSyncer,
+                retentionLeaseSyncer);
         }
 
         @Override

@@ -45,14 +45,17 @@ public class IndexInputStats {
     private final Counter cachedBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
 
-    public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
-        this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
+    private final LongConsumer writeCacheTracker;
+
+    public IndexInputStats(long fileLength, LongSupplier currentTimeNanos, LongConsumer writeCacheTracker) {
+        this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos, writeCacheTracker);
     }
 
-    public IndexInputStats(long fileLength, long seekingThreshold, LongSupplier currentTimeNanos) {
+    public IndexInputStats(long fileLength, long seekingThreshold, LongSupplier currentTimeNanos, LongConsumer writeCacheTracker) {
         this.fileLength = fileLength;
         this.seekingThreshold = seekingThreshold;
         this.currentTimeNanos = currentTimeNanos;
+        this.writeCacheTracker = writeCacheTracker;
     }
 
     /**
@@ -76,6 +79,7 @@ public class IndexInputStats {
 
     public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
         cachedBytesWritten.add(bytesWritten, nanoseconds);
+        writeCacheTracker.accept(bytesWritten);
     }
 
     public void addDirectBytesRead(int bytesRead, long nanoseconds) {

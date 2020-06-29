@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.recoveries.LazyRecoveryState;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.license.License;
@@ -72,6 +73,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -214,6 +216,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 assert threadPool != null;
                 return SearchableSnapshotDirectory.create(repositories, cache, indexSettings, shardPath, System::nanoTime, threadPool);
             });
+        } else {
+            return Map.of();
+        }
+    }
+
+    @Override
+    public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, LazyRecoveryState::new);
         } else {
             return Map.of();
         }

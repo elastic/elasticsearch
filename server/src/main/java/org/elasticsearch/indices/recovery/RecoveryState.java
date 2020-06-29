@@ -38,6 +38,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -71,7 +72,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         FINALIZE((byte) 4),
 
-        DONE((byte) 5);
+        DONE((byte) 5),
+
+        /**
+         * recovery will be performed lazily as searches hit the shard
+         */
+        LAZY_RECOVERY((byte) 6);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -125,7 +131,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
-        index = new Index();
+        index = createIndex();
         translog = new Translog();
         verifyIndex = new VerifyIndex();
         timer = new Timer();
@@ -139,7 +145,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
-        index = new Index(in);
+        index = createIndex(in);
         translog = new Translog(in);
         verifyIndex = new VerifyIndex(in);
         primary = in.readBoolean();
@@ -159,6 +165,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         out.writeBoolean(primary);
     }
 
+    protected Index createIndex() {
+        return new Index();
+    }
+
+    protected Index createIndex(StreamInput in) throws IOException {
+        return new Index(in);
+    }
+
     public ShardId getShardId() {
         return shardId;
     }
@@ -166,7 +180,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public synchronized Stage getStage() {
         return this.stage;
     }
-
 
     private void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
@@ -215,6 +228,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             case DONE:
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
+                break;
+            case LAZY_RECOVERY:
+                validateAndSetStage(Stage.FINALIZE, stage);
                 break;
             default:
                 throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
@@ -596,6 +612,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class File implements ToXContentObject, Writeable {
+        private static final Long UNKNOWN_LENGTH = -1L;
+
         private String name;
         private long length;
         private long recovered;
@@ -615,6 +633,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             reused = in.readBoolean();
         }
 
+        public static File fileWithUnknownLength(String name) {
+            return new File(name, UNKNOWN_LENGTH, false);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
@@ -627,6 +649,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
             recovered += bytes;
+        }
+
+        public void setLength(long length) {
+            assert this.length == UNKNOWN_LENGTH;
+            assert length >= recovered : "expected length to be greater than " + recovered + " but it was " + length;
+            assert reused == false;
+
+            this.length = length;
         }
 
         /**
@@ -658,7 +688,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         boolean fullyRecovered() {
-            return reused == false && length == recovered;
+            return reused == false && unknownLength() == false && length == recovered;
+        }
+
+        public boolean unknownLength() {
+            return length == UNKNOWN_LENGTH;
         }
 
         @Override
@@ -732,7 +766,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized List<File> fileDetails() {
-            return List.copyOf(fileDetails.values());
+            return List.copyOf(getFileDetails());
         }
 
         public synchronized void reset() {
@@ -743,14 +777,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized void addFileDetail(String name, long length, boolean reused) {
-            File file = new File(name, length, reused);
-            File existing = fileDetails.put(name, file);
+            File existing = addFileDetails(new File(name, length, reused));
             assert existing == null : "file [" + name + "] is already reported";
         }
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
-            File file = fileDetails.get(name);
+            File file = getFileDetails(name);
             file.addRecoveredBytes(bytes);
+        }
+
+        protected File addFileDetails(File file) {
+            return fileDetails.put(file.name, file);
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {
@@ -789,7 +826,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         public synchronized int totalRecoverFiles() {
             int total = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 if (file.reused() == false) {
                     total++;
                 }
@@ -803,7 +840,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         public synchronized int recoveredFileCount() {
             int count = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 if (file.fullyRecovered()) {
                     count++;
                 }
@@ -817,7 +854,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized float recoveredFilesPercent() {
             int total = 0;
             int recovered = 0;
-            for (File file : fileDetails.values()) {
+            Collection<File> fileDetails = getFileDetails();
+            for (File file : fileDetails) {
                 if (file.reused() == false) {
                     total++;
                     if (file.fullyRecovered()) {
@@ -841,7 +879,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         public synchronized long totalBytes() {
             long total = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 total += file.length();
             }
             return total;
@@ -852,7 +890,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         public synchronized long recoveredBytes() {
             long recovered = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 recovered += file.recovered();
             }
             return recovered;
@@ -863,7 +901,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          */
         public synchronized long totalRecoverBytes() {
             long total = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 if (file.reused() == false) {
                     total += file.length();
                 }
@@ -877,8 +915,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized float recoveredBytesPercent() {
             long total = 0;
             long recovered = 0;
-            for (File file : fileDetails.values()) {
-                if (file.reused() == false) {
+            Collection<File> fileDetails = getFileDetails();
+            for (File file : fileDetails) {
+                if (file.reused() == false && file.unknownLength() == false) {
                     total += file.length();
                     recovered += file.recovered();
                 }
@@ -896,7 +935,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized int reusedFileCount() {
             int reused = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 if (file.reused()) {
                     reused++;
                 }
@@ -906,12 +945,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized long reusedBytes() {
             long reused = 0;
-            for (File file : fileDetails.values()) {
+            for (File file : getFileDetails()) {
                 if (file.reused()) {
                     reused += file.length();
                 }
             }
             return reused;
+        }
+
+        protected synchronized Collection<File> getFileDetails() {
+            return fileDetails.values();
         }
 
         @Override
@@ -931,7 +974,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
             if (params.paramAsBoolean("detailed", false)) {
                 builder.startArray(Fields.DETAILS);
-                for (File file : fileDetails.values()) {
+                for (File file : getFileDetails()) {
                     file.toXContent(builder, params);
                 }
                 builder.endArray();

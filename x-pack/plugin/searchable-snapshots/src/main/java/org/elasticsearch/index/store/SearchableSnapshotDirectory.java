@@ -40,6 +40,7 @@ import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -116,6 +117,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private volatile BlobStoreIndexShardSnapshot snapshot;
     private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
+    private volatile RecoveryState recoveryState;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -305,8 +307,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
     }
 
-    protected IndexInputStats createIndexInputStats(final long fileLength) {
-        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier);
+    protected IndexInputStats createIndexInputStats(final String fileName, final long fileLength) {
+        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier, (writtenBytes) -> {
+            if (recoveryState != null) {
+                recoveryState.getIndex().addRecoveredBytesToFile(fileName, writtenBytes);
+            }
+        });
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -330,7 +336,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 
-        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
+        final IndexInputStats inputStats = stats.computeIfAbsent(
+            name,
+            n -> createIndexInputStats(fileInfo.physicalName(), fileInfo.length())
+        );
         if (useCache && isExcludedFromCache(name) == false) {
             return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
         } else {
@@ -508,6 +517,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             }
         }
         return null;
+    }
+
+    public void addRecoveryListener(RecoveryState recoveryState) {
+        this.recoveryState = recoveryState;
     }
 
     /**

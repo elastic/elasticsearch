@@ -61,8 +61,10 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -132,7 +134,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final boolean cacheEnabled = randomBoolean();
+        final boolean cacheEnabled = true;
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
         Settings.Builder indexSettingsBuilder = Settings.builder()
@@ -183,6 +185,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
+        assertThat(IndexModule.INDEX_RECOVERY_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY));
         assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
@@ -190,16 +193,18 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertRecoveryStats(restoredIndexName, cacheEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
-        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
+        assertRecovered(aliasName, originalAllHits, originalBarHits);
 
         internalCluster().fullRestart();
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
-        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
+        assertRecoveryStats(restoredIndexName, cacheEnabled);
+        assertRecovered(aliasName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -236,6 +241,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         );
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertRecoveryStats(restoredIndexName, cacheEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         assertAcked(
@@ -249,16 +255,24 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 )
         );
 
+        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertRecoveryStats(restoredIndexName, cacheEnabled);
+
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
             client().admin()
                 .indices()
                 .prepareResizeIndex(restoredIndexName, clonedIndexName)
                 .setResizeType(ResizeType.CLONE)
-                .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
+                .setSettings(
+                    Settings.builder()
+                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+                        .build()
+                )
         );
         ensureGreen(clonedIndexName);
-        assertRecovered(clonedIndexName, originalAllHits, originalBarHits, false);
+        assertRecovered(clonedIndexName, originalAllHits, originalBarHits);
 
         final Settings clonedIndexSettings = client().admin()
             .indices()
@@ -271,11 +285,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey()));
         assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey()));
         assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey()));
+        assertFalse(clonedIndexSettings.hasValue(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey()));
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
-        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
+        assertRecovered(aliasName, originalAllHits, originalBarHits);
 
     }
 
@@ -582,12 +597,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
-        assertRecovered(indexName, originalAllHits, originalBarHits, true);
-    }
-
-    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits, boolean checkRecoveryStats)
-        throws Exception {
-
+        ensureGreen(indexName);
         final Thread[] threads = new Thread[between(1, 5)];
         final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
         final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
@@ -618,20 +628,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(indexName);
         latch.countDown();
 
-        if (checkRecoveryStats) {
-            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
-            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-                for (RecoveryState recoveryState : recoveryStates) {
-                    logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
-                    assertThat(
-                        Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n` file
-                        recoveryState.getIndex().recoveredFileCount(),
-                        lessThanOrEqualTo(1)
-                    );
-                }
-            }
-        }
-
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
 
@@ -641,6 +637,23 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             logger.info("--> thread #{} has [{}] hits in total, of which [{}] match the query", i, allTotalHits, barTotalHits);
             assertThat(allTotalHits, equalTo(originalAllHits));
             assertThat(barTotalHits, equalTo(originalBarHits));
+        }
+    }
+
+    private void assertRecoveryStats(String indexName, boolean cacheEnabled) {
+        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+        for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+            for (RecoveryState recoveryState : recoveryStates) {
+                logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
+                assertThat(
+                    " " + cacheEnabled + " --->> " + Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n`
+                                                                                      // file
+                    recoveryState.getIndex().recoveredFileCount(),
+                    cacheEnabled ? greaterThan(0) : greaterThanOrEqualTo(0)
+                );
+
+                assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.LAZY_RECOVERY));
+            }
         }
     }
 

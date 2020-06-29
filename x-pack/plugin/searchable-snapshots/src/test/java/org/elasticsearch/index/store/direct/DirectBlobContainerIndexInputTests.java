@@ -111,7 +111,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             blobContainer,
             fileInfo,
             newIOContext(random()),
-            new IndexInputStats(0L, () -> 0L),
+            new IndexInputStats(0L, () -> 0L, (b) -> {}),
             minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
         );

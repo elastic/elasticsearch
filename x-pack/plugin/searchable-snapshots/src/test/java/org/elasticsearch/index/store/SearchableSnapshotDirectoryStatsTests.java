@@ -604,11 +604,11 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 threadPool
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(long fileLength) {
+                protected IndexInputStats createIndexInputStats(String fileName, long fileLength) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(fileLength);
+                        return super.createIndexInputStats(fileName, fileLength);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos, (l) -> {});
                 }
             }
         ) {

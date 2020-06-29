@@ -324,3 +324,19 @@ teardown:
         "metadata": { }
       }
     }
+
+---
+"Test clear privileges cache":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "backport pending https://github.com/elastic/elasticsearch/pull/55836"
+
+  - do:
+      security.clear_cached_privileges:
+        application: "app"
+  - match: { _nodes.failed: 0 }
+
+  - do:
+      security.clear_cached_privileges:
+        application: ""
+  - match: { _nodes.failed: 0 }

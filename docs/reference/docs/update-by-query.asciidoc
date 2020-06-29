@@ -59,7 +59,7 @@ When the versions match, the document is updated and the version number is incre
 If a document changes between the time that the snapshot is taken and 
 the update operation is processed, it results in a version conflict and the operation fails. 
 You can opt to count version conflicts instead of halting and returning by 
-setting `conflicts` to `proceeed`. 
+setting `conflicts` to `proceed`. 
 
 NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid
@@ -155,73 +155,75 @@ or omit to search all indices.
 [[docs-update-by-query-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
 `conflicts`::
   (Optional, string) What to do if delete by query hits version conflicts: 
   `abort` or `proceed`. Defaults to `abort`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=df]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=from]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=lenient]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll_size]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=slices]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=slices]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sort]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=sort]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=stats]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=stats]
   
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-update-by-query-api-request-body]]
 ==== {api-request-body-title}
@@ -305,7 +307,6 @@ POST twitter/_update_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 <1> The query must be passed as a value to the `query` key, in the same
@@ -318,7 +319,6 @@ Update documents in multiple indices:
 --------------------------------------------------
 POST twitter,blog/_update_by_query
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 Limit the update by query operation to shards that a particular routing value:
@@ -327,7 +327,6 @@ Limit the update by query operation to shards that a particular routing value:
 --------------------------------------------------
 POST twitter/_update_by_query?routing=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default update by query uses scroll batches of 1000. 
@@ -337,7 +336,6 @@ You can change the batch size with the `scroll_size` parameter:
 --------------------------------------------------
 POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[docs-update-by-query-api-source]]
@@ -361,7 +359,6 @@ POST twitter/_update_by_query
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Note that `conflicts=proceed` is not specified in this example. In this case, a
@@ -402,7 +399,6 @@ PUT _ingest/pipeline/set-foo
 }
 POST twitter/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 

@@ -38,7 +38,7 @@ public class MemoryUsage implements ToXContentObject {
     static final ParseField TIMESTAMP = new ParseField("timestamp");
     static final ParseField PEAK_USAGE_BYTES = new ParseField("peak_usage_bytes");
     static final ParseField STATUS = new ParseField("status");
-    static final ParseField INCREASED_MEMORY_ESTIMATE_BYTES = new ParseField("increased_memory_estimate_bytes");
+    static final ParseField MEMORY_REESTIMATE_BYTES = new ParseField("memory_reestimate_bytes");
 
     public static final ConstructingObjectParser<MemoryUsage, Void> PARSER = new ConstructingObjectParser<>("analytics_memory_usage",
         true, a -> new MemoryUsage((Instant) a[0], (long) a[1], (Status) a[2], (Long) a[3]));
@@ -55,20 +55,20 @@ public class MemoryUsage implements ToXContentObject {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATUS, ObjectParser.ValueType.STRING);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INCREASED_MEMORY_ESTIMATE_BYTES);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
     }
 
     @Nullable
     private final Instant timestamp;
     private final long peakUsageBytes;
     private final Status status;
-    private final Long increasedMemoryEstimateBytes;
+    private final Long memoryReestimateBytes;
 
-    public MemoryUsage(@Nullable Instant timestamp, long peakUsageBytes, Status status, @Nullable Long increasedMemoryEstimateBytes) {
+    public MemoryUsage(@Nullable Instant timestamp, long peakUsageBytes, Status status, @Nullable Long memoryReestimateBytes) {
         this.timestamp = timestamp == null ? null : Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
         this.status = status;
-        this.increasedMemoryEstimateBytes = increasedMemoryEstimateBytes;
+        this.memoryReestimateBytes = memoryReestimateBytes;
     }
 
     @Nullable
@@ -84,8 +84,8 @@ public class MemoryUsage implements ToXContentObject {
         return status;
     }
 
-    public Long getIncreasedMemoryEstimateBytes() {
-        return increasedMemoryEstimateBytes;
+    public Long getMemoryReestimateBytes() {
+        return memoryReestimateBytes;
     }
 
     @Override
@@ -96,8 +96,8 @@ public class MemoryUsage implements ToXContentObject {
         }
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.field(STATUS.getPreferredName(), status);
-        if (increasedMemoryEstimateBytes != null) {
-            builder.field(INCREASED_MEMORY_ESTIMATE_BYTES.getPreferredName(), increasedMemoryEstimateBytes);
+        if (memoryReestimateBytes != null) {
+            builder.field(MEMORY_REESTIMATE_BYTES.getPreferredName(), memoryReestimateBytes);
         }
         builder.endObject();
         return builder;
@@ -112,12 +112,12 @@ public class MemoryUsage implements ToXContentObject {
         return Objects.equals(timestamp, other.timestamp)
             && peakUsageBytes == other.peakUsageBytes
             && Objects.equals(status, other.status)
-            && Objects.equals(increasedMemoryEstimateBytes, other.increasedMemoryEstimateBytes);
+            && Objects.equals(memoryReestimateBytes, other.memoryReestimateBytes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, peakUsageBytes, status, increasedMemoryEstimateBytes);
+        return Objects.hash(timestamp, peakUsageBytes, status, memoryReestimateBytes);
     }
 
     @Override
@@ -126,7 +126,7 @@ public class MemoryUsage implements ToXContentObject {
             .add(TIMESTAMP.getPreferredName(), timestamp == null ? null : timestamp.getEpochSecond())
             .add(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes)
             .add(STATUS.getPreferredName(), status)
-            .add(INCREASED_MEMORY_ESTIMATE_BYTES.getPreferredName(), increasedMemoryEstimateBytes)
+            .add(MEMORY_REESTIMATE_BYTES.getPreferredName(), memoryReestimateBytes)
             .toString();
     }
 

@@ -110,8 +110,8 @@ setup:
 ---
 "Prohibit clone on data stream's write index":
   - skip:
-      version: " - 7.99.99"
-      reason: needs backport
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:

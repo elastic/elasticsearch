@@ -172,7 +172,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        @SuppressWarnings("rawtypes")
         public T parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Map<String, Object> params = new HashMap<>();
@@ -186,7 +185,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {

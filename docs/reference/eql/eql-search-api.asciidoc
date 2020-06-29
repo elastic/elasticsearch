@@ -18,15 +18,15 @@ In {es}, EQL assumes each document in an index corresponds to an event.
 ----
 PUT /my_index/_bulk?refresh
 {"index":{"_index" : "my_index", "_id" : "1"}}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD","sequence": 1 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "2"}}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "3"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "4"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "5"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process" }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
 ////
@@ -231,7 +231,20 @@ return.
 For <<eql-sequences,sequence queries>>, the maximum number of matching sequences
 to return.
 +
-Defaults to `50`. Values must be greater than `0`.
+Defaults to `50`. This value must be greater than `0`.
+
+[[eql-search-api-tiebreaker-field]]
+`tiebreaker_field`::
+(Optional, string)
+Field used to sort events with the same
+<<eql-search-api-timestamp-field,timestamp field>> value. Defaults to
+`event.sequence`, as defined in the {ecs-ref}/ecs-event.html[Elastic Common
+Schema (ECS)].
++
+By default, matching events in the search response are sorted by timestamp,
+converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
+epoch], in ascending order. If two or more events share the same timestamp, this
+field is used to sort the events in ascending, lexicographic order.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::
@@ -422,11 +435,11 @@ Original JSON body passed for the event at index time.
 
 `sort`::
 (array)
-Integer used as the sort value for the event.
+Array of field values used to sort the event.
 +
-By default, this is the event's <<eql-search-api-timestamp-field,timestamp
-value>>, converted to milliseconds since the
-https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+By default, the first item in the array is the event's
+<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ======
 =====
 
@@ -460,11 +473,11 @@ Original JSON body passed for the event at index time.
 
 `sort`::
 (array)
-Integer used as the sort value for the event.
+Array of field values used to sort the event.
 +
-By default, this is the event's <<eql-search-api-timestamp-field,timestamp
-value>>, converted to milliseconds since the
-https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
+By default, the first item in the array is the event's
+<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 =====
 ====
 
@@ -489,11 +502,16 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
 to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
 in ascending order.
+
+If two or more events share the same timestamp, the
+<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
+the events in ascending, lexicographic order.
 
 [source,console-result]
 ----
@@ -518,7 +536,9 @@ in ascending order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "file"
+            "category": "file",
+            "id": "dGCHwoeS",
+            "sequence": 2,
           },
           "file": {
             "accessed": "2020-12-07T11:07:08.000Z",
@@ -546,7 +566,9 @@ in ascending order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "file"
+            "category": "file",
+            "id": "bYA7gPay",
+            "sequence": 4
           },
           "file": {
             "accessed": "2020-12-07T11:07:08.000Z",
@@ -603,12 +625,17 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event. Matching events in
 the `hits.sequences.events` property are sorted by
 <<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
 the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+
+If two or more events share the same timestamp, the
+<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
+the events in ascending, lexicographic order.
 
 [source,console-result]
 ----
@@ -638,7 +665,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "file"
+                "category": "file",
+                "id": "bYA7gPay",
+                "sequence": 4
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -651,11 +680,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
             },
             "sort": [
               1607339228000
@@ -671,17 +695,14 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "process"
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 5
               },
               "process": {
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000

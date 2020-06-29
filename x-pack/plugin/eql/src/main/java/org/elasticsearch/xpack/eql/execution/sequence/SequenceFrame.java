@@ -109,6 +109,7 @@ public class SequenceFrame {
 
     public void trim(int position) {
         sequences.subList(0, position).clear();
+
         // update min time
         if (sequences.isEmpty() == false) {
             min = sequences.get(0).currentTimestamp();

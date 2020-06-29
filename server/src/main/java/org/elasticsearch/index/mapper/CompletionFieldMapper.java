@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -194,12 +193,12 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, meta);
+        public CompletionFieldType(String name, FieldType luceneFieldType, Map<String, String> meta) {
+            super(name, true, false, new TextSearchInfo(luceneFieldType, null), meta);
         }
 
         public CompletionFieldType(String name) {
-            this(name, Collections.emptyMap());
+            this(name, Defaults.FIELD_TYPE, Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {
@@ -349,7 +348,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
@@ -395,14 +394,13 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), meta);
+            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), this.fieldType, meta);
             ft.setContextMappings(contextMappings);
             ft.setPreservePositionIncrements(preservePositionIncrements);
             ft.setPreserveSep(preserveSeparators);
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setSearchAnalyzer(searchAnalyzer);
             ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
-            ft.setSimilarity(similarity);
             return new CompletionFieldMapper(name, this.fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }

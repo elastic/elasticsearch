@@ -129,6 +129,7 @@ import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -145,6 +146,7 @@ import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.client.ml.dataframe.Classification;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
@@ -3076,6 +3078,67 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-data-frame-analytics-execute-async
             client.machineLearning().putDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
+
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::update-data-frame-analytics-config-update
+            DataFrameAnalyticsConfigUpdate update = DataFrameAnalyticsConfigUpdate.builder()
+                .setId("my-analytics-config")  // <1>
+                .setDescription("new description")  // <2>
+                .setModelMemoryLimit(new ByteSizeValue(128, ByteSizeUnit.MB))  // <3>
+                .build();
+            // end::update-data-frame-analytics-config-update
+
+            // tag::update-data-frame-analytics-request
+            UpdateDataFrameAnalyticsRequest request = new UpdateDataFrameAnalyticsRequest(update); // <1>
+            // end::update-data-frame-analytics-request
+
+            // tag::update-data-frame-analytics-execute
+            PutDataFrameAnalyticsResponse response = client.machineLearning().updateDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::update-data-frame-analytics-execute
+
+            // tag::update-data-frame-analytics-response
+            DataFrameAnalyticsConfig updatedConfig = response.getConfig();
+            // end::update-data-frame-analytics-response
+
+            assertThat(updatedConfig.getDescription(), is(equalTo("new description")));
+            assertThat(updatedConfig.getModelMemoryLimit(), is(equalTo(new ByteSizeValue(128, ByteSizeUnit.MB))));
+        }
+        {
+            DataFrameAnalyticsConfigUpdate update = DataFrameAnalyticsConfigUpdate.builder()
+                .setId("my-analytics-config")
+                .build();
+            UpdateDataFrameAnalyticsRequest request = new UpdateDataFrameAnalyticsRequest(update);
+
+            // tag::update-data-frame-analytics-execute-listener
+            ActionListener<PutDataFrameAnalyticsResponse> listener = new ActionListener<PutDataFrameAnalyticsResponse>() {
+                @Override
+                public void onResponse(PutDataFrameAnalyticsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-data-frame-analytics-execute-async
+            client.machineLearning().updateDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-data-frame-analytics-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

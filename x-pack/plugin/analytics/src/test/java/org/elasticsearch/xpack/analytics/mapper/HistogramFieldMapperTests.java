@@ -37,7 +37,7 @@ public class HistogramFieldMapperTests extends FieldMapperTestCase<HistogramFiel
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store", "index");
     }
 
     public void testParseValue() throws Exception {

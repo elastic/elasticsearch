@@ -20,8 +20,6 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,12 +28,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public final class DataStream implements ToXContentObject {
+public final class DataStream {
 
     private final String name;
     private final String timeStampField;
     private final List<String> indices;
-    private long generation;
+    private final long generation;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation) {
         this.name = name;
@@ -68,31 +66,21 @@ public final class DataStream implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> {
+            String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
             List<String> indices =
                 ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
-            return new DataStream((String) args[0], (String) args[1], indices, (Long) args[3]);
+            return new DataStream((String) args[0], timeStampField, indices, (Long) args[3]);
         });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
-        builder.field(GENERATION_FIELD.getPreferredName(), generation);
-        builder.endObject();
-        return builder;
     }
 
     @Override

@@ -40,7 +40,7 @@ public class RankFeaturesFieldMapperTests extends FieldMapperTestCase<RankFeatur
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "store", "doc_values");
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
     IndexService indexService;

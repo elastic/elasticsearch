@@ -12,11 +12,11 @@ GET /_field_caps?fields=rating
 [[search-field-caps-api-request]]
 ==== {api-request-title}
 
-`GET /_field_caps` 
+`GET /_field_caps`
 
-`POST /_field_caps` 
+`POST /_field_caps`
 
-`GET /<index>/_field_caps` 
+`GET /<index>/_field_caps`
 
 `POST /<index>/_field_caps`
 
@@ -25,7 +25,7 @@ GET /_field_caps?fields=rating
 ==== {api-description-title}
 
 
-The field capabilities API returns the information about the capabilities of 
+The field capabilities API returns the information about the capabilities of
 fields among multiple indices.
 
 
@@ -53,13 +53,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_unmapped`::
-  (Optional, boolean) If `true`, unmapped fields are included in the response. 
+  (Optional, boolean) If `true`, unmapped fields are included in the response.
   Defaults to `false`.
 
+[[search-field-caps-api-request-body]]
+==== {api-request-body-title}
+
+`index_filter`::
+(Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
+query rewrites to `match_none` on every shard.
 
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
-  
+
+
+The types used in the response describe _families_ of field types.
+Normally a family type is the same as the field type declared in the mapping,
+but to simplify matters certain field types that behave identically are
+described using a family type. For example, `keyword`, `constant_keyword` and `wildcard`
+field types are all described as the `keyword` family type.
+
 
 
 `searchable`::
@@ -69,15 +82,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
   Whether this field can be aggregated on all indices.
 
 `indices`::
-  The list of indices where this field has the same type, or null if all indices 
-  have the same type for the field.
+  The list of indices where this field has the same family type, or null if all indices
+  have the same family type for the field.
 
 `non_searchable_indices`::
-  The list of indices where this field is not searchable, or null if all indices 
+  The list of indices where this field is not searchable, or null if all indices
   have the same definition for the field.
 
 `non_aggregatable_indices`::
-  The list of indices where this field is not aggregatable, or null if all 
+  The list of indices where this field is not aggregatable, or null if all
   indices have the same definition for the field.
 
 `meta`::
@@ -100,7 +113,7 @@ GET twitter/_field_caps?fields=rating
 // TEST[setup:twitter]
 
 
-The next example API call requests information about the `rating` and the 
+The next example API call requests information about the `rating` and the
 `title` fields:
 
 [source,console]
@@ -156,7 +169,7 @@ adding a parameter called `include_unmapped` in the request:
 GET _field_caps?fields=rating,title&include_unmapped
 --------------------------------------------------
 
-In which case the response will contain an entry for each field that is present 
+In which case the response will contain an entry for each field that is present
 in some indices but not all:
 
 [source,console-result]
@@ -202,3 +215,37 @@ in some indices but not all:
 
 <1> The `rating` field is unmapped` in `index5`.
 <2> The `title` field is unmapped` in `index5`.
+
+It is also possible to filter indices with a query:
+
+[source,console]
+--------------------------------------------------
+POST twitter*/_field_caps?fields=rating
+{
+    "index_filter": {
+        "range": {
+            "@timestamp": {
+                "gte": "2018"
+             }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[setup:twitter]
+
+
+In which case indices that rewrite the provided filter to `match_none` on every shard
+will be filtered from the response.
+
+--
+[IMPORTANT]
+====
+The filtering is done on a best-effort basis, it uses index statistics and mappings
+to rewrite queries to `match_none` instead of fully executing the request.
+For instance a `range` query over a `date` field can rewrite to `match_none`
+if all documents within a shard (including deleted documents) are outside
+of the provided range.
+However, not all queries can rewrite to `match_none` so this API may return
+an index even if the provided filter matches no document.
+====
+--

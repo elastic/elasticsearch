@@ -47,7 +47,7 @@ public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVect
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store", "index");
     }
 
     @Before

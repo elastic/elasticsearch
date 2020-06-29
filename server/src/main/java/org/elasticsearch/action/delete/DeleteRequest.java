@@ -66,7 +66,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public DeleteRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -301,8 +305,18 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing());

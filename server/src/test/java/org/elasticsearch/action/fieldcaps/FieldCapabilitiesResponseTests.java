@@ -57,7 +57,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (String field : fields) {
             responses.put(field, randomFieldCaps(field));
         }
-        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses, randomBoolean());
     }
 
     private static IndexFieldCapabilities randomFieldCaps(String fieldName) {

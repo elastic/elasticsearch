@@ -17,8 +17,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
-import org.elasticsearch.xpack.eql.execution.payload.Payload;
+import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.session.Results.Type;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.io.IOException;
@@ -112,7 +113,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         }
     }
 
-    static class TestPayload implements Payload<SearchHit> {
+    static class TestPayload implements Payload {
         private final List<SearchHit> hits;
         private final Map<Integer, Tuple<String, String>> events;
 
@@ -126,6 +127,11 @@ public class SequenceRuntimeTests extends ESTestCase {
                 SearchHit searchHit = new SearchHit(entry.getKey(), value.v1(), null, null, null);
                 hits.add(searchHit);
             }
+        }
+
+        @Override
+        public Type resultType() {
+            return Type.SEARCH_HIT;
         }
 
         @Override
@@ -143,9 +149,10 @@ public class SequenceRuntimeTests extends ESTestCase {
             return new Object[0];
         }
 
+        @SuppressWarnings("unchecked")
         @Override
-        public List<SearchHit> values() {
-            return hits;
+        public <V> List<V> values() {
+            return (List<V>) hits;
         }
 
         @Override
@@ -181,10 +188,10 @@ public class SequenceRuntimeTests extends ESTestCase {
         }
         
         // convert the results through a test specific payload
-        SequenceRuntime runtime = new SequenceRuntime(criteria, (c, l) -> {
-            Map<Integer, Tuple<String, String>> evs = events.get(c.size());
+        SequenceRuntime runtime = new SequenceRuntime(criteria, (r, l) -> {
+            Map<Integer, Tuple<String, String>> evs = events.get(r.searchSource().size());
             l.onResponse(new TestPayload(evs));
-        });
+        }, false, null);
 
         // finally make the assertion at the end of the listener
         runtime.execute(wrap(this::checkResults, ex -> {
@@ -192,8 +199,8 @@ public class SequenceRuntimeTests extends ESTestCase {
         }));
     }
 
-    private void checkResults(Results results) {
-        List<Sequence> seq = results.sequences();
+    private void checkResults(Payload payload) {
+        List<Sequence> seq = Results.fromPayload(payload).sequences();
         String prefix = "Line " + lineNumber + ":";
         assertNotNull(prefix + "no matches found", seq);
         assertEquals(prefix + "different sequences matched ", matches.size(), seq.size());

@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -211,7 +210,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 return;
             }
             ElasticsearchMappings.addDocMappingIfMissing(
-                AnomalyDetectorsIndex.configIndexName(),
+                MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 clusterState,

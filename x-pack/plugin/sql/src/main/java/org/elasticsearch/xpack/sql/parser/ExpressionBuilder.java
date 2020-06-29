@@ -133,8 +133,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
-import static org.elasticsearch.xpack.sql.util.DateUtils.dateOfEscapedLiteral;
 import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -778,7 +778,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         // parse yyyy-MM-dd (time optional but is set to 00:00:00.000 because of the conversion to DATE
         try {
-            return new Literal(source, dateOfEscapedLiteral(string), SqlDataTypes.DATE);
+            return new Literal(source, asDateOnly(string), SqlDataTypes.DATE);
         } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }

@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -75,7 +74,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(name, fieldType, new BinaryFieldType(buildFullName(context), hasDocValues, meta),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -100,7 +99,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -168,8 +167,8 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     protected BinaryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override

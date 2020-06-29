@@ -203,5 +203,11 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .asProcessor()
                 .process(null)
         );
+        assertEquals(
+            time(10, 20, 30, 123456789, ZoneOffset.of("+05:30"), zoneId),
+            new TimeParse(Source.EMPTY, l("16/06/2020 10:20:30.123456789 +0530"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS xx"), zoneId).makePipe()
+                .asProcessor()
+                .process(null)
+        );
     }
 }

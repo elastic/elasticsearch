@@ -407,15 +407,6 @@ public class XPackLicenseState {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
-
-        // prepopulate feature last used map with entries for non basic features, which are the ones we
-        // care to actually keep track of
-        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
-        for (Feature feature : Feature.values()) {
-            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0) {
-                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
-            }
-        }
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,

@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -209,23 +208,16 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsRequest request, String[] concreteIndices) {
-        // Resolve the request pattern to concrete indices, but an index pattern might pull in indices that are not part of datastreams
-        // Filter to only include those concrete indices that are backing datastreams
-        // TODO: Hmmm we probably shouldn't be filtering on an index pattern at all. These patterns should be applied to data streams only.
         String[] requestIndices = request.indices();
         if (requestIndices == null || requestIndices.length == 0) {
             requestIndices = new String[]{"*"};
         }
         List<String> abstractionNames = resolveIndexAbstractions(requestIndices, request.indicesOptions(), clusterState.getMetadata(), indexNameExpressionResolver);
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
-        logger.info("Lookup Contents: {}", indicesLookup);
 
-        logger.info("Abstractions: {}", abstractionNames);
         String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
-            logger.info("Checking {}", abstractionName);
             assert indexAbstraction != null;
-            logger.info("{}: Datastream? {}", abstractionName, indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM);
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 List<IndexMetadata> indices = dataStream.getIndices();
@@ -234,7 +226,6 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
                 return Stream.empty();
             }
         }).toArray(String[]::new);
-        logger.info("Final indices: {}", Arrays.toString(concreteDatastreamIndices));
         return clusterState.getRoutingTable().allShards(concreteDatastreamIndices);
     }
 

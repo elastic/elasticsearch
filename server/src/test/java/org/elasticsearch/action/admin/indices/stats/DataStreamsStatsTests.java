@@ -33,6 +33,14 @@ import java.util.List;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
+    public void testStatsNoDataStream() throws Exception {
+        DataStreamsStatsResponse stats = client().execute(DataStreamStatsAction.INSTANCE, new DataStreamsStatsRequest()).get();
+        assertEquals(0, stats.getStreams());
+        assertEquals(0, stats.getBackingIndices());
+        assertEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(0, stats.getDataStreamStats().length);
+    }
+
     public void testStatsEmptyDataStream() throws Exception {
         try {
             Template idxTemplate = new Template(null,
@@ -45,20 +53,15 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             assertTrue(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request("my-data-stream-1")).get()
                 .isAcknowledged());
 
-            IndicesOptions opt = IndicesOptions.strictExpandOpenAndForbidClosed();
-//            IndicesOptions opt = new IndicesOptions(
-//                EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.FORBID_CLOSED_INDICES),
-//                EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.HIDDEN)
-//            );
-            DataStreamsStatsResponse stats = client().execute(DataStreamStatsAction.INSTANCE, new DataStreamsStatsRequest()
-                .indicesOptions(opt)).get();
+            DataStreamsStatsResponse stats = client().execute(DataStreamStatsAction.INSTANCE, new DataStreamsStatsRequest()).get();
             assertEquals(1, stats.getStreams());
             assertEquals(1, stats.getBackingIndices());
-            assertEquals(0L, stats.getTotalStoreSize().getBytes());
+            assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
             assertEquals(1, stats.getDataStreamStats().length);
-            assertEquals("test", stats.getDataStreamStats()[0].getDataStreamName());
+            assertEquals("my-data-stream-1", stats.getDataStreamStats()[0].getDataStreamName());
             assertEquals(0L, stats.getDataStreamStats()[0].getMaxTimestamp());
-            assertEquals(0L, stats.getDataStreamStats()[0].getStoreSize().getBytes());
+            assertNotEquals(0L, stats.getDataStreamStats()[0].getStoreSize().getBytes());
+            assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreamStats()[0].getStoreSize().getBytes());
         } finally {
             assertTrue(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("my-data-stream-1")).get()
                 .isAcknowledged());

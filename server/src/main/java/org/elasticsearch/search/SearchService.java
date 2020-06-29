@@ -1129,11 +1129,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
-     * It uses a light weight searcher that can only access the statistics of the fields in order to avoid opening a
-     * full reader on frozen indices.
-     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
-     * shard.
+     * This method uses a lightweight searcher without wrapping (i.e., not open a full reader on frozen indices) to rewrite the query
+     * to check if the query can match any documents. This method can have false positives while if it returns {@code false} the query
+     * won't match any documents on the current shard.
      */
     public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
@@ -1156,7 +1154,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             canMatchSearcher = indexShard.acquireSearcher("can_match");
         }
 
-        try (markAsUsed; Releasable ignored = canMatchSearcher) {
+        try (markAsUsed; canMatchSearcher) {
             final boolean aliasFilterCanMatch = request.getAliasFilter()
                 .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,

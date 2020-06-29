@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -44,19 +45,7 @@ public class SequenceFrame {
      * less than the given argument alongside its position in the list.
      */
     public Tuple<Sequence, Integer> before(Ordinal ordinal) {
-        Sequence matchSeq = null;
-        int matchPos = -1;
-        int position = -1;
-        for (Sequence sequence : sequences) {
-            position++;
-            if (sequence.ordinal().compareTo(ordinal) < 0) {
-                matchSeq = sequence;
-                matchPos = position;
-            } else {
-                break;
-            }
-        }
-        return matchSeq != null ? new Tuple<>(matchSeq, matchPos) : null;
+        return find(o -> o.compareTo(ordinal) < 0);
     }
 
     /**
@@ -64,12 +53,16 @@ public class SequenceFrame {
      * greater than the given argument alongside its position in the list.
      */
     public Tuple<Sequence, Integer> after(Ordinal ordinal) {
+        return find(o -> o.compareTo(ordinal) > 0);
+    }
+
+    private Tuple<Sequence, Integer> find(Predicate<Ordinal> predicate) {
         Sequence matchSeq = null;
         int matchPos = -1;
         int position = -1;
         for (Sequence sequence : sequences) {
             position++;
-            if (sequence.ordinal().compareTo(ordinal) > 0) {
+            if (predicate.test(sequence.ordinal())) {
                 matchSeq = sequence;
                 matchPos = position;
             } else {

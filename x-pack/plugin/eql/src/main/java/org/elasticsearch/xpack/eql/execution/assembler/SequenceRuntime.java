@@ -96,7 +96,7 @@ class SequenceRuntime implements Executable {
         // when dealing with descending order, queries outside the base are ASC (search_before)
         // so look at the data in reverse (that is DESC)
         Ordinal firstOrdinal = null, ordinal = null;
-        for (SearchHit hit : criterion.iterateable(hits)) {
+        for (SearchHit hit : criterion.iterable(hits)) {
             KeyAndOrdinal ko = key(hit, criterion);
 
             ordinal = ko.ordinal;

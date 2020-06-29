@@ -100,7 +100,7 @@ public class Criterion implements QueryRequest {
         return this;
     }
 
-    public Iterable<SearchHit> iterateable(List<SearchHit> hits) {
+    public Iterable<SearchHit> iterable(List<SearchHit> hits) {
         return () -> reverse ? new ReversedIterator<>(hits) : hits.iterator();
     }
 }

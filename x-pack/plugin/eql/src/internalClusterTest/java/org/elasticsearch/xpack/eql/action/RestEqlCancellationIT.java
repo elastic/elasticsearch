@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestIssueLogging(value = "org.elasticsearch.xpack.eql.action:TRACE",
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/58270")
 public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;

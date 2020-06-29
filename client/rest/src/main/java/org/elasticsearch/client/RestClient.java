@@ -208,6 +208,14 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * check client running status
+     * @return client running status
+     */
+    public boolean isRunning() {
+        return client.isRunning();
+    }
+
+    /**
      * Sends a request to the Elasticsearch cluster that the client points to.
      * Blocks until the request is completed and returns its response or fails
      * by throwing an exception. Selects a host out of the provided ones in a

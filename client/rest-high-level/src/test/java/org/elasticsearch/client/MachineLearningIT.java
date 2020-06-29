@@ -115,6 +115,7 @@ import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -129,6 +130,7 @@ import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
@@ -1393,6 +1395,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("this is a classification"));
+    }
+
+    public void testUpdateDataFrameAnalytics() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-update-df-analytics-classification";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder().setIndex("update-test-source-index").build())
+            .setDest(DataFrameAnalyticsDest.builder().setIndex("update-test-dest-index").build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable").build())
+            .setDescription("this is a classification")
+            .build();
+
+        createIndex("update-test-source-index", defaultMappingForTest());
+
+        machineLearningClient.putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(config), RequestOptions.DEFAULT);
+
+        UpdateDataFrameAnalyticsRequest request =
+            new UpdateDataFrameAnalyticsRequest(
+                DataFrameAnalyticsConfigUpdate.builder().setId(config.getId()).setDescription("Updated description").build());
+        PutDataFrameAnalyticsResponse response =
+            execute(request, machineLearningClient::updateDataFrameAnalytics, machineLearningClient::updateDataFrameAnalyticsAsync);
+        assertThat(response.getConfig().getDescription(), equalTo("Updated description"));
+
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(config.getId());
+        GetDataFrameAnalyticsResponse getResponse = machineLearningClient.getDataFrameAnalytics(getRequest, RequestOptions.DEFAULT);
+        assertThat(getResponse.getAnalytics().get(0).getDescription(), equalTo("Updated description"));
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {

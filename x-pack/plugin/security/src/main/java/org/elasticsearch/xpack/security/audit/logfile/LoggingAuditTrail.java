@@ -583,8 +583,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(transportRequest);
-            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.empty(), Optional.empty(), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(
+                            Optional.of(authentication.getUser()),
+                            Optional.of(effectiveRealmName(authentication)),
+                            Optional.empty(),
+                            indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
@@ -592,8 +595,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withRestOrTransportOrigin(transportRequest, threadContext)
-                        // TODO
-                        //.withPrincipal(user)
+                        .withSubject(authentication)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)

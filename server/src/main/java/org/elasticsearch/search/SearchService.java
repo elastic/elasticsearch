@@ -53,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -294,9 +295,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     protected void putReaderContext(ReaderContext context) {
         final ReaderContext previous = activeReaders.put(context.id().getId(), context);
         assert previous == null;
-        // ensure that if we race against afterIndexRemoved, we free the context here.
+        // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
-        indicesService.indexServiceSafe(context.indexShard().shardId().getIndex());
+        final Index index = context.indexShard().shardId().getIndex();
+        if (indicesService.hasIndex(index) == false) {
+            final ReaderContext removed = removeReaderContext(context.id().getId());
+            assert removed == context;
+            throw new IndexNotFoundException(index);
+        }
     }
 
     protected ReaderContext removeReaderContext(long id) {
@@ -694,9 +700,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             readerContext = null;
             return finalReaderContext;
         } finally {
-            if (readerContext != null) {
-                removeReaderContext(readerContext.id().getId());
-            }
             Releasables.close(reader, readerContext, decreaseScrollContexts);
         }
     }
@@ -725,9 +728,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
             } catch (Exception exc) {
-                if (readerContext != null) {
-                    removeReaderContext(readerContext.id().getId());
-                }
                 Releasables.closeWhileHandlingException(searcherSupplier, readerContext);
                 listener.onFailure(exc);
             }

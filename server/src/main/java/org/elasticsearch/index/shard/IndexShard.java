@@ -1231,8 +1231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
-        return "can_match".equals(source) ? searcher : wrapSearcher(searcher);
+        return engine.acquireSearcher(source, scope, this::wrapSearcher);
     }
 
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {

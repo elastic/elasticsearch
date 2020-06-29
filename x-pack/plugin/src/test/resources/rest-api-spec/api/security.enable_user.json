@@ -1,7 +1,8 @@
 {
   "security.enable_user":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html",
+      "description":"Enables users in the native realm."
     },
     "stability":"stable",
     "url":{

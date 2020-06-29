@@ -29,16 +29,17 @@ public final class Scripts {
     public static final String EQL_SCRIPTS = "{eql}";
     public static final String SQL_SCRIPTS = "{sql}";
     public static final String PARAM = "{}";
-    // FIXME: this needs to be either renamed (drop Sql) or find a pluggable approach (through ScriptWeaver)
-    public static final String INTERNAL_SCRIPT_UTILS = "InternalSqlScriptUtils";
+    public static final String INTERNAL_QL_SCRIPT_UTILS = "InternalQlScriptUtils";
+    public static final String INTERNAL_EQL_SCRIPT_UTILS = "InternalEqlScriptUtils";
+    public static final String INTERNAL_SQL_SCRIPT_UTILS = "InternalSqlScriptUtils";
 
     private Scripts() {}
 
     static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(Stream.of(
             new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
-            new SimpleEntry<>(QL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
-            new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
-            new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SCRIPT_UTILS),
+            new SimpleEntry<>(QL_SCRIPTS, INTERNAL_QL_SCRIPT_UTILS),
+            new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_EQL_SCRIPT_UTILS),
+            new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SQL_SCRIPT_UTILS),
             new SimpleEntry<>(PARAM, "params.%s"))
             .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
 
@@ -74,16 +75,17 @@ public final class Scripts {
     }
 
     public static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {
-        return binaryMethod("and", left, right, DataTypes.BOOLEAN);
+        return binaryMethod("{ql}", "and", left, right, DataTypes.BOOLEAN);
     }
 
     public static ScriptTemplate or(ScriptTemplate left, ScriptTemplate right) {
-        return binaryMethod("or", left, right, DataTypes.BOOLEAN);
+        return binaryMethod("{ql}", "or", left, right, DataTypes.BOOLEAN);
     }
     
-    public static ScriptTemplate binaryMethod(String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
+    public static ScriptTemplate binaryMethod(String prefix, String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
             DataType dataType) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s)"),
+                formatTemplate(prefix),
                 methodName,
                 leftScript.template(),
                 rightScript.template()),

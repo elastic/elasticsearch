@@ -92,10 +92,10 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public boolean validate(ClusterState state) {
         boolean allTemplatesPresent = getTemplateConfigs().stream()
             .map(IndexTemplateConfig::getTemplateName)
-            .allMatch(name -> state.metaData().getTemplates().containsKey(name));
+            .allMatch(name -> state.metadata().getTemplates().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional
-            .<IndexLifecycleMetadata>ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE))
+            .<IndexLifecycleMetadata>ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE))
             .map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getPolicyConfigs().stream()
             .map(LifecyclePolicyConfig::getPolicyName)

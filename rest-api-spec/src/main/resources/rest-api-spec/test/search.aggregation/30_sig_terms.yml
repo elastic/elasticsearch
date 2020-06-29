@@ -133,7 +133,7 @@
   - length: { aggregations.ip_terms.buckets: 0 }
 
   - do:
-      catch: request
+      catch: /Aggregation \[ip_terms\] cannot support regular expression style include\/exclude settings as they can only be applied to string fields\. Use an array of values for include\/exclude clauses/
       search:
         rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }

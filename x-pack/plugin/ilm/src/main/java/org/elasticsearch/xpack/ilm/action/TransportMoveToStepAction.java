@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -55,8 +55,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexMetaData indexMetaData = state.metaData().index(request.getIndex());
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = state.metadata().index(request.getIndex());
+        if (indexMetadata == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));
             return;
         }
@@ -64,20 +64,20 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToStep(currentState, indexMetaData.getIndex(), request.getCurrentStepKey(),
+                    return indexLifecycleService.moveClusterStateToStep(currentState, indexMetadata.getIndex(), request.getCurrentStepKey(),
                         request.getNextStepKey());
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    IndexMetaData newIndexMetaData = newState.metaData().index(indexMetaData.getIndex());
-                    if (newIndexMetaData == null) {
+                    IndexMetadata newIndexMetadata = newState.metadata().index(indexMetadata.getIndex());
+                    if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
-                        logger.debug("index [" + indexMetaData.getIndex() + "] has been deleted after moving to step [" +
+                        logger.debug("index [" + indexMetadata.getIndex() + "] has been deleted after moving to step [" +
                             request.getNextStepKey() + "], skipping async action check");
                         return;
                     }
-                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetaData, request.getNextStepKey());
+                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, request.getNextStepKey());
                 }
 
                 @Override

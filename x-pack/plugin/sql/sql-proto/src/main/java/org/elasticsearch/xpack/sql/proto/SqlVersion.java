@@ -141,4 +141,9 @@ public class SqlVersion implements Comparable<SqlVersion>{
     public static boolean hasVersionCompatibility(SqlVersion version) {
         return version.compareTo(V_7_7_0) >= 0;
     }
+
+    public static boolean isClientCompatible(SqlVersion version) {
+        /* only client's of version 7.7.0 and later are supported as backwards compatible */
+        return V_7_7_0.compareTo(version) <= 0;
+    }
 }

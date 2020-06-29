@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.HashMap;
@@ -33,6 +34,9 @@ public class SnapshotFiles {
 
     private final List<FileInfo> indexFiles;
 
+    @Nullable
+    private final String shardStateIdentifier;
+
     private Map<String, FileInfo> physicalFiles = null;
 
     /**
@@ -45,12 +49,23 @@ public class SnapshotFiles {
     }
 
     /**
-     * @param snapshot   snapshot name
-     * @param indexFiles index files
+     * @param snapshot             snapshot name
+     * @param indexFiles           index files
+     * @param shardStateIdentifier unique identifier for the state of the shard that this snapshot was taken from
      */
-    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles ) {
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, @Nullable String shardStateIdentifier) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
+        this.shardStateIdentifier = shardStateIdentifier;
+    }
+
+    /**
+     * Returns an identifier for the shard state that can be used to check whether a shard has changed between
+     * snapshots or not.
+     */
+    @Nullable
+    public String shardStateIdentifier() {
+        return shardStateIdentifier;
     }
 
     /**

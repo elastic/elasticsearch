@@ -20,37 +20,37 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.singleton;
+import java.util.Objects;
 
 /**
  * Represents the try block as part of a try-catch block.
  */
-public final class STry extends AStatement {
+public class STry extends AStatement {
 
-    private final SBlock block;
-    private final List<SCatch> catches;
+    private final SBlock blockNode;
+    private final List<SCatch> catcheNodes;
 
-    public STry(Location location, SBlock block, List<SCatch> catches) {
-        super(location);
+    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catcheNodes) {
+        super(identifier, location);
 
-        this.block = block;
-        this.catches = Collections.unmodifiableList(catches);
+        this.blockNode = blockNode;
+        this.catcheNodes = Collections.unmodifiableList(Objects.requireNonNull(catcheNodes));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        Output output = new Output();
 
-        if (block == null) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
@@ -59,7 +59,7 @@ public final class STry extends AStatement {
         blockInput.inLoop = input.inLoop;
         blockInput.lastLoop = input.lastLoop;
 
-        Output blockOutput = block.analyze(scriptRoot, scope.newLocalScope(), blockInput);
+        Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope(), blockInput);
 
         output.methodEscape = blockOutput.methodEscape;
         output.loopEscape = blockOutput.loopEscape;
@@ -69,13 +69,15 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (SCatch catc : catches) {
+        List<Output> catchOutputs = new ArrayList<>();
+
+        for (SCatch catc : catcheNodes) {
             Input catchInput = new Input();
             catchInput.lastSource = input.lastSource;
             catchInput.inLoop = input.inLoop;
             catchInput.lastLoop = input.lastLoop;
 
-            Output catchOutput = catc.analyze(scriptRoot, scope.newLocalScope(), catchInput);
+            Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope(), catchInput);
 
             output.methodEscape &= catchOutput.methodEscape;
             output.loopEscape &= catchOutput.loopEscape;
@@ -83,31 +85,24 @@ public final class STry extends AStatement {
             output.anyContinue |= catchOutput.anyContinue;
             output.anyBreak |= catchOutput.anyBreak;
 
+            catchOutputs.add(catchOutput);
+
             statementCount = Math.max(statementCount, catchOutput.statementCount);
         }
 
         output.statementCount = blockOutput.statementCount + statementCount;
 
-        return output;
-    }
-
-    @Override
-    TryNode write(ClassNode classNode) {
         TryNode tryNode = new TryNode();
 
-        for (SCatch catc : catches) {
-            tryNode.addCatchNode(catc.write(classNode));
+        for (Output catchOutput : catchOutputs) {
+            tryNode.addCatchNode((CatchNode)catchOutput.statementNode);
         }
 
-        tryNode.setBlockNode(block.write(classNode));
+        tryNode.setBlockNode((BlockNode)blockOutput.statementNode);
+        tryNode.setLocation(getLocation());
 
-        tryNode.setLocation(location);
+        output.statementNode = tryNode;
 
-        return tryNode;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(singleton(block), catches);
+        return output;
     }
 }

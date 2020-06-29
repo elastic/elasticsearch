@@ -19,23 +19,30 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -48,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -122,18 +130,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             List<LatLonDocValuesField> points = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             for (int pointId = 0; pointId < numPoints; pointId++) {
-                double lat = (180d * randomDouble()) - 90d;
-                double lng = (360d * randomDouble()) - 180d;
-
-                // Precision-adjust longitude/latitude to avoid wrong bucket placement
-                // Internally, lat/lng get converted to 32 bit integers, loosing some precision.
-                // This does not affect geohashing because geohash uses the same algorithm,
-                // but it does affect other bucketing algos, thus we need to do the same steps here.
-                lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
-                lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
-
-                points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
-                String hash = hashAsString(lng, lat, precision);
+                double[] latLng = randomLatLng();
+                points.add(new LatLonDocValuesField(FIELD_NAME, latLng[0], latLng[1]));
+                String hash = hashAsString(latLng[1], latLng[0], precision);
                 if (distinctHashesPerDoc.contains(hash) == false) {
                     expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
                 }
@@ -148,6 +147,60 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 iw.addDocument(points);
             }
         });
+    }
+
+    public void testAsSubAgg() throws IOException {
+        int precision = randomPrecision();
+        Map<String, Map<String, Long>> expectedCountPerTPerGeoHash = new TreeMap<>();
+        List<List<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            String t = randomAlphaOfLength(1);
+            double[] latLng = randomLatLng();
+
+            List<IndexableField> doc = new ArrayList<>();
+            docs.add(doc);
+            doc.add(new LatLonDocValuesField(FIELD_NAME, latLng[0], latLng[1]));
+            doc.add(new SortedSetDocValuesField("t", new BytesRef(t)));
+
+            String hash = hashAsString(latLng[1], latLng[0], precision);
+            Map<String, Long> expectedCountPerGeoHash = expectedCountPerTPerGeoHash.get(t);
+            if (expectedCountPerGeoHash == null) {
+                expectedCountPerGeoHash = new TreeMap<>();
+                expectedCountPerTPerGeoHash.put(t, expectedCountPerGeoHash);
+            }
+            expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0L) + 1);
+        }
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(docs);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("t").field("t")
+            .size(expectedCountPerTPerGeoHash.size())
+            .subAggregation(createBuilder("gg").field(FIELD_NAME).precision(precision));
+        Consumer<StringTerms> verify = (terms) -> {
+            Map<String, Map<String, Long>> actual = new TreeMap<>();
+            for (StringTerms.Bucket tb: terms.getBuckets()) {
+                InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
+                Map<String, Long> sub = new TreeMap<>();
+                for (InternalGeoGridBucket<?> ggb : gg.getBuckets()) {
+                    sub.put(ggb.getKeyAsString(), ggb.getDocCount());
+                }
+                actual.put(tb.getKeyAsString(), sub);
+            }
+            assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
+        };
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), geoPointField(FIELD_NAME));
+    }
+
+    private double[] randomLatLng() {
+        double lat = (180d * randomDouble()) - 90d;
+        double lng = (360d * randomDouble()) - 180d;
+
+        // Precision-adjust longitude/latitude to avoid wrong bucket placement
+        // Internally, lat/lng get converted to 32 bit integers, loosing some precision.
+        // This does not affect geohashing because geohash uses the same algorithm,
+        // but it does affect other bucketing algos, thus we need to do the same steps here.
+        lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
+        lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+
+        return new double[] {lat, lng};
     }
 
     public void testBounds() throws IOException {
@@ -240,17 +293,22 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(FIELD_NAME);
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));
+        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();
+    }
+
+    @Override
+    public void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        /*
+         * No-op.
+         */
     }
 }

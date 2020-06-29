@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -57,6 +58,8 @@ public class OutlierDetection implements DataFrameAnalysis {
     public static OutlierDetection fromXContent(XContentParser parser, boolean ignoreUnknownFields) {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
+
+    private static final List<String> PROGRESS_PHASES = Collections.singletonList("computing_outliers");
 
     /**
      * The number of neighbors. Leave unspecified for dynamic detection.
@@ -247,6 +250,16 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public String getStateDocId(String jobId) {
         throw new UnsupportedOperationException("Outlier detection does not support state");
+    }
+
+    @Override
+    public List<String> getProgressPhases() {
+        return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        return null;
     }
 
     public enum Method {

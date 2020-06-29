@@ -19,7 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -38,16 +38,16 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     public void testGetForUpdate() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
 
             .build();
-        IndexMetaData metaData = IndexMetaData.builder("test")
+        IndexMetadata metadata = IndexMetadata.builder("test")
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
-        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         Engine.IndexResult test = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
@@ -91,22 +91,33 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    public void testGetFromTranslogWithSourceMappingOptionsAndStoredFields() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+    public void testGetFromTranslogWithStringSourceMappingOptionsAndStoredFields() throws IOException {
         String docToIndex = "{\"foo\" : \"foo\", \"bar\" : \"bar\"}";
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
-        String expectedResult = noSource ? "" : "{\"bar\":\"bar\"}";
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"store\": true }, " +
-                "\"bar\":  { \"type\": \"text\"}}, \"_source\": { "
-                + sourceOptions + "}}}")
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo");
+    }
+
+    public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
+        String docToIndex = "{\"foo\" : 7, \"bar\" : 42}";
+        boolean noSource = randomBoolean();
+        String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
+        runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L);
+    }
+
+    private void runGetFromTranslogWithOptions(String docToIndex, String sourceOptions, String expectedResult, String fieldType,
+                                               Object expectedFooVal) throws IOException {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": " + fieldType + ", \"store\": true }, " +
+                "\"bar\":  { \"type\": " + fieldType + "}}, \"_source\": { " + sourceOptions + "}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
-        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         Engine.IndexResult test = indexDoc(primary, "test", "0", docToIndex);
         assertTrue(primary.getEngine().refreshNeeded());
@@ -138,7 +149,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals(new String(testGet2.source() == null ? new byte[0] : testGet2.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
-        assertEquals("foo", testGet2.getFields().get("foo").getValue());
+        assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 2); // we read from the translog
         }
@@ -152,21 +163,21 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertEquals(new String(testGet2.source() == null ? new byte[0] : testGet2.source(), StandardCharsets.UTF_8), expectedResult);
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
-        assertEquals("foo", testGet2.getFields().get("foo").getValue());
+        assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
 
         closeShards(primary);
     }
 
     public void testTypelessGetForUpdate() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
-        IndexMetaData metaData = IndexMetaData.builder("index")
+        IndexMetadata metadata = IndexMetadata.builder("index")
                 .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .settings(settings)
                 .primaryTerm(0, 1).build();
-        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(shard);
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());

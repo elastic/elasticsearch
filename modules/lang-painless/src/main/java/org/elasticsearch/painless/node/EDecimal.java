@@ -20,73 +20,76 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
 /**
  * Represents a decimal constant.
  */
-public final class EDecimal extends AExpression {
+public class EDecimal extends AExpression {
 
-    private final String value;
+    private final String decimal;
 
-    protected Object constant;
+    public EDecimal(int identifier, Location location, String decimal) {
+        super(identifier, location);
 
-    public EDecimal(Location location, String value) {
-        super(location);
+        this.decimal = Objects.requireNonNull(decimal);
+    }
 
-        this.value = Objects.requireNonNull(value);
+    public String getDecimal() {
+        return decimal;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        return analyze(input, false);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+    Output analyze(Input input, boolean negate) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (value.endsWith("f") || value.endsWith("F")) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
+        }
+
+        Output output = new Output();
+        Object constant;
+
+        String decimal = negate ? "-" + this.decimal : this.decimal;
+
+        if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
-                constant = Float.parseFloat(value.substring(0, value.length() - 1));
+                constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
                 output.actual = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
         } else {
-            String toParse = value;
-            if (toParse.endsWith("d") || value.endsWith("D")) {
-                toParse = toParse.substring(0, value.length() - 1);
+            String toParse = decimal;
+            if (toParse.endsWith("d") || decimal.endsWith("D")) {
+                toParse = toParse.substring(0, decimal.length() - 1);
             }
             try {
                 constant = Double.parseDouble(toParse);
                 output.actual = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(value);
+        return output;
     }
 }

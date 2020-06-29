@@ -1,7 +1,8 @@
 {
   "xpack.usage":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/usage-api.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/usage-api.html",
+      "description":"Retrieves usage information about the installed X-Pack features."
     },
     "stability":"stable",
     "url":{

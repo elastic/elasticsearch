@@ -21,28 +21,20 @@ file.
 ==== General {transforms} settings
 
 `node.transform`::
-Set to `true` to identify the node as a _transform node_. The default is `false` if
-either `node.data` or `xpack.transform.enabled` is `false` for the node, and `true` otherwise. +
+Set to `true` to identify the node as a _transform node_. If `node.data`
+is `false` for the node, the default value is `false`. Otherwise, the default
+value is `true`.
 +
-If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If set to
-`true` but `xpack.transform.enabled` is set to `false`, the `node.transform` setting is
-ignored and the node cannot run transforms. If you want to run transforms, there must be at
-least one transform node in your cluster. +
+If set to `false` in `elasticsearch.yml`, the node cannot run transforms. If
+you want to run transforms, there must be at least one transform node in your
+cluster. +
 +
-IMPORTANT: It is advised to use the `node.transform` setting to constrain the execution
-of transforms to certain nodes instead of using `xpack.transform.enabled`. On dedicated
-coordinating nodes or dedicated master nodes, disable the node.transform role.
+IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
+the node.transform role.
 
 `xpack.transform.enabled`::
-Set to `true` (default) to enable {transforms} on the node. +
-+
-If set to `false` in `elasticsearch.yml`, the {transform} APIs are disabled on the node.
-Therefore the node cannot start or administrate {transform} or receive transport (internal)
-communication requests related to {transform} APIs.
-+
-IMPORTANT: If you want to use {transform} features in your cluster, you must have
-`xpack.transform.enabled` set to `true` on all master-eligible nodes and all data nodes.
-This is the default behavior.
+deprecated:[7.8.0,Basic License features should always be enabled] +
+This deprecated setting no longer has any effect.
 
 `xpack.transform.num_transform_failure_retries` (<<cluster-update-settings,Dynamic>>)::
 The number of times that a {transform} retries when it experiences a

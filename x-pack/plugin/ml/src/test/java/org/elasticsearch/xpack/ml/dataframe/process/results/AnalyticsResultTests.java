@@ -11,11 +11,22 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,25 +38,46 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 
-    @Override
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
-        Integer progressPercent = null;
+        PhaseProgress phaseProgress = null;
         TrainedModelDefinition.Builder inferenceModel = null;
+        MemoryUsage memoryUsage = null;
+        OutlierDetectionStats outlierDetectionStats = null;
+        ClassificationStats classificationStats = null;
+        RegressionStats regressionStats = null;
+        ModelSizeInfo modelSizeInfo = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
         if (randomBoolean()) {
-            progressPercent = randomIntBetween(0, 100);
+            phaseProgress = new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100));
         }
         if (randomBoolean()) {
             inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
-        return new AnalyticsResult(rowResults, progressPercent, inferenceModel, MemoryUsageTests.createRandom());
+        if (randomBoolean()) {
+            memoryUsage = MemoryUsageTests.createRandom();
+        }
+        if (randomBoolean()) {
+            outlierDetectionStats = OutlierDetectionStatsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            classificationStats = ClassificationStatsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            regressionStats = RegressionStatsTests.createRandom();
+        }
+        if (randomBoolean()) {
+            modelSizeInfo = ModelSizeInfoTests.createRandom();
+        }
+        return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
+            classificationStats, regressionStats, modelSizeInfo);
     }
 
     @Override

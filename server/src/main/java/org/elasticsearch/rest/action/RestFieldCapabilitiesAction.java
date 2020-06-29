@@ -59,6 +59,11 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser != null) {
+                fieldRequest.indexFilter(RestActions.getQueryContent("index_filter", parser));
+            }
+        });
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

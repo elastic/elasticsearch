@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -343,7 +343,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         String calendarId = "test-global-calendar";
 
         // Create a new calendar referencing groupName
-        putCalendar(calendarId, Collections.singletonList(MetaData.ALL), "testNewJobWithGlobalCalendar calendar");
+        putCalendar(calendarId, Collections.singletonList(Metadata.ALL), "testNewJobWithGlobalCalendar calendar");
 
         long startTime = 1514764800000L;
         final int bucketCount = 3;

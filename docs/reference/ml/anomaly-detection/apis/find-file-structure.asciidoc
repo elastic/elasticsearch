@@ -78,9 +78,11 @@ chosen.
 `delimiter`::
   (Optional, string) If you have set `format` to `delimited`, you can specify
   the character used to delimit the values in each row. Only a single character
-  is supported; the delimiter cannot have multiple characters. If this parameter
-  is not specified, the structure finder considers the following possibilities:
-  comma, tab, semi-colon, and pipe (`|`).
+  is supported; the delimiter cannot have multiple characters. By default, the
+  API considers the following possibilities: comma, tab, semi-colon, and pipe
+  (`|`). In this default scenario, all rows must have the same number of fields
+  for the delimited format to be detected. If you specify a delimiter, up to 10%
+  of the rows can have a different number of columns than the first row.
 
 `explain`::
   (Optional, boolean) If this parameter is set to `true`, the response includes
@@ -88,9 +90,13 @@ chosen.
   the structure finder produced its result. The default value is `false`.
 
 `format`::
-  (Optional, string) The high level structure of the file. Valid values are
-  `ndjson`, `xml`, `delimited`, and `semi_structured_text`. If this parameter is
-  not specified, the structure finder chooses one.
+(Optional, string) The high level structure of the file. Valid values are
+`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the
+API chooses the format. In this default scenario, all rows must
+have the same number of fields for a delimited format to be detected. If the
+`format` is set to `delimited` and the `delimiter` is not set, however, the
+API tolerates up to 5% of rows that have a different number of
+columns than the first row.
 
 `grok_pattern`::
   (Optional, string) If you have set `format` to `semi_structured_text`, you can
@@ -1766,7 +1772,7 @@ this:
           "count" : 26
         },
         {
-          "value" : "o.e.c.m.MetaDataIndexTemplateService",
+          "value" : "o.e.c.m.MetadataIndexTemplateService",
           "count" : 8
         },
         {

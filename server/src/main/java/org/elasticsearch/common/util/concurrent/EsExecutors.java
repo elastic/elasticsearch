@@ -46,7 +46,9 @@ import java.util.stream.Collectors;
 public class EsExecutors {
 
     /**
-     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
+     * Setting to manually control the number of allocated processors. This setting is used to adjust thread pool sizes per node. The
+     * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
+     * available to Elasticsearch (e.g., because of CPU limits).
      */
     public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
         "node.processors",
@@ -56,14 +58,13 @@ public class EsExecutors {
         Property.NodeScope);
 
     /**
-     * Returns the number of available processors. Defaults to
-     * {@link Runtime#availableProcessors()} but can be overridden by passing a {@link Settings}
-     * instance with the key "processors" set to the desired value.
+     * Returns the number of allocated processors. Defaults to {@link Runtime#availableProcessors()} but can be overridden by passing a
+     * {@link Settings} instance with the key {@code node.processors} set to the desired value.
      *
-     * @param settings a {@link Settings} instance from which to derive the available processors
-     * @return the number of available processors
+     * @param settings a {@link Settings} instance from which to derive the allocated processors
+     * @return the number of allocated processors
      */
-    public static int numberOfProcessors(final Settings settings) {
+    public static int allocatedProcessors(final Settings settings) {
         return NODE_PROCESSORS_SETTING.get(settings);
     }
 

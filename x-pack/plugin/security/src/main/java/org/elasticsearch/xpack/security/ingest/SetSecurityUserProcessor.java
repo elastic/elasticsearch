@@ -44,12 +44,12 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
-                                    Set<Property> properties) {
-        super(tag);
+    public SetSecurityUserProcessor(String tag, String description, SecurityContext securityContext, XPackLicenseState licenseState,
+                                    String field, Set<Property> properties) {
+        super(tag, description);
         this.securityContext = securityContext;
         this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
-        if (licenseState.isAuthAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false) {
             logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but authentication is not currently enabled on this cluster " +
                 " - this processor is likely to fail at runtime if it is used", TYPE, tag, field);
         } else if (this.securityContext == null) {
@@ -73,7 +73,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         if (user == null) {
             logger.debug(
                 "Failed to find active user. SecurityContext=[{}] Authentication=[{}] User=[{}]", securityContext, authentication, user);
-            if (licenseState.isAuthAllowed()) {
+            if (licenseState.isSecurityEnabled()) {
                 // This shouldn't happen. If authentication is allowed (and active), then there _should_ always be an authenticated user.
                 // If we ever see this error message, then one of our assumptions are wrong.
                 throw new IllegalStateException("There is no authenticated user - the [" + TYPE
@@ -191,7 +191,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
         @Override
         public SetSecurityUserProcessor create(Map<String, Processor.Factory> processorFactories, String tag,
-                                               Map<String, Object> config) throws Exception {
+                                               String description, Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");
             Set<Property> properties;
@@ -203,7 +203,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties);
+            return new SetSecurityUserProcessor(tag, description, securityContext.get(), licenseState.get(), field, properties);
         }
     }
 

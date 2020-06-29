@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -55,7 +57,6 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBuc
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
@@ -65,9 +66,11 @@ import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -283,14 +286,14 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testSortByGeoDistancDescending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.DESC));
-        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder);
         assertThat(result.getSortOrder(), equalTo(SortOrder.DESC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.2054632268631617E7, 3.0))));
     }
 
     public void testSortByGeoDistanceAscending() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new GeoDistanceSortBuilder("s", 35.7796, 78.6382).order(SortOrder.ASC));
-        InternalTopMetrics result = collectFromNewYorkAndLA(builder); 
+        InternalTopMetrics result = collectFromNewYorkAndLA(builder);
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.1062351376961706E7, 2.0))));
     }
@@ -305,7 +308,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testInsideTerms() throws IOException {
         TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.DOUBLE).field("c").subAggregation(builder);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").field("c").subAggregation(builder);
         Terms result = (Terms) collect(terms, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 1.0), doubleField("m", 2.0)));
                     writer.addDocument(Arrays.asList(doubleField("c", 1.0), doubleField("s", 2.0), doubleField("m", 3.0)));
@@ -378,7 +381,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                  * BigArrays allocates the new array before freeing the old one.
                  * That causes us to trip when we're about 2/3 of the way to the
                  * limit. And 2/3 of 190 is 126. Which is pretty much what we
-                 * expect. Sort of. 
+                 * expect. Sort of.
                  */
                 int bucketThatBreaks = 646;
                 for (int b = 0; b < bucketThatBreaks; b++) {
@@ -477,22 +480,15 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType numberFieldType(NumberType numberType, String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(numberType);
-        type.setName(name);
-        return type;
+        return new NumberFieldMapper.NumberFieldType(name, numberType);
     }
 
     private MappedFieldType textFieldType(String name) {
-        TextFieldMapper.TextFieldType type = new TextFieldMapper.TextFieldType();
-        type.setName(name);
-        return type;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     private MappedFieldType geoPointFieldType(String name) {
-        GeoPointFieldMapper.GeoPointFieldType type = new GeoPointFieldMapper.GeoPointFieldType();
-        type.setName(name);
-        type.setHasDocValues(true);
-        return type;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     private IndexableField doubleField(String name, double value) {
@@ -508,7 +504,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private IndexableField textField(String name, String value) {
-        return new Field(name, value, textFieldType(name));
+        return new TextField(name, value, Field.Store.NO);
     }
 
     private IndexableField geoPointField(String name, double lat, double lon) {
@@ -584,5 +580,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 emptyMap());
         Map<String, ScriptEngine> engines = singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new AnalyticsPlugin());
     }
 }

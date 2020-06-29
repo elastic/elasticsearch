@@ -39,6 +39,9 @@ final class TasksRequestConverters {
         params
             .withNodes(req.getNodes())
             .withActions(req.getActions());
+        if (req.getWaitForCompletion() != null) {
+            params.withWaitForCompletion(req.getWaitForCompletion());
+        }
         request.addParameters(params.asMap());
         return request;
     }

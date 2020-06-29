@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -73,10 +74,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -93,11 +91,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -161,8 +160,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-            IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+            IndexSearcher indexSearcher = new ContextIndexSearcher(
+                    wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -188,10 +188,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -226,12 +223,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true);
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetCache, securityContext, licenseState, scriptService) {
 
@@ -270,8 +268,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-        IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
-            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        IndexSearcher indexSearcher = new ContextIndexSearcher(
+                wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

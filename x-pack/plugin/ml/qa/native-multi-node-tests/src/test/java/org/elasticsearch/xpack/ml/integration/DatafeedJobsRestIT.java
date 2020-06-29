@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -544,6 +545,46 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 containsString("[indices:data/read/field_caps] is unauthorized for user [ml_admin]"));
     }
 
+    public void testSecondaryAuthSearchPrivilegesLookBack() throws Exception {
+        setupDataAccessRole("airline-data");
+        String jobId = "secondary-privs-put-job";
+        createJob(jobId, "airline.keyword");
+        String datafeedId = "datafeed-" + jobId;
+        // Primary auth header does not have access, but secondary auth does
+        new DatafeedBuilder(datafeedId, jobId, "airline-data")
+                .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN)
+                .setSecondaryAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
+                .build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+
+        Response jobStatsResponse = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    public void testSecondaryAuthSearchPrivilegesOnPreview() throws Exception {
+        setupDataAccessRole("airline-data");
+        String jobId = "secondary-privs-preview-job";
+        createJob(jobId, "airline.keyword");
+
+        String datafeedId = "datafeed-" + jobId;
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
+
+        Request getFeed = new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_preview");
+        RequestOptions.Builder options = getFeed.getOptions().toBuilder();
+        options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
+        options.addHeader("es-secondary-authorization", BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
+        getFeed.setOptions(options);
+        // Should not fail as secondary auth has permissions.
+        client().performRequest(getFeed);
+    }
+
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
         String jobId = "aggs-histogram-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
@@ -963,7 +1004,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
-        assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest(new Request("GET",
@@ -1022,7 +1063,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
 
         ResponseException e = expectThrows(ResponseException.class,
                 () -> client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId)));
@@ -1114,7 +1155,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", authHeader);
         request.setOptions(options);
         Response startDatafeedResponse = client().performRequest(request);
-        assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), equalTo("{\"started\":true}"));
+        assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest(new Request("GET",
@@ -1170,7 +1211,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         // Don't check rollup jobs because we clear them in the superclass.
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
+        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
+        waitForPendingTasks(
+            adminClient(),
+            taskName -> taskName.startsWith(RollupJob.NAME) || taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
     }
 
     private static class DatafeedBuilder {
@@ -1181,6 +1225,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String scriptedFields;
         String aggregations;
         String authHeader = BASIC_AUTH_VALUE_SUPER_USER;
+        String secondaryAuthHeader = null;
         String chunkingTimespan;
         String indicesOptions;
 
@@ -1210,6 +1255,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             return this;
         }
 
+        DatafeedBuilder setSecondaryAuthHeader(String authHeader) {
+            this.secondaryAuthHeader = authHeader;
+            return this;
+        }
+
         DatafeedBuilder setChunkingTimespan(String timespan) {
             chunkingTimespan = timespan;
             return this;
@@ -1233,6 +1283,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     + "}");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", authHeader);
+            if (this.secondaryAuthHeader != null) {
+                options.addHeader("es-secondary-authorization", secondaryAuthHeader);
+            }
             request.setOptions(options);
             return client().performRequest(request);
         }

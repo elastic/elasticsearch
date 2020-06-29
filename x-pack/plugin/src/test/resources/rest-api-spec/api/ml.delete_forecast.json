@@ -1,7 +1,8 @@
 {
   "ml.delete_forecast":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html",
+      "description":"Deletes forecasts from a machine learning job."
     },
     "stability":"stable",
     "url":{
@@ -44,7 +45,7 @@
       },
       "timeout":{
         "type":"time",
-        "requred":false,
+        "required":false,
         "description":"Controls the time to wait until the forecast(s) are deleted. Default to 30 seconds"
       }
     }

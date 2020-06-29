@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,9 +33,14 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeOptionalWriteable(this.slmStats);
     }
 
-    public SLMFeatureSetUsage(boolean available, boolean enabled, @Nullable SnapshotLifecycleStats slmStats) {
-        super(XPackField.SNAPSHOT_LIFECYCLE, available, enabled);
+    public SLMFeatureSetUsage(boolean available, @Nullable SnapshotLifecycleStats slmStats) {
+        super(XPackField.SNAPSHOT_LIFECYCLE, available, true);
         this.slmStats = slmStats;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_5_0;
     }
 
     public SnapshotLifecycleStats getStats() {

@@ -4,90 +4,399 @@
 <titleabbrev>Keyword repeat</titleabbrev>
 ++++
 
-The `keyword_repeat` token filter Emits each incoming token twice once
-as keyword and once as a non-keyword to allow an unstemmed version of a
-term to be indexed side by side with the stemmed version of the term.
-Given the nature of this filter each token that isn't transformed by a
-subsequent stemmer will be indexed twice. Therefore, consider adding a
-`unique` filter with `only_on_same_position` set to `true` to drop
-unnecessary duplicates.
+Outputs a keyword version of each token in a stream. These keyword tokens are
+not stemmed.
 
-Here is an example of using the `keyword_repeat` token filter to
-preserve both the stemmed and unstemmed version of tokens:
+The `keyword_repeat` filter assigns keyword tokens a `keyword` attribute of
+`true`. Stemmer token filters, such as
+<<analysis-stemmer-tokenfilter,`stemmer`>> or
+<<analysis-porterstem-tokenfilter,`porter_stem`>>, skip tokens with a `keyword`
+attribute of `true`.
+
+You can use the `keyword_repeat` filter with a stemmer token filter to output a
+stemmed and unstemmed version of each token in a stream.
+
+[IMPORTANT]
+====
+To work properly, the `keyword_repeat` filter must be listed before any stemmer
+token filters in the <<analysis-custom-analyzer,analyzer configuration>>.
+
+Stemming does not affect all tokens. This means streams could contain duplicate
+tokens in the same position, even after stemming.
+
+To remove these duplicate tokens, add the
+<<analysis-remove-duplicates-tokenfilter,`remove_duplicates`>> filter after the
+stemmer filter in the analyzer configuration.
+====
+
+The `keyword_repeat` filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/KeywordRepeatFilter.html[KeywordRepeatFilter].
+
+[[analysis-keyword-repeat-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `keyword_repeat`
+filter to output a keyword and non-keyword version of each token in 
+`fox running and jumping`.
+
+To return the `keyword` attribute for these tokens, the analyze API request also
+includes the following arguments:
+
+* `explain`:  `true`
+* `attributes`: `keyword`
 
 [source,console]
---------------------------------------------------
-PUT /keyword_repeat_example
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    "keyword_repeat"
+  ],
+  "text": "fox running and jumping",
+  "explain": true,
+  "attributes": "keyword"
+}
+----
+
+The API returns the following response. Note that one version of each token has
+a `keyword` attribute of `true`.
+
+.**Response**
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": ...,
+    "tokenfilters": [
+      {
+        "name": "keyword_repeat",
+        "tokens": [
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": true
+          },
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "running",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": true
+          },
+          {
+            "token": "running",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": true
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": true
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": false
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"tokenizer": \.\.\./"tokenizer": $body.detail.tokenizer/]
+====
+
+To stem the non-keyword tokens, add the `stemmer` filter after the
+`keyword_repeat` filter in the previous analyze API request.
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    "keyword_repeat",
+    "stemmer"
+  ],
+  "text": "fox running and jumping",
+  "explain": true,
+  "attributes": "keyword"
+}
+----
+
+The API returns the following response. Note the following changes:
+
+* The non-keyword version of `running` was stemmed to `run`.
+* The non-keyword version of `jumping` was stemmed to `jump`.
+
+.**Response**
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": ...,
+    "tokenfilters": [
+      {
+        "name": "keyword_repeat",
+        "tokens": ...
+      },
+      {
+        "name": "stemmer",
+        "tokens": [
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": true
+          },
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "running",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": true
+          },
+          {
+            "token": "run",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": true
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": true
+          },
+          {
+            "token": "jump",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": false
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"tokenizer": \.\.\./"tokenizer": $body.detail.tokenizer/]
+// TESTRESPONSE[s/"tokens": .../"tokens": $body.$_path/]
+====
+
+However, the keyword and non-keyword versions of `fox` and `and` are
+identical and in the same respective positions.
+
+To remove these duplicate tokens, add the `remove_duplicates` filter after
+`stemmer` in the analyze API request. 
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    "keyword_repeat",
+    "stemmer",
+    "remove_duplicates"
+  ],
+  "text": "fox running and jumping",
+  "explain": true,
+  "attributes": "keyword"
+}
+----
+
+The API returns the following response. Note that the duplicate tokens for `fox`
+and `and` have been removed.
+
+.**Response**
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": ...,
+    "tokenfilters": [
+      {
+        "name": "keyword_repeat",
+        "tokens": ...
+      },
+      {
+        "name": "stemmer",
+        "tokens": ...
+      },
+      {
+        "name": "remove_duplicates",
+        "tokens": [
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": true
+          },
+          {
+            "token": "running",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": true
+          },
+          {
+            "token": "run",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": true
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": true
+          },
+          {
+            "token": "jump",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": false
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"tokenizer": \.\.\./"tokenizer": $body.detail.tokenizer/]
+// TESTRESPONSE[s/"tokens": .../"tokens": $body.$_path/]
+====
+
+[[analysis-keyword-repeat-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`keyword_repeat` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+This custom analyzer uses the `keyword_repeat` and `porter_stem` filters to
+create a stemmed and unstemmed version of each token in a stream. The
+`remove_duplicates` filter then removes any duplicate tokens from the stream.
+
+[source,console]
+----
+PUT /my_index
 {
   "settings": {
     "analysis": {
       "analyzer": {
-        "stemmed_and_unstemmed": {
-          "type": "custom",
+        "my_custom_analyzer": {
           "tokenizer": "standard",
-          "filter": ["lowercase", "keyword_repeat", "porter_stem", "unique_stem"]
-        }
-      },
-      "filter": {
-        "unique_stem": {
-          "type": "unique",
-          "only_on_same_position": true
+          "filter": [
+            "keyword_repeat",
+            "porter_stem",
+            "remove_duplicates"
+          ]
         }
       }
     }
   }
 }
---------------------------------------------------
-
-And you can test it with:
-
-[source,console]
---------------------------------------------------
-POST /keyword_repeat_example/_analyze
-{
-  "analyzer" : "stemmed_and_unstemmed",
-  "text" : "I like cats"
-}
---------------------------------------------------
-// TEST[continued]
-
-And it'd respond:
-
-[source,console-result]
---------------------------------------------------
-{
-  "tokens": [
-    {
-      "token": "i",
-      "start_offset": 0,
-      "end_offset": 1,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "like",
-      "start_offset": 2,
-      "end_offset": 6,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "cats",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    },
-    {
-      "token": "cat",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    }
-  ]
-}
---------------------------------------------------
-
-Which preserves both the `cat` and `cats` tokens. Compare this to the example
-on the <<analysis-keyword-marker-tokenfilter>>.
+----

@@ -25,7 +25,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -89,8 +89,8 @@ public class IndexingIT extends ESRestTestCase {
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                 .put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
@@ -175,8 +175,8 @@ public class IndexingIT extends ESRestTestCase {
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test";
@@ -254,8 +254,8 @@ public class IndexingIT extends ESRestTestCase {
 
         // Allocating shards on the BWC nodes to makes sure that taking snapshot happens on those nodes.
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test-snapshot-index";
@@ -291,8 +291,8 @@ public class IndexingIT extends ESRestTestCase {
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_synced_flush";
         createIndex(index, Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put("index.routing.allocation.include._name", newNodes).build());
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));

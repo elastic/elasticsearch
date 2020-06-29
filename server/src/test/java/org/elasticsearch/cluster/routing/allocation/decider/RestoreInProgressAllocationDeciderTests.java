@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -76,7 +76,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     public void testCannotAllocatePrimaryMissingInRestoreInProgress() {
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetaData().index("test"), createSnapshotRecoverySource("_missing"))
+            .addAsRestore(clusterState.getMetadata().index("test"), createSnapshotRecoverySource("_missing"))
             .build();
 
         clusterState = ClusterState.builder(clusterState)
@@ -99,7 +99,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetaData().index("test"), recoverySource)
+            .addAsRestore(clusterState.getMetadata().index("test"), recoverySource)
             .build();
 
         clusterState = ClusterState.builder(clusterState)
@@ -166,12 +166,12 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     }
 
     private ClusterState createInitialClusterState() {
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
+            .addAsNew(metadata.index("test"))
             .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
@@ -181,7 +181,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(metaData)
+            .metadata(metadata)
             .routingTable(routingTable)
             .nodes(discoveryNodes)
             .build();

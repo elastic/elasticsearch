@@ -47,7 +47,7 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ComponentTemplate, Void> PARSER =
+    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER =
         new ConstructingObjectParser<>("component_template", false,
             a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2]));
 

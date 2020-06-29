@@ -51,23 +51,23 @@ teardown:
 ---
 "Test cat transform stats hiding headers":
   - do:
-      transform.cat_transform:
+      cat.transforms:
         transform_id: "airline-transform-stats"
   - match:
       $body: |
-        /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state    \n
-            (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ STOPPED \n)+  $/
+        /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state    \n
+            (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
 
 ---
 "Test cat transform stats with column selection":
   - do:
-      transform.cat_transform:
+      cat.transforms:
         transform_id: "airline-transform-stats"
         v: true
-        h: id,version,source_index,dest_index,search_total,index_total,dt,cdtea,indexed_documents_exp_avg
+        h: id,version,source_index,dest_index,search_total,index_total,docp,cdtea,indexed_documents_exp_avg
   - match:
       $body: |
-        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ dt \s+ cdtea  \s+ indexed_documents_exp_avg \n
+        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ docp \s+ cdtea  \s+ indexed_documents_exp_avg \n
             (airline\-transform-stats \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+  $/
 
 
@@ -90,13 +90,13 @@ teardown:
             "description": "description"
           }
   - do:
-      transform.cat_transform:
+      cat.transforms:
         transform_id: "airline-transform-batch"
         v: true
   - match:
       $body: |
-        /^   id                        \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                    \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state   \n
-            (airline\-transform\-batch \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-batch \s+          \s+ description \s+ batch          \s+ 1m        \s+ 500                  \s+ STOPPED \n)+  $/
+        /^   id                        \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                    \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-batch \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-batch \s+          \s+ description \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-batch"
@@ -126,13 +126,13 @@ teardown:
             }
           }
   - do:
-      transform.cat_transform:
+      cat.transforms:
         transform_id: "airline-transform-continuous"
         v: true
   - match:
       $body: |
-        /^   id                             \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                         \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state   \n
-            (airline\-transform\-continuous \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-continuous \s+          \s+ description \s+ continuous     \s+ 10s       \s+ 500                  \s+ STOPPED \n)+  $/
+        /^   id                             \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                         \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-continuous \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-continuous \s+          \s+ description \s+ continuous     \s+ 10s       \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-continuous"

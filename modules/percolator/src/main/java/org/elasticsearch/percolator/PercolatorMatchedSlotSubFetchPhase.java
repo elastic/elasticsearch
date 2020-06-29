@@ -20,6 +20,8 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -38,9 +40,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -72,8 +72,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         for (PercolateQuery percolateQuery : percolateQueries) {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter()),
-                ScoreMode.COMPLETE_NO_SCORES, 1f);
+            Query nonNestedFilter = percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter());
+            Weight weight = percolatorIndexSearcher.createWeight(nonNestedFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
             BitSet rootDocs = BitSet.of(s.iterator(), memoryIndexMaxDoc);
@@ -93,6 +93,13 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     // This is not a document with a percolator field.
                     continue;
                 }
+                if (hasNestedDocs) {
+                    // Ensures that we filter out nested documents
+                    query = new BooleanQuery.Builder()
+                        .add(query, BooleanClause.Occur.MUST)
+                        .add(nonNestedFilter, BooleanClause.Occur.FILTER)
+                        .build();
+                }
 
                 TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
                 if (topDocs.totalHits.value == 0) {
@@ -101,13 +108,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     continue;
                 }
 
-                Map<String, DocumentField> fields = hit.fieldsOrNull();
-                if (fields == null) {
-                    fields = new HashMap<>();
-                    hit.fields(fields);
-                }
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                fields.put(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
+                hit.setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
             }
         }
     }

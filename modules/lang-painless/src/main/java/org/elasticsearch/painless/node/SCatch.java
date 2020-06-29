@@ -20,53 +20,82 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    private final Class<?> baseException;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final SBlock blockNode;
 
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
+        super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.blockNode = blockNode;
+    }
+
+    public Class<?> getBaseException() {
+        return baseException;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
-        declaration.analyze(scriptRoot, scope, new Input());
+        Output output = new Output();
 
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = scope.getVariable(location, declaration.name).getType();
-
-        if (baseType.isAssignableFrom(type) == false) {
-            throw createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
 
-        if (block != null) {
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
+        }
+
+        semanticScope.defineVariable(getLocation(), type, symbol, false);
+
+        if (baseException.isAssignableFrom(type) == false) {
+            throw createError(new ClassCastException(
+                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
+        }
+
+        Output blockOutput = null;
+
+        if (blockNode != null) {
             Input blockInput = new Input();
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+            blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;
@@ -76,23 +105,14 @@ public final class SCatch extends AStatement {
             output.statementCount = blockOutput.statementCount;
         }
 
-        return output;
-    }
-
-    @Override
-    CatchNode write(ClassNode classNode) {
         CatchNode catchNode = new CatchNode();
+        catchNode.setExceptionType(type);
+        catchNode.setSymbol(symbol);
+        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
+        catchNode.setLocation(getLocation());
 
-        catchNode.setDeclarationNode(declaration.write(classNode));
-        catchNode.setBlockNode(block == null ? null : block.write(classNode));
+        output.statementNode = catchNode;
 
-        catchNode.setLocation(location);
-
-        return catchNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(baseException, declaration, block);
+        return output;
     }
 }

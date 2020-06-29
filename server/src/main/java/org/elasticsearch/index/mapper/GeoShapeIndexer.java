@@ -26,6 +26,7 @@ import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -48,7 +49,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
 
     private final boolean orientation;
     private final String name;
@@ -189,7 +190,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     private static class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private List<IndexableField> fields = new ArrayList<>();
-        private String name;
+        private final String name;
 
         private LuceneGeometryIndexer(String name) {
             this.name = name;
@@ -261,7 +262,15 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Rectangle r) {
-            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
+            if (r.getMinLon() > r.getMaxLon()) {
+                Rectangle left = new Rectangle(r.getMinLon(), GeoUtils.MAX_LON, r.getMaxLat(), r.getMinLat());
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(left)));
+                Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxLat(), r.getMinLat());
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(right)));
+
+            } else {
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
+            }
             return null;
         }
 

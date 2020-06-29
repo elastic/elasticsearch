@@ -92,19 +92,16 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
+JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 13 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
 and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
-
-> Warning: do not use `sdkman` for Java installations which do not have proper
-`jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
@@ -112,29 +109,97 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2019.2 and
-onwards. We would like to support Eclipse, but few of us use it and has fallen
-into [disrepair][eclipse].
+onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
     ./gradlew :run
 
-You can access Elasticsearch with:
+That'll spend a while building Elasticsearch and then it'll start Elasticsearch,
+writing its log above Gradle's status message. We log a lot of stuff on startup,
+specifically these lines tell you that Elasticsearch is ready:
+
+    [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
+    [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
+
+But to be honest its typically easier to wait until the console stopps scrolling
+and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
 
+
+
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 13. Before importing into IntelliJ you will need
+Elasticsearch builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"13"** so that the project import will detect it automatically. For more details
+"14"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
 
 You can import the Elasticsearch project into IntelliJ IDEA via:
 
  - Select **File > Open**
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
+
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formater**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
 
 ### REST Endpoint Conventions
 
@@ -516,7 +581,7 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
+<dt>`testImplementation`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
 </dl>
@@ -551,4 +616,3 @@ non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
-[eclipse]: https://github.com/elastic/elasticsearch/issues/53664

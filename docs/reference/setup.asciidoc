@@ -1,5 +1,5 @@
 [[setup]]
-= Set up Elasticsearch
+= Set up {es}
 
 [partintro]
 --
@@ -45,25 +45,57 @@ include::setup/jvm-options.asciidoc[]
 
 include::setup/secure-settings.asciidoc[]
 
-include::setup/logging-config.asciidoc[]
-
 include::settings/audit-settings.asciidoc[]
+
+include::modules/indices/circuit_breaker.asciidoc[]
+
+include::modules/cluster.asciidoc[]
 
 include::settings/ccr-settings.asciidoc[]
 
+include::modules/discovery/discovery-settings.asciidoc[]
+
+include::modules/indices/fielddata.asciidoc[]
+
+include::modules/http.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
+include::modules/indices/recovery.asciidoc[]
+
+include::modules/indices/indexing_buffer.asciidoc[]
+
 include::settings/license-settings.asciidoc[]
+
+include::modules/gateway.asciidoc[]
+
+include::setup/logging-config.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]
 
 include::settings/monitoring-settings.asciidoc[]
 
+include::modules/node.asciidoc[]
+
+include::modules/network.asciidoc[]
+
+include::modules/indices/query_cache.asciidoc[]
+
+include::modules/indices/search-settings.asciidoc[]
+
 include::settings/security-settings.asciidoc[]
+
+include::modules/indices/request_cache.asciidoc[]
+
+include::settings/slm-settings.asciidoc[]
 
 include::settings/sql-settings.asciidoc[]
 
 include::settings/transform-settings.asciidoc[]
+
+include::modules/transport.asciidoc[]
+
+include::modules/threadpool.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]
 
@@ -73,10 +105,18 @@ include::setup/sysconfig.asciidoc[]
 
 include::setup/bootstrap-checks.asciidoc[]
 
+include::setup/bootstrap-checks-xes.asciidoc[]
+
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
 
+include::modules/discovery.asciidoc[]
+
 include::setup/add-nodes.asciidoc[]
 
 include::setup/restart-cluster.asciidoc[]
+
+include::modules/remote-clusters.asciidoc[]
+
+include::modules/plugins.asciidoc[]

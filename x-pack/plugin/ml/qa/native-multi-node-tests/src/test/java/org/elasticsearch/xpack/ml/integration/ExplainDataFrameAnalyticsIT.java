@@ -10,11 +10,14 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
@@ -80,5 +83,47 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
 
         assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk().getKb(), lessThanOrEqualTo(1024L));
+    }
+
+    public void testTrainingPercentageIsApplied() throws IOException {
+        String sourceIndex = "test-training-percentage-applied";
+        RegressionIT.indexData(sourceIndex, 100, 0);
+
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("dfa-training-100-" + sourceIndex)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
+                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                null))
+            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().build(),
+                null,
+                100.0,
+                null,
+                null,
+                null))
+            .buildForExplain();
+
+        ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
+
+        ByteSizeValue allDataUsedForTraining = explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk();
+
+        config = new DataFrameAnalyticsConfig.Builder()
+            .setId("dfa-training-50-" + sourceIndex)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
+                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                null))
+            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                BoostedTreeParams.builder().build(),
+                null,
+                50.0,
+                null,
+                null,
+                null))
+            .buildForExplain();
+
+        explainResponse = explainDataFrame(config);
+
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(), 
+                   lessThanOrEqualTo(allDataUsedForTraining));
     }
 }

@@ -45,6 +45,7 @@ import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -54,7 +55,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -80,11 +80,12 @@ public class DockerTests extends PackagingTestCase {
     @Before
     public void setupTest() throws IOException {
         installation = runContainer(distribution());
-        tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+        tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
     @After
     public void teardownTest() {
+        removeContainer();
         rm(tempDir);
     }
 
@@ -563,7 +564,7 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final Result containerLogs = getContainerLogs();
 
-        assertThat("Container logs don't contain abbreviated class names", containerLogs.stdout, containsString("o.e.n.Node"));
+        assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
         assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
     }
 

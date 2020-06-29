@@ -54,7 +54,7 @@ public abstract class ParsedAggregation implements Aggregation, ToXContentFragme
     }
 
     @Override
-    public final Map<String, Object> getMetaData() {
+    public final Map<String, Object> getMetadata() {
         return metadata;
     }
 

@@ -20,53 +20,50 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
 /**
  * Represents a string constant.
  */
-public final class EString extends AExpression {
+public class EString extends AExpression {
 
-    protected String constant;
+    private String string;
 
-    public EString(Location location, String string) {
-        super(location);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
 
-        this.constant = Objects.requireNonNull(string);
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
+        }
+
+        Output output = new Output();
         output.actual = String.class;
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
+        constantNode.setConstant(string);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString("'" + constant.toString() + "'");
+        return output;
     }
 }

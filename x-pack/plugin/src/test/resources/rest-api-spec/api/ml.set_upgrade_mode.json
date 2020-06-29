@@ -1,7 +1,8 @@
 {
   "ml.set_upgrade_mode":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html",
+      "description":"Sets a cluster wide upgrade_mode setting that prepares machine learning indices for an upgrade."
     },
     "stability":"stable",
     "url":{

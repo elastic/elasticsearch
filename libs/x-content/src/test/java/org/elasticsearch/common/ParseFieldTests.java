@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
     public void testParse() {
@@ -66,11 +66,11 @@ public class ParseFieldTests extends ESTestCase {
         ParseField field = new ParseField(name).withDeprecation(alternatives).withAllDeprecated();
         assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("dep", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [dep] used, which has been removed entirely");
+        assertWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely");
         assertTrue(field.match("old_dep", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [old_dep] used, which has been removed entirely");
+        assertWarnings("Deprecated field [old_dep] used, this field is unused and will be removed entirely");
         assertTrue(field.match("new_dep", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [new_dep] used, which has been removed entirely");
+        assertWarnings("Deprecated field [new_dep] used, this field is unused and will be removed entirely");
 
 
     }

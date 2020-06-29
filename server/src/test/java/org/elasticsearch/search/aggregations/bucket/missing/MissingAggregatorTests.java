@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -33,7 +31,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -47,11 +44,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -61,7 +53,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,10 +64,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -90,10 +77,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
         final int numDocs = randomIntBetween(10, 200);
 
-        final MappedFieldType fieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        fieldType.setName("field");
+        final MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(fieldType.name());
 
         testCase(
@@ -104,9 +91,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
                 }
             },
-            (InternalMissing missing) -> {
-                assertEquals(0, missing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             },
             singleton(fieldType)
         );
@@ -115,12 +102,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         int numDocs = randomIntBetween(10, 200);
 
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
 
         testCase(
@@ -131,21 +116,19 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
                 }
             },
-            (InternalMissing missing) -> {
-                assertEquals(numDocs, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
     }
 
     public void testMatchSparse() throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
 
         final int numDocs = randomIntBetween(100, 200);
@@ -165,9 +148,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (InternalMissing missing) -> {
-                assertEquals(finalDocsMissingAggField, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -175,16 +158,14 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testMatchSparseRangeField() throws IOException {
         final RangeType rangeType = RangeType.DOUBLE;
-        MappedFieldType aggFieldType = new RangeFieldMapper.Builder("_name", rangeType).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new RangeFieldMapper.Builder("_name", rangeType).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new RangeFieldMapper.RangeFieldType("agg_field", rangeType);
+        final MappedFieldType anotherFieldType = new RangeFieldMapper.RangeFieldType("another_field", rangeType);
 
         final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final BytesRef encodedRange = rangeType.encodeRanges(singleton(range));
         final BinaryDocValuesField encodedRangeField = new BinaryDocValuesField(aggFieldType.name(), encodedRange);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
 
         final int numDocs = randomIntBetween(100, 200);
@@ -204,119 +185,19 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (InternalMissing missing) -> {
-                assertEquals(finalDocsMissingAggField, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
     }
 
-    public void testSubAggregation() throws IOException {
-        final MappedFieldType missingAggFieldType = new KeywordFieldMapper.Builder("_name").fieldType();
-        missingAggFieldType.setName("missing_agg_field");
-        missingAggFieldType.setHasDocValues(true);
-        final MappedFieldType sumAggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        sumAggFieldType.setName("sum_agg_field");
-
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("missing", null)
-            .field(missingAggFieldType.name())
-            .subAggregation(
-              new SumAggregationBuilder("sum")
-                .field(sumAggFieldType.name())
-            );
-
-        final int numDocs = randomIntBetween(10, 20);
-        int docsMissingAggField = 0;
-        long expectedSum = 0;
-        final List<Set<IndexableField>> docs = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            final Set<IndexableField> doc = new HashSet<>();
-            final long sumFieldValue = randomLongBetween(0, 1000);
-            doc.add(new SortedNumericDocValuesField(sumAggFieldType.name(), sumFieldValue));
-            if (randomBoolean()) {
-                doc.add(new SortedDocValuesField(missingAggFieldType.name(), new BytesRef(randomUnicodeOfLengthBetween(2, 20))));
-            } else {
-                docsMissingAggField++;
-                expectedSum += sumFieldValue;
-            }
-            docs.add(doc);
-        }
-        final int finalDocsMissingAggField = docsMissingAggField;
-        final long finalExpectedSum = expectedSum;
-
-        testCase(
-            newMatchAllQuery(),
-            builder,
-            writer -> writer.addDocuments(docs),
-            (InternalMissing internalMissing) -> {
-                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-
-                assertThat(internalMissing.getAggregations().asList(), not(empty()));
-                final InternalSum internalSum = internalMissing.getAggregations().get("sum");
-                assertEquals(finalExpectedSum, internalSum.getValue(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            List.of(missingAggFieldType, sumAggFieldType)
-        );
-    }
-
-    public void testEmptyBucket() throws IOException {
-        final MappedFieldType histoAggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        histoAggFieldType.setName("histo_agg_field");
-        final MappedFieldType missingAggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        missingAggFieldType.setName("missing_agg_field");
-
-        final HistogramAggregationBuilder builder = new HistogramAggregationBuilder("histo")
-            .field(histoAggFieldType.name())
-            .interval(1)
-            .minDocCount(0)
-            .subAggregation(
-              new MissingAggregationBuilder("missing", null)
-                .field(missingAggFieldType.name())
-            );
-
-        testCaseWithReduce(
-            newMatchAllQuery(),
-            builder,
-            writer -> {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(histoAggFieldType.name(), 0)));
-                writer.addDocument(singleton(new SortedNumericDocValuesField(histoAggFieldType.name(), 2)));
-            },
-            (InternalHistogram histogram) -> {
-                assertThat(histogram.getBuckets(), hasSize(3));
-
-                {
-                    assertThat(histogram.getBuckets().get(0), notNullValue());
-                    final InternalMissing missing = histogram.getBuckets().get(0).getAggregations().get("missing");
-                    assertEquals(1, missing.getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue(missing));
-                }
-                {
-                    assertThat(histogram.getBuckets().get(1), notNullValue());
-                    final InternalMissing missing = histogram.getBuckets().get(1).getAggregations().get("missing");
-                    assertEquals(0, missing.getDocCount());
-                    assertFalse(AggregationInspectionHelper.hasValue(missing));
-                }
-                {
-                    assertThat(histogram.getBuckets().get(2), notNullValue());
-                    final InternalMissing missing = histogram.getBuckets().get(2).getAggregations().get("missing");
-                    assertEquals(1, missing.getDocCount());
-                    assertTrue(AggregationInspectionHelper.hasValue(missing));
-                }
-            },
-            List.of(histoAggFieldType, missingAggFieldType),
-            true
-        );
-    }
-
     public void testUnmappedWithoutMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field("unknown_field");
 
         testCase(
@@ -327,9 +208,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
                 }
             },
-            (InternalMissing missing) -> {
-                assertEquals(numDocs, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(numDocs, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             singleton(aggFieldType)
         );
@@ -337,10 +218,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedWithMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field("unknown_field")
             .missing(randomLong());
 
@@ -352,53 +232,21 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
                 }
             },
-            (InternalMissing missing) -> {
-                assertEquals(0, missing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             },
             singleton(aggFieldType)
         );
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final int numDocs = randomIntBetween(10, 20);
-
-        final MappedFieldType fieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        fieldType.setName("field");
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
-            .field(fieldType.name());
-
-        try (Directory mappedDirectory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            try (RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory)) {
-                for (int i = 0; i < numDocs; i++) {
-                    mappedWriter.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
-                }
-            }
-
-            new RandomIndexWriter(random(), unmappedDirectory).close();
-
-            try (IndexReader mappedReader = DirectoryReader.open(mappedDirectory);
-                 IndexReader unmappedReader = DirectoryReader.open(unmappedDirectory);
-                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)) {
-
-                final IndexSearcher searcher = newSearcher(multiReader, true, true);
-
-                final InternalMissing internalMissing = searchAndReduce(searcher, newMatchAllQuery(), builder, fieldType);
-                assertEquals(0, internalMissing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-            }
-        }
-    }
-
     public void testMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
 
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name())
             .missing(randomLong());
 
@@ -410,21 +258,19 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
                 }
             },
-            (InternalMissing missing) -> {
-                assertEquals(0, missing.getDocCount());
-                assertFalse(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(0, internalMissing.getDocCount());
+                assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
     }
 
     public void testMultiValuedField() throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
 
         final int numDocs = randomIntBetween(100, 200);
@@ -448,9 +294,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (InternalMissing missing) -> {
-                assertEquals(finalDocsMissingAggField, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -465,12 +311,10 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     private void valueScriptTestCase(Script script) throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name())
             .script(script);
 
@@ -491,9 +335,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (InternalMissing missing) -> {
-                assertEquals(finalDocsMissingField, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             List.of(aggFieldType, anotherFieldType)
         );
@@ -511,10 +355,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     private void fieldScriptTestCase(Script script, long threshold) throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
-        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name", null)
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .script(script);
 
         final int numDocs = randomIntBetween(100, 200);
@@ -537,32 +380,29 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             newMatchAllQuery(),
             builder,
             writer -> writer.addDocuments(docs),
-            (InternalMissing missing) -> {
-                assertEquals(finalDocsBelowThreshold, missing.getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(missing));
+            internalMissing -> {
+                assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
             singleton(aggFieldType)
         );
     }
 
-    private <B extends AggregationBuilder, I extends InternalAggregation> void testCase(
-            Query query,
-            B builder,
-            CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
-            Consumer<I> verify,
-            Collection<MappedFieldType> fieldTypes) throws IOException {
-
+    private void testCase(Query query,
+                          MissingAggregationBuilder builder,
+                          CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
+                          Consumer<InternalMissing> verify,
+                          Collection<MappedFieldType> fieldTypes) throws IOException {
         testCaseWithReduce(query, builder, writeIndex, verify, fieldTypes, false);
         testCaseWithReduce(query, builder, writeIndex, verify, fieldTypes, true);
     }
 
-    private <B extends AggregationBuilder, I extends InternalAggregation> void testCaseWithReduce(
-            Query query,
-            B builder,
-            CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
-            Consumer<I> verify,
-            Collection<MappedFieldType> fieldTypes,
-            boolean reduced) throws IOException {
+    private void testCaseWithReduce(Query query,
+                                    MissingAggregationBuilder builder,
+                                    CheckedConsumer<RandomIndexWriter, IOException> writeIndex,
+                                    Consumer<InternalMissing> verify,
+                                    Collection<MappedFieldType> fieldTypes,
+                                    boolean reduced) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -572,20 +412,20 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final I result;
+                final InternalMissing missing;
                 if (reduced) {
-                    result = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
+                    missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
                 } else {
-                    result = search(indexSearcher, query, builder, fieldTypesArray);
+                    missing = search(indexSearcher, query, builder, fieldTypesArray);
                 }
-                verify.accept(result);
+                verify.accept(missing);
             }
         }
     }
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new MissingAggregationBuilder("_name", null)
+        return new MissingAggregationBuilder("_name")
             .field(fieldName);
     }
 
@@ -596,7 +436,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.HISTOGRAM
+            CoreValuesSourceType.IP,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE
         );
     }
 

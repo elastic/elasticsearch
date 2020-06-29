@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -179,14 +178,13 @@ final class S3ClientSettings {
     /**
      * Overrides the settings in this instance with settings found in repository metadata.
      *
-     * @param metadata RepositoryMetaData
+     * @param repositorySettings found in repository metadata
      * @return S3ClientSettings
      */
-    S3ClientSettings refine(RepositoryMetaData metadata) {
-        final Settings repoSettings = metadata.settings();
+    S3ClientSettings refine(Settings repositorySettings) {
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
         final Settings normalizedSettings =
-            Settings.builder().put(repoSettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
+            Settings.builder().put(repositorySettings).normalizePrefix(PREFIX + PLACEHOLDER_CLIENT + '.').build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
@@ -196,7 +194,7 @@ final class S3ClientSettings {
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
-        final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
+        final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
             DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
@@ -204,6 +202,7 @@ final class S3ClientSettings {
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
+            && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion) && Objects.equals(signerOverride, newSignerOverride)) {
             return this;
@@ -219,7 +218,7 @@ final class S3ClientSettings {
             newReadTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
-            usePathStyleAccess,
+            newPathStyleAccess,
             newDisableChunkedEncoding,
             newRegion,
             newSignerOverride

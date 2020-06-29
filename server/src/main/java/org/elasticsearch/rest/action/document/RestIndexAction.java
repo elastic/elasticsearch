@@ -90,7 +90,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public String getName() {
-            return "document_create_action";
+            return "document_create_action_auto_id";
         }
 
         @Override

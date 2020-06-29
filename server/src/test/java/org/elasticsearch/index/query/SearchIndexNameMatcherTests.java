@@ -22,10 +22,10 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -40,11 +40,11 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
 
     @Before
     public void setUpMatchers() {
-        MetaData.Builder metaDataBuilder = MetaData.builder()
-            .put(indexBuilder("index1").putAlias(AliasMetaData.builder("alias")))
-            .put(indexBuilder("index2").putAlias(AliasMetaData.builder("alias")))
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(indexBuilder("index1").putAlias(AliasMetadata.builder("alias")))
+            .put(indexBuilder("index2").putAlias(AliasMetadata.builder("alias")))
             .put(indexBuilder("index3"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(metaDataBuilder).build();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(metadataBuilder).build();
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
@@ -53,11 +53,11 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
         remoteMatcher = new SearchIndexNameMatcher("index1", "cluster", clusterService, new IndexNameExpressionResolver());
     }
 
-    private static IndexMetaData.Builder indexBuilder(String index) {
+    private static IndexMetadata.Builder indexBuilder(String index) {
         Settings.Builder settings = settings(Version.CURRENT).
-                put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
-        return IndexMetaData.builder(index).settings(settings);
+                put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        return IndexMetadata.builder(index).settings(settings);
     }
 
     public void testLocalIndex() {

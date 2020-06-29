@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
@@ -69,7 +69,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         return Settings.builder()
                 .put(super.createTestIndexSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
     }
 
@@ -233,8 +233,8 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         ShapeType shapeType = ShapeType.randomType(random());
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape) :
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape.buildGeometry());
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), matchesPattern("Field \\[mapped_string\\] is of unsupported type \\[text\\]." +
             " \\[geo_shape\\] query supports the following types \\[.*geo_shape.*\\]"));

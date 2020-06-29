@@ -23,8 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -43,8 +43,8 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
     public void testTrackFailedNodes() {
         int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         AllocationService allocationService = createAllocationService();
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
         DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
         for (int i = 0; i < 5; i++) {
@@ -52,7 +52,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoNodes)
-            .metaData(metaData).routingTable(RoutingTable.builder().addAsNew(metaData.index("idx")).build())
+            .metadata(metadata).routingTable(RoutingTable.builder().addAsNew(metadata.index("idx")).build())
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute");
         Set<String> failedNodeIds = new HashSet<>();

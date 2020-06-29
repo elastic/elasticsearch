@@ -46,7 +46,7 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 `<feed_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 +
 --
 If you do not specify one of these options, the API returns information about
@@ -58,9 +58,9 @@ all {dfeeds}.
 
 `allow_no_datafeeds`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
-
+[role="child_attributes"]
 [[ml-get-datafeed-stats-results]]
 ==== {api-response-body-title}
 
@@ -69,56 +69,74 @@ informational; you cannot update their values.
 
 `assignment_explanation`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
 `datafeed_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `node`::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-datafeeds]
++
+--
+[%collapsible%open]
+====
+`attributes`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
-`node`.`id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
+`ephemeral_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
-`node`.`name`::: The node name. For example, `0-o0tOo`.
+`id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
-`node`.`ephemeral_id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+`name`:::
+(string)
+The node name. For example, `0-o0tOo`.
 
-`node`.`transport_address`::: The host and port where transport HTTP connections are
-accepted. For example, `127.0.0.1:9300`.
-`node`.`attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
+`transport_address`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
 
 `state`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=state-datafeed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
 
 `timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this {dfeed}.
-
-`timing_stats`.`average_search_time_per_bucket_ms`:::
++
+--
+[%collapsible%open]
+====
+`average_search_time_per_bucket_ms`:::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-bucket-avg]
 
-`timing_stats`.`bucket_count`:::
+`bucket_count`:::
 (long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-count]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-count]
 
-`timing_stats`.`exponential_average_search_time_per_hour_ms`:::
+`exponential_average_search_time_per_hour_ms`:::
 (double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-exp-avg-hour]
 
-`timing_stats`.`job_id`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+`job_id`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`timing_stats`.`search_count`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-count]
+`search_count`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-count]
 
-`timing_stats`.`total_search_time_ms`:::
-include::{docdir}/ml/ml-shared.asciidoc[tag=search-time]
+`total_search_time_ms`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
+====
+--
 
 
 [[ml-get-datafeed-stats-response-codes]]

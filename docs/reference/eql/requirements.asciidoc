@@ -6,10 +6,9 @@
 <titleabbrev>Requirements</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 EQL is schema-less and works well with most common log formats.
-
 
 [TIP]
 ====
@@ -34,3 +33,10 @@ A field containing the event classification, such as `process`, `file`, or
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
 mapped as a <<date,`date`>> field.
+
+[NOTE]
+====
+You cannot use a <<nested,`nested`>> field datatype or the sub-fields of a
+`nested` field dataype as the timestamp or event category field. See
+<<eql-nested-fields>>.
+====

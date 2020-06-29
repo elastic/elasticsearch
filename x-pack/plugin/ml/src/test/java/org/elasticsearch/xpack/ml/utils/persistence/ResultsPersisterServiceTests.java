@@ -366,14 +366,14 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         };
     }
 
-    private static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
+    public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         CheckedConsumer<Integer, InterruptedException> sleeper = millis -> {};
         ThreadPool tp = mock(ThreadPool.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);

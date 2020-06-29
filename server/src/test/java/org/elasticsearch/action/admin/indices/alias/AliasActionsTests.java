@@ -108,6 +108,17 @@ public class AliasActionsTests extends ESTestCase {
         assertEquals("[filter] is unsupported for [" + action.actionType() + "]", e.getMessage());
     }
 
+    public void testMustExistOption() {
+        final boolean mustExist = randomBoolean();
+        AliasActions removeAliasAction = AliasActions.remove();
+        assertNull(removeAliasAction.mustExist());
+        removeAliasAction.mustExist(mustExist);
+        assertEquals(mustExist, removeAliasAction.mustExist());
+        AliasActions action = randomBoolean() ? AliasActions.add() : AliasActions.removeIndex();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.mustExist(mustExist));
+        assertEquals("[must_exist] is unsupported for [" + action.actionType() + "]", e.getMessage());
+    }
+
     public void testParseAdd() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);

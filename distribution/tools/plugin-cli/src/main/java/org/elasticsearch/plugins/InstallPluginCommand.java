@@ -330,8 +330,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final boolean isSnapshot,
         final String pluginId,
         final String platform
-    ) throws IOException,
-        UserException {
+    ) throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
             throw new UserException(
@@ -506,9 +505,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path tmpDir,
         final boolean officialPlugin,
         boolean isBatch
-    ) throws IOException,
-        PGPException,
-        UserException {
+    ) throws IOException, PGPException, UserException {
         Path zip = downloadZip(terminal, urlString, tmpDir, isBatch);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";

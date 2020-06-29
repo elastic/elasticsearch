@@ -72,7 +72,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         final RestHighLevelClient client = getHighLevelAdminClient();
         final CreateTokenRequest request = CreateTokenRequest.passwordGrant(username, password.getChars());
         final CreateTokenResponse response = client.security().createToken(request, RequestOptions.DEFAULT);
-        return new Tuple(response.getAccessToken(), response.getRefreshToken());
+        return Tuple.tuple(response.getAccessToken(), response.getRefreshToken());
     }
 
     protected void deleteUser(String username) throws IOException {

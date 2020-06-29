@@ -439,6 +439,10 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
     private static char[] getPasswordHash(Terminal terminal, Environment env, String cliPasswordValue) throws UserException {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
+        if (XPackSettings.FIPS_MODE_ENABLED.get(env.settings()) && hasher.name().toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            throw new UserException(ExitCodes.CONFIG, "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the " +
+                "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
+        }
         final char[] passwordHash;
         try (SecureString password = parsePassword(terminal, cliPasswordValue)) {
             passwordHash = hasher.hash(password);

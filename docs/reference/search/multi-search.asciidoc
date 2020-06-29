@@ -1,5 +1,8 @@
 [[search-multi-search]]
-=== Multi Search API
+=== Multi search API
+++++
+<titleabbrev>Multi search</titleabbrev>
+++++
 
 Executes several searches with a single API request.
 
@@ -16,14 +19,14 @@ GET twitter/_msearch
 [[search-multi-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_msearch`
+`GET /<target>/_msearch`
 
 
 [[search-multi-search-api-desc]]
 ==== {api-description-title}
 
 The multi search API executes several searches from a single API request.
-The format of the request is similar to the bulk API format and makes use 
+The format of the request is similar to the bulk API format and makes use
 of the newline delimited JSON (NDJSON) format.
 
 The structure is as follows:
@@ -50,14 +53,20 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 [[search-multi-search-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
 +
-To search all indices, use `_all` or omit this parameter.
+This list acts as a fallback if a search in the request body does not specify an
+`index` target.
++
+Wildcard (`*`) expressions are supported. To search all data streams and indices
+in a cluster, omit this parameter or use `_all` or `*`.
 
 [[search-multi-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 `ccs_minimize_roundtrips`::
 (Optional, boolean)
@@ -65,31 +74,32 @@ If `true`, network roundtrips between the coordinating node and remote clusters
 are minimized for {ccs} requests. Defaults to `true`. See
 <<ccs-network-delays>>.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
 `ignore_throttled`::
 (Optional, boolean)
-If `true`, concrete, expanded or aliased indices are ignored when throttled.
+If `true`, concrete, expanded or aliased indices are ignored when frozen.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_searches`::
 (Optional, integer)
-Maximum number of concurrent searches the multi search API can execute.
+Maximum number of concurrent searches the multi search API can execute. Defaults
+to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search thread pool size>>, 10)))+.
 
 `max_concurrent_shard_requests`::
 +
 --
 (Optional, integer)
 Maximum number of concurrent shard requests that each sub-search request
-executes per node.  Defaults to `5`. 
+executes per node.  Defaults to `5`.
 
 You can use this parameter to prevent a request from overloading a cluster. For
-example, a default request hits all indices in a cluster. This could cause shard
-request rejections if the number of shards per node is high.
+example, a default request hits all data streams and indices in a cluster. This
+could cause shard request rejections if the number of shards per node is high.
 
 In certain scenarios, parallelism isn't achieved through concurrent requests. In
 those cases, a low value in this  parameter could result in poor performance.
@@ -103,8 +113,13 @@ Defines a threshold that enforces a pre-filter roundtrip to prefilter search
 shards based on query rewriting if the number of shards the search request
 expands to exceeds the threshold. This filter roundtrip can limit the number of
 shards significantly if for instance a shard can not match any documents based
-on it's rewrite method i.e., if date filters are mandatory to match but the
-shard bounds and the query are disjoint. Defaults to `128`.
+on its rewrite method i.e., if date filters are mandatory to match but the
+shard bounds and the query are disjoint.
+When unspecified, the pre-filter phase is executed if any of these
+conditions is met:
+  - The request targets more than `128` shards.
+  - The request targets one or more read-only index.
+  - The primary sort of the query targets an indexed field.
 
 `rest_total_hits_as_int`::
 (Optional, boolean)
@@ -121,7 +136,7 @@ to a specific shard.
 --
 (Optional, string)
 Indicates whether global term and document frequencies should be used when
-scoring returned documents. 
+scoring returned documents.
 
 Options are:
 
@@ -134,7 +149,7 @@ This is usually faster but less accurate.
 Documents are scored using global term and document frequencies across all
 shards. This is usually slower but more accurate.
 --
-  
+
 `typed_keys`::
 (Optional, boolean)
 Specifies whether aggregation and suggester names should be prefixed by their
@@ -164,7 +179,7 @@ If `true`, the request does *not* return an error if a wildcard expression or
 This parameter also applies to <<indices-aliases,index aliases>> that point to a
 missing or closed index.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -174,8 +189,11 @@ included in the response. Defaults to `false`.
 
 `index`:::
 (Optional, string or array of strings)
-Index name or <<indices-aliases,alias>> used to limit the request. Wildcard
-expressions are supported. You can specify multiple indices as an array.
+Data streams, indices, and index aliases to search. Wildcard (`*`) expressions
+are supported. You can specify multiple targets as an array.
++
+If this parameter is not specified, the `<target>` request path parameter
+is used as a fallback.
 
 `preference`:::
 (Optional, string)
@@ -196,7 +214,7 @@ to a specific shard.
 --
 (Optional, string)
 Indicates whether global term and document frequencies should be used when
-scoring returned documents. 
+scoring returned documents.
 
 Options are:
 
@@ -234,18 +252,19 @@ Number of hits to return. Defaults to `10`.
 ==== {api-response-body-title}
 
 `responses`::
-  (array) Includes the search response and status code for each search request 
-  matching its order in the original multi search request. If there was a  
-  complete failure for a specific search request, an object with `error` message 
-  and corresponding status code will be returned in place of the actual search 
+  (array) Includes the search response and status code for each search request
+  matching its order in the original multi search request. If there was a
+  complete failure for a specific search request, an object with `error` message
+  and corresponding status code will be returned in place of the actual search
   response.
 
 
 [[search-multi-search-api-example]]
 ==== {api-examples-title}
 
-The header part includes which index / indices to search on, the `search_type`, 
-`preference`, and `routing`. The body includes the typical search body request 
+The header part includes which data streams, indices, and index aliases to
+search. The header also indicates the `search_type`,
+`preference`, and `routing`. The body includes the typical search body request
 (including the `query`, `aggregations`, `from`, `size`, and so on).
 
 [source,js]
@@ -274,9 +293,9 @@ Note, the above includes an example of an empty header (can also be just
 without any content) which is supported as well.
 
 
-The endpoint allows to also search against an index/indices in the URI itself,
-in which case it will be used as the default unless explicitly defined otherwise
-in the header. For example:
+The endpoint also allows you to search against data streams, indices, and index
+aliases in the request path. In this case, it will be used as the default target
+unless explicitly specified in the header's `index` parameter. For example:
 
 [source,console]
 --------------------------------------------------
@@ -291,8 +310,8 @@ GET twitter/_msearch
 // TEST[setup:twitter]
 
 The above will execute the search against the `twitter` index for all the
-requests that don't define an index, and the last one will be executed
-against the `twitter2` index.
+requests that don't define an `index` target in the request body. The last
+search will be executed against the `twitter2` index.
 
 The `search_type` can be set in a similar manner to globally apply to
 all search requests.
@@ -308,7 +327,7 @@ See <<url-access-control>>
 ==== Template support
 
 Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows for inline 
+also provides support for templates. Submit them like follows for inline
 templates:
 
 [source,console]
@@ -377,6 +396,6 @@ GET _msearch/template
 [[multi-search-partial-responses]]
 ==== Partial responses
 
-To ensure fast responses, the multi search API will respond with partial results 
-if one or more shards fail. See <<shard-failures, Shard failures>> for more 
+To ensure fast responses, the multi search API will respond with partial results
+if one or more shards fail. See <<shard-failures, Shard failures>> for more
 information.

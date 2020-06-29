@@ -16,7 +16,8 @@ Depending on the language, an uppercase character can map to multiple
 lowercase characters. Using the `uppercase` filter could result in the loss of
 lowercase character information.
 
-To avoid this loss but still have a consistent lettercase, use the <<analysis-lowercase-tokenfilter,`lowercase`>> filter instead.
+To avoid this loss but still have a consistent letter case, use the
+<<analysis-lowercase-tokenfilter,`lowercase`>> filter instead.
 ====
 
 [[analysis-uppercase-tokenfilter-analyze-ex]]

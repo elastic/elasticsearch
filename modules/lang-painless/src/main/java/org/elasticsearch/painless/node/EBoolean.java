@@ -20,51 +20,49 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a boolean constant.
  */
-public final class EBoolean extends AExpression {
+public class EBoolean extends AExpression {
 
-    protected boolean constant;
+    private final boolean bool;
 
-    public EBoolean(Location location, boolean constant) {
-        super(location);
+    public EBoolean(int identifier, Location location, boolean bool) {
+        super(identifier, location);
 
-        this.constant = constant;
+        this.bool = bool;
+    }
+
+    public boolean getBool() {
+        return bool;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to boolean constant [" + bool + "]"));
+        }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+            throw createError(new IllegalArgumentException("not a statement: boolean constant [" + bool + "] not used"));
         }
+
+        Output output = new Output();
 
         output.actual = boolean.class;
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
+        constantNode.setConstant(bool);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(constant);
+        return output;
     }
 }

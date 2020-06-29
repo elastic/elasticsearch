@@ -69,7 +69,7 @@ import org.elasticsearch.client.slm.SnapshotLifecycleStats;
 import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.client.slm.StartSLMRequest;
 import org.elasticsearch.client.slm.StopSLMRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -361,7 +361,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put("index.lifecycle.name", "my_policy")
                     .put("index.lifecycle.rollover_alias", "my_alias")
                     .build());
@@ -369,7 +369,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .build());
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
 
@@ -623,7 +623,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -688,7 +688,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
             .settings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.lifecycle.name", "my_policy")
                 .build());
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);

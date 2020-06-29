@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -120,10 +120,10 @@ public class AllocationDeciders extends AllocationDecider {
     }
 
     @Override
-    public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
-            Decision decision = allocationDecider.canAllocate(indexMetaData, node, allocation);
+            Decision decision = allocationDecider.canAllocate(indexMetadata, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (!allocation.debugDecision()) {
@@ -139,10 +139,10 @@ public class AllocationDeciders extends AllocationDecider {
     }
 
     @Override
-    public Decision shouldAutoExpandToNode(IndexMetaData indexMetaData, DiscoveryNode node, RoutingAllocation allocation) {
+    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
-            Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetaData, node, allocation);
+            Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetadata, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (!allocation.debugDecision()) {

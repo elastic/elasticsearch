@@ -20,29 +20,31 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * Represents a null constant.
  */
-public final class ENull extends AExpression {
+public class ENull extends AExpression {
 
-    public ENull(Location location) {
-        super(location);
+    public ENull(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
+        }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from null constant."));
+            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
+
+        Output output = new Output();
 
         if (input.expected != null) {
             if (input.expected.isPrimitive()) {
@@ -55,21 +57,13 @@ public final class ENull extends AExpression {
             output.actual = Object.class;
         }
 
-        return output;
-    }
-
-    @Override
-    NullNode write(ClassNode classNode) {
         NullNode nullNode = new NullNode();
 
-        nullNode.setLocation(location);
+        nullNode.setLocation(getLocation());
         nullNode.setExpressionType(output.actual);
 
-        return nullNode;
-    }
+        output.expressionNode = nullNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString();
+        return output;
     }
 }

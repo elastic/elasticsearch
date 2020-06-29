@@ -57,7 +57,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     @Override
     protected void doExecute(Task task, GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, true);
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
@@ -91,7 +91,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mergedResponses = new HashMap<>();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {

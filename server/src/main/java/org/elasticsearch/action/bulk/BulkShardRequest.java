@@ -19,8 +19,14 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,17 +34,22 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
 
-    private BulkItemRequest[] items;
+    public static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
+
+    private final BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = new BulkItemRequest[in.readVInt()];
+        final ShardId itemShardId = in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? shardId : null;
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {
-                items[i] = new BulkItemRequest(in);
+                items[i] = new BulkItemRequest(itemShardId, in);
             }
         }
     }
@@ -47,6 +58,24 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+    }
+
+    public long totalSizeInBytes() {
+        long totalSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                if (((IndexRequest) request).source() != null) {
+                    totalSizeInBytes += ((IndexRequest) request).source().length();
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                }
+            }
+        }
+        return totalSizeInBytes;
     }
 
     public BulkItemRequest[] items() {
@@ -74,12 +103,18 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(items.length);
-        for (BulkItemRequest item : items) {
-            if (item != null) {
-                out.writeBoolean(true);
-                item.writeTo(out);
-            } else {
-                out.writeBoolean(false);
+        if (out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
+            for (BulkItemRequest item : items) {
+                if (item != null) {
+                    out.writeBoolean(true);
+                    item.writeThin(out);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
+        } else {
+            for (BulkItemRequest item : items) {
+                out.writeOptionalWriteable(item);
             }
         }
     }
@@ -132,5 +167,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

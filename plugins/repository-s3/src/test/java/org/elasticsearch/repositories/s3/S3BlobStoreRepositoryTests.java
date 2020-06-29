@@ -19,18 +19,20 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +69,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(5L);
+    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
 
     private String region;
     private String signerOverride;
@@ -108,12 +110,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/bucket", new S3BlobStoreHttpHandler("bucket"));
+        return Collections.singletonMap("/bucket", new S3StatsCollectorHttpHandler(new S3BlobStoreHttpHandler("bucket")));
     }
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "PUT", "POST");
     }
 
     @Override
@@ -149,12 +156,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        final RepositoryData repositoryData =
-            PlainActionFuture.get(f -> repository.threadPool().generic().execute(() -> repository.getRepositoryData(f)));
+        final RepositoryData repositoryData = getRepositoryData(repository);
         final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
             SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
-        final BytesReference serialized =
-            BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), false));
+        final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
+            SnapshotsService.OLD_SNAPSHOT_FORMAT));
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () -> {
             try (InputStream stream = serialized.streamInput()) {
                 repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
@@ -193,7 +199,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata, NamedXContentRegistry registry,
+        protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
                                                 ClusterService clusterService) {
             return new S3Repository(metadata, registry, service, clusterService) {
 
@@ -264,6 +270,36 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
             return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+        }
+    }
+
+    /**
+     * HTTP handler that tracks the number of requests performed against S3.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+    private static class S3StatsCollectorHttpHandler extends HttpStatsCollectorHandler {
+
+        S3StatsCollectorHttpHandler(final HttpHandler delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public void maybeTrack(final String request, Headers requestHeaders) {
+            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+                trackRequest("LIST");
+            } else if (Regex.simpleMatch("GET /*/*", request)) {
+                trackRequest("GET");
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("POST");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
+            }
+        }
+
+        private boolean isMultiPartUpload(String request) {
+            return Regex.simpleMatch("POST /*/*?uploads", request) ||
+                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
+                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }

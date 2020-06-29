@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
@@ -31,8 +30,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
@@ -41,12 +43,14 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -71,7 +75,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final String modelId;
 
     private final String targetField;
-    private final InferenceConfig inferenceConfig;
+    private final InferenceConfigUpdate inferenceConfig;
     private final Map<String, String> fieldMap;
     private final InferenceAuditor auditor;
     private volatile boolean previouslyLicensed;
@@ -80,11 +84,12 @@ public class InferenceProcessor extends AbstractProcessor {
     public InferenceProcessor(Client client,
                               InferenceAuditor auditor,
                               String tag,
+                              String description,
                               String targetField,
                               String modelId,
-                              InferenceConfig inferenceConfig,
+                              InferenceConfigUpdate inferenceConfig,
                               Map<String, String> fieldMap) {
-        super(tag);
+        super(tag, description);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
@@ -162,6 +167,9 @@ public class InferenceProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
+        private static final String FOREACH_PROCESSOR_NAME = "foreach";
+        //Any more than 10 nestings of processors, we stop searching for inference processor definitions
+        private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
@@ -169,19 +177,14 @@ public class InferenceProcessor extends AbstractProcessor {
             MODEL_ID));
 
         private final Client client;
-        private final IngestService ingestService;
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
 
-        public Factory(Client client,
-                       ClusterService clusterService,
-                       Settings settings,
-                       IngestService ingestService) {
+        public Factory(Client client, ClusterService clusterService, Settings settings) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.ingestService = ingestService;
             this.auditor = new InferenceAuditor(client, clusterService.getNodeName());
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
@@ -189,12 +192,12 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
-            MetaData metaData = state.getMetaData();
-            if (metaData == null) {
+            Metadata metadata = state.getMetadata();
+            if (metadata == null) {
                 currentInferenceProcessors = 0;
                 return;
             }
-            IngestMetadata ingestMetadata = metaData.custom(IngestMetadata.TYPE);
+            IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
             if (ingestMetadata == null) {
                 currentInferenceProcessors = 0;
                 return;
@@ -202,17 +205,64 @@ public class InferenceProcessor extends AbstractProcessor {
 
             int count = 0;
             for (PipelineConfiguration configuration : ingestMetadata.getPipelines().values()) {
+                Map<String, Object> configMap = configuration.getConfigAsMap();
                 try {
-                    Pipeline pipeline = Pipeline.create(configuration.getId(),
-                        configuration.getConfigAsMap(),
-                        ingestService.getProcessorFactories(),
-                        ingestService.getScriptService());
-                    count += pipeline.getProcessors().stream().filter(processor -> processor instanceof InferenceProcessor).count();
+                    List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+                    for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                        for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                            count += numInferenceProcessors(entry.getKey(), entry.getValue());
+                        }
+                    }
+                // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
-                    logger.warn(new ParameterizedMessage("failure parsing pipeline config [{}]", configuration.getId()), ex);
+                    logger.debug(
+                        () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
+                        ex);
                 }
             }
             currentInferenceProcessors = count;
+        }
+
+        @SuppressWarnings("unchecked")
+        static int numInferenceProcessors(String processorType, Object processorDefinition) {
+            return numInferenceProcessors(processorType, (Map<String, Object>)processorDefinition, 0);
+        }
+
+        @SuppressWarnings("unchecked")
+        static int numInferenceProcessors(String processorType, Map<String, Object> processorDefinition, int level) {
+            int count = 0;
+            // arbitrary, but we must limit this somehow
+            if (level > MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS) {
+                return count;
+            }
+            if (processorType == null || processorDefinition == null) {
+                return count;
+            }
+            if (TYPE.equals(processorType)) {
+                count++;
+            }
+            if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
+                Map<String, Object> innerProcessor = (Map<String, Object>)processorDefinition.get("processor");
+                if (innerProcessor != null) {
+                    // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
+                    for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
+                        count += numInferenceProcessors(innerProcessorWithName.getKey(),
+                            (Map<String, Object>) innerProcessorWithName.getValue(),
+                            level + 1);
+                    }
+                }
+            }
+            if (processorDefinition.containsKey(Pipeline.ON_FAILURE_KEY)) {
+                List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
+                    null,
+                    null,
+                    processorDefinition,
+                    Pipeline.ON_FAILURE_KEY);
+                count += onFailureConfigs.stream()
+                    .flatMap(map -> map.entrySet().stream())
+                    .mapToInt(entry -> numInferenceProcessors(entry.getKey(), (Map<String, Object>)entry.getValue(), level + 1)).sum();
+            }
+            return count;
         }
 
         // Used for testing
@@ -221,7 +271,8 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                         Map<String, Object> config) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
@@ -242,14 +293,16 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
                 //TODO Remove in 8.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
-            InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
+            InferenceConfigUpdate inferenceConfig =
+                inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
 
             return new InferenceProcessor(client,
                 auditor,
                 tag,
+                description,
                 targetField,
                 modelId,
                 inferenceConfig,
@@ -262,7 +315,7 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
+        InferenceConfigUpdate inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
             if (inferenceConfig.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
@@ -279,12 +332,12 @@ public class InferenceProcessor extends AbstractProcessor {
 
             if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
-                ClassificationConfig config = ClassificationConfig.fromMap(valueMap);
+                ClassificationConfigUpdate config = ClassificationConfigUpdate.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
                 return config;
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
-                RegressionConfig config = RegressionConfig.fromMap(valueMap);
+                RegressionConfigUpdate config = RegressionConfigUpdate.fromMap(valueMap);
                 checkFieldUniqueness(config.getResultsField());
                 return config;
             } else {
@@ -298,6 +351,9 @@ public class InferenceProcessor extends AbstractProcessor {
             Set<String> duplicatedFieldNames = new HashSet<>();
             Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
             for(String fieldName : fieldNames) {
+                if (fieldName == null) {
+                    continue;
+                }
                 if (currentFieldNames.contains(fieldName)) {
                     duplicatedFieldNames.add(fieldName);
                 } else {

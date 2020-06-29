@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -32,69 +32,74 @@ import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class ERegex extends AExpression {
+public class ERegex extends AExpression {
 
     private final String pattern;
-    private final int flags;
-    private String name;
+    private final String flags;
 
-    public ERegex(Location location, String pattern, String flagsString) {
-        super(location);
+    public ERegex(int identifier, Location location, String pattern, String flags) {
+        super(identifier, location);
 
-        this.pattern = pattern;
+        this.pattern = Objects.requireNonNull(pattern);
+        this.flags = Objects.requireNonNull(flags);
+    }
 
-        int flags = 0;
+    public String getPattern() {
+        return pattern;
+    }
 
-        for (int c = 0; c < flagsString.length(); c++) {
-            flags |= flagForChar(flagsString.charAt(c));
-        }
-
-        this.flags = flags;
+    public String getFlags() {
+        return flags;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
+        }
 
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
+        }
 
-        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
+        Output output = new Output();
+
+        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
         }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
+        int flags = 0;
+
+        for (int c = 0; c < this.flags.length(); c++) {
+            flags |= flagForChar(this.flags.charAt(c));
         }
 
         try {
             Pattern.compile(pattern, flags);
         } catch (PatternSyntaxException e) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
+            throw new Location(getLocation().getSourceName(), getLocation().getOffset() + 1 + e.getIndex()).createError(
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        name = scriptRoot.getNextSyntheticName("regex");
+        String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
         output.actual = Pattern.class;
 
-        return output;
-    }
-
-    @Override
-    MemberFieldLoadNode write(ClassNode classNode) {
         FieldNode fieldNode = new FieldNode();
-        fieldNode.setLocation(location);
+        fieldNode.setLocation(getLocation());
         fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
         fieldNode.setFieldType(Pattern.class);
         fieldNode.setName(name);
@@ -103,13 +108,13 @@ public final class ERegex extends AExpression {
 
         try {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
-            statementExpressionNode.setLocation(location);
+            statementExpressionNode.setLocation(getLocation());
 
             BlockNode blockNode = classNode.getClinitBlockNode();
             blockNode.addStatementNode(statementExpressionNode);
 
             MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();
-            memberFieldStoreNode.setLocation(location);
+            memberFieldStoreNode.setLocation(getLocation());
             memberFieldStoreNode.setExpressionType(void.class);
             memberFieldStoreNode.setFieldType(Pattern.class);
             memberFieldStoreNode.setName(name);
@@ -118,19 +123,19 @@ public final class ERegex extends AExpression {
             statementExpressionNode.setExpressionNode(memberFieldStoreNode);
 
             CallNode callNode = new CallNode();
-            callNode.setLocation(location);
+            callNode.setLocation(getLocation());
             callNode.setExpressionType(Pattern.class);
 
             memberFieldStoreNode.setChildNode(callNode);
 
             StaticNode staticNode = new StaticNode();
-            staticNode.setLocation(location);
+            staticNode.setLocation(getLocation());
             staticNode.setExpressionType(Pattern.class);
 
             callNode.setLeftNode(staticNode);
 
             CallSubNode callSubNode = new CallSubNode();
-            callSubNode.setLocation(location);
+            callSubNode.setLocation(getLocation());
             callSubNode.setExpressionType(Pattern.class);
             callSubNode.setBox(Pattern.class);
             callSubNode.setMethod(new PainlessMethod(
@@ -147,14 +152,14 @@ public final class ERegex extends AExpression {
             callNode.setRightNode(callSubNode);
 
             ConstantNode constantNode = new ConstantNode();
-            constantNode.setLocation(location);
+            constantNode.setLocation(getLocation());
             constantNode.setExpressionType(String.class);
             constantNode.setConstant(pattern);
 
             callSubNode.addArgumentNode(constantNode);
 
             constantNode = new ConstantNode();
-            constantNode.setLocation(location);
+            constantNode.setLocation(getLocation());
             constantNode.setExpressionType(int.class);
             constantNode.setConstant(flags);
 
@@ -164,12 +169,14 @@ public final class ERegex extends AExpression {
         }
 
         MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
-        memberFieldLoadNode.setLocation(location);
+        memberFieldLoadNode.setLocation(getLocation());
         memberFieldLoadNode.setExpressionType(Pattern.class);
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
 
-        return memberFieldLoadNode;
+        output.expressionNode = memberFieldLoadNode;
+
+        return output;
     }
 
     private int flagForChar(char c) {
@@ -185,24 +192,5 @@ public final class ERegex extends AExpression {
             default:
                 throw new IllegalArgumentException("Unknown flag [" + c + "]");
         }
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder f = new StringBuilder();
-        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
-        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
-        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
-        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
-        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
-        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
-        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
-        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
-
-        String p = "/" + pattern + "/";
-        if (f.length() == 0) {
-            return singleLineToString(p);
-        }
-        return singleLineToString(p, f);
     }
 }

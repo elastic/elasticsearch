@@ -188,20 +188,15 @@ or flight stats for any of the featured destination or origin airports.
 
 
 [[example-clientips]]
-==== Finding suspicious client IPs by using scripted metrics
+==== Finding suspicious client IPs
 
-With {transforms}, you can use 
-{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted 
-metric aggregations] on your data. These aggregations are flexible and make 
-it possible to perform very complex processing. Let's use scripted metrics to 
-identify suspicious client IPs in the web log sample dataset.
-
-We transform the data such that the new index contains the sum of bytes and the 
-number of distinct URLs, agents, incoming requests by location, and geographic 
-destinations for each client IP. We also use a scripted field to count the 
-specific types of HTTP responses that each client IP receives. Ultimately, the 
-example below transforms web log data into an entity centric index where the 
-entity is `clientip`.
+In this example, we use the web log sample dataset to identify suspicious client 
+IPs. We transform the data such that the new index contains the sum of bytes and 
+the number of distinct URLs, agents, incoming requests by location, and 
+geographic destinations for each client IP. We also use filter aggregations to 
+count the specific types of HTTP responses that each client IP receives. 
+Ultimately, the example below transforms web log data into an entity centric 
+index where the entity is `clientip`.
 
 [source,console]
 ----------------------------------
@@ -230,30 +225,17 @@ PUT _transform/suspicious_client_ips
       "agent_dc": { "cardinality": { "field": "agent.keyword" }},
       "geo.dest_dc": { "cardinality": { "field": "geo.dest" }},
       "responses.total": { "value_count": { "field": "timestamp" }},
-      "responses.counts": { <4>
-        "scripted_metric": { 
-          "init_script": "state.responses = ['error':0L,'success':0L,'other':0L]",
-          "map_script": """
-            def code = doc['response.keyword'].value;
-            if (code.startsWith('5') || code.startsWith('4')) {
-              state.responses.error += 1 ;
-            } else if(code.startsWith('2')) {
-              state.responses.success += 1;
-            } else {
-              state.responses.other += 1;
-            }
-            """,
-          "combine_script": "state.responses",
-          "reduce_script": """
-            def counts = ['error': 0L, 'success': 0L, 'other': 0L];
-            for (responses in states) {
-              counts.error += responses['error'];
-              counts.success += responses['success'];
-              counts.other += responses['other'];
-            }
-            return counts;
-            """
-          }
+      "success" : { <4>
+         "filter": { 
+            "term": { "response" : "200"}} 
+        },
+      "error404" : {
+         "filter": { 
+            "term": { "response" : "404"}}
+        },
+      "error503" : {
+         "filter": { 
+            "term": { "response" : "503"}}
         },
       "timestamp.min": { "min": { "field": "timestamp" }},
       "timestamp.max": { "max": { "field": "timestamp" }},
@@ -277,10 +259,12 @@ PUT _transform/suspicious_client_ips
 to synchronize the source and destination indices. The worst case
 ingestion delay is 60 seconds.
 <3> The data is grouped by the `clientip` field.
-<4> This `scripted_metric` performs a distributed operation on the web log data
-to count specific types of HTTP responses (error, success, and other).
+<4> Filter aggregation that counts the occurrences of successful (`200`) 
+responses in the `response` field. The following two aggregations (`error404` 
+and `error503`) count the error responses by error codes.
 <5> This `bucket_script` calculates the duration of the `clientip` access based
 on the results of the aggregation.
+
 
 After you create the {transform}, you must start it:
 
@@ -290,6 +274,7 @@ POST _transform/suspicious_client_ips/_start
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
+
 Shortly thereafter, the first results should be available in the destination
 index:
 
@@ -298,6 +283,7 @@ index:
 GET sample_weblogs_by_clientip/_search
 ----------------------------------
 // TEST[skip:setup kibana sample data]
+
 
 The search result shows you data like this for each client IP:
 
@@ -313,22 +299,20 @@ The search result shows you data like this for each client IP:
             "src_dc" : 2.0,
             "dest_dc" : 2.0
           },
+          "success" : 2,
+          "error404" : 0,
+          "error503" : 0,
           "clientip" : "0.72.176.46",
           "agent_dc" : 2.0,
           "bytes_sum" : 4422.0,
           "responses" : {
-            "total" : 2.0,
-            "counts" : {
-              "other" : 0,
-              "success" : 2,
-              "error" : 0
-            }
+            "total" : 2.0
           },
           "url_dc" : 2.0,
           "timestamp" : {
             "duration_ms" : 5.2191698E8,
-            "min" : "2019-11-25T07:51:57.333Z",
-            "max" : "2019-12-01T08:50:34.313Z"
+            "min" : "2020-03-16T07:51:57.333Z",
+            "max" : "2020-03-22T08:50:34.313Z"
           }
         }
       }
@@ -337,10 +321,11 @@ The search result shows you data like this for each client IP:
 // NOTCONSOLE
 
 NOTE: Like other Kibana sample data sets, the web log sample dataset contains
-timestamps relative to when you installed it, including timestamps in the future.
-The {ctransform} will pick up the data points once they are in the past. If you 
-installed the web log sample dataset some time ago, you can uninstall and 
+timestamps relative to when you installed it, including timestamps in the 
+future. The {ctransform} will pick up the data points once they are in the past. 
+If you installed the web log sample dataset some time ago, you can uninstall and 
 reinstall it and the timestamps will change.
+
 
 This {transform} makes it easier to answer questions such as:
 

@@ -92,7 +92,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 2:
             default:
-                query = new RangeQueryBuilder(randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME));
+                query = new RangeQueryBuilder(randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME));
                 query.from("a" + randomAlphaOfLengthBetween(1, 10));
                 query.to("z" + randomAlphaOfLengthBetween(1, 10));
                 break;
@@ -136,9 +136,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (context.getMapperService().fieldType(queryBuilder.fieldName()).hasDocValues()) {
+            final MappedFieldType resolvedFieldType = context.getMapperService().fieldType(queryBuilder.fieldName());
+            if (resolvedFieldType.hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.getMapperService().fieldType(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (context.getMapperService().fieldType(resolvedFieldType.name())
+                .getTextSearchInfo().hasNorms()) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));

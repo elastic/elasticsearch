@@ -43,8 +43,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -92,9 +92,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
+                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
+                                    WriteMemoryLimits writeMemoryLimits) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
+            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false, writeMemoryLimits);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -110,7 +111,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
@@ -138,6 +139,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
     }
 
+    @Override
+    protected long primaryOperationSize(BulkShardRequest request) {
+        return request.ramBytesUsed();
+    }
+
     public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
@@ -153,6 +159,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
+            final long startBulkTime = System.nanoTime();
+
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
@@ -164,6 +172,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
                     assert context.isInitial(); // either completed and moved to next or reset
                 }
+                primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 finishRequest();
             }
@@ -234,9 +243,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case CREATED:
                 case UPDATED:
                     IndexRequest indexRequest = updateResult.action();
-                    IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
-                    MappingMetaData mappingMd = metaData.mapping();
-                    indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                    IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
+                    MappingMetadata mappingMd = metadata.mapping();
+                    indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
                     break;
                 case DELETED:
@@ -404,9 +413,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-        final Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult<>(request, location, null, replica, logger);
+    protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final long startBulkTime = System.nanoTime();
+            final Translog.Location location = performOnReplica(request, replica);
+            replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
+            return new WriteReplicaResult<>(request, location, null, replica, logger);
+        });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardRequest request) {
+        return request.ramBytesUsed();
     }
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {

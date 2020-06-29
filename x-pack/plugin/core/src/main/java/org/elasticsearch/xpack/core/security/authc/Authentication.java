@@ -77,6 +77,10 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    /**
+     * Get the realm where the effective user comes from.
+     * The effective user is the es-security-runas-user if present or the authenticated user.
+     */
     public RealmRef getSourceRealm() {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }

@@ -115,7 +115,7 @@ public class SysTypes extends Command {
                         null
                         ))
                 .collect(toList());
-        
+
         listener.onResponse(of(session, rows));
     }
 

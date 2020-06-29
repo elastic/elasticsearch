@@ -29,7 +29,7 @@ import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -67,7 +67,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             .getSharedServices()
             .registerIfAbsent(DOCKER_COMPOSE_THROTTLE, DockerComposeThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
 
-        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );

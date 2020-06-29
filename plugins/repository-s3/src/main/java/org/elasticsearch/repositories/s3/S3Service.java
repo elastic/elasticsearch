@@ -31,7 +31,7 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -55,9 +55,9 @@ class S3Service implements Closeable {
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
-     * in the {@link RepositoryMetaData}.
+     * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<S3ClientSettings, Map<RepositoryMetaData, S3ClientSettings>> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -79,8 +79,8 @@ class S3Service implements Closeable {
      * Attempts to retrieve a client by its repository metadata and settings from the cache.
      * If the client does not exist it will be created.
      */
-    public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
-        final S3ClientSettings clientSettings = settings(repositoryMetaData);
+    public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
+        final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
             final AmazonS3Reference clientReference = clientsCache.get(clientSettings);
             if (clientReference != null && clientReference.tryIncRef()) {
@@ -100,34 +100,29 @@ class S3Service implements Closeable {
     }
 
     /**
-     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetaData} from cached settings or creates them
+     * Either fetches {@link S3ClientSettings} for a given {@link RepositoryMetadata} from cached settings or creates them
      * by overriding static client settings from {@link #staticClientSettings} with settings found in the repository metadata.
-     * @param repositoryMetaData Repository Metadata
+     * @param repositoryMetadata Repository Metadata
      * @return S3ClientSettings
      */
-    S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
-        final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
+    S3ClientSettings settings(RepositoryMetadata repositoryMetadata) {
+        final Settings settings = repositoryMetadata.settings();
+        {
+            final S3ClientSettings existing = derivedClientSettings.get(settings);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        final String clientName = S3Repository.CLIENT_NAME.get(settings);
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
-            {
-                final S3ClientSettings existing = derivedClientSettings.getOrDefault(staticSettings, emptyMap()).get(repositoryMetaData);
-                if (existing != null) {
-                    return existing;
-                }
-            }
             synchronized (this) {
-                final Map<RepositoryMetaData, S3ClientSettings> derivedSettings =
-                    derivedClientSettings.getOrDefault(staticSettings, emptyMap());
-                final S3ClientSettings existing = derivedSettings.get(repositoryMetaData);
+                final S3ClientSettings existing = derivedClientSettings.get(settings);
                 if (existing != null) {
                     return existing;
                 }
-                final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
-                derivedClientSettings =
-                        Maps.copyMayWithAddedOrReplacedEntry(
-                                derivedClientSettings,
-                                staticSettings,
-                                Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetaData, newSettings));
+                final S3ClientSettings newSettings = staticSettings.refine(settings);
+                derivedClientSettings = Maps.copyMapWithAddedOrReplacedEntry(derivedClientSettings, settings, newSettings);
                 return newSettings;
             }
         }
@@ -141,7 +136,12 @@ class S3Service implements Closeable {
         builder.withCredentials(buildCredentials(logger, clientSettings));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
-        final String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+            // TODO: Remove this once fixed in the AWS SDK
+            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        }
         final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
         logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
 
@@ -160,7 +160,7 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return builder.build();
+        return SocketAccess.doPrivileged(builder::build);
     }
 
     // pkg private for tests
@@ -209,6 +209,7 @@ class S3Service implements Closeable {
         }
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
+        derivedClientSettings = emptyMap();
         // shutdown IdleConnectionReaper background thread
         // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();

@@ -73,7 +73,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
             .setNodesIds(nodesIds);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
+                final NodesReloadSecureSettingsRequest nodesRequest = PARSER.parse(parser, null);
                 nodesRequestBuilder.setSecureStorePassword(nodesRequest.getSecureSettingsPassword());
             }
         });

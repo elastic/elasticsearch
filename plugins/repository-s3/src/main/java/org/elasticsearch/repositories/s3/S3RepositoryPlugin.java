@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +77,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     // proxy method for testing
     protected S3Repository createRepository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService) {
         return new S3Repository(metadata, registry, service, clusterService);

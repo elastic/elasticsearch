@@ -22,7 +22,7 @@ package org.elasticsearch.index.replication;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -77,8 +77,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testOutOfOrderRetentionLeasesRequests() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(1, 2);
-        IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
                 listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
@@ -104,8 +104,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testSyncRetentionLeasesWithPrimaryPromotion() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         int numberOfReplicas = between(2, 4);
-        IndexMetaData indexMetaData = buildIndexMetaData(numberOfReplicas, settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
                 listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
@@ -151,7 +151,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings.put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();

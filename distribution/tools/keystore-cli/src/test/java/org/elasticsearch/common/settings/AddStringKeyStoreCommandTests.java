@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.env.Environment;
+
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -155,6 +155,19 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value", password);
     }
 
+    public void testPromptForMultipleValues() throws Exception {
+        final String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("bar1");
+        terminal.addSecretInput("bar2");
+        terminal.addSecretInput("bar3");
+        execute("foo1", "foo2", "foo3");
+        assertSecureString("foo1", "bar1", password);
+        assertSecureString("foo2", "bar2", password);
+        assertSecureString("foo3", "bar3", password);
+    }
+
     public void testStdinShort() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
@@ -200,6 +213,17 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 
+    public void testStdinWithMultipleValues() throws Exception {
+        final String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        setInput("bar1\nbar2\nbar3");
+        execute(randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3");
+        assertSecureString("foo1", "bar1", password);
+        assertSecureString("foo2", "bar2", password);
+        assertSecureString("foo3", "bar3", password);
+    }
+
     public void testAddUtf8String() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
@@ -223,7 +247,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addTextInput("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("The setting name can not be null"));
+        assertThat(e.getMessage(), containsString("the setting names can not be empty"));
     }
 
     public void testSpecialCharacterInName() throws Exception {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,6 +34,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
@@ -290,6 +292,24 @@ public class GeometryIndexerTests extends ESTestCase {
 
         multiPoint = new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(4, 3, 10)));
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
+    }
+
+    public void testRectangle() {
+        Rectangle indexed = new Rectangle(-179, -178, 10, -10);
+        Geometry processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // a rectangle is broken into two triangles
+        List<IndexableField> fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 2);
+
+        indexed = new Rectangle(179, -179, 10, -10);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // a rectangle crossing the dateline is broken into 4 triangles
+        fields = indexer.indexShape(null, indexed);
+        assertEquals(fields.size(), 4);
     }
 
     public void testPolygon() {

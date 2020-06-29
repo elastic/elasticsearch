@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -74,7 +74,7 @@ public class AllocationDecidersTests extends ESTestCase {
             }
 
             @Override
-            public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
                 return Decision.YES;
             }
 
@@ -84,7 +84,7 @@ public class AllocationDecidersTests extends ESTestCase {
             }
 
             @Override
-            public Decision shouldAutoExpandToNode(IndexMetaData indexMetaData, DiscoveryNode node, RoutingAllocation allocation) {
+            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
                 return Decision.YES;
             }
 
@@ -102,8 +102,8 @@ public class AllocationDecidersTests extends ESTestCase {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
         final ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
-        IndexMetaData idx =
-            IndexMetaData.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata idx =
+            IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
         RoutingNode routingNode = new RoutingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);

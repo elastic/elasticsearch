@@ -19,8 +19,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -87,7 +87,7 @@ public final class DestinationIndex {
                                                   ActionListener<CreateIndexRequest> listener) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
-        ActionListener<MappingMetaData> mappingsListener = ActionListener.wrap(
+        ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(
             mappings -> listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappings)),
             listener::onFailure
         );
@@ -115,29 +115,29 @@ public final class DestinationIndex {
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock, DataFrameAnalyticsConfig config, Settings settings,
-                                                         MappingMetaData mappings) {
+                                                         MappingMetadata mappings) {
         String destinationIndex = config.getDest().getIndex();
         Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
         properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties)));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        metadata.putAll(createMetaData(config.getId(), clock));
+        metadata.putAll(createMetadata(config.getId(), clock));
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {
-        Integer maxNumberOfShards = findMaxSettingValue(settingsResponse, IndexMetaData.SETTING_NUMBER_OF_SHARDS);
-        Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetaData.SETTING_NUMBER_OF_REPLICAS);
+        Integer maxNumberOfShards = findMaxSettingValue(settingsResponse, IndexMetadata.SETTING_NUMBER_OF_SHARDS);
+        Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ID_COPY);
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
         if (maxNumberOfShards != null) {
-            settingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
+            settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
         }
         if (maxNumberOfReplicas != null) {
-            settingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, maxNumberOfReplicas);
+            settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maxNumberOfReplicas);
         }
         return settingsBuilder.build();
     }
@@ -163,7 +163,7 @@ public final class DestinationIndex {
         return properties;
     }
 
-    private static Map<String, Object> createMetaData(String analyticsId, Clock clock) {
+    private static Map<String, Object> createMetadata(String analyticsId, Clock clock) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(CREATION_DATE_MILLIS, clock.millis());
         metadata.put(CREATED_BY, "data-frame-analytics");

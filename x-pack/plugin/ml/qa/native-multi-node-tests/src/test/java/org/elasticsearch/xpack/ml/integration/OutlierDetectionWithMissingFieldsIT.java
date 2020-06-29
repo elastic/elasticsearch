@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
@@ -70,14 +71,19 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         String id = "test_outlier_detection_with_missing_fields";
         DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
             new OutlierDetection.Builder().build());
-        registerAnalytics(config);
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(id));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(5L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(2L));
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
         for (SearchHit hit : sourceData.getHits()) {
@@ -102,7 +108,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
             }
         }
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 }

@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -409,13 +409,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns -1 if no delayed shard is found.
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
-        MetaData metaData = state.metaData();
+        Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                Settings indexSettings = metaData.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
                 if (newComputedLeftDelayNanos < nextDelayNanos) {

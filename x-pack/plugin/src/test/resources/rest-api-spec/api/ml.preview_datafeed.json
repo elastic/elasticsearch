@@ -1,7 +1,8 @@
 {
   "ml.preview_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html",
+      "description":"Previews a datafeed."
     },
     "stability":"stable",
     "url":{

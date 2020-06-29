@@ -23,101 +23,78 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.AssignmentNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
+import org.elasticsearch.painless.ir.BraceNode;
+import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DotNode;
+import org.elasticsearch.painless.ir.DotSubDefNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents an assignment with the lhs and rhs as child nodes.
  */
-public final class EAssignment extends AExpression {
+public class EAssignment extends AExpression {
 
-    private AExpression lhs;
-    private AExpression rhs;
-    private final boolean pre;
-    private final boolean post;
-    private Operation operation;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final boolean postIfRead;
+    private final Operation operation;
 
-    private boolean cat = false;
-    private Class<?> promote = null;
-    private Class<?> shiftDistance; // for shifts, the RHS is promoted independently
-    private PainlessCast there = null;
-    private PainlessCast back = null;
+    public EAssignment(int identifier, Location location,
+            AExpression leftNode, AExpression rightNode, boolean postIfRead, Operation operation) {
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
-        super(location);
+        super(identifier, location);
 
-        this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
-        this.pre = pre;
-        this.post = post;
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+        this.postIfRead = postIfRead;
         this.operation = operation;
     }
 
-    @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
 
-        Output leftOutput;
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public boolean postIfRead() {
+        return postIfRead;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        Output output = new Output();
+
+        boolean cat = false;
+        Class<?> promote = null;
+        Class<?> shiftDistance = null;
+        PainlessCast rightCast;
+        PainlessCast there = null;
+        PainlessCast back = null;
+
+        Input leftInput = new Input();
+        leftInput.read = input.read;
+        leftInput.write = true;
+        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+
+        Input rightInput = new Input();
         Output rightOutput;
 
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
-
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
-
-        if (pre && post) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (pre || post) {
-            if (rhs != null) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (operation == Operation.INCR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.ADD;
-            } else if (operation == Operation.DECR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.SUB;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         if (operation != null) {
-            rightOutput = rhs.analyze(scriptRoot, scope, new Input());
+            rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -159,107 +136,82 @@ public final class EAssignment extends AExpression {
 
             cat = operation == Operation.ADD && promote == String.class;
 
-            if (cat) {
-                if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rightOutput.actual == String.class) {
-                    ((EBinary)rhs).cat = true;
+            if (cat && rightOutput.expressionNode instanceof BinaryMathNode) {
+                BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                    ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
                 }
             }
 
             if (shift) {
                 if (promote == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
-                    rhs.input.expected = promote;
+                    rightInput.expected = promote;
                 } else if (shiftDistance == long.class) {
-                    rhs.input.expected = int.class;
-                    rhs.input.explicit = true;
+                    rightInput.expected = int.class;
+                    rightInput.explicit = true;
                 } else {
-                    rhs.input.expected = shiftDistance;
+                    rightInput.expected = shiftDistance;
                 }
             } else {
-                rhs.input.expected = promote;
+                rightInput.expected = promote;
             }
 
-            rhs.cast();
+            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-            there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
-            back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
-
-
-        } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
+            there = AnalyzerCaster.getLegalCast(getLocation(), leftOutput.actual, promote, false, false);
+            back = AnalyzerCaster.getLegalCast(getLocation(), promote, leftOutput.actual, true, false);
+        } else {
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
-                rightOutput = rhs.analyze(scriptRoot, scope, new Input());
+            if (leftOutput.isDefOptimized) {
+                rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
                 }
 
-                rhs.input.expected = rightOutput.actual;
-                lhs.updateActual(rightOutput.actual);
+                rightInput.expected = rightOutput.actual;
+                leftOutput.actual = rightOutput.actual;
+                leftOutput.expressionNode.setExpressionType(rightOutput.actual);
+
+                ExpressionNode expressionNode = leftOutput.expressionNode;
+
+                if (expressionNode instanceof DotNode && ((DotNode)expressionNode).getRightNode() instanceof DotSubDefNode) {
+                    ((DotNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
+                } else if (expressionNode instanceof BraceNode && ((BraceNode)expressionNode).getRightNode() instanceof BraceSubDefNode) {
+                    ((BraceNode)expressionNode).getRightNode().setExpressionType(leftOutput.actual);
+                }
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
-                Input rightInput = new Input();
                 rightInput.expected = leftOutput.actual;
-                rhs.analyze(scriptRoot, scope, rightInput);
+                rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
             }
 
-            rhs.cast();
-        } else {
-            throw new IllegalStateException("Illegal tree structure.");
+            rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
         }
 
-        output.statement = true;
         output.actual = input.read ? leftOutput.actual : void.class;
 
-        return output;
-    }
-
-    /**
-     * Handles writing byte code for variable/method chains for all given possibilities
-     * including String concatenation, compound assignment, regular assignment, and simple
-     * reads.  Includes proper duplication for chained assignments and assignments that are
-     * also read from.
-     */
-    @Override
-    AssignmentNode write(ClassNode classNode) {
         AssignmentNode assignmentNode = new AssignmentNode();
 
-        assignmentNode.setLeftNode(lhs.write(classNode));
-        assignmentNode.setRightNode(rhs.cast(rhs.write(classNode)));
+        assignmentNode.setLeftNode(leftOutput.expressionNode);
+        assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        assignmentNode.setLocation(location);
+        assignmentNode.setLocation(getLocation());
         assignmentNode.setExpressionType(output.actual);
         assignmentNode.setCompoundType(promote);
-        assignmentNode.setPre(pre);
-        assignmentNode.setPost(post);
+        assignmentNode.setPost(postIfRead);
         assignmentNode.setOperation(operation);
         assignmentNode.setRead(input.read);
         assignmentNode.setCat(cat);
         assignmentNode.setThere(there);
         assignmentNode.setBack(back);
 
-        return assignmentNode;
-    }
+        output.expressionNode = assignmentNode;
 
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>();
-        subs.add(lhs);
-        if (rhs != null) {
-            // Make sure "=" is in the symbol so this is easy to read at a glance
-            subs.add(operation == null ? "=" : operation.symbol + "=");
-            subs.add(rhs);
-            return singleLineToString(subs);
-        }
-        subs.add(operation.symbol);
-        if (pre) {
-            subs.add("pre");
-        }
-        if (post) {
-            subs.add("post");
-        }
-        return singleLineToString(subs);
+        return output;
     }
 }

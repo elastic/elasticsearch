@@ -19,12 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -33,30 +34,49 @@ import java.util.Objects;
  * <p>
  * Unlike java's, this works for primitive types too.
  */
-public final class EInstanceof extends AExpression {
-    private AExpression expression;
-    private final String type;
+public class EInstanceof extends AExpression {
 
-    private Class<?> resolvedType;
-    private Class<?> expressionType;
-    private boolean primitiveExpression;
+    private final AExpression expressionNode;
+    private final String canonicalTypeName;
 
-    public EInstanceof(Location location, AExpression expression, String type) {
-        super(location);
-        this.expression = Objects.requireNonNull(expression);
-        this.type = Objects.requireNonNull(type);
+    public EInstanceof(int identifier, Location location, AExpression expression, String canonicalTypeName) {
+        super(identifier, location);
+
+        this.expressionNode = Objects.requireNonNull(expression);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
+        }
+
+        Class<?> resolvedType;
+        Class<?> expressionType;
+        boolean primitiveExpression;
+
+        Output output = new Output();
 
         // ensure the specified type is part of the definition
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
         // map to wrapped type for primitive types
@@ -64,9 +84,11 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        Output expressionOutput = expression.analyze(scriptRoot, scope, new Input());
-        expression.input.expected = expressionOutput.actual;
-        expression.cast();
+        Input expressionInput = new Input();
+        Output expressionOutput = analyze(expressionNode, classNode, semanticScope, expressionInput);
+        expressionInput.expected = expressionOutput.actual;
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
+                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         // record if the expression returns a primitive
         primitiveExpression = expressionOutput.actual.isPrimitive();
@@ -76,26 +98,18 @@ public final class EInstanceof extends AExpression {
 
         output.actual = boolean.class;
 
-        return output;
-    }
-
-    @Override
-    InstanceofNode write(ClassNode classNode) {
         InstanceofNode instanceofNode = new InstanceofNode();
 
-        instanceofNode.setChildNode(expression.cast(expression.write(classNode)));
+        instanceofNode.setChildNode(cast(expressionOutput.expressionNode, expressionCast));
 
-        instanceofNode.setLocation(location);
+        instanceofNode.setLocation(getLocation());
         instanceofNode.setExpressionType(output.actual);
         instanceofNode.setInstanceType(expressionType);
         instanceofNode.setResolvedType(resolvedType);
         instanceofNode.setPrimitiveResult(primitiveExpression);
 
-        return instanceofNode;
-    }
+        output.expressionNode = instanceofNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(expression, type);
+        return output;
     }
 }

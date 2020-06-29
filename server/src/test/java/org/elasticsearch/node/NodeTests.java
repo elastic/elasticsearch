@@ -19,9 +19,11 @@
 package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -30,6 +32,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -46,10 +51,15 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -146,7 +156,7 @@ public class NodeTests extends ESTestCase {
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                .put(Node.NODE_DATA_SETTING.getKey(), true);
+                .put(dataNode());
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
@@ -287,5 +297,46 @@ public class NodeTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));
         shard.store().decRef();
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
+    }
+
+    public void testCreateWithCircuitBreakerPlugins() throws IOException {
+        Settings.Builder settings = baseSettings()
+            .put("breaker.test_breaker.limit", "50b");
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockCircuitBreakerPlugin.class);
+        try (Node node = new MockNode(settings.build(), plugins)) {
+            CircuitBreakerService service = node.injector().getInstance(CircuitBreakerService.class);
+            assertThat(service.getBreaker("test_breaker"), is(not(nullValue())));
+            assertThat(service.getBreaker("test_breaker").getLimit(), equalTo(50L));
+            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
+            assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
+            assertSame("plugin circuit breaker instance is not the same as breaker service's instance",
+                ((MockCircuitBreakerPlugin)breakerPlugin).myCircuitBreaker.get(),
+                service.getBreaker("test_breaker"));
+        }
+    }
+
+    public static class MockCircuitBreakerPlugin extends Plugin implements CircuitBreakerPlugin {
+
+        private SetOnce<CircuitBreaker> myCircuitBreaker = new SetOnce<>();
+
+        public MockCircuitBreakerPlugin() {}
+
+        @Override
+        public BreakerSettings getCircuitBreaker(Settings settings) {
+            return BreakerSettings.updateFromSettings(
+                new BreakerSettings("test_breaker",
+                    100L,
+                    1.0d,
+                    CircuitBreaker.Type.MEMORY,
+                    CircuitBreaker.Durability.TRANSIENT),
+                settings);
+        }
+
+        @Override
+        public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+            assertThat(circuitBreaker.getName(), equalTo("test_breaker"));
+            myCircuitBreaker.set(circuitBreaker);
+        }
     }
 }

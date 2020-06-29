@@ -903,6 +903,37 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
+"Test get stats on newly created congig":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+---
 "Test delete given stopped config":
 
   - do:
@@ -938,7 +969,7 @@ setup:
         id: "missing_config"
 
 ---
-"Test delete given config and state documents":
+"Test delete given config, state and stats documents":
   - skip:
       features: headers
   - do:
@@ -979,8 +1010,30 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_1"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_2"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-state*
+        index: .ml-stat*
 
   - do:
       search:
@@ -994,6 +1047,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
 
   - match: { hits.total.value: 2 }
 
@@ -1014,6 +1082,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
+
   - match: { hits.total.value: 0 }
 
 ---
@@ -1471,6 +1554,52 @@ setup:
           }
 
 ---
+"Test put regression given loss_function_parameter is zero":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": 0.0
+              }
+            }
+          }
+
+---
+"Test put regression given loss_function_parameter is negative":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": -0.01
+              }
+            }
+          }
+
+---
 "Test put regression given valid":
 
   - do:
@@ -1493,7 +1622,9 @@ setup:
                 "max_trees": 400,
                 "feature_bag_fraction": 0.3,
                 "training_percent": 60.3,
-                "randomize_seed": 42
+                "randomize_seed": 42,
+                "loss_function": "msle",
+                "loss_function_parameter": 2.0
               }
             }
           }
@@ -1510,7 +1641,9 @@ setup:
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "msle",
+      "loss_function_parameter": 2.0
     }
   }}
   - is_true: create_time
@@ -1936,7 +2069,8 @@ setup:
       "dependent_variable": "foo",
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "mse"
     }
   }}
   - is_true: create_time

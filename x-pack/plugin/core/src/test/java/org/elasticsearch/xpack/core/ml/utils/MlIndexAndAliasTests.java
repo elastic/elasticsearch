@@ -22,10 +22,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -118,7 +118,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
-        ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetaDataWithAlias(indexName)));
+        ClusterState clusterState = createClusterState(Collections.singletonMap(indexName, createIndexMetadataWithAlias(indexName)));
         createIndexAndAliasIfNecessary(clusterState);
 
         verify(listener).onResponse(false);
@@ -139,7 +139,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasAlreadyExistsAndPointsAtLegacyStateIndex() {
         ClusterState clusterState =
             createClusterState(
-                Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaDataWithAlias(LEGACY_INDEX_WITHOUT_SUFFIX)));
+                Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetadataWithAlias(LEGACY_INDEX_WITHOUT_SUFFIX)));
         createIndexAndAliasIfNecessary(clusterState);
 
         InOrder inOrder = inOrder(indicesAdminClient, listener);
@@ -164,7 +164,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private void assertMlStateWriteAliasAddedToMostRecentMlStateIndex(List<String> existingIndexNames, String expectedWriteIndexName) {
         ClusterState clusterState =
             createClusterState(
-                existingIndexNames.stream().collect(toMap(Function.identity(), MlIndexAndAliasTests::createIndexMetaData)));
+                existingIndexNames.stream().collect(toMap(Function.identity(), MlIndexAndAliasTests::createIndexMetadata)));
         createIndexAndAliasIfNecessary(clusterState);
 
         InOrder inOrder = inOrder(indicesAdminClient, listener);
@@ -195,7 +195,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButLegacyStateIndexExists() {
         ClusterState clusterState =
-            createClusterState(Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetaData(LEGACY_INDEX_WITHOUT_SUFFIX)));
+            createClusterState(Collections.singletonMap(LEGACY_INDEX_WITHOUT_SUFFIX, createIndexMetadata(LEGACY_INDEX_WITHOUT_SUFFIX)));
         createIndexAndAliasIfNecessary(clusterState);
 
         InOrder inOrder = inOrder(indicesAdminClient, listener);
@@ -247,32 +247,32 @@ public class MlIndexAndAliasTests extends ESTestCase {
         };
     }
 
-    private static ClusterState createClusterState(Map<String, IndexMetaData> indices) {
+    private static ClusterState createClusterState(Map<String, IndexMetadata> indices) {
         return ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder()
-                .indices(ImmutableOpenMap.<String, IndexMetaData>builder().putAll(indices).build()).build())
+            .metadata(Metadata.builder()
+                .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAll(indices).build()).build())
             .build();
     }
 
-    private static IndexMetaData createIndexMetaData(String indexName) {
-        return createIndexMetaData(indexName, false);
+    private static IndexMetadata createIndexMetadata(String indexName) {
+        return createIndexMetadata(indexName, false);
     }
 
-    private static IndexMetaData createIndexMetaDataWithAlias(String indexName) {
-        return createIndexMetaData(indexName, true);
+    private static IndexMetadata createIndexMetadataWithAlias(String indexName) {
+        return createIndexMetadata(indexName, true);
     }
 
-    private static IndexMetaData createIndexMetaData(String indexName, boolean withAlias) {
+    private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {
         Settings settings =
             Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                 .build();
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexName)
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexName)
             .settings(settings);
         if (withAlias) {
-            builder.putAlias(AliasMetaData.builder(TEST_INDEX_ALIAS).build());
+            builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
         }
         return builder.build();
     }

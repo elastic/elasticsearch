@@ -31,8 +31,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,10 +64,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    // TODO once we are ready, this should default to true
-    public static final Setting<Boolean> RESTRICT_SYSTEM_INDICES =
-        Setting.boolSetting("rest.restrict_system_indices", false, Property.NodeScope);
-
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
@@ -81,10 +75,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final boolean restrictSystemIndices;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, boolean restrictSystemIndices) {
+            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         if (handlerWrapper == null) {
@@ -93,7 +86,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        this.restrictSystemIndices = restrictSystemIndices;
     }
 
     /**
@@ -178,13 +170,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             handleFavicon(request.method(), request.uri(), channel);
             return;
         }
-
-        if (restrictSystemIndices) {
-            threadContext.disallowSystemIndexAccess();
-        } else {
-            assert threadContext.isSystemIndexAccessAllowed();
-        }
-
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {

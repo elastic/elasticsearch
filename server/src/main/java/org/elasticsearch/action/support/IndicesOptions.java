@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.support;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -307,7 +306,6 @@ public class IndicesOptions implements ToXContentFragment {
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);
         }
-
         return new IndicesOptions(opts, wildcards);
     }
 
@@ -358,8 +356,7 @@ public class IndicesOptions implements ToXContentFragment {
                 defaultSettings.allowAliasesToMultipleIndices(),
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases(),
-                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled())
-        );
+                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()));
     }
 
     @Override
@@ -394,8 +391,8 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
-     *         allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
-     *         use of closed indices by throwing an error and ignores indices that are throttled.
+     *         allows that no indices are resolved from wildcard expressions (not returning an error),
+     *         forbids the use of closed indices by throwing an error and ignores indices that are throttled.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosedIgnoreThrottled() {
         return STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED;

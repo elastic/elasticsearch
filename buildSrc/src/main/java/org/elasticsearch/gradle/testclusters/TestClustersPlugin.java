@@ -21,7 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -36,7 +36,7 @@ import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
 
-import static org.elasticsearch.gradle.tool.Boilerplate.noop;
+import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
@@ -102,7 +102,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
             }
 
-            Provider<TestClustersRegistry> registryProvider = Boilerplate.getBuildService(
+            Provider<TestClustersRegistry> registryProvider = GradleUtils.getBuildService(
                 project.getGradle().getSharedServices(),
                 REGISTRY_SERVICE_NAME
             );

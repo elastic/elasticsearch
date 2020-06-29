@@ -128,7 +128,9 @@ public class RestSearchAction extends BaseRestHandler {
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
-        searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", searchRequest.getPreFilterShardSize()));
+        if (request.hasParam("pre_filter_shard_size")) {
+            searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
+        }
 
         if (request.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
@@ -154,7 +156,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.searchType(searchType);
         }
         parseSearchSource(searchRequest.source(), request, setSize);
-        searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
+        searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
@@ -179,9 +181,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            searchSourceBuilder.from(from);
+        if (request.hasParam("from")) {
+            searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
         int size = request.paramAsInt("size", -1);
         if (size != -1) {

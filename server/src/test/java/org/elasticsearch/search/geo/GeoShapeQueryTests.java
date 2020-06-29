@@ -20,7 +20,6 @@
 package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -790,5 +789,25 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
             .get();
         assertEquals(0, response.getHits().getTotalHits().value);
+    }
+
+    public void testIndexRectangleSpanningDateLine() throws Exception {
+        String mapping = Strings.toString(createRandomMapping());
+
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(178, 10), new Coordinate(-178, -10));
+
+        XContentBuilder docSource = envelopeBuilder.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
+        client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        ShapeBuilder filterShape = new PointBuilder(179, 0);
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", filterShape);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 }

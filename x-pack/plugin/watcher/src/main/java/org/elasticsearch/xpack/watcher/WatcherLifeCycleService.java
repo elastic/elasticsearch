@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -20,7 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
@@ -31,6 +31,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -132,13 +133,13 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             return;
         }
 
-        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-        if (watcherIndexMetaData == null) {
+        IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
+        if (watcherIndexMetadata == null) {
             pauseExecution("no watcher index found");
             return;
         }
 
-        String watchIndex = watcherIndexMetaData.getIndex().getName();
+        String watchIndex = watcherIndexMetadata.getIndex().getName();
         List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED);
         // no local shards, empty out watcher and dont waste resources!
         if (localShards.isEmpty()) {
@@ -184,8 +185,8 @@ public class WatcherLifeCycleService implements ClusterStateListener {
      * check if watcher has been stopped manually via the stop API
      */
     private boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetaData watcherMetaData = state.getMetaData().custom(WatcherMetaData.TYPE);
-        return watcherMetaData != null && watcherMetaData.manuallyStopped();
+        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 
     /**
@@ -203,7 +204,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         return previousShardRoutings.get();
     }
 
-    public WatcherState getState() {
-        return state.get();
+    public Supplier<WatcherState> getState(){
+        return () -> state.get();
     }
 }

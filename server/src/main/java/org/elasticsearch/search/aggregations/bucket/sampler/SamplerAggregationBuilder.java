@@ -45,14 +45,14 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
         super(name);
     }
 
-    protected SamplerAggregationBuilder(SamplerAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected SamplerAggregationBuilder(SamplerAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.shardSize = clone.shardSize;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new SamplerAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new SamplerAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -84,9 +84,14 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected SamplerAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new SamplerAggregatorFactory(name, shardSize, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new SamplerAggregatorFactory(name, shardSize, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

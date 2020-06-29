@@ -49,15 +49,15 @@
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
  *   |- snap-20131010.dat - SMILE serialized {@link org.elasticsearch.snapshots.SnapshotInfo} for snapshot "20131010"
- *   |- meta-20131010.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.MetaData} for snapshot "20131010"
+ *   |- meta-20131010.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.Metadata } for snapshot "20131010"
  *   |                      (includes only global metadata)
  *   |- snap-20131011.dat - SMILE serialized {@link org.elasticsearch.snapshots.SnapshotInfo} for snapshot "20131011"
- *   |- meta-20131011.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.MetaData} for snapshot "20131011"
+ *   |- meta-20131011.dat - SMILE serialized {@link org.elasticsearch.cluster.metadata.Metadata } for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices
  *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id Ac1342-B_x (not to be confused with the actual index uuid)
  *      |  |             in the repository
- *      |  |- meta-20131010.dat - JSON Serialized {@link org.elasticsearch.cluster.metadata.IndexMetaData} for index "foo"
+ *      |  |- meta-20131010.dat - JSON Serialized {@link org.elasticsearch.cluster.metadata.IndexMetadata} for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
  *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
  *      |  |  |- __2                      |
@@ -97,7 +97,7 @@
  * <li>The blobstore repository stores the {@code RepositoryData} in blobs named with incrementing suffix {@code N} at {@code /index-N}
  * directly under the repository's root.</li>
  * <li>For each {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} an entry of type
- * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData} exists in the cluster state. It tracks the current valid
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetadata} exists in the cluster state. It tracks the current valid
  * generation {@code N} as well as the latest generation that a write was attempted for.</li>
  * <li>The blobstore also stores the most recent {@code N} as a 64bit long in the blob {@code /index.latest} directly under the
  * repository's root.</li>
@@ -128,9 +128,9 @@
  * to read operations on the repository are as follows and all run on the master node:</p>
  *
  * <ol>
- * <li>Write an updated value of {@link org.elasticsearch.cluster.metadata.RepositoryMetaData} for the repository that has the same
- * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData#generation()} as the existing entry and has a value of
- * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData#pendingGeneration()} one greater than the {@code pendingGeneration} of the
+ * <li>Write an updated value of {@link org.elasticsearch.cluster.metadata.RepositoryMetadata} for the repository that has the same
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetadata#generation()} as the existing entry and has a value of
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetadata#pendingGeneration()} one greater than the {@code pendingGeneration} of the
  * existing entry.</li>
  * <li>On the same master node, after the cluster state has been updated in the first step, write the new {@code index-N} blob and
  * also update the contents of the {@code index.latest} blob. Note that updating the index.latest blob is done on a best effort
@@ -201,13 +201,13 @@
  * <h2>Deleting a Snapshot</h2>
  *
  * <p>Deleting a snapshot is an operation that is exclusively executed on the master node that runs through the following sequence of
- * action when {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#deleteSnapshot} is invoked:</p>
+ * action when {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#deleteSnapshots} is invoked:</p>
  *
  * <ol>
  * <li>Get the current {@code RepositoryData} from the latest {@code index-N} blob at the repository root.</li>
  * <li>For each index referenced by the snapshot:
  * <ol>
- * <li>Delete the snapshot's {@code IndexMetaData} at {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}}.</li>
+ * <li>Delete the snapshot's {@code IndexMetadata} at {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}}.</li>
  * <li>Go through all shard directories {@code /indices/${index-snapshot-uuid}/${i}} and:
  * <ol>
  * <li>Remove the {@code BlobStoreIndexShardSnapshot} blob at {@code /indices/${index-snapshot-uuid}/${i}/snap-${snapshot-uuid}.dat}.</li>
@@ -222,7 +222,7 @@
  * </li>
  * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed and containing the updated repository generations
  * that changed for the shards affected by the delete.</li>
- * <li>Delete the global {@code MetaData} blob {@code meta-${snapshot-uuid}.dat} stored directly under the repository root for the snapshot
+ * <li>Delete the global {@code Metadata} blob {@code meta-${snapshot-uuid}.dat} stored directly under the repository root for the snapshot
  * as well as the {@code SnapshotInfo} blob at {@code /snap-${snapshot-uuid}.dat}.</li>
  * <li>Delete all unreferenced blobs previously collected when updating the shard directories. Also, remove any index folders or blobs
  * under the repository root that are not referenced by the new {@code RepositoryData} written in the previous step.</li>

@@ -17,6 +17,9 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,15 +29,17 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ClassificationTests extends AbstractBWCSerializationTestCase<Classification> {
 
@@ -206,7 +211,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "num_top_classes", 2,
                     "prediction_field_name", "foo_prediction",
                     "prediction_field_type", "bool",
-                    "num_classes", 10L)));
+                    "num_classes", 10L,
+                    "training_percent", 100.0)));
         assertThat(
             new Classification("bar").getParams(fieldInfo),
             equalTo(
@@ -216,9 +222,16 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "num_top_classes", 2,
                     "prediction_field_name", "bar_prediction",
                     "prediction_field_type", "int",
-                    "num_classes", 20L)));
+                    "num_classes", 20L,
+                    "training_percent", 100.0)));
         assertThat(
-            new Classification("baz").getParams(fieldInfo),
+            new Classification("baz",
+                BoostedTreeParams.builder().build() ,
+                null,
+                null,
+                null,
+                50.0,
+                null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable", "baz",
@@ -226,7 +239,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "num_top_classes", 2,
                     "prediction_field_name", "baz_prediction",
                     "prediction_field_type", "string",
-                    "num_classes", 30L)));
+                    "num_classes", 30L,
+                    "training_percent", 50.0)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {
@@ -244,31 +258,37 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetExplicitlyMappedFields() {
-        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"), is(anEmptyMap()));
-        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"), is(anEmptyMap()));
+        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
+        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
-            is(anEmptyMap()));
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(
-                Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
-                "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
+        Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
+            Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
+            "results");
+        assertThat(explicitlyMappedFields,
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(
-                new HashMap<>() {{
-                    put("foo", new HashMap<>() {{
-                        put("type", "alias");
-                        put("path", "bar");
-                    }});
-                    put("bar", Collections.singletonMap("type", "long"));
-                }},
-                "results"),
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.featureImportanceMapping()));
+
+        explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
+            new HashMap<>() {{
+                put("foo", new HashMap<>() {{
+                    put("type", "alias");
+                    put("path", "bar");
+                }});
+                put("bar", Collections.singletonMap("type", "long"));
+            }},
+            "results");
+        assertThat(explicitlyMappedFields,
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.featureImportanceMapping()));
+
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(
                 Collections.singletonMap("foo", new HashMap<>() {{
@@ -276,7 +296,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     put("path", "missing");
                 }}),
                 "results"),
-            is(anEmptyMap()));
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {
@@ -333,6 +353,31 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     public void testExtractJobIdFromStateDoc() {
         assertThat(Classification.extractJobIdFromStateDoc("foo_bar-1_classification_state#1"), equalTo("foo_bar-1"));
         assertThat(Classification.extractJobIdFromStateDoc("noop"), is(nullValue()));
+    }
+
+    public void testGetPredictionFieldType() {
+        assertThat(Classification.getPredictionFieldType(Collections.emptySet()), equalTo(PredictionFieldType.STRING));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("keyword")), equalTo(PredictionFieldType.STRING));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("long")), equalTo(PredictionFieldType.NUMBER));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("boolean")), equalTo(PredictionFieldType.BOOLEAN));
+    }
+
+    public void testInferenceConfig() {
+        Classification classification = createRandom();
+        DataFrameAnalysis.FieldInfo fieldInfo = mock(DataFrameAnalysis.FieldInfo.class);
+        when(fieldInfo.getTypes(classification.getDependentVariable())).thenReturn(Collections.singleton("keyword"));
+
+        InferenceConfig inferenceConfig = classification.inferenceConfig(fieldInfo);
+
+        assertThat(inferenceConfig, instanceOf(ClassificationConfig.class));
+
+        ClassificationConfig classificationConfig = (ClassificationConfig) inferenceConfig;
+        assertThat(classificationConfig.getResultsField(), equalTo(classification.getPredictionFieldName()));
+        assertThat(classificationConfig.getNumTopClasses(), equalTo(classification.getNumTopClasses()));
+        Integer expectedNumTopFeatureImportanceValues = classification.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
+            0 : classification.getBoostedTreeParams().getNumTopFeatureImportanceValues();
+        assertThat(classificationConfig.getNumTopFeatureImportanceValues(), equalTo(expectedNumTopFeatureImportanceValues));
+        assertThat(classificationConfig.getPredictionFieldType(), equalTo(PredictionFieldType.STRING));
     }
 
     @Override

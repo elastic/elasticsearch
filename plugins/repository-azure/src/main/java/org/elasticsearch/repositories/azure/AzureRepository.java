@@ -23,7 +23,7 @@ import com.microsoft.azure.storage.LocationMode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -76,7 +76,7 @@ public class AzureRepository extends BlobStoreRepository {
     private final boolean readonly;
 
     public AzureRepository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
         final ClusterService clusterService) {
@@ -94,7 +94,7 @@ public class AzureRepository extends BlobStoreRepository {
         }
     }
 
-    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any

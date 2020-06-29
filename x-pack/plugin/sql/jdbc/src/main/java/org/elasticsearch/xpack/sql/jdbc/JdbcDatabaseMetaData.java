@@ -1242,7 +1242,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 data.add(row);
             }
         }
-        
+
         return data.toArray(new Object[][] {});
     }
 

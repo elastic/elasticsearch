@@ -10,7 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,12 +42,12 @@ public class TemplateUtils {
     /**
      * Loads a JSON template as a resource and puts it into the provided map
      */
-    public static void loadTemplateIntoMap(String resource, Map<String, IndexTemplateMetaData> map, String templateName, String version,
+    public static void loadTemplateIntoMap(String resource, Map<String, IndexTemplateMetadata> map, String templateName, String version,
                                            String versionProperty, Logger logger) {
         final String template = loadTemplate(resource, version, versionProperty);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)) {
-            map.put(templateName, IndexTemplateMetaData.Builder.fromXContent(parser, templateName));
+            map.put(templateName, IndexTemplateMetadata.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
             // TODO: should we handle this with a thrown exception?
             logger.error("Error loading template [{}] as part of metadata upgrading", templateName);
@@ -123,12 +123,12 @@ public class TemplateUtils {
      * @param state Cluster state
      */
     public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
-        IndexTemplateMetaData templateMetaData = state.metaData().templates().get(templateName);
-        if (templateMetaData == null) {
+        IndexTemplateMetadata templateMetadata = state.metadata().templates().get(templateName);
+        if (templateMetadata == null) {
             return false;
         }
 
-        return templateMetaData.version() != null && templateMetaData.version() >= Version.CURRENT.id;
+        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
     }
 
     /**
@@ -156,7 +156,7 @@ public class TemplateUtils {
     public static boolean checkTemplateExistsAndVersionMatches(
         String templateName, String versionKey, ClusterState state, Logger logger, Predicate<Version> predicate) {
 
-        IndexTemplateMetaData templateMeta = state.metaData().templates().get(templateName);
+        IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
         if (templateMeta == null) {
             return false;
         }

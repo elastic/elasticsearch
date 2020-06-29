@@ -27,11 +27,11 @@ import static org.mockito.Mockito.when;
 public class SecurityBaseRestHandlerTests extends ESTestCase {
 
     public void testSecurityBaseRestHandlerChecksLicenseState() throws Exception {
-        final boolean securityDisabledByLicenseDefaults = randomBoolean();
+        final boolean securityDefaultEnabled = randomBoolean();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityAvailable()).thenReturn(true);
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(securityDisabledByLicenseDefaults);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(securityDefaultEnabled);
         when(licenseState.getOperationMode()).thenReturn(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD));
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(Settings.EMPTY, licenseState) {
@@ -56,15 +56,15 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             }
         };
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityDisabledByLicenseDefaults ? 1 : 0);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityDefaultEnabled ? 0 : 1);
         NodeClient client = mock(NodeClient.class);
 
         assertFalse(consumerCalled.get());
         verifyZeroInteractions(licenseState);
         handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-        verify(licenseState).isSecurityAvailable();
-        if (securityDisabledByLicenseDefaults == false) {
+        verify(licenseState).isAllowed(XPackLicenseState.Feature.SECURITY);
+        if (securityDefaultEnabled) {
             assertTrue(consumerCalled.get());
             assertEquals(0, fakeRestChannel.responses().get());
             assertEquals(0, fakeRestChannel.errors().get());

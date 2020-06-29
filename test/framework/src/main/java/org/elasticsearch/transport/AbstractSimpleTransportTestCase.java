@@ -1638,9 +1638,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 latch.await();
                 assertFalse(requestProcessed.get());
+            }
 
-                service.acceptIncomingRequests();
-
+            service.acceptIncomingRequests();
+            try (Transport.Connection connection = openConnection(serviceA, node, null)) {
                 CountDownLatch latch2 = new CountDownLatch(1);
                 serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<TestResponse>() {
@@ -2023,25 +2024,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        try (MockTransportService service = buildService("TS_BAD", Version.CURRENT, Settings.EMPTY)) {
-            service.addMessageListener(new TransportMessageListener() {
-                @Override
-                public void onRequestReceived(long requestId, String action) {
-                    if (TransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action)) {
-                        throw new ActionNotFoundTransportException(action);
-                    }
-                }
-            });
-            service.start();
-            service.acceptIncomingRequests();
-            // this acts like a node that doesn't have support for handshakes
-            DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> connectToNode(serviceA, node));
-            assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
-            assertEquals("handshake failed", exception.getCause().getMessage());
-        }
-
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, Settings.EMPTY)) {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
@@ -2378,15 +2360,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(113, transportStats.getTxSize().getBytes());
+                assertEquals(111, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(52, stats.getRxSize().getBytes());
-            assertEquals(113, stats.getTxSize().getBytes());
+            assertEquals(50, stats.getRxSize().getBytes());
+            assertEquals(111, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2493,7 +2475,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
                 assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(113, transportStats.getTxSize().getBytes());
+                assertEquals(111, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2507,8 +2489,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 55 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(113, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(111, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

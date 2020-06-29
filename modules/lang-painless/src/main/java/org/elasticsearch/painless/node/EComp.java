@@ -22,41 +22,65 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
 /**
  * Represents a comparison expression.
  */
-public final class EComp extends AExpression {
+public class EComp extends AExpression {
 
+    private final AExpression leftNode;
+    private final AExpression rightNode;
     private final Operation operation;
-    private AExpression left;
-    private AExpression right;
 
-    private Class<?> promotedType;
-
-    public EComp(Location location, Operation operation, AExpression left, AExpression right) {
-        super(location);
+    public EComp(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+        super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
 
-        Output leftOutput = left.analyze(scriptRoot, scope, new Input());
-        Output rightOutput = right.analyze(scriptRoot, scope, new Input());
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
+        Class<?> promotedType;
+
+        Output output = new Output();
+
+        Input leftInput = new Input();
+        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
+
+        Input rightInput = new Input();
+        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
 
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
             promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
@@ -74,43 +98,37 @@ public final class EComp extends AExpression {
         }
 
         if (operation != Operation.EQR && operation != Operation.NER && promotedType == def.class) {
-            left.input.expected = leftOutput.actual;
-            right.input.expected = rightOutput.actual;
+            leftInput.expected = leftOutput.actual;
+            rightInput.expected = rightOutput.actual;
         } else {
-            left.input.expected = promotedType;
-            right.input.expected = promotedType;
+            leftInput.expected = promotedType;
+            rightInput.expected = promotedType;
         }
 
         if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && left instanceof ENull && right instanceof ENull) {
+                && leftNode instanceof ENull && rightNode instanceof ENull) {
             throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
-        left.cast();
-        right.cast();
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         output.actual = boolean.class;
 
-        return output;
-    }
-
-    @Override
-    ComparisonNode write(ClassNode classNode) {
         ComparisonNode comparisonNode = new ComparisonNode();
 
-        comparisonNode.setLeftNode(left.cast(left.write(classNode)));
-        comparisonNode.setRightNode(right.cast(right.write(classNode)));
+        comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
-        comparisonNode.setLocation(location);
+        comparisonNode.setLocation(getLocation());
         comparisonNode.setExpressionType(output.actual);
         comparisonNode.setComparisonType(promotedType);
         comparisonNode.setOperation(operation);
 
-        return comparisonNode;
-    }
+        output.expressionNode = comparisonNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return output;
     }
 }

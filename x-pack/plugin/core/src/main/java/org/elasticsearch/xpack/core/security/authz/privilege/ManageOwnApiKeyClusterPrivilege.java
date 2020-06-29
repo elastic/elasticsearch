@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
-    private static final String API_KEY_REALM_TYPE = "_es_api_key";
     private static final String API_KEY_ID_KEY = "_security_api_key_id";
 
     private ManageOwnApiKeyClusterPrivilege() {
@@ -78,7 +78,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                  * TODO bizybot we need to think on how we can propagate appropriate error message to the end user when username, realm name
                  *   is missing. This is similar to the problem of propagating right error messages in case of access denied.
                  */
-                if (authentication.getSourceRealm().getType().equals(API_KEY_REALM_TYPE)) {
+                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     // API key cannot own any other API key so deny access
                     return false;
                 } else if (ownedByAuthenticatedUser) {
@@ -93,7 +93,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
-            if (authentication.getSourceRealm().getType().equals(API_KEY_REALM_TYPE)) {
+            if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                 // API key id from authentication must match the id from request
                 final String authenticatedApiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {

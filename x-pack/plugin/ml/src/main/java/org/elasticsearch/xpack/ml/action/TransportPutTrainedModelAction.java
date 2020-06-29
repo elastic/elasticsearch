@@ -82,6 +82,15 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                    PutTrainedModelAction.Request request,
                                    ClusterState state,
                                    ActionListener<Response> listener) {
+        // 7.8.0 introduced splitting the model definition across multiple documents.
+        // This means that new models will not be usable on nodes that cannot handle multiple definition documents
+        if (state.nodes().getMinNodeVersion().before(Version.V_7_8_0)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Creating a new model requires that all nodes are at least version [{}]",
+                request.getTrainedModelConfig().getModelId(),
+                Version.V_7_8_0.toString()));
+            return;
+        }
         try {
             request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
             request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();
@@ -94,6 +103,22 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
                 ex,
                 request.getTrainedModelConfig().getModelId()));
+            return;
+        }
+        if (request.getTrainedModelConfig()
+            .getInferenceConfig()
+            .isTargetTypeSupported(request.getTrainedModelConfig()
+                .getModelDefinition()
+                .getTrainedModel()
+                .targetType()) == false) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                request.getTrainedModelConfig().getModelId(),
+                request.getTrainedModelConfig().getInferenceConfig().getName(),
+                request.getTrainedModelConfig()
+                    .getModelDefinition()
+                    .getTrainedModel()
+                    .targetType()));
             return;
         }
 
@@ -196,7 +221,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

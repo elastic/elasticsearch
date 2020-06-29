@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.util.Map;
@@ -16,7 +17,7 @@ public interface Model {
 
     String getResultsType();
 
-    void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
+    void infer(Map<String, Object> fields, InferenceConfigUpdate inferenceConfig, ActionListener<InferenceResults> listener);
 
     String getModelId();
 
@@ -42,4 +43,6 @@ public interface Model {
             });
         }
     }
+
+    InferenceStats getLatestStatsAndReset();
 }

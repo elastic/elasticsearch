@@ -36,6 +36,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
@@ -79,6 +80,7 @@ import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
@@ -89,8 +91,10 @@ import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.stats.AnalysisStatsNamedXContentProvider;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
@@ -106,6 +110,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -124,6 +129,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigTests.randomDataFrameAnalyticsConfig;
+import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdateTests.randomDataFrameAnalyticsConfigUpdate;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -211,12 +217,25 @@ public class MLRequestConvertersTests extends ESTestCase {
             requestEntityToString(request));
     }
 
-    public void testDeleteExpiredData() {
-        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+    public void testDeleteExpiredData() throws Exception {
+        float requestsPerSec = randomBoolean() ? -1.0f : (float)randomDoubleBetween(0.0, 100000.0, false);
+        String jobId = randomBoolean() ? null : randomAlphaOfLength(8);
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest(
+            jobId,
+            requestsPerSec,
+            TimeValue.timeValueHours(1));
 
         Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/_delete_expired_data", request.getEndpoint());
+
+        String expectedPath = jobId == null ? "/_ml/_delete_expired_data" : "/_ml/_delete_expired_data/" + jobId;
+        assertEquals(expectedPath, request.getEndpoint());
+        if (jobId == null) {
+            assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+        } else {
+            assertEquals("{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
+                requestEntityToString(request));
+        }
     }
 
     public void testDeleteJob() {
@@ -694,6 +713,25 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
     }
 
+    public void testEstimateModelMemory() throws Exception {
+        String byFieldName = randomAlphaOfLength(10);
+        String influencerFieldName = randomAlphaOfLength(10);
+        AnalysisConfig analysisConfig = AnalysisConfig.builder(
+            Collections.singletonList(
+                Detector.builder().setFunction("count").setByFieldName(byFieldName).build()
+            )).setInfluencers(Collections.singletonList(influencerFieldName)).build();
+        EstimateModelMemoryRequest estimateModelMemoryRequest = new EstimateModelMemoryRequest(analysisConfig);
+        estimateModelMemoryRequest.setOverallCardinality(Collections.singletonMap(byFieldName, randomNonNegativeLong()));
+        estimateModelMemoryRequest.setMaxBucketCardinality(Collections.singletonMap(influencerFieldName, randomNonNegativeLong()));
+        Request request = MLRequestConverters.estimateModelMemory(estimateModelMemoryRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/anomaly_detectors/_estimate_model_memory", request.getEndpoint());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder = estimateModelMemoryRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(Strings.toString(builder), requestEntityToString(request));
+    }
+
     public void testPutDataFrameAnalytics() throws IOException {
         PutDataFrameAnalyticsRequest putRequest = new PutDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfig());
         Request request = MLRequestConverters.putDataFrameAnalytics(putRequest);
@@ -702,6 +740,17 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
             assertThat(parsedConfig, equalTo(putRequest.getConfig()));
+        }
+    }
+
+    public void testUpdateDataFrameAnalytics() throws IOException {
+        UpdateDataFrameAnalyticsRequest updateRequest = new UpdateDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfigUpdate());
+        Request request = MLRequestConverters.updateDataFrameAnalytics(updateRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + updateRequest.getUpdate().getId() + "/_update", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DataFrameAnalyticsConfigUpdate parsedUpdate = DataFrameAnalyticsConfigUpdate.fromXContent(parser);
+            assertThat(parsedUpdate, equalTo(updateRequest.getUpdate()));
         }
     }
 
@@ -790,7 +839,19 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
+        assertThat(request.getParameters().size(), equalTo(1));
         assertEquals(Boolean.toString(true), request.getParameters().get("force"));
+    }
+
+    public void testDeleteDataFrameAnalytics_WithTimeout() {
+        DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(randomAlphaOfLength(10));
+        deleteRequest.setTimeout(TimeValue.timeValueSeconds(10));
+        Request request = MLRequestConverters.deleteDataFrameAnalytics(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
+        assertNull(request.getEntity());
+        assertThat(request.getParameters().size(), equalTo(1));
+        assertEquals(request.getParameters().get("timeout"), "10s");
     }
 
     public void testEvaluateDataFrame() throws IOException {
@@ -908,7 +969,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testGetFilter() throws IOException {
+    public void testGetFilter() {
         String id = randomAlphaOfLength(10);
         GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
 
@@ -1067,6 +1128,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new AnalysisStatsNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }
 

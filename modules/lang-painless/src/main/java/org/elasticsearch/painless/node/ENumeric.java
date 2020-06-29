@@ -20,73 +20,88 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
 /**
  * Represents a non-decimal numeric constant.
  */
-public final class ENumeric extends AExpression {
+public class ENumeric extends AExpression {
 
-    private final String value;
-    private int radix;
+    private final String numeric;
+    private final int radix;
 
-    protected Object constant;
+    public ENumeric(int identifier, Location location, String numeric, int radix) {
+        super(identifier, location);
 
-    public ENumeric(Location location, String value, int radix) {
-        super(location);
-
-        this.value = Objects.requireNonNull(value);
+        this.numeric = Objects.requireNonNull(numeric);
         this.radix = radix;
     }
 
-    @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public String getNumeric() {
+        return numeric;
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+    public int getRadix() {
+        return radix;
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+        return analyze(input, false);
+    }
+
+    Output analyze(Input input, boolean negate) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
         }
 
-        if (value.endsWith("d") || value.endsWith("D")) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
+        }
+
+        Output output = new Output();
+        Object constant;
+
+        String numeric = negate ? "-" + this.numeric : this.numeric;
+
+        if (numeric.endsWith("d") || numeric.endsWith("D")) {
             if (radix != 10) {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             try {
-                constant = Double.parseDouble(value.substring(0, value.length() - 1));
+                constant = Double.parseDouble(numeric.substring(0, numeric.length() - 1));
                 output.actual = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
             }
-        } else if (value.endsWith("f") || value.endsWith("F")) {
+        } else if (numeric.endsWith("f") || numeric.endsWith("F")) {
             if (radix != 10) {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             try {
-                constant = Float.parseFloat(value.substring(0, value.length() - 1));
+                constant = Float.parseFloat(numeric.substring(0, numeric.length() - 1));
                 output.actual = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid float constant [" + numeric + "]."));
             }
-        } else if (value.endsWith("l") || value.endsWith("L")) {
+        } else if (numeric.endsWith("l") || numeric.endsWith("L")) {
             try {
-                constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
+                constant = Long.parseLong(numeric.substring(0, numeric.length() - 1), radix);
                 output.actual = long.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid long constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid long constant [" + numeric + "]."));
             }
         } else {
             try {
                 Class<?> sort = input.expected == null ? int.class : input.expected;
-                int integer = Integer.parseInt(value, radix);
+                int integer = Integer.parseInt(numeric, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
@@ -104,34 +119,23 @@ public final class ENumeric extends AExpression {
             } catch (NumberFormatException exception) {
                 try {
                     // Check if we can parse as a long. If so then hint that the user might prefer that.
-                    Long.parseLong(value, radix);
-                    throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]. If you want a long constant "
-                            + "then change it to [" + value + "L]."));
+                    Long.parseLong(numeric, radix);
+                    throw createError(new IllegalArgumentException("Invalid int constant [" + numeric + "]. If you want a long constant "
+                            + "then change it to [" + numeric + "L]."));
                 } catch (NumberFormatException longNoGood) {
                     // Ignored
                 }
-                throw createError(new IllegalArgumentException("Invalid int constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid int constant [" + numeric + "]."));
             }
         }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
+        constantNode.setLocation(getLocation());
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        if (radix != 10) {
-            return singleLineToString(value, radix);
-        }
-        return singleLineToString(value);
+        return output;
     }
 }

@@ -5,92 +5,135 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.Weight;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
+import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
+import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     interface SearchResponseIterator extends Iterator<AsyncSearchResponse>, Closeable {}
 
+    public static class SearchTestPlugin extends Plugin implements SearchPlugin {
+        public SearchTestPlugin() {}
+
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return Arrays.asList(
+                new QuerySpec<>(BlockingQueryBuilder.NAME, in -> new BlockingQueryBuilder(in),
+                    p -> {
+                    throw new IllegalStateException("not implemented");
+                }),
+                new QuerySpec<>(ThrowingQueryBuilder.NAME, in -> new ThrowingQueryBuilder(in),
+                p -> {
+                    throw new IllegalStateException("not implemented");
+                }));
+        }
+
+        @Override
+        public List<AggregationSpec> getAggregations() {
+            return Collections.singletonList(new AggregationSpec(CancellingAggregationBuilder.NAME, CancellingAggregationBuilder::new,
+                (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> {
+                    throw new IllegalStateException("not implemented");
+                }).addResultReader(InternalFilter::new));
+        }
+    }
+
+    @Before
+    public void startMaintenanceService() {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
+            if (service.lifecycleState() == Lifecycle.State.STOPPED) {
+                // force the service to start again
+                service.start();
+                ClusterState state = internalCluster().clusterService().state();
+                service.clusterChanged(new ClusterChangedEvent("noop", state, state));
+            }
+        }
+    }
+
+    @After
+    public void stopMaintenanceService() {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
+            service.stop();
+        }
+    }
+
+    @After
+    public void releaseQueryLatch() {
+        BlockingQueryBuilder.releaseQueryLatch();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, IndexLifecycle.class,
-            QueryBlockPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsIndexPlugin.class, IndexLifecycle.class,
+            SearchTestPlugin.class, ReindexPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(0))
+            .put(ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            .build();
     }
 
     /**
-     * Restart the node that runs the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
+     * Restart the node that runs the {@link TaskId} decoded from the provided {@link AsyncExecutionId}.
      */
-    protected void restartTaskNode(String id) throws Exception {
-        AsyncSearchId searchId = AsyncSearchId.decode(id);
+    protected void restartTaskNode(String id, String indexName) throws Exception {
+        AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         final ClusterStateResponse clusterState = client().admin().cluster()
             .prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return super.onNodeStopped(nodeName);
-            }
-        });
-        ensureYellow(INDEX);
+        stopMaintenanceService();
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
+        startMaintenanceService();
+        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -98,33 +141,50 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id)).get();
+    }
+
+    protected AsyncSearchResponse getAsyncSearch(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id).setKeepAlive(keepAlive)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(id)).get();
+        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
     }
 
     /**
-     * Wait the removal of the document decoded from the provided {@link AsyncSearchId}.
+     * Wait the removal of the document decoded from the provided {@link AsyncExecutionId}.
      */
     protected void ensureTaskRemoval(String id) throws Exception {
-        AsyncSearchId searchId = AsyncSearchId.decode(id);
+        AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setIndex(INDEX)
+                .setIndex(ASYNC_RESULTS_INDEX)
                 .setId(searchId.getDocId())
                 .get();
             assertFalse(resp.isExists());
         });
     }
 
+    protected void ensureTaskNotRunning(String id) throws Exception {
+        assertBusy(() -> {
+            try {
+                AsyncSearchResponse resp = getAsyncSearch(id);
+                assertFalse(resp.isRunning());
+            } catch (Exception exc) {
+                if (ExceptionsHelper.unwrapCause(exc.getCause()) instanceof ResourceNotFoundException == false) {
+                    throw exc;
+                }
+            }
+        });
+    }
+
     /**
-     * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncSearchId}.
+     * Wait the completion of the {@link TaskId} decoded from the provided {@link AsyncExecutionId}.
      */
     protected void ensureTaskCompletion(String id) throws Exception {
         assertBusy(() -> {
-            TaskId taskId = AsyncSearchId.decode(id).getTaskId();
+            TaskId taskId = AsyncExecutionId.decode(id).getTaskId();
             try {
                 GetTaskResponse resp = client().admin().cluster()
                     .prepareGetTask(taskId).get();
@@ -137,41 +197,31 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Returns a {@link SearchResponseIterator} that blocks query shard executions
+     * until {@link SearchResponseIterator#next()} is called. That allows to randomly
+     * generate partial results that can be consumed in order.
+     */
     protected SearchResponseIterator assertBlockingIterator(String indexName,
+                                                            int numShards,
                                                             SearchSourceBuilder source,
                                                             int numFailures,
                                                             int progressStep) throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName);
         request.setBatchedReduceSize(progressStep);
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
-        ClusterSearchShardsResponse response = dataNodeClient().admin().cluster()
-            .prepareSearchShards(request.getSearchRequest().indices()).get();
-        AtomicInteger failures = new AtomicInteger(numFailures);
-        Map<ShardId, ShardIdLatch> shardLatchMap = Arrays.stream(response.getGroups())
-            .map(ClusterSearchShardsGroup::getShardId)
-            .collect(
-                Collectors.toMap(
-                    Function.identity(),
-                    id -> new ShardIdLatch(id, new CountDownLatch(1), failures.decrementAndGet() >= 0)
-                )
-            );
-        ShardIdLatch[] shardLatchArray = shardLatchMap.values().stream()
-            .sorted(Comparator.comparing(ShardIdLatch::shard))
-            .toArray(ShardIdLatch[]::new);
-        resetPluginsLatch(shardLatchMap);
-        request.getSearchRequest().source().query(new BlockQueryBuilder(shardLatchMap));
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        BlockingQueryBuilder.QueryLatch queryLatch = BlockingQueryBuilder.acquireQueryLatch(numFailures);
+        request.getSearchRequest().source().query(new BlockingQueryBuilder(random().nextLong()));
 
         final AsyncSearchResponse initial = client().execute(SubmitAsyncSearchAction.INSTANCE, request).get();
-
         assertTrue(initial.isPartial());
         assertThat(initial.status(), equalTo(RestStatus.OK));
-        assertThat(initial.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+        assertThat(initial.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(initial.getSearchResponse().getSuccessfulShards(), equalTo(0));
         assertThat(initial.getSearchResponse().getShardFailures().length, equalTo(0));
 
         return new SearchResponseIterator() {
             private AsyncSearchResponse response = initial;
-            private int shardIndex = 0;
             private boolean isFirst = true;
 
             @Override
@@ -193,32 +243,24 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     isFirst = false;
                     return response;
                 }
-                AtomicReference<AsyncSearchResponse> atomic = new AtomicReference<>();
-                int step = shardIndex == 0 ? progressStep+1 : progressStep-1;
-                int index = 0;
-                while (index < step && shardIndex < shardLatchArray.length) {
-                    if (shardLatchArray[shardIndex].shouldFail == false) {
-                        ++index;
-                    }
-                    shardLatchArray[shardIndex++].countDown();
-                }
+                queryLatch.countDownAndReset();
                 AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncSearchAction.Request(response.getId())
-                        .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
+                    new GetAsyncResultRequest(response.getId())
+                        .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {
-                    assertThat(newResponse.status(),  equalTo(RestStatus.OK));
+                    assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertTrue(newResponse.isPartial());
                     assertNull(newResponse.getFailure());
                     assertNotNull(newResponse.getSearchResponse());
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, lessThanOrEqualTo(numFailures));
-                } else if (numFailures == shardLatchArray.length) {
-                    assertThat(newResponse.status(),  equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                } else if (numFailures == numShards) {
+                    assertThat(newResponse.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
                     assertNotNull(newResponse.getFailure());
                     assertTrue(newResponse.isPartial());
                     assertNotNull(newResponse.getSearchResponse());
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getSuccessfulShards(), equalTo(0));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
@@ -227,168 +269,22 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.getSearchResponse().getHits().getTotalHits().relation,
                         equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
                 } else {
-                    assertThat(newResponse.status(),  equalTo(RestStatus.OK));
+                    assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertNotNull(newResponse.getSearchResponse());
                     assertFalse(newResponse.isPartial());
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
-                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(shardLatchArray.length));
+                    assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertThat(newResponse.getSearchResponse().getSuccessfulShards(),
-                        equalTo(shardLatchArray.length-newResponse.getSearchResponse().getShardFailures().length));
+                        equalTo(numShards - newResponse.getSearchResponse().getShardFailures().length));
                 }
                 return response = newResponse;
             }
 
             @Override
             public void close() {
-                Arrays.stream(shardLatchArray).forEach(shard -> {
-                    if (shard.latch.getCount() == 1) {
-                        shard.latch.countDown();
-                    }
-                });
+                queryLatch.close();
             }
         };
-    }
-
-    private void resetPluginsLatch(Map<ShardId, ShardIdLatch> newLatch) {
-        for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
-            pluginsService.filterPlugins(QueryBlockPlugin.class).forEach(p -> p.reset(newLatch));
-        }
-    }
-
-    public static class QueryBlockPlugin extends Plugin implements SearchPlugin {
-        private Map<ShardId, ShardIdLatch> shardsLatch;
-
-        public QueryBlockPlugin() {
-            this.shardsLatch = null;
-        }
-
-        public void reset(Map<ShardId, ShardIdLatch> newLatch) {
-            shardsLatch = newLatch;
-        }
-
-        @Override
-        public List<QuerySpec<?>> getQueries() {
-            return Collections.singletonList(
-                new QuerySpec<>("block_match_all",
-                    in -> new BlockQueryBuilder(in, shardsLatch),
-                    p -> BlockQueryBuilder.fromXContent(p, shardsLatch))
-            );
-        }
-    }
-
-    private static class BlockQueryBuilder extends AbstractQueryBuilder<BlockQueryBuilder> {
-        public static final String NAME = "block_match_all";
-        private final Map<ShardId, ShardIdLatch> shardsLatch;
-
-        private BlockQueryBuilder(Map<ShardId, ShardIdLatch> shardsLatch) {
-            super();
-            this.shardsLatch = shardsLatch;
-        }
-
-        BlockQueryBuilder(StreamInput in, Map<ShardId, ShardIdLatch> shardsLatch) throws IOException {
-            super(in);
-            this.shardsLatch = shardsLatch;
-        }
-
-        private BlockQueryBuilder() {
-            this.shardsLatch = null;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) {}
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            builder.endObject();
-        }
-
-        private static final ObjectParser<BlockQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, BlockQueryBuilder::new);
-
-        public static BlockQueryBuilder fromXContent(XContentParser parser, Map<ShardId, ShardIdLatch> shardsLatch) {
-            try {
-                PARSER.apply(parser, null);
-                return new BlockQueryBuilder(shardsLatch);
-            } catch (IllegalArgumentException e) {
-                throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
-            }
-        }
-
-        @Override
-        protected Query doToQuery(QueryShardContext context) {
-            final Query delegate = Queries.newMatchAllQuery();
-            return new Query() {
-                @Override
-                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                    if (shardsLatch != null) {
-                        try {
-                            final ShardIdLatch latch = shardsLatch.get(new ShardId(context.index(), context.getShardId()));
-                            latch.await();
-                            if (latch.shouldFail) {
-                                throw new IOException("boum");
-                            }
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    return delegate.createWeight(searcher, scoreMode, boost);
-                }
-
-                @Override
-                public String toString(String field) {
-                    return delegate.toString(field);
-                }
-
-                @Override
-                public boolean equals(Object obj) {
-                    return false;
-                }
-
-                @Override
-                public int hashCode() {
-                    return 0;
-                }
-            };
-        }
-
-        @Override
-        protected boolean doEquals(BlockQueryBuilder other) {
-            return false;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    private static class ShardIdLatch {
-        private final ShardId shard;
-        private final CountDownLatch latch;
-        private final boolean shouldFail;
-
-        private ShardIdLatch(ShardId shard, CountDownLatch latch, boolean shouldFail) {
-            this.shard = shard;
-            this.latch = latch;
-            this.shouldFail = shouldFail;
-        }
-
-        ShardId shard() {
-            return shard;
-        }
-
-        void countDown() {
-            latch.countDown();
-        }
-
-        void await() throws InterruptedException {
-            latch.await();
-        }
     }
 }

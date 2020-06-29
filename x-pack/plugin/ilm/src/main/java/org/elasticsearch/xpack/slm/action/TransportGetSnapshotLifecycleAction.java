@@ -64,7 +64,7 @@ public class TransportGetSnapshotLifecycleAction extends
     protected void masterOperation(final Task task, final GetSnapshotLifecycleAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<GetSnapshotLifecycleAction.Response> listener) {
-        SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));

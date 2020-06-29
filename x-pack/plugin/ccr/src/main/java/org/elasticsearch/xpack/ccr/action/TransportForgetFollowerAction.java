@@ -91,7 +91,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
     @Override
     protected EmptyResult shardOperation(final ForgetFollowerAction.Request request, final ShardRouting shardRouting) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
-        final Index leaderIndex = clusterService.state().metaData().index(request.leaderIndex()).getIndex();
+        final Index leaderIndex = clusterService.state().metadata().index(request.leaderIndex()).getIndex();
         final String id = CcrRetentionLeases.retentionLeaseId(
                 request.followerCluster(),
                 followerIndex,
@@ -148,4 +148,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         return null;
     }
 
+    @Override
+    protected boolean shouldIncludeDataStreams() {
+        return false;
+    }
 }

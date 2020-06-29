@@ -33,7 +33,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -134,7 +134,7 @@ public class IndexModuleTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -162,7 +162,7 @@ public class IndexModuleTests extends ESTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
                 threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
-                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false);
+                new IndicesFieldDataCache(settings, listener), writableRegistry(), () -> false, null);
     }
 
     public void testWrapperIsBound() throws IOException {
@@ -181,7 +181,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testRegisterIndexStore() throws IOException {
         final Settings settings = Settings
             .builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
@@ -300,7 +300,7 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testAddSimilarity() throws IOException {
         Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -341,7 +341,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testSetupUnknownSimilarity() {
         Settings settings = Settings.builder()
                 .put("index.similarity.my_similarity.type", "test_similarity")
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -355,7 +355,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("index.similarity.my_similarity.foo", "bar")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
@@ -366,7 +366,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testForceCustomQueryCache() throws IOException {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         final Set<CustomQueryCache> liveQueryCaches = new HashSet<>();
@@ -387,7 +387,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testDefaultQueryCacheImplIsSelected() throws IOException {
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         IndexService indexService = newIndexService(module);
@@ -399,7 +399,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         module.forceQueryCacheProvider((a, b) -> new CustomQueryCache(null));
@@ -411,7 +411,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testCustomQueryCacheCleanedUpIfIndexServiceCreationFails() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
         final Set<CustomQueryCache> liveQueryCaches = new HashSet<>();
@@ -428,7 +428,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testIndexAnalyzersCleanedUpIfIndexServiceCreationFails() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
 
         final HashSet<Analyzer> openAnalyzers = new HashSet<>();

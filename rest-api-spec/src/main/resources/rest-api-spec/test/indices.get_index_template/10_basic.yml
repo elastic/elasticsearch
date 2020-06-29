@@ -1,0 +1,72 @@
+setup:
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+---
+"Get index template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.name: test}
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
+
+---
+"Get all tindex emplates":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test2] has index patterns [test2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test2
+        body:
+          index_patterns: test2-*
+          template:
+            settings:
+              number_of_shards:   1
+
+  - do:
+      indices.get_index_template: {}
+
+  - length: {index_templates: 2}
+
+---
+"Get index template with local flag":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
+
+  - do:
+      indices.get_index_template:
+        name: test
+        local: true
+
+  - match: {index_templates.0.name: test}

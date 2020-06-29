@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,17 +53,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     private static final ParseField ALIASES = new ParseField("aliases");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetaData>) a[2]));
+    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
             new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            Map<String, AliasMetaData> aliasMap = new HashMap<>();
+            Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
-                AliasMetaData alias = AliasMetaData.Builder.fromXContent(p);
+                AliasMetadata alias = AliasMetadata.Builder.fromXContent(p);
                 aliasMap.put(alias.alias(), alias);
             }
             return aliasMap;
@@ -74,15 +75,15 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     @Nullable
     private final CompressedXContent mappings;
     @Nullable
-    private final Map<String, AliasMetaData> aliases;
+    private final Map<String, AliasMetadata> aliases;
 
-    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetaData> aliases) {
+    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
     }
 
-    Template(StreamInput in) throws IOException {
+    public Template(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             this.settings = Settings.readSettingsFromStream(in);
         } else {
@@ -94,7 +95,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetaData::new);
+            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
         } else {
             this.aliases = null;
         }
@@ -108,7 +109,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         return mappings;
     }
 
-    public Map<String, AliasMetaData> aliases() {
+    public Map<String, AliasMetadata> aliases() {
         return aliases;
     }
 
@@ -130,7 +131,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetaData) -> aliasMetaData.writeTo(stream));
+            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
     }
 
@@ -171,17 +172,26 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
                 XContentHelper.convertToMap(new BytesArray(this.mappings.uncompressed()), true, XContentType.JSON).v2();
             if (uncompressedMapping.size() > 0) {
                 builder.field(MAPPINGS.getPreferredName());
-                builder.map(uncompressedMapping);
+                builder.map(reduceMapping(uncompressedMapping));
             }
         }
         if (this.aliases != null) {
             builder.startObject(ALIASES.getPreferredName());
-            for (AliasMetaData alias : this.aliases.values()) {
-                AliasMetaData.Builder.toXContent(alias, builder, params);
+            for (AliasMetadata alias : this.aliases.values()) {
+                AliasMetadata.Builder.toXContent(alias, builder, params);
             }
             builder.endObject();
         }
         builder.endObject();
         return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+        if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
+            return (Map<String, Object>) mapping.values().iterator().next();
+        } else {
+            return mapping;
+        }
     }
 }

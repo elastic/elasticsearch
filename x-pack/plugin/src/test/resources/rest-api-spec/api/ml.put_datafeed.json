@@ -1,7 +1,8 @@
 {
   "ml.put_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html",
+      "description":"Instantiates a datafeed."
     },
     "stability":"stable",
     "url":{
@@ -24,7 +25,7 @@
       "description":"The datafeed config",
       "required":true
     },
-    "params": {
+    "params":{
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Ignore unavailable indexes (default: false)"

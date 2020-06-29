@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.info.BuildParams
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -28,12 +26,12 @@ dependencies {
   compileOnly project(":libs:elasticsearch-cli")
   compile "org.bouncycastle:bcpg-fips:1.0.3"
   compile "org.bouncycastle:bc-fips:1.0.1"
-  testCompile project(":test:framework")
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
+  testImplementation project(":test:framework")
+  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testRuntimeOnly 'com.google.guava:guava:18.0'
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 

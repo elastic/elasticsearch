@@ -147,8 +147,8 @@ public class HdfsTests extends ESSingleNodeTestCase {
         ensureGreen();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+        assertThat(clusterState.getMetadata().hasIndex("test-idx-1"), equalTo(true));
+        assertThat(clusterState.getMetadata().hasIndex("test-idx-2"), equalTo(false));
         final BlobStoreRepository repo =
             (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));

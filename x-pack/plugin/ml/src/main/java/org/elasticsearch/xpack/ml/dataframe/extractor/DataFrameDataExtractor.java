@@ -19,6 +19,9 @@ import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -187,7 +191,7 @@ public class DataFrameDataExtractor {
             if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
                 extractedValues[i] = Objects.toString(values[0]);
             } else {
-                if (values.length == 0 && context.includeRowsWithMissingValues) {
+                if (values.length == 0 && context.supportsRowsWithMissingValues) {
                     // if values is empty then it means it's a missing value
                     extractedValues[i] = NULL_VALUE;
                 } else {
@@ -234,8 +238,8 @@ public class DataFrameDataExtractor {
         return context.extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList());
     }
 
-    public List<ExtractedField> getAllExtractedFields() {
-        return context.extractedFields.getAllFields();
+    public ExtractedFields getExtractedFields() {
+        return context.extractedFields;
     }
 
     public DataSummary collectDataSummary() {
@@ -263,11 +267,27 @@ public class DataFrameDataExtractor {
     }
 
     private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+
+        QueryBuilder summaryQuery = context.query;
+        if (context.supportsRowsWithMissingValues == false) {
+            summaryQuery = QueryBuilders.boolQuery()
+                .filter(summaryQuery)
+                .filter(allExtractedFieldsExistQuery());
+        }
+
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
             .setSize(0)
-            .setQuery(context.query)
+            .setQuery(summaryQuery)
             .setTrackTotalHits(true);
+    }
+
+    private QueryBuilder allExtractedFieldsExistQuery() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (ExtractedField field : context.extractedFields.getAllFields()) {
+            query.filter(QueryBuilders.existsQuery(field.getName()));
+        }
+        return query;
     }
 
     public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {

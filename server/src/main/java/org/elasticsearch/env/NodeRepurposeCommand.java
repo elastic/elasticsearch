@@ -25,13 +25,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
@@ -91,25 +91,25 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetaDataPaths = NodeEnvironment.collectIndexMetaDataPaths(nodePaths);
+        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
 
-        Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetaDataPaths);
+        Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetadataPaths);
 
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
-        final MetaData metaData = loadClusterState(terminal, env, persistedClusterStateService).metaData();
-        if (indexPaths.isEmpty() && metaData.indices().isEmpty()) {
+        final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
+        if (indexPaths.isEmpty() && metadata.indices().isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_DATA_TO_CLEAN_UP_FOUND);
             return;
         }
 
         final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths),
-            StreamSupport.stream(metaData.indices().values().spliterator(), false)
+            StreamSupport.stream(metadata.indices().values().spliterator(), false)
                 .map(imd -> imd.value.getIndexUUID()).collect(Collectors.toSet()));
 
-        outputVerboseInformation(terminal, indexPaths, indexUUIDs, metaData);
+        outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
 
-        terminal.println(noMasterMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetaDataPaths.size()));
+        terminal.println(noMasterMessage(indexUUIDs.size(), shardDataPaths.size(), indexMetadataPaths.size()));
         outputHowToSeeVerboseInformation(terminal);
 
         terminal.println("Node is being re-purposed as no-master and no-data. Clean-up of index data will be performed.");
@@ -117,7 +117,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
         // clean-up all metadata dirs
-        MetaDataStateFormat.deleteMetaState(dataPaths);
+        MetadataStateFormat.deleteMetaState(dataPaths);
         IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 
         terminal.println("Node successfully repurposed to no-master and no-data.");
@@ -135,12 +135,12 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
-        final MetaData metaData = loadClusterState(terminal, env, persistedClusterStateService).metaData();
+        final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
 
         final Set<Path> indexPaths = uniqueParentPaths(shardDataPaths);
         final Set<String> indexUUIDs = indexUUIDsFor(indexPaths);
 
-        outputVerboseInformation(terminal, shardDataPaths, indexUUIDs, metaData);
+        outputVerboseInformation(terminal, shardDataPaths, indexUUIDs, metadata);
 
         terminal.println(shardMessage(shardDataPaths.size(), indexUUIDs.size()));
         outputHowToSeeVerboseInformation(terminal);
@@ -158,12 +158,12 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         return clusterState(env, psf.loadBestOnDiskState());
     }
 
-    private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, MetaData metaData) {
+    private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
             pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
             terminal.println(Terminal.Verbosity.VERBOSE, "Indices affected:");
-            indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(uuid, metaData)));
+            indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(uuid, metadata)));
         }
     }
 
@@ -172,11 +172,11 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
-    private String toIndexName(String uuid, MetaData metaData) {
-        if (metaData != null) {
-            for (ObjectObjectCursor<String, IndexMetaData> indexMetaData : metaData.indices()) {
-                if (indexMetaData.value.getIndexUUID().equals(uuid)) {
-                    return indexMetaData.value.getIndex().getName();
+    private String toIndexName(String uuid, Metadata metadata) {
+        if (metadata != null) {
+            for (ObjectObjectCursor<String, IndexMetadata> indexMetadata : metadata.indices()) {
+                if (indexMetadata.value.getIndexUUID().equals(uuid)) {
+                    return indexMetadata.value.getIndex().getName();
                 }
             }
         }
@@ -187,9 +187,9 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
 
-    static String noMasterMessage(int indexes, int shards, int indexMetaData) {
+    static String noMasterMessage(int indexes, int shards, int indexMetadata) {
         return "Found " + indexes + " indices ("
-                + shards + " shards and " + indexMetaData + " index meta data) to clean up";
+                + shards + " shards and " + indexMetadata + " index meta data) to clean up";
     }
 
     static String shardMessage(int shards, int indices) {

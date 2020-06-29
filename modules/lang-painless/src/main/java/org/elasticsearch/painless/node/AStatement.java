@@ -20,10 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -94,30 +93,25 @@ public abstract class AStatement extends ANode {
          * Set to the approximate number of statements in a loop block to prevent
          * infinite loops during runtime.
          */
-        int statementCount = 0;
-    }
+        int statementCount = 1;
 
-    // TODO: remove placeholders once analysis and write are combined into build
-    // TODO: https://github.com/elastic/elasticsearch/issues/53561
-    Input input;
-    Output output;
+        /**
+         * The {@link StatementNode}(s) generated from this expression.
+         */
+        StatementNode statementNode = null;
+    }
 
     /**
      * Standard constructor with location used for error tracking.
      */
-    AStatement(Location location) {
-        super(location);
+    AStatement(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         throw new UnsupportedOperationException();
     }
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract StatementNode write(ClassNode classNode);
 }

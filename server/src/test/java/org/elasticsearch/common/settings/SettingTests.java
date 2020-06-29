@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
@@ -1210,9 +1210,9 @@ public class SettingTests extends ESTestCase {
     @TestLogging(value="org.elasticsearch.common.settings.IndexScopedSettings:INFO",
         reason="to ensure we log INFO-level messages from IndexScopedSettings")
     public void testLogSettingUpdate() throws Exception {
-        final IndexMetaData metaData = newIndexMeta("index1",
+        final IndexMetadata metadata = newIndexMeta("index1",
             Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "20s").build());
-        final IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
         final MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -1229,7 +1229,7 @@ public class SettingTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
         try {
             Loggers.addAppender(logger, mockLogAppender);
-            settings.updateIndexMetaData(newIndexMeta("index1",
+            settings.updateIndexMetadata(newIndexMeta("index1",
                 Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build()));
 
             mockLogAppender.assertAllExpectationsMatched();

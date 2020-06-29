@@ -23,7 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -106,8 +106,8 @@ public class NoOpEngineTests extends EngineTestCase {
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
-        
+            IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build());
+
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             Path translogPath = createTempDir();

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,13 +55,12 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
 
-    private static final Version FORCE_MERGE_UUID_VERSION = Version.V_7_7_0;
+    private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
      * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
      */
-    @Nullable
     private final String forceMergeUUID;
 
     /**
@@ -80,10 +78,11 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            forceMergeUUID = in.readOptionalString();
+        if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+            forceMergeUUID = in.readString();
         } else {
-            forceMergeUUID = null;
+            forceMergeUUID = in.readOptionalString();
+            assert forceMergeUUID != null : "optional was just used as a BwC measure";
         }
     }
 
@@ -122,10 +121,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
-     * Force merge UUID to use when force merging or {@code null} if not using one in a mixed version cluster containing nodes older than
-     * {@link #FORCE_MERGE_UUID_VERSION}.
+     * Force merge UUID to use when force merging.
      */
-    @Nullable
     public String forceMergeUUID() {
         return forceMergeUUID;
     }
@@ -159,7 +156,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
+        if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+            out.writeString(forceMergeUUID);
+        } else {
             out.writeOptionalString(forceMergeUUID);
         }
     }

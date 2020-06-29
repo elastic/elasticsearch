@@ -523,7 +523,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
             final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true);
+                client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null);
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
             return context;
@@ -549,10 +549,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             if (fieldName.equals(MISSING_FIELD_NAME)) {
                 return null;
             } else {
-                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-                ft.setName(fieldName);
-                ft.freeze();
-                return ft;
+                return new KeywordFieldMapper.KeywordFieldType(fieldName);
             }
         });
 

@@ -86,7 +86,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
         assert licenseStateListenerRegistered;
-        if (licenseState.isAuthAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false) {
             logger.debug("not opting out of the query cache; authorization is not allowed");
             return indicesQueryCache.doCache(weight, policy);
         }
@@ -126,7 +126,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
             // we don't know how to safely extract the fields of this query, don't cache.
             return false;
         }
-        
+
         // we successfully extracted the set of fields: check each one
         for (String field : fields) {
             // don't cache any internal fields (e.g. _field_names), these are complicated.

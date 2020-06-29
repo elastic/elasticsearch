@@ -25,20 +25,17 @@ dependencies {
   runtime "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   //sql does not depend on server, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
 
-dependencyLicenses {
-  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /lucene-.*/, to: 'lucene'
-  ignoreSha 'elasticsearch'
-  ignoreSha 'elasticsearch-core'
 }
 
 thirdPartyAudit.ignoreMissingClasses(

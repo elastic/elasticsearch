@@ -24,10 +24,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
@@ -77,23 +76,22 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 final int numAggregations = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
                 for (int i = 0; i < numAggregations; i++) {
-                    aggs.add(createTestInstance(randomAlphaOfLength(5), emptyList(), emptyMap(), InternalAggregations.EMPTY));
+                    aggs.add(createTestInstance(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
-                return new InternalAggregations(aggs);
+                return InternalAggregations.from(aggs);
             };
         }
     }
 
     @Override
-    protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        T instance = createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
+    protected final T createTestInstance(String name, Map<String, Object> metadata) {
+        T instance = createTestInstance(name, metadata, subAggregationsSupplier.get());
         assert instance.getBuckets().size() <= maxNumberOfBuckets() :
                 "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
         return instance;
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData, InternalAggregations aggregations);
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
     protected abstract Class<? extends ParsedMultiBucketAggregation> implementationClass();
 
@@ -154,7 +152,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getMetaData(), actual.getMetaData());
+        assertEquals(expected.getMetadata(), actual.getMetadata());
         assertEquals(expected.getType(), actual.getType());
     }
 
@@ -186,5 +184,12 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 assertMultiBucketsAggregations(expectedAggregation, actualAggregation, false);
             }
         }
+    }
+
+    @Override
+    public void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        /*
+         * No-op.
+         */
     }
 }

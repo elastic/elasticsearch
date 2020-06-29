@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.expression.function.Score;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggSource;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
@@ -133,7 +134,7 @@ public class SourceGeneratorTests extends ESTestCase {
     public void testNoSortIfAgg() {
         QueryContainer container = new QueryContainer()
                 .addGroups(singletonList(new GroupByValue("group_id", "group_column")))
-                .addAgg("group_id", new AvgAgg("agg_id", "avg_column"));
+                .addAgg("group_id", new AvgAgg("agg_id", AggSource.of("avg_column")));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertNull(sourceBuilder.sorts());
     }

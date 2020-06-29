@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.search.AsyncSearchIndexService.INDEX;
+import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -81,9 +82,9 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
-           AsyncSearchId searchId = AsyncSearchId.decode(id);
+           AsyncExecutionId searchId = AsyncExecutionId.decode(id);
            for (String runAs : new String[] {user, other}) {
-               exc = expectThrows(ResponseException.class, () -> get(INDEX, searchId.getDocId(), runAs));
+               exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                assertThat(exc.getMessage(), containsString("unauthorized"));
            }
@@ -127,16 +128,16 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         final Request request = new Request("POST", indexName + "/_async_search");
         setRunAsHeader(request, user);
         request.addParameter("q", query);
-        request.addParameter("wait_for_completion", waitForCompletion.toString());
+        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
         // we do the cleanup explicitly
-        request.addParameter("clean_on_completion", "false");
+        request.addParameter("keep_on_completion", "true");
         return client().performRequest(request);
     }
 
     static Response getAsyncSearch(String id, String user) throws IOException {
         final Request request = new Request("GET",  "/_async_search/" + id);
         setRunAsHeader(request, user);
-        request.addParameter("wait_for_completion", "0ms");
+        request.addParameter("wait_for_completion_timeout", "0ms");
         return client().performRequest(request);
     }
 

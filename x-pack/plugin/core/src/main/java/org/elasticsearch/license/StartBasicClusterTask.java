@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -44,9 +44,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        LicensesMetaData oldLicensesMetaData = oldState.metaData().custom(LicensesMetaData.TYPE);
-        logger.debug("license prior to starting basic license: {}", oldLicensesMetaData);
-        License oldLicense = LicensesMetaData.extractLicense(oldLicensesMetaData);
+        LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
+        logger.debug("license prior to starting basic license: {}", oldLicensesMetadata);
+        License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
         Map<String, String[]> acknowledgeMessages = ackMessages.get();
         if (acknowledgeMessages.isEmpty() == false) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
@@ -61,8 +61,8 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        LicensesMetaData currentLicensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
-        License currentLicense = LicensesMetaData.extractLicense(currentLicensesMetaData);
+        LicensesMetadata currentLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+        License currentLicense = LicensesMetadata.extractLicense(currentLicensesMetadata);
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(currentState);
             if (request.isAcknowledged() == false && currentLicense != null) {
@@ -72,11 +72,11 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
                     return currentState;
                 }
             }
-            Version trialVersion = currentLicensesMetaData != null ? currentLicensesMetaData.getMostRecentTrialVersion() : null;
-            LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, trialVersion);
-            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-            mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-            return ClusterState.builder(currentState).metaData(mdBuilder).build();
+            Version trialVersion = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialVersion() : null;
+            LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
+            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+            mdBuilder.putCustom(LicensesMetadata.TYPE, newLicensesMetadata);
+            return ClusterState.builder(currentState).metadata(mdBuilder).build();
         } else {
             return currentState;
         }

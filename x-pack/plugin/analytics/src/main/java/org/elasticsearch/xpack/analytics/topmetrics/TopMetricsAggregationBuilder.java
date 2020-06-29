@@ -55,7 +55,8 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         PARSER.declareField(constructorArg(), (p, n) -> SortBuilder.fromXContent(p), SORT_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
-        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.PARSER.apply(true, false);
+        ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser =
+            MultiValuesSourceFieldConfig.parserBuilder(true, false, false);
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 
@@ -82,8 +83,8 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
      * Cloning ctor for reducing.
      */
     public TopMetricsAggregationBuilder(TopMetricsAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.sortBuilders = clone.sortBuilders;
         this.size = clone.size;
         this.metricFields = clone.metricFields;
@@ -109,14 +110,19 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new TopMetricsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new TopMetricsAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
     }
 
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new TopMetricsAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metaData, sortBuilders,
+        return new TopMetricsAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata, sortBuilders,
                 size, metricFields);
     }
 

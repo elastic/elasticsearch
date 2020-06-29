@@ -35,7 +35,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -50,7 +50,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -123,7 +123,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     throws IOException {
         final Settings settings = environment.settings();
 
-        final IndexMetaData indexMetaData;
+        final IndexMetadata indexMetadata;
         final int shardId;
 
         if (options.has(folderOption)) {
@@ -141,7 +141,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                indexMetaData = StreamSupport.stream(clusterState.metaData().indices().values().spliterator(), false)
+                indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
                     .map(imd -> imd.value)
                     .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
                     .orElse(null);
@@ -153,15 +153,15 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             // otherwise resolve shardPath based on the index name and shard id
             String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-            indexMetaData = clusterState.metaData().index(indexName);
+            indexMetadata = clusterState.metadata().index(indexName);
         }
 
-        if (indexMetaData == null) {
+        if (indexMetadata == null) {
             throw new ElasticsearchException("Unable to find index in cluster state");
         }
 
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-        final Index index = indexMetaData.getIndex();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        final Index index = indexMetadata.getIndex();
         final ShardId shId = new ShardId(index, shardId);
 
         for (Path dataPath : dataPaths) {
@@ -414,22 +414,22 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     private void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
-        final ShardStateMetaData shardStateMetaData =
-            ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
+        final ShardStateMetadata shardStateMetadata =
+            ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
 
-        if (shardStateMetaData == null) {
+        if (shardStateMetadata == null) {
             throw new ElasticsearchException("No shard state meta data at " + shardStatePath);
         }
 
         final AllocationId newAllocationId = AllocationId.newInitializing();
 
-        terminal.println("Changing allocation id " + shardStateMetaData.allocationId.getId()
+        terminal.println("Changing allocation id " + shardStateMetadata.allocationId.getId()
             + " to " + newAllocationId.getId());
 
-        final ShardStateMetaData newShardStateMetaData =
-            new ShardStateMetaData(shardStateMetaData.primary, shardStateMetaData.indexUUID, newAllocationId);
+        final ShardStateMetadata newShardStateMetadata =
+            new ShardStateMetadata(shardStateMetadata.primary, shardStateMetadata.indexUUID, newAllocationId);
 
-        ShardStateMetaData.FORMAT.writeAndCleanup(newShardStateMetaData, shardStatePath);
+        ShardStateMetadata.FORMAT.writeAndCleanup(newShardStateMetadata, shardStatePath);
 
         terminal.println("");
         terminal.println("You should run the following command to allocate this shard:");
@@ -440,13 +440,13 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     private void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale)
         throws IOException {
         final Path nodePath = getNodePath(shardPath);
-        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePath);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
 
-        if (nodeMetaData == null) {
+        if (nodeMetadata == null) {
             throw new ElasticsearchException("No node meta data at " + nodePath);
         }
 
-        final String nodeId = nodeMetaData.nodeId();
+        final String nodeId = nodeMetadata.nodeId();
         final String index = shardPath.getShardId().getIndexName();
         final int id = shardPath.getShardId().id();
         final AllocationCommands commands = new AllocationCommands(

@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
@@ -97,7 +98,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 queryField, "type=percolator", aliasField, "type=alias,path=" + queryField
         ))), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                STRING_FIELD_NAME, "type=text"
+                TEXT_FIELD_NAME, "type=text"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 

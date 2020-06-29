@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -83,7 +81,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     static final int CHANNELS_PER_CONNECTION = 1;
 
     private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
-    private static final Logger logger = LogManager.getLogger(ProxyConnectionStrategy.class);
 
     private final int maxNumConnections;
     private final String configuredAddress;
@@ -98,27 +95,28 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             clusterAlias,
             transportService,
             connectionManager,
+            settings,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+                            Settings settings, int maxNumConnections, String configuredAddress) {
+        this(clusterAlias, transportService, connectionManager, settings, maxNumConnections, configuredAddress,
             () -> resolveAddress(configuredAddress), null);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress, String configuredServerName) {
-        this(clusterAlias, transportService, connectionManager, maxNumConnections, configuredAddress,
+                            Settings settings, int maxNumConnections, String configuredAddress, String configuredServerName) {
+        this(clusterAlias, transportService, connectionManager, settings, maxNumConnections, configuredAddress,
             () -> resolveAddress(configuredAddress), configuredServerName);
     }
 
     ProxyConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
+                            Settings settings, int maxNumConnections, String configuredAddress, Supplier<TransportAddress> address,
                             String configuredServerName) {
-        super(clusterAlias, transportService, connectionManager);
+        super(clusterAlias, transportService, connectionManager, settings);
         this.maxNumConnections = maxNumConnections;
         this.configuredAddress = configuredAddress;
         this.configuredServerName = configuredServerName;
@@ -157,7 +155,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String address = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
+        String serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false ||
+            Objects.equals(serverName, configuredServerName) == false;
     }
 
     @Override

@@ -1,12 +1,7 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
     name 'x-pack-async-search'
     description 'A module which allows to track the progress of a search asynchronously.'
@@ -17,8 +12,6 @@ archivesBaseName = 'x-pack-async-search'
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-integTest.enabled = false
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
@@ -33,10 +26,10 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('async'))
 }
 
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
-}
+integTest.enabled = false
+

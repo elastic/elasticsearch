@@ -430,4 +430,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         configureClient(builder, restClientSettings());
         return builder;
     }
+
+    protected final boolean preserveDataStreamsUponCompletion() {
+        // TODO: enable automatic deleting of data streams
+        // For now don't automatically try to remove all data streams after each yaml test.
+        // The client runners need to be adjust to remove data streams after each test too,
+        // otherwise rest yaml tests using data streams succeed in Elasticsearch, but may fail when clients run
+        // the yaml test suite. In the mean time we should delete data streams manually after each test.
+        return true;
+    }
 }

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
@@ -26,7 +28,7 @@ apply plugin: 'elasticsearch.distribution-download'
 testFixtures.useFixture()
 
 dependencies {
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':client:rest-high-level')
 }
 
 task copyKeystore(type: Sync) {
@@ -42,6 +44,7 @@ task copyKeystore(type: Sync) {
 elasticsearch_distributions {
   docker {
     type = 'docker'
+    architecture = Architecture.current()
     flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable

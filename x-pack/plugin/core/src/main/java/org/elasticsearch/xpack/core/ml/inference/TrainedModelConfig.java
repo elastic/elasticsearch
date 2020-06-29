@@ -23,6 +23,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +42,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -45,6 +50,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
+    public static final String FOR_EXPORT = "for_export";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -62,6 +68,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
+    public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -93,6 +100,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareString(TrainedModelConfig.Builder::setLazyDefinition, COMPRESSED_DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
         parser.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
+        parser.declareNamedObject(TrainedModelConfig.Builder::setInferenceConfig, (p, c, n) -> ignoreUnknownFields ?
+            p.namedObject(LenientlyParsedInferenceConfig.class, n, null) :
+            p.namedObject(StrictlyParsedInferenceConfig.class, n, null),
+            INFERENCE_CONFIG);
         return parser;
     }
 
@@ -112,6 +123,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final long estimatedOperations;
     private final License.OperationMode licenseLevel;
     private final Map<String, String> defaultFieldMap;
+    private final InferenceConfig inferenceConfig;
 
     private final LazyModelDefinition definition;
 
@@ -127,7 +139,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Long estimatedHeapMemory,
                        Long estimatedOperations,
                        String licenseLevel,
-                       Map<String, String> defaultFieldMap) {
+                       Map<String, String> defaultFieldMap,
+                       InferenceConfig inferenceConfig) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -148,6 +161,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
+        this.inferenceConfig = inferenceConfig;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -169,6 +183,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 null;
         } else {
             this.defaultFieldMap = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
+        } else {
+            this.inferenceConfig = null;
         }
     }
 
@@ -202,6 +221,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public Map<String, String> getDefaultFieldMap() {
         return defaultFieldMap;
+    }
+
+    @Nullable
+    public InferenceConfig getInferenceConfig() {
+        return inferenceConfig;
     }
 
     @Nullable
@@ -274,18 +298,30 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 out.writeBoolean(false);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeOptionalNamedWriteable(inferenceConfig);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID.getPreferredName(), modelId);
-        builder.field(CREATED_BY.getPreferredName(), createdBy);
-        builder.field(VERSION.getPreferredName(), version.toString());
+        // If the model is to be exported for future import to another cluster, these fields are irrelevant.
+        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
+            builder.field(MODEL_ID.getPreferredName(), modelId);
+            builder.field(CREATED_BY.getPreferredName(), createdBy);
+            builder.field(VERSION.getPreferredName(), version.toString());
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.humanReadableField(
+                ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+                new ByteSizeValue(estimatedHeapMemory));
+            builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+            builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         // We don't store the definition in the same document as the configuration
         if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
             if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
@@ -302,14 +338,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         }
         builder.field(INPUT.getPreferredName(), input);
-        builder.humanReadableField(
-            ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-            ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-            new ByteSizeValue(estimatedHeapMemory));
-        builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
-        builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         if (defaultFieldMap != null && defaultFieldMap.isEmpty() == false) {
             builder.field(DEFAULT_FIELD_MAP.getPreferredName(), defaultFieldMap);
+        }
+        if (inferenceConfig != null) {
+            writeNamedObject(builder, params, INFERENCE_CONFIG.getPreferredName(), inferenceConfig);
         }
         builder.endObject();
         return builder;
@@ -337,6 +370,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
+            Objects.equals(inferenceConfig, that.inferenceConfig) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -354,6 +388,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             estimatedOperations,
             input,
             licenseLevel,
+            inferenceConfig,
             defaultFieldMap);
     }
 
@@ -372,6 +407,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private LazyModelDefinition definition;
         private String licenseLevel;
         private Map<String, String> defaultFieldMap;
+        private InferenceConfig inferenceConfig;
 
         public Builder() {}
 
@@ -389,6 +425,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.estimatedHeapMemory = config.estimatedHeapMemory;
             this.licenseLevel = config.licenseLevel.description();
             this.defaultFieldMap = config.defaultFieldMap == null ? null : new HashMap<>(config.defaultFieldMap);
+            this.inferenceConfig = config.inferenceConfig;
         }
 
         public Builder setModelId(String modelId) {
@@ -512,6 +549,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setInferenceConfig(InferenceConfig inferenceConfig) {
+            this.inferenceConfig = inferenceConfig;
+            return this;
+        }
+
         public Builder validate() {
             return validate(false);
         }
@@ -529,6 +571,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             if (modelId == null) {
                 validationException = addValidationError("[" + MODEL_ID.getPreferredName() + "] must not be null.", validationException);
+            }
+            if (inferenceConfig == null && forCreation) {
+                validationException = addValidationError("[" + INFERENCE_CONFIG.getPreferredName() + "] must not be null.",
+                    validationException);
             }
 
             if (modelId != null && MlStrings.isValidId(modelId) == false) {
@@ -561,6 +607,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             if (input != null && input.getFieldNames().isEmpty()) {
                 validationException = addValidationError("[input.field_names] must not be empty", validationException);
+            }
+            if (input != null && input.getFieldNames()
+                .stream()
+                .filter(s -> s.contains("."))
+                .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
+                .anyMatch(String::isEmpty)) {
+                validationException = addValidationError("[input.field_names] must only contain valid dot delimited field names",
+                    validationException);
             }
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
@@ -605,7 +659,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 estimatedHeapMemory == null ? 0 : estimatedHeapMemory,
                 estimatedOperations == null ? 0 : estimatedOperations,
                 licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel,
-                defaultFieldMap);
+                defaultFieldMap,
+                inferenceConfig);
         }
     }
 

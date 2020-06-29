@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -385,7 +385,7 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         mapping.endObject();
         Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
             .build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE);

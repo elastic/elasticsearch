@@ -19,16 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Objects;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.
@@ -43,6 +40,12 @@ public abstract class AExpression extends ANode {
          * as input.
          */
         boolean read = true;
+
+        /**
+         * Set to true when this node is an lhs-expression and will be storing
+         * a value from an rhs-expression.
+         */
+        boolean write = false;
 
         /**
          * Set to the expected type this node needs to be.  Note this variable
@@ -66,83 +69,81 @@ public abstract class AExpression extends ANode {
     public static class Output {
 
         /**
-         * Set to true when an expression can be considered a stand alone
-         * statement.  Used to prevent extraneous bytecode. This is always
-         * set by the node as output.
-         */
-        boolean statement = false;
-
-        /**
          * Set to the actual type this node is.  Note this variable is always
          * set by the node as output and should only be read from outside of the
-         * node itself.  <b>Also, actual can always be read after a cast is
-         * called on this node to get the type of the node after the cast.</b>
+         * node itself. Also, actual can always be read after a cast is
+         * called on this node to get the type of the node after the cast.
          */
         Class<?> actual = null;
+
+        /**
+         * Set to {@code true} when actual represents a static type and
+         * this expression does not generate a value. Set to {@code false}
+         * when actual is the type of value this expression generates.
+         */
+        boolean isStaticType = false;
+
+        /**
+         * Used to build a fully-qualified type name when the name comes
+         * in as pieces since x.y.z may get broken down into multiples nodes
+         * with the dot as a delimiter.
+         */
+        String partialCanonicalTypeName = null;
+
+        /**
+         * {@code true} if this node or a sub-node of this node can be optimized with
+         * rhs actual type to avoid an unnecessary cast.
+         */
+        boolean isDefOptimized = false;
+
+        /**
+         * The {@link ExpressionNode}(s) generated from this expression.
+         */
+        ExpressionNode expressionNode = null;
     }
-
-    /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    // TODO: remove placeholders once analysis and write are combined into build
-    // TODO: https://github.com/elastic/elasticsearch/issues/53561
-    // This are used to support the transition from a mutable to immutable state.
-    // Currently, the IR tree is built during the user tree "write" phase, so
-    // these are stored on the node to set during the "semantic" phase and then
-    // use during the "write" phase.
-    Input input = null;
-    Output output = null;
-    PainlessCast cast = null;
 
     /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(Location location) {
-        super(location);
-
-        prefix = null;
-    }
-
-    /**
-     * This constructor is used by variable/method chains when postfixes are specified.
-     */
-    AExpression(Location location, AExpression prefix) {
-        super(location);
-
-        this.prefix = Objects.requireNonNull(prefix);
+    AExpression(int indentifier, Location location) {
+        super(indentifier, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         throw new UnsupportedOperationException();
     }
 
     /**
-     * Writes ASM based on the data collected during the analysis phase.
+     * Checks for errors and collects data for the writing phase. Adds additional, common
+     * error checking for conditions related to static types and partially constructed static types.
      */
-    abstract ExpressionNode write(ClassNode classNode);
+    static Output analyze(AExpression expression, ClassNode classNode, SemanticScope semanticScope, Input input) {
+        Output output = expression.analyze(classNode, semanticScope, input);
 
-    void cast() {
-        cast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
+        if (output.partialCanonicalTypeName != null) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol [" + output.partialCanonicalTypeName + "]"));
+        }
+
+        if (output.isStaticType) {
+            throw expression.createError(new IllegalArgumentException("value required: " +
+                    "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+        }
+
+        return output;
     }
 
-    ExpressionNode cast(ExpressionNode expressionNode) {
-        if (cast == null) {
+    static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {
+        if (painlessCast == null) {
             return expressionNode;
         }
 
         CastNode castNode = new CastNode();
-        castNode.setLocation(location);
-        castNode.setExpressionType(cast.targetType);
-        castNode.setCast(cast);
+        castNode.setLocation(expressionNode.getLocation());
+        castNode.setExpressionType(painlessCast.targetType);
+        castNode.setCast(painlessCast);
         castNode.setChildNode(expressionNode);
 
         return castNode;

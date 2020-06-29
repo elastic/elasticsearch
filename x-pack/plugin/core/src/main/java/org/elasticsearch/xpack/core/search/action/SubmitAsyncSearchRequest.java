@@ -30,8 +30,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SubmitAsyncSearchRequest extends ActionRequest {
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
-    private TimeValue waitForCompletion = TimeValue.timeValueSeconds(1);
-    private boolean cleanOnCompletion = true;
+    private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
+    private boolean keepOnCompletion = false;
     private TimeValue keepAlive = TimeValue.timeValueDays(5);
 
     private final SearchRequest request;
@@ -56,17 +56,17 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {
         this.request = new SearchRequest(in);
-        this.waitForCompletion = in.readTimeValue();
+        this.waitForCompletionTimeout = in.readTimeValue();
         this.keepAlive = in.readTimeValue();
-        this.cleanOnCompletion = in.readBoolean();
+        this.keepOnCompletion = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         request.writeTo(out);
-        out.writeTimeValue(waitForCompletion);
+        out.writeTimeValue(waitForCompletionTimeout);
         out.writeTimeValue(keepAlive);
-        out.writeBoolean(cleanOnCompletion);
+        out.writeBoolean(keepOnCompletion);
     }
 
     /**
@@ -84,13 +84,13 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public SubmitAsyncSearchRequest setWaitForCompletion(TimeValue waitForCompletion) {
-        this.waitForCompletion = waitForCompletion;
+    public SubmitAsyncSearchRequest setWaitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
         return this;
     }
 
-    public TimeValue getWaitForCompletion() {
-        return waitForCompletion;
+    public TimeValue getWaitForCompletionTimeout() {
+        return waitForCompletionTimeout;
     }
 
     /**
@@ -113,22 +113,22 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
-     * Should the resource be removed on completion or failure (defaults to true).
+     * Should the resource be kept on completion or failure (defaults to false).
      */
-    public SubmitAsyncSearchRequest setCleanOnCompletion(boolean value) {
-        this.cleanOnCompletion = value;
+    public SubmitAsyncSearchRequest setKeepOnCompletion(boolean value) {
+        this.keepOnCompletion = value;
         return this;
     }
 
-    public boolean isCleanOnCompletion() {
-        return cleanOnCompletion;
+    public boolean isKeepOnCompletion() {
+        return keepOnCompletion;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = request.validate();
         if (request.scroll() != null) {
-            addValidationError("[scroll] queries are not supported", validationException);
+            validationException = addValidationError("[scroll] queries are not supported", validationException);
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
@@ -141,43 +141,50 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             validationException =
                 addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
         }
+        if (request.getPreFilterShardSize() == null || request.getPreFilterShardSize() != 1) {
+            validationException =
+                addValidationError("[pre_filter_shard_size] cannot be changed for async search queries", validationException);
+        }
 
         return validationException;
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, toString(), parentTaskId, headers) {
+        return new CancellableTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public boolean shouldCancelChildrenOnCancellation() {
                 return true;
+            }
+
+            @Override
+            public String getDescription() {
+                // generating description in a lazy way since source can be quite big
+                return "waitForCompletionTimeout[" + waitForCompletionTimeout +
+                    "], keepOnCompletion[" + keepOnCompletion +
+                    "] keepAlive[" + keepAlive +
+                    "], request=" + request.buildDescription();
             }
         };
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
-        return cleanOnCompletion == request1.cleanOnCompletion &&
-            waitForCompletion.equals(request1.waitForCompletion) &&
+        return keepOnCompletion == request1.keepOnCompletion &&
+            waitForCompletionTimeout.equals(request1.waitForCompletionTimeout) &&
             keepAlive.equals(request1.keepAlive) &&
             request.equals(request1.request);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(waitForCompletion, cleanOnCompletion, keepAlive, request);
-    }
-
-    @Override
-    public String toString() {
-        return "SubmitAsyncSearchRequest{" +
-            "waitForCompletion=" + waitForCompletion +
-            ", cleanOnCompletion=" + cleanOnCompletion +
-            ", keepAlive=" + keepAlive +
-            ", request=" + request +
-            '}';
+        return Objects.hash(waitForCompletionTimeout, keepOnCompletion, keepAlive, request);
     }
 }

@@ -398,6 +398,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         } finally {
                             processFailure(request, readerContext, exc);
                         }
+                        return;
                     }
 
                     if (canRewriteToMatchNone(canMatchRequest.source())

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
@@ -45,15 +46,10 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Matchers.*;
+import static org.mockito.Mockito.*;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class LocalModelTests extends ESTestCase {
@@ -75,7 +71,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             randomFrom(License.OperationMode.values()),
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field", Collections.singletonMap("bar", 0.5));
@@ -105,7 +102,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
@@ -148,7 +146,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
@@ -204,7 +203,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("foo", 1.0);
@@ -232,7 +232,8 @@ public class LocalModelTests extends ESTestCase {
             null,
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("something", 1.0);
@@ -263,7 +264,8 @@ public class LocalModelTests extends ESTestCase {
             null,
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService
+            modelStatsService,
+            mock(CircuitBreaker.class)
         );
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);

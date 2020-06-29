@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.license.License;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -40,6 +42,8 @@ public class LocalModel {
     private final LongAdder currentInferenceCount;
     private final InferenceConfig inferenceConfig;
     private final License.OperationMode licenseLevel;
+    private final CircuitBreaker trainedModelCircuitBreaker;
+    private final AtomicLong referenceCount;
 
     public LocalModel(String modelId,
                       String nodeId,
@@ -48,7 +52,8 @@ public class LocalModel {
                       Map<String, String> defaultFieldMap,
                       InferenceConfig modelInferenceConfig,
                       License.OperationMode licenseLevel,
-                      TrainedModelStatsService trainedModelStatsService) {
+                      TrainedModelStatsService trainedModelStatsService,
+                      CircuitBreaker trainedModelCircuitBreaker) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
@@ -60,6 +65,8 @@ public class LocalModel {
         this.currentInferenceCount = new LongAdder();
         this.inferenceConfig = modelInferenceConfig;
         this.licenseLevel = licenseLevel;
+        this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
+        this.referenceCount = new AtomicLong(1);
     }
 
     long ramBytesUsed() {
@@ -176,5 +183,18 @@ public class LocalModel {
                 }
             });
         }
+    }
+
+    long acquire() {
+        return referenceCount.incrementAndGet();
+    }
+
+    long release() {
+        if (referenceCount.decrementAndGet() == 0) {
+            // no references to this model, it no longer needs to be accounted for
+            trainedModelCircuitBreaker.addWithoutBreaking(-ramBytesUsed());
+        }
+
+        return referenceCount.get();
     }
 }

@@ -197,6 +197,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ModelAndConsumer cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             cachedModel.consumers.add(consumer);
+            cachedModel.model.acquire();
             modelActionListener.onResponse(cachedModel.model);
             logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
             return;
@@ -310,7 +311,8 @@ public class ModelLoadingService implements ClusterStateListener {
                             trainedModelConfig.getDefaultFieldMap(),
                             inferenceConfig,
                             trainedModelConfig.getLicenseLevel(),
-                            modelStatsService));
+                            modelStatsService,
+                            trainedModelCircuitBreaker));
                     },
                     // Failure getting the definition, remove the initial estimation value
                     e -> {
@@ -339,19 +341,21 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
             trainedModelConfig.getLicenseLevel(),
-            modelStatsService);
+            modelStatsService,
+            trainedModelCircuitBreaker);
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
             // Consequently, we should not store the retrieved model
             if (listeners == null) {
-                trainedModelCircuitBreaker.addWithoutBreaking(-inferenceDefinition.ramBytesUsed());
+                loadedModel.release();
                 return;
             }
             localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
             shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
         for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+            loadedModel.acquire();
             listener.onResponse(loadedModel);
         }
     }
@@ -388,7 +392,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // If the model is no longer referenced, flush the stats to persist as soon as possible
             notification.getValue().model.persistStats(referencedModels.contains(notification.getKey()) == false);
         } finally {
-            trainedModelCircuitBreaker.addWithoutBreaking(-notification.getValue().model.ramBytesUsed());
+            notification.getValue().model.release();
         }
     }
 

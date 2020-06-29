@@ -451,6 +451,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
         });
     }
 
+    public void testReferenceCounting() {
+
+    }
+
     @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) {
         InferenceDefinition definition = mock(InferenceDefinition.class);

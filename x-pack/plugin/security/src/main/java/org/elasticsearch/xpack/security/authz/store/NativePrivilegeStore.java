@@ -159,12 +159,14 @@ public class NativePrivilegeStore {
                 innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
-                    // Use RWLock and atomic counter to:
-                    // 1. Avoid caching potential stale results as much as possible
-                    // 2. If stale results are cached, ensure they will be invalidated as soon as possible
-                    try (ReleasableLock ignored = invalidationReadLock.acquire()) {
-                        if (invalidationCounter == numInvalidation.get()) {
-                            cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
+                    if (descriptorsCache != null) {
+                        // Use RWLock and atomic counter to:
+                        // 1. Avoid caching potential stale results as much as possible
+                        // 2. If stale results are cached, ensure they will be invalidated as soon as possible
+                        try (ReleasableLock ignored = invalidationReadLock.acquire()) {
+                            if (invalidationCounter == numInvalidation.get()) {
+                                cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
+                            }
                         }
                     }
                     listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
@@ -307,9 +309,6 @@ public class NativePrivilegeStore {
     // protected for tests
     protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
         Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
-        if (descriptorsCache == null) {
-            return;
-        }
         final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
         // Do not cache the names if expansion has no effect
         if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
@@ -430,26 +429,31 @@ public class NativePrivilegeStore {
         if (descriptorsCache == null) {
             return;
         }
-        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+        // Increment the invalidation count to avoid caching stale results
+        // Release the lock as soon as we increment the counter so the actual invalidation
+        // does not have to block other threads. In theory, there could be very rare edge
+        // cases that we would invalidate more than necessary. But we consider less locking
+        // duration is overall better.
         try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
             numInvalidation.incrementAndGet();
-            final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-            // Always completely invalidate application names cache due to wildcard
-            applicationNamesCache.invalidateAll();
-            uniqueNames.forEach(descriptorsCache::invalidate);
         }
+        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+        // Always completely invalidate application names cache due to wildcard
+        applicationNamesCache.invalidateAll();
+        uniqueNames.forEach(descriptorsCache::invalidate);
     }
 
     public void invalidateAll() {
         if (descriptorsCache == null) {
             return;
         }
-        logger.debug("Invalidating all application privileges caches");
         try (ReleasableLock ignored = invalidationWriteLock.acquire()) {
             numInvalidation.incrementAndGet();
-            applicationNamesCache.invalidateAll();
-            descriptorsCache.invalidateAll();
         }
+        logger.debug("Invalidating all application privileges caches");
+        applicationNamesCache.invalidateAll();
+        descriptorsCache.invalidateAll();
     }
 
     private static boolean isEmpty(Collection<String> collection) {

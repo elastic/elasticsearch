@@ -394,8 +394,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.state = state;
             this.reason = reason;
             this.generation = generation;
+            assert assertConsistent();
+        }
+
+        private boolean assertConsistent() {
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
+            assert state != ShardState.INIT || nodeId != null : "Saw null node id for state [" + state + "]";
+            return true;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {

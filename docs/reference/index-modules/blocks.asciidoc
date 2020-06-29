@@ -5,9 +5,10 @@ Index blocks limit the kind of operations that are available on a certain
 index. The blocks come in different flavours, allowing to block write,
 read, or metadata operations. The blocks can be set / removed using dynamic
 index settings, or can be added using a dedicated API, which also ensures
-that, once successfully returning to the user, all shards of the index are
-properly accounting for the block, for example that all in-flight writes to
-an index have been completed after adding the write block.
+for write blocks that, once successfully returning to the user, all shards
+of the index are properly accounting for the block, for example that all
+in-flight writes to an index have been completed after adding the write
+block.
 
 [discrete]
 [[index-block-settings]]

@@ -42,6 +42,10 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -257,5 +261,23 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request("ds");
         expectThrows(ResourceNotFoundException.class, () -> client.admin().indices().getDataStreams(getRequest).actionGet());
+    }
+
+    public void testDataStreamNotIncludedInLimitedSnapshot() throws ExecutionException, InterruptedException {
+        final String snapshotName = "test-snap";
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+                .prepareCreateSnapshot(REPO, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices("does-not-exist-*")
+                .setIncludeGlobalState(true)
+                .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+
+        assertThat(client().admin().indices()
+                .deleteDataStream(new DeleteDataStreamAction.Request("*")).get().isAcknowledged(), is(true));
+
+        final RestoreSnapshotResponse restoreSnapshotResponse =
+                client().admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), empty());
     }
 }

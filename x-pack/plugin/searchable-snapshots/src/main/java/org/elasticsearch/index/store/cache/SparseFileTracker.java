@@ -260,7 +260,8 @@ public class SparseFileTracker {
         final SortedSet<Range> existingRanges = ranges.tailSet(range);
         assert existingRanges.isEmpty() == false;
         final Range existingRange = existingRanges.first();
-        assert existingRange.start == range.start && existingRange.end == range.end && existingRange.isPending();
+        assert existingRange == range;
+        assert existingRange.isPending();
         return true;
     }
 

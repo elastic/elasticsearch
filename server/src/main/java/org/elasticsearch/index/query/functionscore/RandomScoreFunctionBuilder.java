@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,9 +37,7 @@ import java.util.Objects;
  * A function that computes a random score for the matched documents
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(RandomScoreFunctionBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RandomScoreFunctionBuilder.class);
 
     public static final String NAME = "random_score";
     private String field;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +37,7 @@ import static org.elasticsearch.common.Booleans.parseBoolean;
 
 public class TransportInfo implements ReportingService.Info {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TransportInfo.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);
 
     /** Whether to add hostname to publish host field when serializing. */
     private static final boolean CNAME_IN_PUBLISH_ADDRESS =

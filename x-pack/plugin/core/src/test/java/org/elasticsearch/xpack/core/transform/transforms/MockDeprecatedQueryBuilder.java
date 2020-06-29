@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,8 +28,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
     public static final String NAME = "deprecated_match_all";
     public static final String DEPRECATION_MESSAGE = "expected deprecation message from MockDeprecatedQueryBuilder";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(MockDeprecatedQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MockDeprecatedQueryBuilder.class);
 
     private static final ObjectParser<MockDeprecatedQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, MockDeprecatedQueryBuilder::new);
 

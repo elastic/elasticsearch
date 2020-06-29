@@ -87,7 +87,7 @@ public class CompositeRolesStore {
         Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CompositeRolesStore.class);
 
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -349,7 +348,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build

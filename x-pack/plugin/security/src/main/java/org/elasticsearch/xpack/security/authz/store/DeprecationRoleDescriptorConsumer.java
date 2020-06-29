@@ -75,7 +75,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     private final Set<String> dailyRoleCache;
 
     public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
-        this(clusterService, threadPool, new DeprecationLogger(logger));
+        this(clusterService, threadPool, DeprecationLogger.getLogger(DeprecationRoleDescriptorConsumer.class));
     }
 
     // package-private for testing

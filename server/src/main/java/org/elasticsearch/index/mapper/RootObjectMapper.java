@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -47,9 +45,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
-
-    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =

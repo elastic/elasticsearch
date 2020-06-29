@@ -110,7 +110,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
  */
 public class MetadataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 

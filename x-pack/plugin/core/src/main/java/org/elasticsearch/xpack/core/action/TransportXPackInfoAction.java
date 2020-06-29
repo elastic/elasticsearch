@@ -52,8 +52,8 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                 String type = license.type();
                 License.OperationMode mode = license.operationMode();
                 if (request.getLicenseVersion() < License.VERSION_ENTERPRISE) {
-                    if ("enterprise".equals(type)) {
-                        type = "platinum";
+                    if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
+                        type = License.LicenseType.PLATINUM.getTypeName();
                     }
                     if (mode == License.OperationMode.ENTERPRISE) {
                         mode = License.OperationMode.PLATINUM;

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
 
     public static final ParseField PEAK_USAGE_BYTES = new ParseField("peak_usage_bytes");
     public static final ParseField STATUS = new ParseField("status");
-    public static final ParseField INCREASED_MEMORY_ESTIMATE_BYTES = new ParseField("increased_memory_estimate_bytes");
+    public static final ParseField MEMORY_REESTIMATE_BYTES = new ParseField("memory_reestimate_bytes");
 
     public static final ConstructingObjectParser<MemoryUsage, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<MemoryUsage, Void> LENIENT_PARSER = createParser(true);
@@ -55,7 +54,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATUS, ObjectParser.ValueType.STRING);
-        parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), INCREASED_MEMORY_ESTIMATE_BYTES);
+        parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
         return parser;
     }
 
@@ -66,7 +65,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     private final Instant timestamp;
     private final long peakUsageBytes;
     private final Status status;
-    @Nullable private final Long increasedMemoryEstimateBytes;
+    @Nullable private final Long memoryReestimateBytes;
 
     /**
      * Creates a zero usage object
@@ -76,7 +75,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     }
 
     public MemoryUsage(String jobId, Instant timestamp, long peakUsageBytes, @Nullable Status status,
-                       @Nullable Long increasedMemoryEstimateBytes) {
+                       @Nullable Long memoryReestimateBytes) {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent
@@ -84,20 +83,15 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
         this.status = status == null ? Status.OK : status;
-        this.increasedMemoryEstimateBytes = increasedMemoryEstimateBytes;
+        this.memoryReestimateBytes = memoryReestimateBytes;
     }
 
     public MemoryUsage(StreamInput in) throws IOException {
         jobId = in.readString();
         timestamp = in.readOptionalInstant();
         peakUsageBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status = Status.readFromStream(in);
-            increasedMemoryEstimateBytes = in.readOptionalVLong();
-        } else {
-            status = Status.OK;
-            increasedMemoryEstimateBytes = null;
-        }
+        status = Status.readFromStream(in);
+        memoryReestimateBytes = in.readOptionalVLong();
     }
 
     public Status getStatus() {
@@ -109,10 +103,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         out.writeString(jobId);
         out.writeOptionalInstant(timestamp);
         out.writeVLong(peakUsageBytes);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status.writeTo(out);
-            out.writeOptionalVLong(increasedMemoryEstimateBytes);
-        }
+        status.writeTo(out);
+        out.writeOptionalVLong(memoryReestimateBytes);
     }
 
     @Override
@@ -128,8 +120,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         }
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.field(STATUS.getPreferredName(), status);
-        if (increasedMemoryEstimateBytes != null) {
-            builder.field(INCREASED_MEMORY_ESTIMATE_BYTES.getPreferredName(), increasedMemoryEstimateBytes);
+        if (memoryReestimateBytes != null) {
+            builder.field(MEMORY_REESTIMATE_BYTES.getPreferredName(), memoryReestimateBytes);
         }
         builder.endObject();
         return builder;
@@ -145,12 +137,12 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             && Objects.equals(timestamp, other.timestamp)
             && peakUsageBytes == other.peakUsageBytes
             && Objects.equals(status, other.status)
-            && Objects.equals(increasedMemoryEstimateBytes, other.increasedMemoryEstimateBytes);
+            && Objects.equals(memoryReestimateBytes, other.memoryReestimateBytes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, peakUsageBytes, status, increasedMemoryEstimateBytes);
+        return Objects.hash(jobId, timestamp, peakUsageBytes, status, memoryReestimateBytes);
     }
 
     @Override

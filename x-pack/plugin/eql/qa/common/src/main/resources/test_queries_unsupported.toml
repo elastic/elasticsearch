@@ -9,6 +9,9 @@
 # This will be removed once the EQL implementation is wired and actually supports this query.
 
 
+[[queries]]
+expected_event_ids = []
+query = 'process where missing_field != null'
 
 ##########################
 # FAILING SEQUENCE TESTS #
@@ -24,7 +27,6 @@ sequence
   [process where serial_event_id == 3]
 '''
 expected_event_ids  = [1, 2, 3]
-
 
 [[queries]]
 note = "Sequence: 1-many-many."
@@ -764,6 +766,59 @@ expected_event_ids = []
 query = '''
 registry where length(bad_field) > 0
 '''
+
+[[queries]]
+expected_event_ids  = [1, 2, 3, 4, 5]
+query = 'process where bad_field == null | head 5'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code >= 0'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where 0 <= exit_code'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code <= 0'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code < 1'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where exit_code > -1'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
+query = 'process where -1 < exit_code'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids = []
+query = '''
+process where not (exit_code > -1)
+  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
+| head 10
+'''
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+query = 'process where not (exit_code > -1) | head 7'
+
+[[queries]]
+note = "check that comparisons against null values return false"
+expected_event_ids  = [1, 2, 3, 4, 5, 6, 7]
+query = 'process where not (-1 < exit_code) | head 7'
 
 [[queries]]
 expected_event_ids  = [1, 55, 57, 63, 75304]

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -41,6 +42,8 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -112,6 +115,46 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
+    }
+
+    public void testSnapshotAndRestoreAll() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+                .prepareCreateSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices("ds")
+                .setIncludeGlobalState(false)
+                .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
+        List<SnapshotInfo> snap = snapshot.getSnapshots(REPO);
+        assertEquals(1, snap.size());
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
+
+        assertAcked(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("*")).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+                .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setRestoreGlobalState(true)
+                .get();
+
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds")).get();
+        assertEquals(1, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
+        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
+
+        assertAcked(client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get());
     }
 
     public void testRename() throws Exception {

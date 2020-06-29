@@ -15,10 +15,11 @@ You can use the following APIs to perform security activities.
 [[security-api-app-privileges]]
 === Application privileges
 
-You can use the following APIs to add, update, retrieve, and remove application 
+You can use the following APIs to add, update, retrieve, and remove application
 privileges:
 
-* <<security-api-put-privileges,Create or update privileges>> 
+* <<security-api-put-privileges,Create or update privileges>>
+* <<security-api-clear-privilege-cache,Clear privileges cache>>
 * <<security-api-delete-privilege,Delete privileges>>
 * <<security-api-get-privileges,Get privileges>>
 
@@ -28,7 +29,7 @@ privileges:
 
 You can use the following APIs to add, remove, update, and retrieve role mappings:
 
-* <<security-api-put-role-mapping,Create or update role mappings>> 
+* <<security-api-put-role-mapping,Create or update role mappings>>
 * <<security-api-delete-role-mapping,Delete role mappings>>
 * <<security-api-get-role-mapping,Get role mappings>>
 
@@ -106,6 +107,7 @@ include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/clear-privileges-cache.asciidoc[]
 include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]

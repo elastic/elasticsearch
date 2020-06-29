@@ -4,13 +4,19 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.payload;
+package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
 
-public interface Payload<V> {
+/**
+ * Container for internal results. Can be low-level such as SearchHits or Sequences.
+ * Generalized to allow reuse and internal pluggability.
+ */
+public interface Payload {
+
+    Results.Type resultType();
 
     boolean timedOut();
 
@@ -18,5 +24,5 @@ public interface Payload<V> {
 
     Object[] nextKeys();
 
-    List<V> values();
+    <V> List<V> values();
 }

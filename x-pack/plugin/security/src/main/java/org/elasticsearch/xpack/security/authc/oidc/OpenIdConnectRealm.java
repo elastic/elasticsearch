@@ -437,11 +437,11 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                             + setting.name(realmConfig) + "]",
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
-                            validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             List<String> values;
                             if (claimValueObject == null) {
                                 values = List.of();
                             } else if (claimValueObject instanceof String) {
+                                validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                                 values = List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof Collection) {
                                 validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
@@ -476,10 +476,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
-                            validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             if (claimValueObject == null) {
                                 return List.of();
                             } else if (claimValueObject instanceof String) {
+                                validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                                 return List.of((String) claimValueObject);
                             }
                             return ((List<String>) claimValueObject).stream()

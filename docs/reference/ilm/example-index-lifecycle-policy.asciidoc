@@ -1,7 +1,10 @@
 [role="xpack"]
 
 [[example-using-index-lifecycle-policy]]
-=== Tutorial: Use {ilm-init} to manage {filebeat} time-based indices
+=== Tutorial: Manage {filebeat} time-based indices
+++++
+<titleabbrev>Manage {filebeat} time-based indices</titleabbrev>
+++++
 
 With {ilm} ({ilm-init}), you can create policies that perform actions automatically 
 on indices as they age and grow. {ilm-init} policies help you to manage

@@ -239,7 +239,7 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptContext<?> ctx = randomFrom(contexts.values());
         scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertEquals(1L, scriptService.stats().getByContext(ctx.name).getCompilations());
+        assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -292,14 +292,14 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
 
         // Context specific
-        ScriptStats stats = scriptService.stats();
-        assertEquals(2L, stats.getByContext(contextA.name).getCompilations());
-        assertEquals(1L, stats.getByContext(contextA.name).getCacheEvictions());
-        assertEquals(1L, stats.getByContext(contextA.name).getCompilationLimitTriggered());
+        ScriptCacheStats stats = scriptService.cacheStats();
+        assertEquals(2L, stats.getContextStats().get(contextA.name).getCompilations());
+        assertEquals(1L, stats.getContextStats().get(contextA.name).getCacheEvictions());
+        assertEquals(1L, stats.getContextStats().get(contextA.name).getCompilationLimitTriggered());
 
-        assertEquals(3L, stats.getByContext(contextB.name).getCompilations());
-        assertEquals(1L, stats.getByContext(contextB.name).getCacheEvictions());
-        assertEquals(2L, stats.getByContext(contextB.name).getCompilationLimitTriggered());
+        assertEquals(3L, stats.getContextStats().get(contextB.name).getCompilations());
+        assertEquals(1L, stats.getContextStats().get(contextB.name).getCacheEvictions());
+        assertEquals(2L, stats.getContextStats().get(contextB.name).getCompilationLimitTriggered());
 
         // Summed up
         assertEquals(5L, scriptService.stats().getCompilations());

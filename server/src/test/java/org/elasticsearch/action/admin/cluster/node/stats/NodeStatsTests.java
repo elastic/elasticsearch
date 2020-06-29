@@ -35,7 +35,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.script.ScriptContextStats;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -241,30 +240,13 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(circuitBreakerStats.getTrippedCount(), deserializedCircuitBreakerStats.getTrippedCount(), 0);
                     }
                 }
-
-                ScriptStats scriptCacheStats = nodeStats.getScriptStats();
-                ScriptStats deserializedScriptCacheStats = deserializedNodeStats.getScriptStats();
-                long evictions = 0;
-                long limited = 0;
-                long compilations = 0;
-                List<ScriptContextStats> stats = scriptCacheStats.getContextStats();
-                for (ScriptContextStats context: stats) {
-                    ScriptContextStats deserStats = deserializedScriptCacheStats.getByContext(context.getContextName());
-                    assertNotNull(deserStats);
-
-                    evictions += context.getCacheEvictions();
-                    assertEquals(context.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                    limited += context.getCompilationLimitTriggered();
-                    assertEquals(context.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                    compilations += context.getCompilations();
-                    assertEquals(context.getCompilations(), deserStats.getCompilations());
+                ScriptStats scriptStats = nodeStats.getScriptStats();
+                if (scriptStats == null) {
+                    assertNull(deserializedNodeStats.getScriptStats());
+                } else {
+                    assertEquals(scriptStats.getCacheEvictions(), deserializedNodeStats.getScriptStats().getCacheEvictions());
+                    assertEquals(scriptStats.getCompilations(), deserializedNodeStats.getScriptStats().getCompilations());
                 }
-                assertEquals(evictions, deserializedScriptCacheStats.getCacheEvictions());
-                assertEquals(limited, deserializedScriptCacheStats.getCompilationLimitTriggered());
-                assertEquals(compilations, deserializedScriptCacheStats.getCompilations());
-
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
                 if (discoveryStats == null) {
@@ -329,6 +311,34 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.serviceTime, bStats.serviceTime, 0.01);
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
+                }
+                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
+                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                if (scriptCacheStats == null) {
+                    assertNull(deserializedScriptCacheStats);
+                } else {
+                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
+                    for (String context: stats.keySet()) {
+                        ScriptStats deserStats = deserialized.get(context);
+                        ScriptStats generatedStats = stats.get(context);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    ScriptStats sum = deserializedScriptCacheStats.sum();
+                    assertEquals(evictions, sum.getCacheEvictions());
+                    assertEquals(limited, sum.getCompilationLimitTriggered());
+                    assertEquals(compilations, sum.getCompilations());
                 }
             }
         }
@@ -444,22 +454,8 @@ public class NodeStatsTests extends ESTestCase {
             }
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
-        ScriptStats scriptStats = null;
-        if (frequently()) {
-            int numContents = randomIntBetween(0, 20);
-            List<ScriptContextStats> stats = new ArrayList<>(numContents);
-            HashSet<String> contexts = new HashSet<>();
-            for (int i = 0; i < numContents; i++) {
-                String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
-                contexts.add(context);
-                stats.add(new ScriptContextStats(
-                    context,
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024)));
-            }
-            scriptStats = new ScriptStats(stats);
-        }
+        ScriptStats scriptStats = frequently() ?
+                new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean()
@@ -518,10 +514,20 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        ScriptCacheStats scriptCacheStats = null;
+        if (frequently()) {
+            int numContents = randomIntBetween(0, 20);
+            Map<String,ScriptStats> stats = new HashMap<>(numContents);
+            for (int i = 0; i < numContents; i++) {
+                String context = randomValueOtherThanMany(stats::containsKey, () -> randomAlphaOfLength(12));
+                stats.put(context, new ScriptStats(randomLongBetween(0, 1024), randomLongBetween(0, 1024), randomLongBetween(0, 1024)));
+            }
+            scriptCacheStats = new ScriptCacheStats(stats);
+        }
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats);
+                ingestStats, adaptiveSelectionStats, scriptCacheStats);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

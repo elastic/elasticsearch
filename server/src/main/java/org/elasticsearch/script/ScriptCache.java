@@ -132,8 +132,8 @@ public class ScriptCache {
         throw (T) t;
     }
 
-    public ScriptContextStats stats(String context) {
-        return scriptMetrics.stats(context);
+    public ScriptStats stats() {
+        return scriptMetrics.stats();
     }
 
     /**

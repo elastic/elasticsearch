@@ -871,6 +871,10 @@ public final class SearchPhaseController {
                 if (intermediateReducedResultsQueue.size() > 1) {
                     reduceExecutor.execute(new PartialReduceTask());
                 }
+                if (numShards == 1) {
+                    // no need to parallel reduce, execute final reduce directly
+                    finalReduce.countDown();
+                }
             }
             processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
             shardResultConsumeCount.incrementAndGet();
@@ -948,6 +952,14 @@ public final class SearchPhaseController {
         }
 
         class PartialReduceTask implements Runnable {
+            private void endTask() {
+                runningParallelReduceCount.decrementAndGet();
+                // check to notify final reduce to begin
+                if (checkParitalReduceAggsDone()) {
+                    finalReduce.countDown();
+                }
+            }
+
             @Override
             public void run() {
                 runningParallelReduceCount.incrementAndGet();
@@ -961,7 +973,7 @@ public final class SearchPhaseController {
                      * so we synced this block for checking queue size to fetches
                      */
                     if (intermediateReducedResultsQueue.size() < 2) {
-                        runningParallelReduceCount.decrementAndGet();
+                        endTask();
                         return; //  no sufficient results to reduce
                     }
                     if (intermediateReducedResultsQueue.size() == 2) {
@@ -1002,11 +1014,7 @@ public final class SearchPhaseController {
                 // re-enqueue
                 PartialReduceResult reducedResult = new PartialReduceResult(reducedAggs, reducedTopDocs);
                 putInQueue(reducedResult);
-                runningParallelReduceCount.decrementAndGet();
-                // check to notify final reduce to begin
-                if (checkParitalReduceAggsDone()) {
-                    finalReduce.countDown();
-                }
+                endTask();
             }
         }
     }

@@ -137,6 +137,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
         } catch (Exception e) {
+            assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
         }
     }

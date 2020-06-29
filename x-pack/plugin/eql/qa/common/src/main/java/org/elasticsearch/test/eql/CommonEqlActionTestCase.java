@@ -150,18 +150,6 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         return highLevelClient().eql().search(request, RequestOptions.DEFAULT);
     }
 
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(
-                    client(),
-                    ignore -> {
-                    },
-                    Collections.emptyList()) {
-            };
-        }
-        return highLevelClient;
-    }
-
     protected void assertSearchHits(List<SearchHit> events) {
         assertNotNull(events);
         assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));

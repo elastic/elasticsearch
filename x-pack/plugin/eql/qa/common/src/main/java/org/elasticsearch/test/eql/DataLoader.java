@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -43,7 +44,7 @@ public class DataLoader {
                 client,
                 ignore -> {
                 },
-                List.of()) {
+                Collections.emptyList()) {
             }, (t, u) -> createParser(t, u));
         }
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -46,11 +47,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -548,6 +552,105 @@ public class DataStreamIT extends ESIntegTestCase {
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+    }
+
+    public void testResolveTimestampFieldMapping_fromComponentTemplate() throws IOException {
+        {
+            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            builder.map(Map.of("properties", Map.of("@timestamp", Map.of("type", "date", "format", "yyyy-MM"))));
+            CompressedXContent mappings = new CompressedXContent(BytesReference.bytes(builder));
+            PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request("1");
+            request.componentTemplate(new ComponentTemplate(new Template(null, mappings, null), null, null));
+            client().execute(PutComponentTemplateAction.INSTANCE, request).actionGet();
+        }
+        {
+            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("1");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("logs-*"),
+                    null,
+                    List.of("1"),
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate("@timestamp", null))
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        }
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).actionGet();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM");
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
+    }
+
+    public void testResolveTimestampFieldMapping_fromComposableIndexTemplate() throws IOException {
+        {
+            XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+            builder.map(Map.of("properties", Map.of("@timestamp", Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y")))));
+            CompressedXContent mappings = new CompressedXContent(BytesReference.bytes(builder));
+
+            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("1");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("logs-*"),
+                    new Template(null, mappings, null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate("@timestamp", null))
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        }
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).actionGet();
+
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
+    }
+
+    public void testResolveTimestampFieldMapping_fromDateStreamDefinitionTimestampMapping() throws IOException {
+        {
+            Map<String, Object> mappingSnippet = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
+            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("1");
+            request.indexTemplate(
+                new ComposableIndexTemplate(
+                    List.of("logs-*"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new ComposableIndexTemplate.DataStreamTemplate("@timestamp", mappingSnippet))
+            );
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        }
+
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().admin().indices().createDataStream(createDataStreamRequest).actionGet();
+
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
+        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {

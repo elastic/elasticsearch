@@ -6,6 +6,7 @@ Phases allowed: delete.
 
 Permanently removes the index.
 
+ifdef::permanently-unreleased-branch[]
 [[ilm-delete-options]]
 ==== Options
 
@@ -15,6 +16,7 @@ Deletes the searchable snapshot created in the cold phase.
 Defaults to `true`.
 This option is applicable when the <<ilm-searchable-snapshot-action,searchable
 snapshot>> action is used in the cold phase.
+endif::[]
 
 [[ilm-delete-action-ex]]
 ==== Example

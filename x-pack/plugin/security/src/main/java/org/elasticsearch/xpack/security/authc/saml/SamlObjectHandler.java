@@ -13,6 +13,8 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.XMLObject;
@@ -24,6 +26,7 @@ import org.opensaml.saml.saml2.encryption.Decrypter;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
+import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.encryption.support.ChainingEncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
@@ -46,7 +49,9 @@ import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -58,14 +63,18 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
-public class SamlRequestHandler {
+public class SamlObjectHandler {
 
     protected static final String SAML_NAMESPACE = "urn:oasis:names:tc:SAML:2.0:protocol";
 
@@ -93,7 +102,7 @@ public class SamlRequestHandler {
     private final TimeValue maxSkew;
     private final UnmarshallerFactory unmarshallerFactory;
 
-    public SamlRequestHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
+    public SamlObjectHandler(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         this.clock = clock;
         this.idp = idp;
         this.sp = sp;
@@ -320,6 +329,76 @@ public class SamlRequestHandler {
         final Instant pastNow = now.minusMillis(this.maxSkew.millis());
         if (pastNow.isBefore(toInstant(notOnOrAfter)) == false) {
             throw samlException("Rejecting SAML assertion because [{}] is on/after [{}]", pastNow, notOnOrAfter);
+        }
+    }
+
+    protected ParsedQueryString parseQueryStringAndValidateSignature(String queryString, String samlMessageParameterName) {
+        final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
+        final Map<String, String> parameters = new HashMap<>();
+        RestUtils.decodeQueryString(queryString, 0, parameters);
+        final String samlMessage = parameters.get(samlMessageParameterName);
+        if (samlMessage == null) {
+            throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);
+        }
+
+        final String relayState = parameters.get("RelayState");
+        final String signatureAlgorithm = parameters.get("SigAlg");
+        final String signature = parameters.get("Signature");
+        if (signature == null || signatureAlgorithm == null) {
+            return new ParsedQueryString(samlMessage, false, relayState);
+        }
+
+        validateSignature(signatureInput, signatureAlgorithm, signature);
+        return new ParsedQueryString(samlMessage, true, relayState);
+    }
+
+    private void validateSignature(String inputString, String signatureAlgorithm, String signature) {
+        final byte[] sigBytes = decodeBase64(signature);
+        final byte[] inputBytes = inputString.getBytes(StandardCharsets.US_ASCII);
+        final String signatureText = Strings.cleanTruncate(signature, 32);
+        checkIdpSignature(credential -> {
+            if (XMLSigningUtil.verifyWithURI(credential, signatureAlgorithm, sigBytes, inputBytes)) {
+                logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] matches credentials [{}] [{}]",
+                        signatureText, credential.getEntityId(), credential.getPublicKey()));
+                return true;
+            } else {
+                logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] failed against credentials [{}] [{}]",
+                        signatureText, credential.getEntityId(), credential.getPublicKey()));
+                return false;
+            }
+        }, signatureText);
+    }
+
+    protected byte[] decodeBase64(String content) {
+        try {
+            return Base64.getDecoder().decode(content.replaceAll("\\s+", ""));
+        } catch (IllegalArgumentException e) {
+            logger.info("Failed to decode base64 string [{}] - {}", content, e.toString());
+            throw samlException("SAML message cannot be Base64 decoded", e);
+        }
+    }
+
+    protected byte[] inflate(byte[] bytes) {
+        Inflater inflater = new Inflater(true);
+        try (ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+             InflaterInputStream inflate = new InflaterInputStream(in, inflater);
+             ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length * 3 / 2)) {
+            Streams.copy(inflate, out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw samlException("SAML message cannot be inflated", e);
+        }
+    }
+
+    static class ParsedQueryString {
+        final String samlMessage;
+        final boolean hasSignature;
+        final String relayState;
+
+        ParsedQueryString(String samlMessage, boolean hasSignature, String relayState) {
+            this.samlMessage = samlMessage;
+            this.hasSignature = hasSignature;
+            this.relayState = relayState;
         }
     }
 }

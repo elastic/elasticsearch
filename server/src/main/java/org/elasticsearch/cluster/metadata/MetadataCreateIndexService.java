@@ -64,7 +64,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -506,7 +506,7 @@ public class MetadataCreateIndexService {
             }
 
             Map<String, Object> changes =
-                Map.of("_doc", Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("field_name", timestampField)));
+                Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("field_name", timestampField)));
             XContentHelper.update(mappings, changes, false);
         }
 

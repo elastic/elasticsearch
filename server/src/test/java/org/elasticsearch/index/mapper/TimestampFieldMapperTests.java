@@ -30,7 +30,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
+public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPostParse() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

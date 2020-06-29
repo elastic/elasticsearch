@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 
-public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
+public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_timestamp";
 
@@ -90,7 +90,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper build(BuilderContext context) {
-            return new DataStreamTimestampFieldMapper(
+            return new TimestampFieldMapper(
                 fieldType,
                 new DataStreamTimestampFieldFieldType(),
                 fieldName
@@ -119,14 +119,14 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext parserContext) {
-            return new DataStreamTimestampFieldMapper(Defaults.DATA_STREAM_TIMESTAMP_FIELD_TYPE,
+            return new TimestampFieldMapper(Defaults.DATA_STREAM_TIMESTAMP_FIELD_TYPE,
                 new DataStreamTimestampFieldFieldType(), null);
         }
     }
 
     private final String fieldName;
 
-    private DataStreamTimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String fieldName) {
+    private TimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String fieldName) {
         super(fieldType, mappedFieldType);
         this.fieldName = fieldName;
     }

@@ -396,8 +396,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
 
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
-            if (metadataFieldMapper instanceof DataStreamTimestampFieldMapper) {
-                ((DataStreamTimestampFieldMapper) metadataFieldMapper).validate(newFieldTypes);
+            if (metadataFieldMapper instanceof TimestampFieldMapper) {
+                ((TimestampFieldMapper) metadataFieldMapper).validate(newFieldTypes);
             }
         }
 

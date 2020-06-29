@@ -114,6 +114,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     @Override
     public StatusInfo getHealth() {
         StatusInfo statusInfo;
+        Set<Path> unhealthyPaths = this.unhealthyPaths;
         if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
         } else if (unhealthyPaths == null) {

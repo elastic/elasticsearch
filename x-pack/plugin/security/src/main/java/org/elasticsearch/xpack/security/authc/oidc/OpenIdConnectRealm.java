@@ -417,12 +417,11 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
-        private static void validateClaimType(Object claimValueObject, String settingKey) {
-            if (claimValueObject instanceof String == false &&
-                claimValueObject instanceof Collection && ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String) == false) {
-                throw new SettingsException("Setting [ " + settingKey
-                    + " expects a claim with String or a String Array value but found a "
-                    + claimValueObject.getClass().getName());
+        private static void validateParsableClaim(Object claimValueObject, String settingKey) {
+            final boolean isStringOrCollectionOfStrings = claimValueObject instanceof String ||
+                claimValueObject instanceof Collection && ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String);
+            if (isStringOrCollectionOfStrings == false) {
+                throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
             }
         }
 
@@ -438,14 +437,14 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                             + setting.name(realmConfig) + "]",
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
-                            validateClaimType(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
+                            validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             List<String> values;
                             if (claimValueObject == null) {
                                 values = List.of();
                             } else if (claimValueObject instanceof String) {
                                 values = List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof Collection) {
-                                validateClaimType(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
+                                validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                                 values = (List<String>) claimValueObject;
                             } else {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
@@ -477,7 +476,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
-                            validateClaimType(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
+                            validateParsableClaim(claimValueObject, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             if (claimValueObject == null) {
                                 return List.of();
                             } else if (claimValueObject instanceof String) {

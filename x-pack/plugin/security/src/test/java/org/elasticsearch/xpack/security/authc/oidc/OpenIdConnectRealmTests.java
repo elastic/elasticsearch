@@ -118,12 +118,17 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
-        Map<String, Object> claims = Map.of(
+        Map<String, Object> claimsWithObject = Map.of(
             "groups", List.of(Map.of("key1", List.of("value1", "value2")), Map.of("key2", List.of("value1", "value2")))
         );
+        Map<String, Object> claimsWithNumber = Map.of(
+            "groups", List.of(2, "value2"));
         Exception e = expectThrows(Exception.class, () -> authenticateWithOidc(principal, roleMapper, false, false,
-            REALM_NAME, claims));
+            REALM_NAME, claimsWithObject));
+        Exception e2 = expectThrows(Exception.class, () -> authenticateWithOidc(principal, roleMapper, false, false,
+            REALM_NAME, claimsWithNumber));
         assertThat(e.getCause().getMessage(), containsString("expects a claim with String or a String Array value"));
+        assertThat(e2.getCause().getMessage(), containsString("expects a claim with String or a String Array value"));
     }
 
     public void testClaimMetadataMapping() throws Exception {

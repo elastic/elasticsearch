@@ -85,6 +85,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.NodeClosedException;
@@ -142,6 +143,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1796,10 +1798,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                 if (fileInfoIntercepted.compareAndSet(false, true)) {
-                    assertThat(client().admin().cluster().prepareNodesStats(connection.getNode().getId()).clear()
-                            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Store)).get().getNodes().get(0)
-                            .getIndices().getStore().getReservedSize().getBytes(),
-                        equalTo(StoreStats.UNKNOWN_RESERVED_BYTES));
+                    final NodeIndicesStats nodeIndicesStats = client().admin().cluster().prepareNodesStats(connection.getNode().getId())
+                        .clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Store)).get().getNodes().get(0).getIndices();
+                    assertThat(nodeIndicesStats.getStore().getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
+                        .stream().flatMap(s -> Arrays.stream(s.getShards())).map(s -> s.getStats().getStore().getReservedSize().getBytes())
+                        .collect(Collectors.toList()),
+                        everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES)));
                 }
             } else if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 if (fileChunkIntercepted.compareAndSet(false, true)) {

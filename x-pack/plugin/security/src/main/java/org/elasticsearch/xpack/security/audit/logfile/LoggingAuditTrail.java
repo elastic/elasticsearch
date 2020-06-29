@@ -236,8 +236,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()
-                .test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                        Optional.of(authentication.getAuthenticatedBy().getName()), Optional.empty(), Optional.empty())) == false) {
+                .test(new AuditEventMetaInfo(
+                        Optional.of(authentication.getUser()),
+                        Optional.of(effectiveRealmName(authentication)),
+                        Optional.empty(),
+                        Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -258,8 +261,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                            Optional.of(authentication.getAuthenticatedBy().getName()), Optional.empty(), indices)) == false) {
+                    .test(new AuditEventMetaInfo(
+                            Optional.of(authentication.getUser()),
+                            Optional.of(effectiveRealmName(authentication)),
+                            Optional.empty(),
+                            indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_success")

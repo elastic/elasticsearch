@@ -125,14 +125,14 @@ You can send <<add-documents-to-a-data-stream,indexing requests for new
 documents>> directly to a data stream. However, you cannot send the following
 requests for existing documents directly to a data stream:
 
-* <<docs-index_,Index API>> requests with an
-  <<docs-index-api-op_type,`op_type`>> of `index`. `op_type` defaults to
-  `index` for existing documents.
+* An <<docs-index_,index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `index`. The `op_type` parameter
+  defaults to `index` for existing documents.
 
-* <<docs-bulk,Bulk API>> requests using the `delete`, `index`, or `update`
+* A <<docs-bulk,bulk API>> request using the `delete`, `index`, or `update`
   action.
 
-* <<docs-delete,Delete API>> requests
+* A <<docs-delete,delete API>> request
 
 Instead, you can use the <<docs-update-by-query,update by query>> and
 <<docs-delete-by-query,delete by query>> APIs to update or delete existing

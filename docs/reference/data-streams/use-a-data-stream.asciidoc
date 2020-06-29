@@ -431,11 +431,10 @@ POST /_reindex
 [[update-delete-docs-in-a-data-stream]]
 === Update or delete documents in a data stream
 
-You can use the following requests to update or delete documents in a data
-stream:
+You can update or delete documents in a data stream using the following
+requests:
 
-* <<docs-update-by-query,Update by query API>> requests containing a query
-that matches documents in the data stream you'd like to update.
+* An <<docs-update-by-query,update by query API>> request
 +
 .*Example*
 [%collapsible]
@@ -479,8 +478,7 @@ POST /logs/_update_by_query
 // TEST[continued]
 ====
 
-* <<docs-delete-by-query,Delete by query API>> requests containing a query
-that matches documents in the data stream you'd like to delete.
+* A <<docs-delete-by-query,delete by query API>> request
 +
 .*Example*
 [%collapsible]

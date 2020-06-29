@@ -21,6 +21,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -35,12 +36,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -49,27 +50,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScript, F, LF, R> extends ESTestCase {
-    protected abstract ScriptContext<F> scriptContext();
+    private final List<Closeable> lazyClose = new ArrayList<>();
+    private final ScriptService scriptService;
 
-    protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
-
-    protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
-
-    protected final List<R> execute(
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder,
-        String script,
-        MappedFieldType... types
-    ) throws IOException {
-        return execute(indexBuilder, script, f -> new MatchAllDocsQuery(), types);
-    }
-
-    protected final List<R> execute(
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder,
-        String script,
-        Function<LF, Query> query,
-        MappedFieldType... types
-    ) throws IOException {
-
+    public ScriptFieldScriptTestCase() {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override
@@ -79,50 +63,77 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
             }
         });
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
-        Map<String, Object> params = new HashMap<>();
-        SourceLookup source = new SourceLookup();
-        MapperService mapperService = mock(MapperService.class);
-        for (MappedFieldType type : types) {
-            when(mapperService.fieldType(type.name())).thenReturn(type);
-        }
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
-            .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
-        DocLookup fieldData = new DocLookup(mapperService, fieldDataLookup);
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            F factory = AccessController.doPrivileged(
-                (PrivilegedAction<F>) () -> scriptService.compile(new Script(script), scriptContext())
-            );
+        scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
+    }
 
-            try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                indexBuilder.accept(indexWriter);
-                try (DirectoryReader reader = indexWriter.getReader()) {
-                    IndexSearcher searcher = newSearcher(reader);
-                    LF leafFactory = newLeafFactory(factory, params, source, fieldData);
-                    List<R> result = new ArrayList<>();
-                    searcher.search(query.apply(leafFactory), new Collector() {
-                        @Override
-                        public ScoreMode scoreMode() {
-                            return ScoreMode.COMPLETE_NO_SCORES;
-                        }
+    protected abstract MappedFieldType[] fieldTypes();
 
-                        @Override
-                        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                            S compiled = newInstance(leafFactory, context, result);
-                            return new LeafCollector() {
-                                @Override
-                                public void setScorer(Scorable scorer) throws IOException {}
+    protected abstract ScriptContext<F> scriptContext();
 
-                                @Override
-                                public void collect(int doc) throws IOException {
-                                    compiled.setDocument(doc);
-                                    compiled.execute();
-                                }
-                            };
-                        }
-                    });
-                    return result;
-                }
+    protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+
+    protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
+
+    protected final TestCase testCase(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder) throws IOException {
+        return new TestCase(indexBuilder);
+    }
+
+    protected class TestCase {
+        private final SourceLookup sourceLookup = new SourceLookup();
+        private final DocLookup fieldData;
+        private final IndexSearcher searcher;
+
+        private TestCase(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder) throws IOException {
+            MapperService mapperService = mock(MapperService.class);
+            for (MappedFieldType type : fieldTypes()) {
+                when(mapperService.fieldType(type.name())).thenReturn(type);
             }
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
+                .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
+            fieldData = new DocLookup(mapperService, fieldDataLookup);
+
+            Directory directory = newDirectory();
+            lazyClose.add(directory);
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                indexBuilder.accept(indexWriter);
+                DirectoryReader reader = indexWriter.getReader();
+                lazyClose.add(reader);
+                searcher = newSearcher(reader);
+            }
+        }
+
+        protected LF script(String script) {
+            return newLeafFactory(scriptService.compile(new Script(script), scriptContext()), Map.of(), sourceLookup, fieldData);
+        }
+
+        protected List<R> collect(String script) throws IOException {
+            return collect(new MatchAllDocsQuery(), script(script));
+        }
+
+        protected List<R> collect(Query query, LF script) throws IOException {
+            List<R> result = new ArrayList<>();
+            searcher.search(query, new Collector() {
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    S compiled = newInstance(script, context, result);
+                    return new LeafCollector() {
+                        @Override
+                        public void setScorer(Scorable scorer) throws IOException {}
+
+                        @Override
+                        public void collect(int doc) throws IOException {
+                            compiled.setDocument(doc);
+                            compiled.execute();
+                        }
+                    };
+                }
+            });
+            return result;
         }
     }
 
@@ -136,5 +147,11 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                 .build(),
             Settings.EMPTY
         );
+    }
+
+    @After
+    public void closeAll() throws IOException {
+        Collections.reverse(lazyClose); // Close in the oppposite order added so readers close before directory
+        IOUtils.close(lazyClose);
     }
 }

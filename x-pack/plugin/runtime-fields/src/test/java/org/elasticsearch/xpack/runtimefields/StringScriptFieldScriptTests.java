@@ -8,16 +8,17 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,78 +31,52 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     String> {
 
     public void testConstant() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
-        };
-        assertThat(execute(indexBuilder, "value('cat')"), equalTo(List.of("cat", "cat")));
+        assertThat(randomStrings().collect("value('cat')"), equalTo(List.of("cat", "cat")));
     }
 
     public void testTwoConstants() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
-        };
-        assertThat(execute(indexBuilder, "value('cat'); value('dog')"), equalTo(List.of("cat", "dog", "cat", "dog")));
+        assertThat(randomStrings().collect("value('cat'); value('dog')"), equalTo(List.of("cat", "dog", "cat", "dog")));
     }
 
     public void testSource() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
-        };
-        assertThat(execute(indexBuilder, "value(source['foo'] + 'o')"), equalTo(List.of("cato", "dogo")));
+        assertThat(singleValueInSource().collect("value(source['foo'] + 'o')"), equalTo(List.of("cato", "dogo")));
     }
 
-    public void testTwoSourceFields() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\", \"bar\": \"chicken\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\", \"bar\": \"pig\"}"))));
-        };
+    public void testMultipleSourceValues() throws IOException {
         assertThat(
-            execute(indexBuilder, "value(source['foo'] + 'o'); value(source['bar'] + 'ie')"),
-            equalTo(List.of("cato", "chickenie", "dogo", "pigie"))
+            multiValueInSource().collect("for (String v : source['foo']) {value(v + 'o')}"),
+            equalTo(List.of("cato", "chickeno", "dogo", "pigo"))
         );
     }
 
     public void testDocValues() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("cat"))));
-            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("dog"))));
-        };
-        assertThat(execute(indexBuilder, "value(doc['foo'].value + 'o')", new KeywordFieldType("foo")), equalTo(List.of("cato", "dogo")));
+        assertThat(singleValueInDocValues().collect("value(doc['foo'].value + 'o')"), equalTo(List.of("cato", "dogo")));
     }
 
-    public void testTwoDocValuesValues() throws IOException {
-        assertThat(execute(farmAnimals(), ADD_O, new KeywordFieldType("foo")), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
+    public void testMultipleDocValuesValues() throws IOException {
+        assertThat(twoValuesInDocValues().collect(ADD_O), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
     }
 
     public void testTermQuery() throws IOException {
-        assertThat(execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "cat"), new KeywordFieldType("foo")), equalTo(List.of()));
-        assertThat(
-            execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "cato"), new KeywordFieldType("foo")),
-            equalTo(List.of("cato", "pigo"))
-        );
-        assertThat(
-            execute(farmAnimals(), ADD_O, lf -> lf.termQuery("foo", "dogo"), new KeywordFieldType("foo")),
-            equalTo(List.of("chickeno", "dogo"))
-        );
+        TestCase c = twoValuesInDocValues();
+        StringScriptFieldScript.LeafFactory addO = c.script(ADD_O);
+        assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
+        assertThat(c.collect(addO.termQuery("foo", "cato"), addO), equalTo(List.of("cato", "pigo")));
+        assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testPrefixQuery() throws IOException {
-        assertThat(execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "catdog"), new KeywordFieldType("foo")), equalTo(List.of()));
-        assertThat(
-            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "cat"), new KeywordFieldType("foo")),
-            equalTo(List.of("cato", "pigo"))
-        );
-        assertThat(
-            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "dogo"), new KeywordFieldType("foo")),
-            equalTo(List.of("chickeno", "dogo"))
-        );
-        assertThat(
-            execute(farmAnimals(), ADD_O, lf -> lf.prefixQuery("foo", "c"), new KeywordFieldType("foo")),
-            equalTo(List.of("cato", "pigo", "chickeno", "dogo"))
-        );
+        TestCase c = twoValuesInDocValues();
+        StringScriptFieldScript.LeafFactory addO = c.script(ADD_O);
+        assertThat(c.collect(addO.prefixQuery("foo", "catdog"), addO), equalTo(List.of()));
+        assertThat(c.collect(addO.prefixQuery("foo", "cat"), addO), equalTo(List.of("cato", "pigo")));
+        assertThat(c.collect(addO.prefixQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
+        assertThat(c.collect(addO.prefixQuery("foo", "d"), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
+    @Override
+    protected MappedFieldType[] fieldTypes() {
+        return new MappedFieldType[] { new KeywordFieldType("foo") };
     }
 
     @Override
@@ -128,18 +103,45 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         return leafFactory.newInstance(context, result::add);
     }
 
-    private CheckedConsumer<RandomIndexWriter, IOException> farmAnimals() {
-        return iw -> {
-            iw.addDocument(
-                List.of(new SortedSetDocValuesField("foo", new BytesRef("cat")), new SortedSetDocValuesField("foo", new BytesRef("pig")))
-            );
-            iw.addDocument(
-                List.of(
-                    new SortedSetDocValuesField("foo", new BytesRef("chicken")),
-                    new SortedSetDocValuesField("foo", new BytesRef("dog"))
-                )
-            );
-        };
+    private TestCase randomStrings() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));
+        });
+    }
+
+    private TestCase singleValueInSource() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+        });
+    }
+
+    private TestCase multiValueInSource() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\", \"chicken\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\", \"pig\"]}"))));
+        });
+    }
+
+    private TestCase singleValueInDocValues() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("cat"))));
+            iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef("dog"))));
+        });
+    }
+
+    private TestCase twoValuesInDocValues() throws IOException {
+        return testCase(iw -> {
+            List<IndexableField> doc = new ArrayList<>();
+            doc.add(new SortedSetDocValuesField("foo", new BytesRef("cat")));
+            doc.add(new SortedSetDocValuesField("foo", new BytesRef("pig")));
+            iw.addDocument(doc);
+            doc.clear();
+            doc.add(new SortedSetDocValuesField("foo", new BytesRef("chicken")));
+            doc.add(new SortedSetDocValuesField("foo", new BytesRef("dog")));
+            iw.addDocument(doc);
+        });
     }
 
     private static final String ADD_O = "for (String s: doc['foo']) {value(s + 'o')}";

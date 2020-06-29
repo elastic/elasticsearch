@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptContext;
@@ -31,57 +30,70 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     Long> {
 
     public void testConstant() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
-        };
-        assertThat(execute(indexBuilder, "value(10)"), equalTo(List.of(10L, 10L)));
+        assertThat(randomLongs().collect("value(10)"), equalTo(List.of(10L, 10L)));
     }
 
     public void testTwoConstants() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
-        };
-        assertThat(execute(indexBuilder, "value(10); value(20)"), equalTo(List.of(10L, 20L, 10L, 20L)));
+        assertThat(randomLongs().collect("value(10); value(20)"), equalTo(List.of(10L, 20L, 10L, 20L)));
     }
 
     public void testSource() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 10}"))));
-        };
-        assertThat(execute(indexBuilder, "value(source['foo'] * 10)"), equalTo(List.of(10L, 100L)));
+        assertThat(singleValueInSource().collect("value(source['foo'] * 10)"), equalTo(List.of(10L, 100L)));
     }
 
-    public void testTwoSourceFields() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1, \"bar\": 2}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 10, \"bar\": 20}"))));
-        };
-        assertThat(execute(indexBuilder, "value(source['foo'] * 10); value(source['bar'] * 10)"), equalTo(List.of(10L, 20L, 100L, 200L)));
+    public void testMultileSourceValues() throws IOException {
+        assertThat(multiValueInSource().collect("for (long l : source['foo']){value(l * 10)}"), equalTo(List.of(10L, 20L, 100L, 200L)));
     }
 
     public void testDocValues() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1)));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 10)));
-        };
+        assertThat(singleValueInDocValues().collect("value(doc['foo'].value * 10)"), equalTo(List.of(10L, 100L)));
+    }
+
+    public void testMultipleDocValuesValues() throws IOException {
         assertThat(
-            execute(indexBuilder, "value(doc['foo'].value * 10)", new NumberFieldType("foo", NumberType.LONG)),
-            equalTo(List.of(10L, 100L))
+            multipleValuesInDocValues().collect("for (long l : doc['foo']) {value(l * 10)}"),
+            equalTo(List.of(10L, 20L, 100L, 200L))
         );
     }
 
-    public void testTwoDocValuesValues() throws IOException {
-        CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
+    private TestCase randomLongs() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
+        });
+    }
+
+    private TestCase singleValueInSource() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 10}"))));
+        });
+    }
+
+    private TestCase multiValueInSource() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1, 2]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [10, 20]}"))));
+        });
+    }
+
+    private TestCase singleValueInDocValues() throws IOException {
+        return testCase(iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 10)));
+        });
+    }
+
+    private TestCase multipleValuesInDocValues() throws IOException {
+        return testCase(iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1), new SortedNumericDocValuesField("foo", 2)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 10), new SortedNumericDocValuesField("foo", 20)));
-        };
-        assertThat(
-            execute(indexBuilder, "for (long l : doc['foo']) {value(l * 10)}", new NumberFieldType("foo", NumberType.LONG)),
-            equalTo(List.of(10L, 20L, 100L, 200L))
-        );
+        });
+    }
+
+    @Override
+    protected MappedFieldType[] fieldTypes() {
+        return new MappedFieldType[] { new NumberFieldType("foo", NumberType.LONG) };
     }
 
     @Override

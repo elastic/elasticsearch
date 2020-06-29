@@ -126,7 +126,7 @@ public class SparseFileTracker {
                     );
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
-                    gaps.add(new Gap(targetRange.start, end));
+                    gaps.add(new Gap(newPendingRange));
                     targetRange.start = end;
                 } else {
                     final Range firstExistingRange = existingRanges.first();
@@ -146,7 +146,7 @@ public class SparseFileTracker {
                         );
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
-                        gaps.add(new Gap(targetRange.start, newPendingRange.end));
+                        gaps.add(new Gap(newPendingRange));
                         targetRange.start = newPendingRange.end;
                     }
                 }
@@ -255,90 +255,82 @@ public class SparseFileTracker {
         }
     }
 
-    private void onGapSuccess(final long start, final long end) {
+    private boolean assertPendingRangeExists(Range range) {
+        assert Thread.holdsLock(mutex);
+        final SortedSet<Range> existingRanges = ranges.tailSet(range);
+        assert existingRanges.isEmpty() == false;
+        final Range existingRange = existingRanges.first();
+        assert existingRange == range;
+        assert existingRange.isPending();
+        return true;
+    }
+
+    private void onGapSuccess(final Range gapRange) {
         final ProgressListenableActionFuture completionListener;
 
         synchronized (mutex) {
             assert invariant();
+            assert assertPendingRangeExists(gapRange);
+            completionListener = gapRange.completionListener;
+            ranges.remove(gapRange);
 
-            final Range range = new Range(start, end, null);
-            final SortedSet<Range> existingRanges = ranges.tailSet(range);
-            assert existingRanges.isEmpty() == false;
-
-            final Range existingRange = existingRanges.first();
-            assert existingRange.start == start && existingRange.end == end && existingRange.isPending();
-            completionListener = existingRange.completionListener;
-            ranges.remove(existingRange);
-
-            final SortedSet<Range> prevRanges = ranges.headSet(existingRange);
+            final SortedSet<Range> prevRanges = ranges.headSet(gapRange);
             final Range prevRange = prevRanges.isEmpty() ? null : prevRanges.last();
-            assert prevRange == null || prevRange.end <= existingRange.start : prevRange + " vs " + existingRange;
-            final boolean mergeWithPrev = prevRange != null && prevRange.isPending() == false && prevRange.end == existingRange.start;
+            assert prevRange == null || prevRange.end <= gapRange.start : prevRange + " vs " + gapRange;
+            final boolean mergeWithPrev = prevRange != null && prevRange.isPending() == false && prevRange.end == gapRange.start;
 
-            final SortedSet<Range> nextRanges = ranges.tailSet(existingRange);
+            final SortedSet<Range> nextRanges = ranges.tailSet(gapRange);
             final Range nextRange = nextRanges.isEmpty() ? null : nextRanges.first();
-            assert nextRange == null || existingRange.end <= nextRange.start : existingRange + " vs " + nextRange;
-            final boolean mergeWithNext = nextRange != null && nextRange.isPending() == false && existingRange.end == nextRange.start;
+            assert nextRange == null || gapRange.end <= nextRange.start : gapRange + " vs " + nextRange;
+            final boolean mergeWithNext = nextRange != null && nextRange.isPending() == false && gapRange.end == nextRange.start;
 
             if (mergeWithPrev && mergeWithNext) {
                 assert prevRange.isPending() == false : prevRange;
                 assert nextRange.isPending() == false : nextRange;
-                assert prevRange.end == existingRange.start : prevRange + " vs " + existingRange;
-                assert existingRange.end == nextRange.start : existingRange + " vs " + nextRange;
+                assert prevRange.end == gapRange.start : prevRange + " vs " + gapRange;
+                assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
                 prevRange.end = nextRange.end;
                 ranges.remove(nextRange);
             } else if (mergeWithPrev) {
                 assert prevRange.isPending() == false : prevRange;
-                assert prevRange.end == existingRange.start : prevRange + " vs " + existingRange;
-                prevRange.end = existingRange.end;
+                assert prevRange.end == gapRange.start : prevRange + " vs " + gapRange;
+                prevRange.end = gapRange.end;
             } else if (mergeWithNext) {
                 assert nextRange.isPending() == false : nextRange;
-                assert existingRange.end == nextRange.start : existingRange + " vs " + nextRange;
-                nextRange.start = existingRange.start;
+                assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
+                nextRange.start = gapRange.start;
             } else {
-                ranges.add(new Range(start, end, null));
+                ranges.add(new Range(gapRange.start, gapRange.end, null));
             }
 
             assert invariant();
         }
 
-        completionListener.onResponse(end);
+        completionListener.onResponse(gapRange.end);
     }
 
-    private void onGapProgress(long start, long end, long value) {
+    private void onGapProgress(final Range gapRange, long value) {
         final ProgressListenableActionFuture completionListener;
 
         synchronized (mutex) {
             assert invariant();
-
-            final Range range = new Range(start, end, null);
-            final SortedSet<Range> existingRanges = ranges.tailSet(range);
-            assert existingRanges.isEmpty() == false;
-
-            final Range existingRange = existingRanges.first();
-            assert existingRange.start == start && existingRange.end == end && existingRange.isPending();
-            completionListener = existingRange.completionListener;
+            assert assertPendingRangeExists(gapRange);
+            completionListener = gapRange.completionListener;
             assert invariant();
         }
 
         completionListener.onProgress(value);
     }
 
-    private void onGapFailure(long start, long end, Exception e) {
+    private void onGapFailure(final Range gapRange, Exception e) {
         final ProgressListenableActionFuture completionListener;
 
         synchronized (mutex) {
             assert invariant();
-
-            final Range range = new Range(start, end, null);
-            final SortedSet<Range> existingRanges = ranges.tailSet(range);
-            assert existingRanges.isEmpty() == false;
-
-            final Range existingRange = existingRanges.first();
-            assert existingRange.start == start && existingRange.end == end && existingRange.isPending();
-            completionListener = existingRange.completionListener;
-            ranges.remove(existingRange);
-
+            assert assertPendingRangeExists(gapRange);
+            completionListener = gapRange.completionListener;
+            final boolean removed = ranges.remove(gapRange);
+            assert removed : gapRange + " not found";
             assert invariant();
         }
 
@@ -386,37 +378,40 @@ public class SparseFileTracker {
      * Represents a gap in the file that a client should fill in.
      */
     public class Gap {
-        /**
-         * Inclusive start point of this range
-         */
-        public final long start;
 
         /**
-         * Exclusive end point of this range
+         * Range in the file corresponding to the current gap
          */
-        public final long end;
+        public final Range range;
 
-        Gap(long start, long end) {
-            assert start < end : start + "-" + end;
-            this.start = start;
-            this.end = end;
+        Gap(Range range) {
+            assert range.start < range.end : range.start + "-" + range.end;
+            this.range = range;
+        }
+
+        public long start() {
+            return range.start;
+        }
+
+        public long end() {
+            return range.end;
         }
 
         public void onCompletion() {
-            onGapSuccess(start, end);
+            onGapSuccess(range);
         }
 
         public void onProgress(long value) {
-            onGapProgress(start, end, value);
+            onGapProgress(range, value);
         }
 
         public void onFailure(Exception e) {
-            onGapFailure(start, end, e);
+            onGapFailure(range, e);
         }
 
         @Override
         public String toString() {
-            return SparseFileTracker.this.toString() + " [" + start + "-" + end + "]";
+            return SparseFileTracker.this.toString() + ' ' + range;
         }
     }
 

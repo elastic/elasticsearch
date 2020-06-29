@@ -70,13 +70,11 @@ public class StoreStats implements Writeable, ToXContentFragment {
             return;
         }
         sizeInBytes += stats.sizeInBytes;
-        if (reservedSize != UNKNOWN_RESERVED_BYTES) {
-            if (stats.reservedSize == UNKNOWN_RESERVED_BYTES) {
-                reservedSize = UNKNOWN_RESERVED_BYTES;
-            } else {
-                reservedSize += stats.reservedSize;
-            }
-        }
+        reservedSize = ignoreIfUnknown(reservedSize) + ignoreIfUnknown(stats.reservedSize);
+    }
+
+    private static long ignoreIfUnknown(long reservedSize) {
+        return reservedSize == UNKNOWN_RESERVED_BYTES ? 0L : reservedSize;
     }
 
     public long sizeInBytes() {

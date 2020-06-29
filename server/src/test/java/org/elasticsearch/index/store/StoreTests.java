@@ -761,8 +761,7 @@ public class StoreTests extends ESTestCase {
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
         stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
         assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
-        assertEquals(reservedBytes == StoreStats.UNKNOWN_RESERVED_BYTES || otherStatsReservedBytes == StoreStats.UNKNOWN_RESERVED_BYTES
-            ? StoreStats.UNKNOWN_RESERVED_BYTES : reservedBytes + otherStatsReservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
         Directory dir = store.directory();
         final long length;

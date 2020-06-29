@@ -43,7 +43,7 @@ include::ilm-concepts.asciidoc[]
 
 include::ilm-tutorial.asciidoc[]
 
-include::{kib-repo-dir}/management/index-lifecycle-policies/example-index-lifecycle-policy.asciidoc[leveloffset=-1]
+include::example-index-lifecycle-policy.asciidoc[leveloffset=-1]
 
 include::ilm-actions.asciidoc[]
 

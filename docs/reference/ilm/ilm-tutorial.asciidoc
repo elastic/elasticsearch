@@ -61,8 +61,9 @@ To create the policy from {kib}, go to **Management > Elasticsearch > Index Life
 
 image:images/ilm/create-policy.png[]
 
-The create policy request for the example policy looks like this:
-
+[%collapsible]
+.API example
+====
 [source,console]
 ------------------------
 PUT _ilm/policy/timeseries_policy
@@ -91,8 +92,7 @@ PUT _ilm/policy/timeseries_policy
 <2> Trigger the `rollover` action when either of the conditions are met.
 <3> Move the index into the `delete` phase 90 days after rollover.
 <4> Trigger the `delete` action when the index enters the delete phase.
-
-For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
+====
 
 [discrete]
 [[ilm-gs-apply-policy]]
@@ -112,8 +112,9 @@ You can use the {kib} Create template wizard to add the template.
 This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
 with the options you specify.
 
-The underlying request looks like this:
-
+[%collapsible]
+.API example
+====
 [source,console]
 -----------------------
 PUT _index_template/timeseries_template
@@ -146,8 +147,7 @@ in all documents indexed into the `timeseries` data stream.
 <3> The name of the {ilm-init} policy used to manage the data stream.
 <4> A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
 timestamp field specified in the `timestamp_field` property
-
-You can also invoke this API directly to add templates.
+====
 
 [discrete]
 [[ilm-gs-create-the-data-stream]]

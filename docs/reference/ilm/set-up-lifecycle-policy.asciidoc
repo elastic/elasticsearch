@@ -36,10 +36,9 @@ You specify the lifecycle phases for the policy and the actions to perform in ea
 
 The <<ilm-put-lifecycle, put policy>> API is invoked to add the policy to the {es} cluster.
 
-For example, the following policy defines a hot and and delete phase.
-When the index reaches 25GB, it rolls over directly to the delete phase.
-The index is deleted 30 days after rollover.
-
+[%collapsible]
+.API example
+====
 [source,console]
 ------------------------
 PUT _ilm/policy/my_policy
@@ -66,6 +65,7 @@ PUT _ilm/policy/my_policy
 
 <1> Roll over the index when it reaches 25GB in size
 <2> Delete the index 30 days after rollover
+====
 
 [discrete]
 [[apply-policy-template]]
@@ -82,9 +82,9 @@ image:images/ilm/create-template-wizard.png[]
 
 The <<indices-put-template,put template API>> is invoked to add templates to a cluster.
 
-For example, the following template applies `my_policy` to indices that match the `test-*` pattern, 
-and the rolling indices are referenced using the `test-alias` index alias.
-
+[%collapsible]
+.API example
+====
 [source,console]
 -----------------------
 PUT _template/my_template
@@ -102,7 +102,7 @@ PUT _template/my_template
 <1> Use this template for all new indices whose names begin with `test-`
 <2> Apply `my_policy` to new indices created with this template
 <3> Define an index alias for referencing indices managed by `my_policy`
-
+====
 //////////////////////////
 
 [source,console]
@@ -163,8 +163,9 @@ IMPORTANT: Do not manually apply a policy that uses the rollover action.
 Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
 Otherwise, the policy is not carried forward when the rollover action creates a new index.
 
-The policy name is specified in an index's `index.lifecycle.name` setting:
-
+[%collapsible]
+.API example
+====
 [source,console]
 -----------------------
 PUT test-index
@@ -172,10 +173,12 @@ PUT test-index
   "settings": {
     "number_of_shards": 1,
     "number_of_replicas": 1,
-    "index.lifecycle.name": "my_policy"
+    "index.lifecycle.name": "my_policy" <1>
   }
 }
 -----------------------
+<1> Sets the lifecycle policy for the index.
+====
 
 [discrete]
 [[apply-policy-multiple]]

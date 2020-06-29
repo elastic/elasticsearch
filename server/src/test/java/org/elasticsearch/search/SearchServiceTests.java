@@ -589,19 +589,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     latch.await();
                     for (; ; ) {
-                        Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+                        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
                         try {
                             searchService.createAndPutReaderContext(
                                 new ShardScrollRequestTest(indexShard.shardId()), indexService, indexShard, reader, true);
-                            reader = null;
                         } catch (ElasticsearchException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +
                                     "[" + maxScrollContexts + "]. " +
                                     "This limit can be set by changing the [search.max_open_scroll_context] setting."));
                             return;
-                        } finally {
-                            IOUtils.close(reader);
                         }
                     }
                 } catch (Exception e) {

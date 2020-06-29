@@ -63,6 +63,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyObject;
@@ -119,9 +120,11 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
-            final Engine.SearcherSupplier engineReader = new Engine.SearcherSupplier(Function.identity()) {
+
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
                 @Override
-                protected void doClose() {}
+                protected void doClose() {
+                }
 
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {
@@ -138,7 +141,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 
             ReaderContext readerWithoutScroll = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, engineReader, randomNonNegativeLong(), false);
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             contextWithoutScroll.from(300);
@@ -154,7 +157,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             // resultWindow greater than maxResultWindow and scrollContext isn't null
             when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
             ReaderContext readerContext = new LegacyReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, engineReader, shardSearchRequest, randomNonNegativeLong());
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 bigArrays, null, timeout, null, false);
             context1.from(300);
@@ -187,7 +190,7 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             readerContext.close();
             readerContext = new ReaderContext(
-                randomNonNegativeLong(), indexService, indexShard, engineReader, randomNonNegativeLong(), false);
+                randomNonNegativeLong(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
                 null, bigArrays, null, timeout, null, false);
@@ -217,8 +220,8 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();
-            readerContext =
-                new ReaderContext(randomNonNegativeLong(), indexService, indexShard, engineReader, randomNonNegativeLong(), false);
+            readerContext = new ReaderContext(randomNonNegativeLong(), indexService, indexShard,
+                searcherSupplier.get(), randomNonNegativeLong(), false);
             DefaultSearchContext context4 =
                 new DefaultSearchContext(readerContext, shardSearchRequest, target, null, bigArrays, null, timeout, null, false);
             context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);

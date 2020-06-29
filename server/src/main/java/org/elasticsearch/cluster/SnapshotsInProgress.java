@@ -176,6 +176,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry withRepoGen(long newRepoGen) {
+            assert newRepoGen > repositoryStateId : "Updated repository generation [" + newRepoGen
+                    + "] must be higher then current generation [" + repositoryStateId + "]";
             return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, newRepoGen, shards, failure,
                     userMetadata, version);
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,6 +23,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
+
+    @Before
+    public void skipForBackportOf58217() {
+        assumeFalse("Skip while back-porting #58217", UPGRADE_FROM_VERSION.equals(Version.V_7_8_1));
+    }
 
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);

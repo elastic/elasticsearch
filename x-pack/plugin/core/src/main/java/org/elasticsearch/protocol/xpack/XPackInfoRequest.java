@@ -56,7 +56,7 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
-        if (in.getVersion().after(Version.V_7_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_1)) {
             this.licenseVersion = in.readVInt();
         }
     }
@@ -97,7 +97,7 @@ public class XPackInfoRequest extends ActionRequest {
         for (Category category : categories) {
             out.writeString(category.name());
         }
-        if (out.getVersion().after(Version.V_7_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_1)) {
             out.writeVInt(this.licenseVersion);
         }
     }

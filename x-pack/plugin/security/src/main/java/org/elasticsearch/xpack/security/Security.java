@@ -284,6 +284,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
+    public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
@@ -997,7 +999,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             return List.of(
                 new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
                     "xpack.security.authc.token.thread_pool", false),
-                new FixedExecutorBuilder(settings, ApiKeyService.THREAD_POOL_NAME,
+                new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
                     (allocatedProcessors + 1) / 2, 1000,
                     "xpack.security.authc.api_key.thread_pool", false)
             );

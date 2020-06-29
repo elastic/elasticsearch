@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -95,7 +96,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void createThreadPool() {
         threadPool = Mockito.spy(
             new TestThreadPool("api key service tests",
-                new FixedExecutorBuilder(Settings.EMPTY, ApiKeyService.THREAD_POOL_NAME, 1, 1000,
+                new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000,
                     "xpack.security.authc.api_key.thread_pool", false))
         );
     }
@@ -634,7 +635,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
         mockSourceDocument(creds.getId(), sourceMap);
         final ExecutorService mockExecutorService = mock(ExecutorService.class);
-        when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
         Mockito.doAnswer(invocationOnMock -> {
             final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
             actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));
@@ -668,7 +669,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         // Now force the hashing thread pool to saturate so that any un-cached keys cannot be validated
         final ExecutorService mockExecutorService = mock(ExecutorService.class);
-        when(threadPool.executor(ApiKeyService.THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
         Mockito.doAnswer(invocationOnMock -> {
             final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
             actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));

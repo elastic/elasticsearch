@@ -107,16 +107,16 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         });
     }
 
-    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
-            throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during read-only marking");
+            throw new IllegalStateException("index shard " + shardId +
+                " is not blocking all operations while waiting for block " + request.clusterBlock());
         }
 
         final ClusterBlocks clusterBlocks = clusterService.state().blocks();
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
-            throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() +
-                " before marking as readonly");
+            throw new IllegalStateException("index shard " + shardId + " has not applied block " + request.clusterBlock());
         }
     }
 

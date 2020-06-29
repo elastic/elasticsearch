@@ -1148,6 +1148,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+
+        assertOnlyReadAllowed(role, "observability-annotations");
     }
 
     public void testMachineLearningAdminRole() {

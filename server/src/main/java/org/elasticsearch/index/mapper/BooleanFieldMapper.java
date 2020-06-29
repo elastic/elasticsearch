@@ -79,12 +79,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             = Parameter.boolParam("doc_values", false, m -> m.fieldType().hasDocValues(),  true);
         private final Parameter<Boolean> indexed
             = Parameter.boolParam("index", false, m -> m.fieldType().isSearchable(), true);
-        private final Parameter<Boolean> nullValue = new Parameter<>("null_value", false, null, (n, o) -> {
-            if (o == null) {
-                return null;
-            }
-            return XContentMapValues.nodeBooleanValue(o);
-        }, m -> toType(m).nullValue).acceptsNull();
+        private final Parameter<Boolean> nullValue
+            = new Parameter<>("null_value", false, null, (n, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
         private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
 
         public Builder(String name) {

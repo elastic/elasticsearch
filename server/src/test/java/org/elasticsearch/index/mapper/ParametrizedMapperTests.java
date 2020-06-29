@@ -133,7 +133,7 @@ public class ParametrizedMapperTests extends ESTestCase {
         builder.startObject();
         mapper.toXContent(builder, params);
         builder.endObject();
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"fixed\":true,\"variable\":\"default\"}}",
+        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":false,\"variable\":\"default\"}}",
             Strings.toString(builder));
     }
 

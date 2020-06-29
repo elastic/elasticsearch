@@ -2,6 +2,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,14 +29,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class NullValueTests extends ESSingleNodeTestCase {
     public void testNullNullValue() throws Exception {
@@ -52,7 +52,9 @@ public class NullValueTests extends ESSingleNodeTestCase {
                 indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
                 fail("Test should have failed because [null_value] was null.");
             } catch (MapperParsingException e) {
-                assertThat(e.getMessage(), equalTo("Property [null_value] cannot be null."));
+                assertThat(e.getMessage(),
+                    either(equalTo("Property [null_value] cannot be null."))
+                    .or(containsString("must not have a [null] value")));
             }
         }
     }

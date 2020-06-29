@@ -66,7 +66,7 @@ This policy initiates the rollover action when the index size reaches 50GB or
 becomes 30 days old.
 
 [role="screenshot"]
-image::images/tutorial-ilm-hotphaserollover-default.png["Default policy"]
+image::images/ilm/tutorial-ilm-hotphaserollover-default.png["Default policy"]
 
 
 [float]
@@ -100,12 +100,12 @@ is based on the rollover date.
 
 +
 [role="screenshot"]
-image::images/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to add warm phase"]
+image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to add warm phase"]
 
 . Activate the delete phase and set *Timing for delete phase* to *90* days.
 +
 [role="screenshot"]
-image::images/tutorial-ilm-delete-rollover.png["Add a delete phase"]
+image::images/ilm/tutorial-ilm-delete-rollover.png["Add a delete phase"]
 
 [float]
 ==== Create a custom policy
@@ -140,7 +140,7 @@ rollover.
 
 +
 [role="screenshot"]
-image::images/tutorial-ilm-custom-policy.png["Modify the custom policy to add a warm phase"]
+image::images/ilm/tutorial-ilm-custom-policy.png["Modify the custom policy to add a warm phase"]
 
 
 +
@@ -154,7 +154,7 @@ image::images/tutorial-ilm-custom-policy.png["Modify the custom policy to add a 
 
 +
 [role="screenshot"]
-image::images/tutorial-ilm-delete-phase-creation.png["Delete phase"]
+image::images/ilm/tutorial-ilm-delete-phase-creation.png["Delete phase"]
 
 . To configure the index to use the new policy, open the menu, then go to *Stack Management > {es} > Index Lifecycle
 Policies*.

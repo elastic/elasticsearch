@@ -155,75 +155,75 @@ or omit to search all indices.
 [[docs-update-by-query-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
 `conflicts`::
   (Optional, string) What to do if delete by query hits version conflicts: 
   `abort` or `proceed`. Defaults to `abort`.
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=scroll_size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_timeout]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=slices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=sort]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sort]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=stats]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
   
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
-include::{es-docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-update-by-query-api-request-body]]
 ==== {api-request-body-title}

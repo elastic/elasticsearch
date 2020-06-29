@@ -284,13 +284,15 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
-            this(in.readString(), in.readMap());
+            this(in.readString(), in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readMap() : null);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(timestampField);
-            out.writeMap(timestampFieldMapping);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeMap(timestampFieldMapping);
+            }
         }
 
         @Override

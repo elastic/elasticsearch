@@ -58,6 +58,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
 required <<eql-required-fields,event category or timestamp>> fields. The request
@@ -98,12 +99,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "fields": {
-          "@timestamp": [
-            "1607252645000"
-          ]
-        },        
+        },      
         "sort": [
           1607252645000
         ]
@@ -126,11 +122,6 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "fields": {
-          "@timestamp": [
-            "1607339167000"
-          ]
         },
         "sort": [
           1607339167000
@@ -294,7 +285,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event.
@@ -457,6 +448,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Note the `sort` property of each
 matching event contains an array of two items:
@@ -500,11 +492,6 @@ tiebreaker for events with the same timestamp.
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         },
-        "fields": {
-          "@timestamp": [
-            "1607252645000"
-          ]
-        },
         "sort": [
           1607252645000,                                <1>
           "edwCRnyD"                                    <2>
@@ -528,11 +515,6 @@ tiebreaker for events with the same timestamp.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "fields": {
-          "@timestamp": [
-            "1607339167000"
-          ]
         },
         "sort": [
           1607339167000,                                <1>

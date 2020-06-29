@@ -24,7 +24,7 @@ POST _bulk
 
 `POST /_bulk`
 
-`POST /<index>/_bulk`
+`POST /<target>/_bulk`
 
 [[docs-bulk-api-desc]]
 ==== {api-description-title}
@@ -47,8 +47,12 @@ optional_source\n
 
 The `index` and `create` actions expect a source on the next line, 
 and have the same semantics as the `op_type` parameter in the standard index API: 
-create fails if a document with the same name already exists in the index,  
-index adds or replaces a document as necessary. 
+`create` fails if a document with the same ID already exists in the target,
+`index` adds or replaces a document as necessary. 
+
+NOTE: <<data-streams,Data streams>> support only the `create` action. To update
+or delete a document in a data stream, you must target the backing index
+containing the document. See <<update-delete-docs-in-a-data-stream>>.
 
 `update` expects that the partial doc, upsert, 
 and script and its options are specified on the next line.
@@ -67,8 +71,8 @@ the `Content-Type` header should be set to `application/x-ndjson`.
 Because this format uses literal `\n`'s as delimiters, 
 make sure that the JSON actions and sources are not pretty printed.
 
-If you specify an index in the request URI, 
-it is used for any actions that don't explicitly specify an index.
+If you provide a `<target>` in the request path, 
+it is used for any actions that don't explicitly specify an `_index` argument.
 
 A note on the format: The idea here is to make processing of this as
 fast as possible. As some of the actions are redirected to other
@@ -90,7 +94,7 @@ as this will slow things down.
 ===== Client support for bulk requests
 
 Some of the officially supported clients provide helpers to assist with
-bulk requests and reindexing of documents from one index to another:
+bulk requests and reindexing:
 
 Go::
 
@@ -192,8 +196,10 @@ See <<url-access-control>>.
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string) Name of the index to perform the bulk actions against.
+`<target>`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform bulk actions
+on.
 
 [[docs-bulk-api-query-params]]
 ==== {api-query-parms-title}
@@ -321,7 +327,8 @@ operation.
 =====
 `_index`::
 (string)
-The index name or alias associated with the operation.
+Name of the index associated with the operation. If the operation targeted a
+data stream, this is the backing index into which the document was written.
 
 `_id`::
 (integer)
@@ -410,7 +417,9 @@ ID of the shard associated with the failed operation.
 
 `index`::
 (string)
-The index name or alias associated with the failed operation.
+Name of the index associated with the failed operation. If the operation
+targeted a data stream, this is the backing index into which the document was
+attempted to be written.
 ======
 =====
 ====

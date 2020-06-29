@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,7 +26,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetModelSnapshotsAction extends BaseRestHandler {
 
-    private static final String ALL = "_all";
     private static final String ALL_SNAPSHOT_IDS = null;
 
     // Even though these are null, setting up the defaults in case
@@ -72,7 +72,7 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String snapshotId = restRequest.param(Request.SNAPSHOT_ID.getPreferredName());
-        if (ALL.equals(snapshotId)) {
+        if (Strings.isAllOrWildcard(snapshotId)) {
             snapshotId = ALL_SNAPSHOT_IDS;
         }
         Request getModelSnapshots;

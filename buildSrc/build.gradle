@@ -69,29 +69,14 @@ allprojects {
 }
 
 sourceSets {
-  // We have a few classes that need to be compiled for older java versions
-  minimumRuntime {}
-
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
 }
 
-compileMinimumRuntimeJava {
-  targetCompatibility = 8
-  sourceCompatibility = 8
-  tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-  }
-}
-
-jar {
-  from sourceSets.minimumRuntime.output
-}
-
-javadoc {
-  source sourceSets.minimumRuntime.allSource
+tasks.withType(JavaCompile).configureEach {
+  options.encoding = 'UTF-8'
 }
 
 /*****************************************************************************
@@ -103,12 +88,8 @@ repositories {
 }
 
 dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-    // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
-
   compile localGroovy()
+  compile gradleApi()
 
   compile 'commons-codec:commons-codec:1.12'
   compile 'org.apache.commons:commons-compress:1.19'
@@ -117,7 +98,7 @@ dependencies {
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:7.1.3'
   compile 'org.apache.rat:apache-rat:0.11'
-  compile "org.elasticsearch:jna:4.5.1"
+  compile "org.elasticsearch:jna:5.5.0"
   compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
   compile 'de.thetaphi:forbiddenapis:3.0'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
@@ -131,9 +112,9 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
+  integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
+    exclude module: "groovy"
+  }
 }
 
 /*****************************************************************************
@@ -168,10 +149,9 @@ if (project != rootProject) {
   groovydoc.enabled = false
 
   // build-tools is not ready for primetime with these...
-  dependencyLicenses.enabled = false
+  tasks.named("dependencyLicenses").configure { it.enabled = false }
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime',
-    'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
@@ -215,9 +195,6 @@ if (project != rootProject) {
       ignore('META-INF/reaper.jar')
     }
   }
-
-  // TODO: re-enable once randomizedtesting gradle code is published and removed from here
-  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/*.wav'

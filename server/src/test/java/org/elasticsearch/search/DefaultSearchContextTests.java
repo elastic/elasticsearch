@@ -121,7 +121,7 @@ public class DefaultSearchContextTests extends ESTestCase {
 
             final Engine.SearcherSupplier engineReader = new Engine.SearcherSupplier(Function.identity()) {
                 @Override
-                public void close() {}
+                protected void doClose() {}
 
                 @Override
                 protected Engine.Searcher acquireSearcherInternal(String source) {

@@ -190,7 +190,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
-            public void close() {
+            public void doClose() {
                 store.decRef();
             }
         };

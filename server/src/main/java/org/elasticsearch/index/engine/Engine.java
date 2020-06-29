@@ -610,7 +610,6 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            AtomicBoolean released = new AtomicBoolean(false);
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -620,23 +619,16 @@ public abstract class Engine implements Closeable {
                 }
 
                 @Override
-                public void close() {
-                    if (released.compareAndSet(false, true)) {
-                        try {
-                            referenceManager.release(acquire);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("failed to close", e);
-                        } catch (AlreadyClosedException e) {
-                            // This means there's a bug somewhere: don't suppress it
-                            throw new AssertionError(e);
-                        } finally {
-                            store.decRef();
-                        }
-                    } else {
-                        /* In general, readers should never be released twice or this would break reference counting. There is one rare case
-                         * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
-                         * amount of time, this is why we only log a warning instead of throwing an exception. */
-                        logger.warn("Reader was released twice", new IllegalStateException("Double release"));
+                protected void doClose() {
+                    try {
+                        referenceManager.release(acquire);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("failed to close", e);
+                    } catch (AlreadyClosedException e) {
+                        // This means there's a bug somewhere: don't suppress it
+                        throw new AssertionError(e);
+                    } finally {
+                        store.decRef();
                     }
                 }
             };
@@ -1176,15 +1168,30 @@ public abstract class Engine implements Closeable {
 
     public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
+        private final AtomicBoolean released = new AtomicBoolean(false);
 
         public SearcherSupplier(Function<Searcher, Searcher> wrapper) {
             this.wrapper = wrapper;
         }
 
         public final Searcher acquireSearcher(String source) {
+            if (released.get()) {
+                throw new AlreadyClosedException("SearcherSupplier was closed");
+            }
             final Searcher searcher = acquireSearcherInternal(source);
             return "can_match".equals(source) ? searcher : wrapper.apply(searcher);
         }
+
+        @Override
+        public final void close() {
+            if (released.compareAndSet(false, true)) {
+                doClose();
+            } else {
+                assert false : "SearchSupplier was released twice";
+            }
+        }
+
+        protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
     }

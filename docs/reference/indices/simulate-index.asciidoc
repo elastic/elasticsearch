@@ -11,7 +11,7 @@ Returns the index settings that would be applied to the specified index from an
 
 [source,console]
 --------------------------------------------------
-POST /_index_template/_simulate_index/logdata-2019-02-01
+POST /_index_template/_simulate_index/myindex
 --------------------------------------------------
 
 [[simulate-index-api-request]]

@@ -12,16 +12,73 @@ Returns the index settings that would be applied by a particular
 ////
 [source,console]
 --------------------------------------------------
-PUT /_index_template/template_1
+PUT _component_template/component_template1
 {
-  "index_patterns": ["logdata-*"],
   "template": {
-    "settings": {
-      "index.number_of_shards": 2
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
     }
   }
 }
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
+PUT _index_template/template_1
+{
+  "index_patterns": ["te*", "bar*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        }
+      }
+    },
+    "aliases": {
+      "mydata": { }
+    }
+  },
+  "priority": 10,
+  "composed_of": ["component_template1", "other_component_template"],
+  "version": 3,
+  "_meta": {
+    "description": "my custom"
+  }
+}
 --------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/*
+DELETE _component_template/*
+--------------------------------------------------
+// TEARDOWN
 ////
 
 [source,console]
@@ -125,7 +182,7 @@ The following example creates and simulates a composed template:
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/ct1 <1>
+PUT /_component_template/ct1                   <1>
 {
   "template": {
     "settings": {
@@ -134,7 +191,7 @@ PUT /_component_template/ct1 <1>
   }
 }
 
-PUT /_component_template/ct2 <2>
+PUT /_component_template/ct2                    <2>
 {
   "template": {
     "settings": {
@@ -150,7 +207,7 @@ PUT /_component_template/ct2 <2>
   }
 }
 
-PUT /_index_template/final-template <3>
+PUT /_index_template/final-template            <3>
 {
   "index_patterns": ["logdata-*"],
   "composed_of": ["ct1", "ct2"],
@@ -172,13 +229,14 @@ The response shows the index settings, mappings, and aliases applied by the fina
   "template" : {
     "settings" : {
       "index" : {
-        "number_of_replicas" : "1" <1>
+        "number_of_replicas" : "0", <1>
+        "number_of_shards" : "2"   <2>
       }
     },
-    "mappings" : {
-      "properties" : {
-        "@timestamp" : { <2>
-          "type" : "date"
+    "mappings": {                  <3>
+      "properties": {
+        "@timestamp": {
+          "type": "date"
         }
       }
     },
@@ -186,8 +244,10 @@ The response shows the index settings, mappings, and aliases applied by the fina
   }
 }
 ---------------------------------------------------------
-<1> The number of replicas from the simulated template body
-<2> The `@timestamp` field inherited from the "ct2" component template
+<1> The number of replicas from `ct2`
+<2> The number of shards from `ct1`
+<3> The mappings from `ct1`
+
 
 [[simulate-template-config-ex]]
 ===== Simulating an arbitrary template configuration
@@ -209,6 +269,7 @@ POST /_index_template/_simulate
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 The response shows any overlapping templates with a lower priority.
 

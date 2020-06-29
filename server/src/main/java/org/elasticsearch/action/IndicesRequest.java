@@ -41,7 +41,9 @@ public interface IndicesRequest {
     IndicesOptions indicesOptions();
 
     /**
-     * Determines whether the action should be applied to data streams
+     * Determines whether the request should be applied to data streams. When {@code false}, none of the names or
+     * wildcard expressions in {@link #indices} should be applied to or expanded to any data streams. All layers
+     * involved in the request's fulfillment including security, name resolution, etc., should respect this flag.
      */
     default boolean includeDataStreams() {
         return false;

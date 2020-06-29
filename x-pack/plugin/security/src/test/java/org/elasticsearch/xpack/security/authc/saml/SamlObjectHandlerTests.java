@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SamlRequestHandlerTests extends ESTestCase {
+public class SamlObjectHandlerTests extends ESTestCase {
 
     public void testXmlObjectToTextWhenExceedsLength() {
         final int prefixLength = randomIntBetween(10, 30);
@@ -28,7 +28,7 @@ public class SamlRequestHandlerTests extends ESTestCase {
         when(xml.getDOM()).thenReturn(element);
         when(element.getTextContent()).thenReturn(text);
 
-        assertThat(SamlRequestHandler.text(xml, prefixLength, suffixLength), equalTo(prefix + "..." + suffix));
+        assertThat(SamlObjectHandler.text(xml, prefixLength, suffixLength), equalTo(prefix + "..." + suffix));
     }
 
     public void testXmlObjectToTextPrefixOnly() {
@@ -41,7 +41,7 @@ public class SamlRequestHandlerTests extends ESTestCase {
         when(xml.getDOM()).thenReturn(element);
         when(element.getTextContent()).thenReturn(text);
 
-        assertThat(SamlRequestHandler.text(xml, length, 0), equalTo(prefix + "..."));
+        assertThat(SamlObjectHandler.text(xml, length, 0), equalTo(prefix + "..."));
     }
 
     public void testXmlObjectToTextWhenShortedThanRequiredLength() {
@@ -54,7 +54,7 @@ public class SamlRequestHandlerTests extends ESTestCase {
         when(xml.getDOM()).thenReturn(element);
         when(element.getTextContent()).thenReturn(text);
 
-        assertThat(SamlRequestHandler.text(xml, prefixLength, suffixLength), equalTo(text));
+        assertThat(SamlObjectHandler.text(xml, prefixLength, suffixLength), equalTo(text));
     }
 
 }

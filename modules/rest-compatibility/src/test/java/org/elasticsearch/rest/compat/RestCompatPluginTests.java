@@ -34,10 +34,10 @@ public class RestCompatPluginTests extends ESTestCase {
     public void testRestHandlersValidation() {
         RestCompatPlugin restCompatPlugin = new RestCompatPlugin();
         Version prevVersion = Version.fromString("7.0.0");
-        expectThrows(AssertionError.class, () ->
-            restCompatPlugin.validatedList(7, restHandler(prevVersion), restHandler(Version.fromString("8.0.0"))));
+        expectThrows(IllegalStateException.class, () ->
+            restCompatPlugin.validateCompatibleHandlers(7, restHandler(prevVersion), restHandler(Version.fromString("8.0.0"))));
 
-        List<RestHandler> restHandlers = restCompatPlugin.validatedList(7, restHandler(prevVersion), restHandler(prevVersion));
+        List<RestHandler> restHandlers = restCompatPlugin.validateCompatibleHandlers(7, restHandler(prevVersion), restHandler(prevVersion));
         assertThat(restHandlers, Matchers.hasSize(2));
     }
 

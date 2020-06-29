@@ -36,6 +36,7 @@ import org.elasticsearch.rest.compat.version7.RestIndexActionV7;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class RestCompatPlugin extends Plugin implements ActionPlugin {
@@ -67,7 +68,7 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         List<RestHandler> handlers1 = List.of(handlers);
         for (RestHandler handler : handlers) {
             if (handler.compatibleWithVersion().major != expectedVersion) {
-                String msg = String.format("Handler {} is of incorrect version. {}",
+                String msg = String.format(Locale.ROOT,"Handler %s is of incorrect version %s.",
                     handler.getClass().getSimpleName(),
                     handler.compatibleWithVersion());
                 throw new IllegalStateException(msg);

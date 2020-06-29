@@ -29,10 +29,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -62,8 +64,16 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                 return (List<T>) List.of(new RuntimeFieldsPainlessExtension());
             }
         });
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
+        List<ScriptPlugin> scriptPlugins = new ArrayList<>();
+        scriptPlugins.add(painlessPlugin); // TODO move painless to integration tests
+        scriptPlugins.add(new RuntimeFields());
+        scriptPlugins.addAll(extraScriptPlugins());
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, scriptPlugins);
         scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
+    }
+
+    protected List<ScriptPlugin> extraScriptPlugins() {
+        return List.of();
     }
 
     protected abstract MappedFieldType[] fieldTypes();
@@ -80,18 +90,17 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
 
     protected class TestCase {
         private final SourceLookup sourceLookup = new SourceLookup();
+        private final MapperService mapperService = mock(MapperService.class);
         private final DocLookup fieldData;
         private final IndexSearcher searcher;
 
         private TestCase(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder) throws IOException {
-            MapperService mapperService = mock(MapperService.class);
             for (MappedFieldType type : fieldTypes()) {
                 when(mapperService.fieldType(type.name())).thenReturn(type);
             }
             Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
                 .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
             fieldData = new DocLookup(mapperService, fieldDataLookup);
-
             Directory directory = newDirectory();
             lazyClose.add(directory);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -103,7 +112,15 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
         }
 
         protected LF script(String script) {
-            return newLeafFactory(scriptService.compile(new Script(script), scriptContext()), Map.of(), sourceLookup, fieldData);
+            return script(new Script(script));
+        }
+
+        protected LF testScript(String name) {
+            return script(new Script(ScriptType.INLINE, "test", name, Map.of()));
+        }
+
+        protected LF script(Script script) {
+            return newLeafFactory(scriptService.compile(script, scriptContext()), Map.of(), sourceLookup, fieldData);
         }
 
         protected List<R> collect(String script) throws IOException {
@@ -111,6 +128,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
         }
 
         protected List<R> collect(Query query, LF script) throws IOException {
+            // Now run the query and collect the results
             List<R> result = new ArrayList<>();
             searcher.search(query, new Collector() {
                 @Override

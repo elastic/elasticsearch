@@ -274,8 +274,8 @@ public class CacheFile {
             }
             ensureOpen();
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                start,
-                end,
+                Tuple.tuple(start, end),
+                Tuple.tuple(start, end), // TODO use progressive sub range to trigger read operations sooner
                 ActionListener.wrap(
                     rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
                     rangeFailure -> future.completeExceptionally(rangeFailure)
@@ -286,7 +286,8 @@ public class CacheFile {
                 try {
                     ensureOpen();
                     onRangeMissing.accept(gap.start, gap.end);
-                    gap.onResponse(null);
+                    gap.onProgress(gap.end); // TODO update progress in onRangeMissing
+                    gap.onCompletion();
                 } catch (Exception e) {
                     gap.onFailure(e);
                 }

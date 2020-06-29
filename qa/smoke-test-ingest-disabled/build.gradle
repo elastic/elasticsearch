@@ -26,5 +26,5 @@ dependencies {
 }
 
 testClusters.integTest {
-  setting 'node.ingest', 'false'
+  setting 'node.roles', '[data,master,remote_cluster_client]'
 }

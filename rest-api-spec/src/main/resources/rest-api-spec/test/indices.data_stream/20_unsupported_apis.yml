@@ -12,11 +12,6 @@
         name: my-template
         body:
           index_patterns: [logs-*]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream:
             timestamp_field: '@timestamp'
 

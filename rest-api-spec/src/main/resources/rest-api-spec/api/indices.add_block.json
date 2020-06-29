@@ -15,7 +15,7 @@
           "parts":{
             "index":{
               "type":"list",
-              "description":"A comma separated list of indices to add blocks to"
+              "description":"A comma separated list of indices to add a block to"
             },
             "block":{
               "type":"string",

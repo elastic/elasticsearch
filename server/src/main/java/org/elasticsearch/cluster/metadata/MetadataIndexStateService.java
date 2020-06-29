@@ -372,7 +372,7 @@ public class MetadataIndexStateService {
         }
 
         logger.info("adding block {} to indices {}", block.name,
-            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(",")));
+            blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.toList()));
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata)
                 .routingTable(routingTable.build()).build(), blockedIndices);
     }

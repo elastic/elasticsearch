@@ -106,12 +106,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
-            throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");
+            throw new IllegalStateException("index shard " + shardId + " is not blocking all operations during closing");
         }
 
         final ClusterBlocks clusterBlocks = clusterService.state().blocks();
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
-            throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
+            throw new IllegalStateException("index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
         if (request.isPhase1()) {
             // in order to advance the global checkpoint to the maximum sequence number, the (persisted) local checkpoint needs to be

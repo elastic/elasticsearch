@@ -43,7 +43,12 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * Add index block action
+ * Adds a single index level block to a given set of indices. Not only does it set the correct setting,
+ * but it ensures that, once successfully returning to the user, all shards of the index are properly
+ * accounting for the block, for instance, when adding a write block all in-flight writes to an index
+ * have been completed prior to the response being returned. These actions are done in multiple cluster
+ * state updates (at least two). See also {@link TransportVerifyShardIndexBlockAction} for the eventual
+ * delegation for shard-level verification.
  */
 public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 

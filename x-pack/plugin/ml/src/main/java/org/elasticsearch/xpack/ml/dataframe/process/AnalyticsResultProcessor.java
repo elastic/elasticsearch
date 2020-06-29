@@ -25,11 +25,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStat
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -39,6 +34,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -49,7 +45,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -78,21 +73,21 @@ public class AnalyticsResultProcessor {
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
     private final StatsPersister statsPersister;
-    private final List<ExtractedField> fieldNames;
+    private final ExtractedFields extractedFields;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
     private volatile boolean isCancelled;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
-                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, List<ExtractedField> fieldNames) {
+                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, ExtractedFields extractedFields) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
         this.statsPersister = Objects.requireNonNull(statsPersister);
-        this.fieldNames = Collections.unmodifiableList(Objects.requireNonNull(fieldNames));
+        this.extractedFields = Objects.requireNonNull(extractedFields);
     }
 
     @Nullable
@@ -177,8 +172,7 @@ public class AnalyticsResultProcessor {
         }
         MemoryUsage memoryUsage = result.getMemoryUsage();
         if (memoryUsage != null) {
-            statsHolder.setMemoryUsage(memoryUsage);
-            statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+            processMemoryUsage(memoryUsage);
         }
         OutlierDetectionStats outlierDetectionStats = result.getOutlierDetectionStats();
         if (outlierDetectionStats != null) {
@@ -216,6 +210,7 @@ public class AnalyticsResultProcessor {
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         TrainedModelDefinition definition = inferenceModel.build();
         String dependentVariable = getDependentVariable();
+        List<ExtractedField> fieldNames = extractedFields.getAllFields();
         List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
             .map(ExtractedField::getName)
             .filter(f -> f.equals(dependentVariable) == false)
@@ -239,44 +234,8 @@ public class AnalyticsResultProcessor {
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setDefaultFieldMap(defaultFieldMapping)
-            .setInferenceConfig(buildInferenceConfig(definition.getTrainedModel().targetType()))
+            .setInferenceConfig(analytics.getAnalysis().inferenceConfig(new AnalysisFieldInfo(extractedFields)))
             .build();
-    }
-
-    private InferenceConfig buildInferenceConfig(TargetType targetType) {
-        switch (targetType) {
-            case CLASSIFICATION:
-                assert analytics.getAnalysis() instanceof Classification;
-                Classification classification = ((Classification)analytics.getAnalysis());
-                PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
-                return ClassificationConfig.builder()
-                    .setNumTopClasses(classification.getNumTopClasses())
-                    .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                    .setPredictionFieldType(predictionFieldType)
-                    .build();
-            case REGRESSION:
-                assert analytics.getAnalysis() instanceof Regression;
-                Regression regression = ((Regression)analytics.getAnalysis());
-                return RegressionConfig.builder()
-                    .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                    .build();
-            default:
-                throw ExceptionsHelper.serverError(
-                    "process created a model with an unsupported target type [{}]",
-                    null,
-                    targetType);
-        }
-    }
-
-    PredictionFieldType getPredictionFieldType(Classification classification) {
-        String dependentVariable = classification.getDependentVariable();
-        Optional<ExtractedField> extractedField = fieldNames.stream()
-            .filter(f -> f.getName().equals(dependentVariable))
-            .findAny();
-        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
-            extractedField.isPresent() ? extractedField.get().getTypes() : null
-        );
-        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
     }
 
     private String getDependentVariable() {
@@ -312,5 +271,10 @@ public class AnalyticsResultProcessor {
         LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
         auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
+    }
+
+    private void processMemoryUsage(MemoryUsage memoryUsage) {
+        statsHolder.setMemoryUsage(memoryUsage);
+        statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
     }
 }

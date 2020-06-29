@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -53,7 +54,10 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     private static final long BUCKET_COST_ESTIMATE = 1024 * 5;
 
     private final SearchLookup lookup;
-    private final Map<String, Object> initialState;
+    private final Map<String, Object> aggParams;
+    @Nullable
+    private final ScriptedMetricAggContexts.InitScript.Factory initScriptFactory;
+    private final Map<String, Object> initScriptParams;
     private final ScriptedMetricAggContexts.MapScript.Factory mapScriptFactory;
     private final Map<String, Object> mapScriptParams;
     private final ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory;
@@ -64,7 +68,9 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     ScriptedMetricAggregator(
         String name,
         SearchLookup lookup,
-        Map<String, Object> initialState,
+        Map<String, Object> aggParams,
+        @Nullable ScriptedMetricAggContexts.InitScript.Factory initScriptFactory,
+        Map<String, Object> initScriptParams,
         ScriptedMetricAggContexts.MapScript.Factory mapScriptFactory,
         Map<String, Object> mapScriptParams,
         ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory,
@@ -76,7 +82,9 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     ) throws IOException {
         super(name, context, parent, metadata);
         this.lookup = lookup;
-        this.initialState = initialState;
+        this.aggParams = aggParams;
+        this.initScriptFactory = initScriptFactory;
+        this.initScriptParams = initScriptParams;
         this.mapScriptFactory = mapScriptFactory;
         this.mapScriptParams = mapScriptParams;
         this.combineScriptFactory = combineScriptFactory;
@@ -129,39 +137,22 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        Object result = resultFor(aggStateFor(owningBucketOrdinal));
+        Object result = aggStateForResult(owningBucketOrdinal).combine();
         StreamOutput.checkWriteable(result);
         return new InternalScriptedMetric(name, result, reduceScript, metadata());
     }
 
-    private Map<String, Object> aggStateFor(long owningBucketOrdinal) {
+    private State aggStateForResult(long owningBucketOrdinal) {
         if (owningBucketOrdinal >= states.size()) {
-            return newInitialState();
+            return new State();
         }
         State state = states.get(owningBucketOrdinal);
         if (state == null) {
-            return newInitialState();
+            return new State();
         }
         // The last script that touched the state at this point is the "map" script
         CollectionUtils.ensureNoSelfReferences(state.aggState, "Scripted metric aggs map script");
-        return state.aggState;
-    }
-
-    private Object resultFor(Map<String, Object> aggState) {
-        if (combineScriptFactory == null) {
-            return aggState;
-        }
-        Object result = combineScriptFactory.newInstance(
-            // Send a deep copy of the params because the script is allowed to mutate it
-            ScriptedMetricAggregatorFactory.deepCopyParams(combineScriptParams, context),
-            aggState
-        ).execute();
-        CollectionUtils.ensureNoSelfReferences(result, "Scripted metric aggs combine script");
-        return result;
-    }
-
-    private Map<String, Object> newInitialState() {
-        return initialState == null ? new HashMap<>() : ScriptedMetricAggregatorFactory.deepCopyParams(initialState, context);
+        return state;
     }
 
     @Override
@@ -170,23 +161,48 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public void close() {
+    public void doClose() {
         Releasables.close(states);
     }
 
     private class State {
         private final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript;
+        private final Map<String, Object> mapScriptParamsForState;
+        private final Map<String, Object> combineScriptParamsForState;
         private final Map<String, Object> aggState;
         private MapScript leafMapScript;
 
         State() {
-            aggState = newInitialState();
+            // Its possible for building the initial state to mutate the parameters as a side effect
+            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams, context);
+            mapScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, mapScriptParams);
+            combineScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, combineScriptParams);
+            aggState = newInitialState(ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, initScriptParams));
             mapScript = mapScriptFactory.newFactory(
-                // Send a deep copy of the params because the script is allowed to mutate it
-                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParams, context),
+                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState, context),
                 aggState,
                 lookup
             );
         }
+
+        private Map<String, Object> newInitialState(Map<String, Object> initScriptParamsForState) {
+            if (initScriptFactory == null) {
+                return new HashMap<>();
+            }
+            Map<String, Object> initialState = new HashMap<>();
+            initScriptFactory.newInstance(initScriptParamsForState, initialState).execute();
+            CollectionUtils.ensureNoSelfReferences(initialState, "Scripted metric aggs init script");
+            return initialState;
+        }
+
+        private Object combine() {
+            if (combineScriptFactory == null) {
+                return aggState;
+            }
+            Object result = combineScriptFactory.newInstance(combineScriptParamsForState, aggState).execute();
+            CollectionUtils.ensureNoSelfReferences(result, "Scripted metric aggs combine script");
+            return result;
+        }
+
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
@@ -71,8 +70,7 @@ public final class AnalysisModule {
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AnalysisModule.class);
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;

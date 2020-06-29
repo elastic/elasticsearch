@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
@@ -75,7 +74,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     static final String CONTEXT_PRECISION = "precision";
     static final String CONTEXT_NEIGHBOURS = "neighbours";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoContextMapping.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoContextMapping.class);
 
     private final int precision;
     private final String fieldName;

@@ -109,7 +109,7 @@
  * If multiple snapshot creation jobs are started at the same time, the data-node operations of multiple snapshots may run in parallel
  * across different shards. If multiple snapshots want to snapshot a certain shard, then the shard snapshots for that shard will be
  * executed one by one. This is enforced by the master node setting the shard's snapshot state to
- * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_WAITING} for all but one snapshot. The order of
+ * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
  * operations on a single shard is given by the order in which the snapshots were started.
  * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
  * at a time, working in the order in which snapshots had their shards completed.

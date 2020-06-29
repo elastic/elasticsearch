@@ -369,8 +369,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Shard snapshot status for shards that are waiting for another operation to finish before they can be assigned to a node.
          */
-        public static final ShardSnapshotStatus UNASSIGNED_WAITING =
-                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.WAITING, null);
+        public static final ShardSnapshotStatus UNASSIGNED_QUEUED =
+                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.QUEUED, null);
 
         private final ShardState state;
 
@@ -402,7 +402,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private boolean assertConsistent() {
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
-            assert state != ShardState.INIT || nodeId != null : "Saw null node id for state [" + state + "]";
+            assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
             return true;
         }
 
@@ -438,11 +438,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         /**
          * Checks if this shard snapshot is actively executing.
          * A shard is defined as actively executing if it either is in a state that may write to the repository
-         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or is in state {@link ShardState#WAITING} with a concrete non-null
-         * node id assignment (i.e. waiting for a shard relocation/initialization to finish).
+         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING}.
          */
         public boolean isAssigned() {
-            return state == ShardState.INIT || state == ShardState.ABORTED || (state == ShardState.WAITING && nodeId != null);
+            return state == ShardState.INIT || state == ShardState.ABORTED || state == ShardState.WAITING;
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -695,7 +694,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         FAILED((byte) 3, true, true),
         ABORTED((byte) 4, false, true),
         MISSING((byte) 5, true, true),
-        WAITING((byte) 6, false, false);
+        /**
+         * Shard snapshot is waiting for the primary to snapshot to become available.
+         */
+        WAITING((byte) 6, false, false),
+        /**
+         * Shard snapshot is waiting for another shard snapshot for the same shard and to the same repository to finish.
+         */
+        QUEUED((byte) 7, false, false);
 
         private final byte value;
 
@@ -731,6 +737,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return MISSING;
                 case 6:
                     return WAITING;
+                case 7:
+                    return QUEUED;
                 default:
                     throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
             }

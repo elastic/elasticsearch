@@ -339,51 +339,6 @@ expected_event_ids  = [54, 55, 61, 67]
 [[queries]]
 query = '''
 sequence
-  [process where opcode == 1] by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-  [file where opcode == 0]    by unique_pid,  process_path
-until
-  [file where opcode == 200]  by unique_pid,  process_path
-'''
-
-
-[[queries]]
-note = "Sequence: non-field based join."
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid * 2
-  [process where true] by unique_ppid * 2
-'''
-expected_event_ids  = [1, 2,
-                       2, 3]
-
-
-[[queries]]
-note = "Sequence: multiple non-field based joins."
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
-  [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
-'''
-expected_event_ids  = [1, 2,
-                       2, 3]
-
-[[queries]]
-query = '''
-sequence with maxspan=500ms
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2
-'''
-expected_event_ids = []
-
-[[queries]]
-query = '''
-sequence
   [file where opcode=0] by unique_pid
   [file where opcode=0] by unique_pid
 | filter events[1].serial_event_id == 92
@@ -1025,6 +980,28 @@ expected_event_ids  = [57]
 query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
+
+
+[[queries]]
+note = "Sequence: non-field based join."
+query = '''
+sequence
+  [process where serial_event_id<3] by unique_pid * 2
+  [process where true] by unique_ppid * 2
+'''
+expected_event_ids  = [1, 2,
+                       2, 3]
+
+
+[[queries]]
+note = "Sequence: multiple non-field based joins."
+query = '''
+sequence
+  [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
+  [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
+'''
+expected_event_ids  = [1, 2,
+                       2, 3]
 
 # TODO: update toggles for this function
 [[queries]]

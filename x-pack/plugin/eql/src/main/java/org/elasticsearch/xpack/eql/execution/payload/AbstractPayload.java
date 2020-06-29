@@ -7,18 +7,15 @@
 package org.elasticsearch.xpack.eql.execution.payload;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.eql.session.Payload;
 
-import java.util.List;
+public abstract class AbstractPayload implements Payload {
 
-public class SequencePayload implements Payload<Sequence> {
+    private final boolean timedOut;
+    private final TimeValue timeTook;
+    private final Object[] nextKeys;
 
-    private final List<Sequence> seq;
-    private boolean timedOut;
-    private TimeValue timeTook;
-    private Object[] nextKeys;
-
-    public SequencePayload(List<Sequence> seq, boolean timedOut, TimeValue timeTook, Object[] nextKeys) {
-        this.seq = seq;
+    protected AbstractPayload(boolean timedOut, TimeValue timeTook, Object[] nextKeys) {
         this.timedOut = timedOut;
         this.timeTook = timeTook;
         this.nextKeys = nextKeys;
@@ -26,7 +23,7 @@ public class SequencePayload implements Payload<Sequence> {
 
     @Override
     public boolean timedOut() {
-        return false;
+        return timedOut;
     }
 
     @Override
@@ -37,10 +34,5 @@ public class SequencePayload implements Payload<Sequence> {
     @Override
     public Object[] nextKeys() {
         return nextKeys;
-    }
-
-    @Override
-    public List<Sequence> values() {
-        return seq;
     }
 }

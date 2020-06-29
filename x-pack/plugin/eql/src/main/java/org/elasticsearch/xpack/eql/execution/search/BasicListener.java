@@ -4,36 +4,27 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.listener;
+package org.elasticsearch.xpack.eql.execution.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.execution.payload.SearchResponsePayload;
+import org.elasticsearch.xpack.eql.session.Payload;
 
-import java.util.Arrays;
-import java.util.List;
-
-import static org.elasticsearch.xpack.eql.execution.listener.RuntimeUtils.logSearchResponse;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.logSearchResponse;
 
 public class BasicListener implements ActionListener<SearchResponse> {
 
-    private static final Logger log = LogManager.getLogger(BasicListener.class);
+    private static final Logger log = RuntimeUtils.QUERY_LOG;
 
-    private final ActionListener<Results> listener;
-    private final SearchRequest request;
+    private final ActionListener<Payload> listener;
 
-    public BasicListener(ActionListener<Results> listener,
-                               SearchRequest request) {
-
+    public BasicListener(ActionListener<Payload> listener) {
         this.listener = listener;
-        this.request = request;
     }
 
     @Override
@@ -46,17 +37,15 @@ public class BasicListener implements ActionListener<SearchResponse> {
                 handleResponse(response, listener);
             }
         } catch (Exception ex) {
-            listener.onFailure(ex);
+            onFailure(ex);
         }
     }
 
-    private void handleResponse(SearchResponse response, ActionListener<Results> listener) {
+    private void handleResponse(SearchResponse response, ActionListener<Payload> listener) {
         if (log.isTraceEnabled()) {
             logSearchResponse(response, log);
         }
-
-        List<SearchHit> results = Arrays.asList(response.getHits().getHits());
-        listener.onResponse(Results.fromHits(response.getTook(), results));
+        listener.onResponse(new SearchResponsePayload(response));
     }
 
 

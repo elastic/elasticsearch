@@ -165,4 +165,4 @@ master-eligible nodes to start.
 Discontinue use of the removed settings. If needed, use
 `gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
 cluster recovery pending a certain number of data nodes.
-
+====

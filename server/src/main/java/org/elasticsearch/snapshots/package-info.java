@@ -118,7 +118,7 @@
  *
  * A snapshot delete will be executed as soon as there are no more shard snapshots or snapshot finalizations executing running for a given
  * repository. Before a delete is executed on the repository it will be set to state
- * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#META_DATA}. If it cannot be executed when it is received it will be
+ * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#STARTED}. If it cannot be executed when it is received it will be
  * set to state {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#WAITING} initially.
  * If a delete is received for a given repository while there is already an ongoing delete for the same repository, there are two possible
  * scenarios:

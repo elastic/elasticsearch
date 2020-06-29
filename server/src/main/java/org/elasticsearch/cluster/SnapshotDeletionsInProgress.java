@@ -74,7 +74,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     private static boolean assertConsistency(List<Entry> entries) {
         final Set<String> activeRepositories = new HashSet<>();
         for (Entry entry : entries) {
-            if (entry.state() == State.META_DATA) {
+            if (entry.state() == State.STARTED) {
                 final boolean added = activeRepositories.add(entry.repository());
                 assert added : "Found multiple running deletes for a single repository in " + entries;
             }
@@ -242,14 +242,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 this.state = State.readFrom(in);
                 this.uuid = in.readString();
             } else {
-                this.state = State.META_DATA;
+                this.state = State.STARTED;
                 this.uuid = IndexMetadata.INDEX_UUID_NA_VALUE;
             }
         }
 
         public Entry started() {
             assert state == State.WAITING;
-            return new Entry(snapshots, repository(), startTime, repositoryStateId, State.META_DATA, uuid);
+            return new Entry(snapshots, repository(), startTime, repositoryStateId, State.STARTED, uuid);
         }
 
         public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
@@ -355,7 +355,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         /**
          * Delete is physically executing on the repository.
          */
-        META_DATA((byte) 1);
+        STARTED((byte) 1);
 
         private final byte value;
 
@@ -369,7 +369,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 case 0:
                     return WAITING;
                 case 1:
-                    return META_DATA;
+                    return STARTED;
                 default:
                     throw new IllegalArgumentException("No snapshot delete state for value [" + value + "]");
             }

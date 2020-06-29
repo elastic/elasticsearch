@@ -947,7 +947,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.tamperedRequest(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", request);
-        assertThat("Tampered message: unfiltered realm is filtered out", logOutput.size(), is(0));
+        assertThat("Tampered message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 

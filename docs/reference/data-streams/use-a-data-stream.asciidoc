@@ -560,7 +560,7 @@ contains a new JSON source for the document.
 
 [source,console]
 ----
-PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=8&if_primary_term=1
+PUT /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=8&if_primary_term=1
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -625,7 +625,7 @@ parameters.
 [source,console]
 ----
 PUT /_bulk?refresh
-{ "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 8, "if_primary_term": 1 } }
+{ "index": { "_index": ".ds-logs-000002", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 8, "if_primary_term": 1 } }
 { "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
 // TEST[continued]

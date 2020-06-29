@@ -20,6 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -75,7 +76,7 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
         List<String> patterns = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         List<String> composedOf = null;
         Map<String, Object> meta = null;
-        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = null;
+        DataStreamTemplate dataStreamTemplate = null;
         if (randomBoolean()) {
             composedOf = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         }
@@ -86,7 +87,7 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
         Long priority = randomBoolean() ? null : randomNonNegativeLong();
         Long version = randomBoolean() ? null : randomNonNegativeLong();
         if (randomBoolean()) {
-            dataStreamTemplate = new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8), randomBoolean() ? randomMeta() : null);
+            dataStreamTemplate = new DataStreamTemplate(randomAlphaOfLength(8), randomBoolean() ? randomMeta() : null);
         }
         return new ComposableIndexTemplate(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
     }

@@ -262,6 +262,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         action.doExecute(mock(Task.class), request, listener);
         final SamlLogoutResponse response = listener.get();
         assertThat(response, notNullValue());
+        assertThat(response.getRequestId(), notNullValue());
         assertThat(response.getRedirectUrl(), notNullValue());
 
         final IndexRequest indexRequest1 = indexRequests.get(0);

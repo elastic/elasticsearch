@@ -669,21 +669,6 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             assertThat(actual, equalTo(expected));
         }
 
-        // todo are these queries generated for the prefix field right?
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two")
-                .toQuery(queryShardContext);
-            final Query expected = new MatchNoDocsQuery("Matching no documents because no terms present");
-            assertThat(actual, equalTo(expected));
-        }
-
-        {
-            final Query actual = new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three")
-                .toQuery(queryShardContext);
-            final Query expected = new TermQuery(new Term("a_field._index_prefix", "one two three"));
-            assertThat(actual, equalTo(expected));
-        }
-
         {
             expectThrows(IllegalArgumentException.class,
                 () -> new MatchPhraseQueryBuilder("a_field._index_prefix", "one two three four").toQuery(queryShardContext));

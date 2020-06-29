@@ -169,14 +169,20 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
-            String command = path + " " + args;
-            if (distribution.isArchive() && Platforms.WINDOWS == false) {
-                command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+            String command = path.toString();
+            if (Platforms.WINDOWS) {
+                command = "& '" + command + "'";
+            } else {
+                command = "\"" + command + "\"";
+                if (distribution.isArchive()) {
+                    command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+                }
             }
+
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
             }
-            return sh.run(command);
+            return sh.run(command + " " + args);
         }
     }
 

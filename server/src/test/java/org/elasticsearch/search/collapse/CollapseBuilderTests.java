@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -196,7 +197,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, true, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", true, true, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public MappedFieldType clone() {
                     return null;

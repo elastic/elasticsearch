@@ -237,9 +237,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final DiscoveryNode a,
-            final DiscoveryNode b) throws IOException {
-            RecoveryState recoveryState = new RecoveryState(shardRouting, a, b);
+            final DiscoveryNode targetNode,
+            final DiscoveryNode sourceNode) throws IOException {
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
 
             return createShard(shardRouting,
                 recoveryState,

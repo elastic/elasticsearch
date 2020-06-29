@@ -13,11 +13,12 @@ You can view a list of in-progress and completed recoveries using the
 <<cat-recovery, cat recovery API>>.
 
 [float]
-==== Peer recovery settings
+==== Recovery settings
 
 `indices.recovery.max_bytes_per_sec`::
 (<<cluster-update-settings,Dynamic>>) Limits total inbound and outbound
-recovery traffic for each node. Defaults to `40mb`.
+recovery traffic for each node. Applies to both peer recoveries as well
+as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`.
 +
 This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may

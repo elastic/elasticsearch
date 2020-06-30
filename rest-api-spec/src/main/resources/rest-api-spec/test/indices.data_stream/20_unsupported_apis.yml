@@ -62,15 +62,6 @@
               type: keyword
 
   - do:
-      indices.create:
-        index: logs-foobarbaz
-
-  - do:
-      catch: bad_request
-      indices.close:
-        index: logs-*
-
-  - do:
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged

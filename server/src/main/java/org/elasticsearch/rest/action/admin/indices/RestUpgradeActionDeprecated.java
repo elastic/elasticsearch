@@ -19,12 +19,10 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -36,10 +34,6 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpgradeActionDeprecated extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestUpgradeActionDeprecated.class));
-
     public static final String UPGRADE_API_DEPRECATION_MESSAGE =
         "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API.";
 

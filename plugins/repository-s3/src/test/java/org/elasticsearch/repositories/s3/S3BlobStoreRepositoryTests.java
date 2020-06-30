@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -200,8 +201,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService) {
-            return new S3Repository(metadata, registry, service, clusterService) {
+                                                ClusterService clusterService, RecoverySettings recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
 
                 @Override
                 public BlobStore blobStore() {

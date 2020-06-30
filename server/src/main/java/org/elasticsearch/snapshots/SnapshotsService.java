@@ -657,7 +657,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 // run newly ready deletes
                 for (SnapshotDeletionsInProgress.Entry entry : deletionsToExecute) {
-                    deleteSnapshotsFromRepository(entry, newState.nodes().getMinNodeVersion());
+                    if (currentlyFinalizing.add(entry.repository())) {
+                        deleteSnapshotsFromRepository(entry, newState.nodes().getMinNodeVersion());
+                    }
                 }
             }
         });
@@ -1665,18 +1667,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             final List<ActionListener<Void>> deleteListeners;
-            synchronized (currentlyFinalizing) {
-                repositoryOperations.finishDeletion(deleteEntry.uuid());
-                deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
-                final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
-                assert removed;
-            }
+            repositoryOperations.finishDeletion(deleteEntry.uuid());
+            deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
             handleListeners(deleteListeners);
             if (newFinalizations.isEmpty()) {
-                for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
-                    deleteSnapshotsFromRepository(readyDeletion, repositoryData, newState.nodes().getMinNodeVersion());
+                if (readyDeletions.isEmpty()) {
+                    final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
+                    assert removed;
+                } else {
+                    for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
+                        deleteSnapshotsFromRepository(readyDeletion, repositoryData, newState.nodes().getMinNodeVersion());
+                    }
                 }
             } else {
+                final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
+                assert removed;
                 assert readyDeletions.stream().noneMatch(entry -> entry.repository().equals(deleteEntry.repository()))
                         : "New finalizations " + newFinalizations + " added even though deletes " + readyDeletions + " are ready";
                 for (SnapshotsInProgress.Entry entry : newFinalizations) {

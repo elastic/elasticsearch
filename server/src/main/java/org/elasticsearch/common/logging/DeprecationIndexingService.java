@@ -30,9 +30,11 @@ import static org.elasticsearch.common.Strings.isNullOrEmpty;
 
 public class DeprecationIndexingService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(DeprecationIndexingService.class);
-    private static final String TEMPLATE_NAME = "deprecation-elasticsearch-default-template";
+
+    private static final String DATA_STREAM_NAME = "logs-deprecation-elasticsearch";
+    private static final String TEMPLATE_NAME = DATA_STREAM_NAME + "-template";
     private static final String TEMPLATE_MAPPING = TEMPLATE_NAME + ".json";
-    private static final String DATA_STREAM_NAME = "deprecation-elasticsearch-default";
+
     private static final String DEPRECATION_ORIGIN = "deprecation";
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(

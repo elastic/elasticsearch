@@ -47,7 +47,7 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        deprecationLogger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger), indexingService);
+        deprecationLogger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger.getName()), indexingService);
     }
 
     public static DeprecationLogger getLogger(Class<?> aClass) {

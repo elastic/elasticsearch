@@ -145,13 +145,13 @@ public class ChunkedTrainedModelPersister {
                     refreshListener.onResponse(null);
                     return;
                 }
-                readyToStoreNewModel.set(true);
                 LOGGER.info(
                     "[{}] finished storing trained model with id [{}]",
                     analytics.getId(),
                     this.currentModelId.get());
                 auditor.info(analytics.getId(), "Stored trained model with id [" + this.currentModelId.get() + "]");
                 this.currentModelId.set("");
+                readyToStoreNewModel.set(true);
                 provider.refreshInferenceIndex(refreshListener);
             },
             e -> {

@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 
 public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetDataStreamAction.Response, GetDataStreamResponse> {
@@ -52,12 +53,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
-    }
-
-    private static GetDataStreamResponse fromXContent(XContentParser parser) throws IOException {
-        parser.nextToken();
-        return GetDataStreamResponse.fromXContent(parser);
+        return new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
     }
 
     @Override
@@ -86,7 +82,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
             DataStream server = serverIt.next();
             assertEquals(server.getName(), client.getName());
             assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
-            assertEquals(server.getTimeStampField(), client.getTimeStampField());
+            assertEquals(server.getTimeStampField().getName(), client.getTimeStampField());
             assertEquals(server.getGeneration(), client.getGeneration());
         }
     }

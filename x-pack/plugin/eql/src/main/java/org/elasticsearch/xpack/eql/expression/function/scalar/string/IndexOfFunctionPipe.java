@@ -17,12 +17,12 @@ import java.util.Objects;
 
 public class IndexOfFunctionPipe extends Pipe {
 
-    private final Pipe source, substring, start;
+    private final Pipe input, substring, start;
     private final boolean isCaseSensitive;
 
-    public IndexOfFunctionPipe(Source source, Expression expression, Pipe src, Pipe substring, Pipe start, boolean isCaseSensitive) {
-        super(source, expression, Arrays.asList(src, substring, start));
-        this.source = src;
+    public IndexOfFunctionPipe(Source source, Expression expression, Pipe input, Pipe substring, Pipe start, boolean isCaseSensitive) {
+        super(source, expression, Arrays.asList(input, substring, start));
+        this.input = input;
         this.substring = substring;
         this.start = start;
         this.isCaseSensitive = isCaseSensitive;
@@ -38,48 +38,48 @@ public class IndexOfFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newSubstring = substring.resolveAttributes(resolver);
         Pipe newStart = start.resolveAttributes(resolver);
-        if (newSource == source && newSubstring == substring && newStart == start) {
+        if (newInput == input && newSubstring == substring && newStart == start) {
             return this;
         }
-        return replaceChildren(newSource, newSubstring, newStart);
+        return replaceChildren(newInput, newSubstring, newStart);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && substring.supportedByAggsOnlyQuery() && start.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && substring.supportedByAggsOnlyQuery() && start.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && substring.resolved() && start.resolved();
+        return input.resolved() && substring.resolved() && start.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newSubstring, Pipe newStart) {
-        return new IndexOfFunctionPipe(source(), expression(), newSource, newSubstring, newStart, isCaseSensitive);
+    protected IndexOfFunctionPipe replaceChildren(Pipe newInput, Pipe newSubstring, Pipe newStart) {
+        return new IndexOfFunctionPipe(source(), expression(), newInput, newSubstring, newStart, isCaseSensitive);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         substring.collectFields(sourceBuilder);
         start.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<IndexOfFunctionPipe> info() {
-        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), source, substring, start, isCaseSensitive);
+        return NodeInfo.create(this, IndexOfFunctionPipe::new, expression(), input, substring, start, isCaseSensitive);
     }
 
     @Override
     public IndexOfFunctionProcessor asProcessor() {
-        return new IndexOfFunctionProcessor(source.asProcessor(), substring.asProcessor(), start.asProcessor(), isCaseSensitive);
+        return new IndexOfFunctionProcessor(input.asProcessor(), substring.asProcessor(), start.asProcessor(), isCaseSensitive);
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     public Pipe substring() {
@@ -90,9 +90,13 @@ public class IndexOfFunctionPipe extends Pipe {
         return start;
     }
 
+    protected boolean isCaseSensitive() {
+        return isCaseSensitive;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(source, substring, start, isCaseSensitive);
+        return Objects.hash(input, substring, start, isCaseSensitive);
     }
 
     @Override
@@ -106,9 +110,9 @@ public class IndexOfFunctionPipe extends Pipe {
         }
 
         IndexOfFunctionPipe other = (IndexOfFunctionPipe) obj;
-        return Objects.equals(source, other.source)
-                && Objects.equals(substring, other.substring)
-                && Objects.equals(start, other.start)
-                && Objects.equals(isCaseSensitive, other.isCaseSensitive);
+        return Objects.equals(input(), other.input())
+                && Objects.equals(substring(), other.substring())
+                && Objects.equals(start(), other.start())
+                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
 }

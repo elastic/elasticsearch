@@ -22,21 +22,18 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class UpdateSettingsValidationIT extends ESIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {
-        internalCluster().startNodes(
-                Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build(),
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(),
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()
-        );
+        internalCluster().startNodes(nonDataNode(), nonMasterNode(), nonMasterNode());
 
         createIndex("test");
         NumShards test = getNumShards("test");

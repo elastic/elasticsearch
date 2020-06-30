@@ -93,8 +93,8 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(String)
-Comma-separated list or wildcard expression of index alias names to
+(Array of strings)
+Array of index alias names to
 add, remove, or delete.
 +
 If the `alias` parameter is not specified,

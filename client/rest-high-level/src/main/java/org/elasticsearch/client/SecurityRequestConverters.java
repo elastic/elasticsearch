@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
@@ -178,6 +179,15 @@ final class SecurityRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_security/role")
             .addCommaSeparatedPathParts(disableCacheRequest.names())
+            .addPathPart("_clear_cache")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request clearPrivilegesCache(ClearPrivilegesCacheRequest disableCacheRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/privilege")
+            .addCommaSeparatedPathParts(disableCacheRequest.applications())
             .addPathPart("_clear_cache")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);

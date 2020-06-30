@@ -871,15 +871,16 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into an ordered list of mappings
+     * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> resolveMappings(final ClusterState state, final String templateName) {
+    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
         if (template == null) {
             return List.of();
         }
+
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
         List<CompressedXContent> mappings = template.composedOf().stream()
             .map(componentTemplates::get)
@@ -1038,20 +1039,15 @@ public class MetadataIndexTemplateService {
                     xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
 
                 // Parse mappings to ensure they are valid after being composed
-                List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
+                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName);
                 try {
-                    Map<String, Object> finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
-
-                    MapperService dummyMapperService = tempIndexService.mapperService();
-                    if (finalMappings.isEmpty() == false) {
-                        assert finalMappings.size() == 1 : finalMappings;
-                        // TODO: Eventually change this to:
-                        // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                        dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
-                    }
-                    if (template.getDataStreamTemplate() != null) {
-                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                        validateTimestampFieldMapping(tsFieldName, dummyMapperService);
+                    MapperService mapperService = tempIndexService.mapperService();
+                    for (CompressedXContent mapping : mappings) {
+                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                        if (template.getDataStreamTemplate() != null) {
+                            String tsFieldName = template.getDataStreamTemplate().getTimestampField();
+                            validateTimestampFieldMapping(tsFieldName, mapperService);
+                        }
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

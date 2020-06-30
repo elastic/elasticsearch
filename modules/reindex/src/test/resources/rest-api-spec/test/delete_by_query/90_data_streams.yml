@@ -32,7 +32,7 @@
         op_type: create
         body:
           foo: bar
-          timestamp: '2020-12-12'
+          '@timestamp': '2020-12-12'
 
   - do:
       indices.refresh:

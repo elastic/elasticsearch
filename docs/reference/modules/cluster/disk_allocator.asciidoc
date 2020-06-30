@@ -13,6 +13,7 @@ file or updated dynamically on a live cluster with the
 
     Defaults to `true`.  Set to `false` to disable the disk allocation decider.
 
+[[cluster-routing-watermark-low]]
 `cluster.routing.allocation.disk.watermark.low`::
 
     Controls the low watermark for disk usage. It defaults to `85%`, meaning
@@ -22,6 +23,7 @@ file or updated dynamically on a live cluster with the
     amount of space is available. This setting has no effect on the primary
     shards of newly-created indices but will prevent their replicas from being allocated.
 
+[[cluster-routing-watermark-high]]
 `cluster.routing.allocation.disk.watermark.high`::
 
     Controls the high watermark. It defaults to `90%`, meaning that

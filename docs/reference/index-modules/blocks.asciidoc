@@ -51,8 +51,8 @@ block and makes resources available almost immediately.
 IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
 disk utilisation exceeds the <<cluster-routing-flood_stage,flood-stage
 watermark>> and removes it again when disk utilisation is below the
-<<cluster-routing-high,high watermark>>. You should not apply this block
-yourself.
+<<cluster-routing-watermark-high,high watermark>>. You should not apply this
+block yourself.
 
 [discrete]
 [[add-index-block]]

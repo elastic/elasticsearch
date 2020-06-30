@@ -9,6 +9,7 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 public class EqlSpec {
     private String description;
@@ -16,6 +17,12 @@ public class EqlSpec {
     private String[] tags;
     private String query;
     private long[] expectedEventIds;
+
+    // flag to dictate which modes are supported for the test
+    // null -> apply the test to both modes (case sensitive and case insensitive)
+    // TRUE -> case sensitive
+    // FALSE -> case insensitive
+    private Boolean caseSensitive = null;
 
     public String description() {
         return description;
@@ -57,12 +64,24 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
+    public void caseSensitive(Boolean caseSensitive) {
+        this.caseSensitive = caseSensitive;
+    }
+
+    public Boolean caseSensitive() {
+        return this.caseSensitive;
+    }
+
     @Override
     public String toString() {
         String str = "";
         str = appendWithComma(str, "query", query);
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
+
+        if (caseSensitive != null) {
+            str = appendWithComma(str, "case_sensitive", Boolean.toString(caseSensitive));
+        }
 
         if (tags != null) {
             str = appendWithComma(str, "tags", Arrays.toString(tags));
@@ -72,6 +91,27 @@ public class EqlSpec {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
         }
         return str;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        EqlSpec that = (EqlSpec) other;
+
+        return Objects.equals(this.query(), that.query())
+                && Objects.equals(this.caseSensitive, that.caseSensitive);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.query, this.caseSensitive);
     }
 
     private static String appendWithComma(String str, String name, String append) {

@@ -17,6 +17,9 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,10 +33,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ClassificationTests extends AbstractBWCSerializationTestCase<Classification> {
 
@@ -347,6 +353,31 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     public void testExtractJobIdFromStateDoc() {
         assertThat(Classification.extractJobIdFromStateDoc("foo_bar-1_classification_state#1"), equalTo("foo_bar-1"));
         assertThat(Classification.extractJobIdFromStateDoc("noop"), is(nullValue()));
+    }
+
+    public void testGetPredictionFieldType() {
+        assertThat(Classification.getPredictionFieldType(Collections.emptySet()), equalTo(PredictionFieldType.STRING));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("keyword")), equalTo(PredictionFieldType.STRING));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("long")), equalTo(PredictionFieldType.NUMBER));
+        assertThat(Classification.getPredictionFieldType(Collections.singleton("boolean")), equalTo(PredictionFieldType.BOOLEAN));
+    }
+
+    public void testInferenceConfig() {
+        Classification classification = createRandom();
+        DataFrameAnalysis.FieldInfo fieldInfo = mock(DataFrameAnalysis.FieldInfo.class);
+        when(fieldInfo.getTypes(classification.getDependentVariable())).thenReturn(Collections.singleton("keyword"));
+
+        InferenceConfig inferenceConfig = classification.inferenceConfig(fieldInfo);
+
+        assertThat(inferenceConfig, instanceOf(ClassificationConfig.class));
+
+        ClassificationConfig classificationConfig = (ClassificationConfig) inferenceConfig;
+        assertThat(classificationConfig.getResultsField(), equalTo(classification.getPredictionFieldName()));
+        assertThat(classificationConfig.getNumTopClasses(), equalTo(classification.getNumTopClasses()));
+        Integer expectedNumTopFeatureImportanceValues = classification.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
+            0 : classification.getBoostedTreeParams().getNumTopFeatureImportanceValues();
+        assertThat(classificationConfig.getNumTopFeatureImportanceValues(), equalTo(expectedNumTopFeatureImportanceValues));
+        assertThat(classificationConfig.getPredictionFieldType(), equalTo(PredictionFieldType.STRING));
     }
 
     @Override

@@ -85,7 +85,7 @@ import java.util.regex.Pattern;
 public class JobManager {
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JobManager.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
@@ -275,8 +275,8 @@ public class JobManager {
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
-                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:cannot be changed " +
-                            "from type \\[.*\\] to|with an object mapping) \\[.*\\]").matcher(e.getMessage());
+                    Matcher matcher = Pattern.compile("can't merge a non object mapping \\[(.*)\\] with an object mapping")
+                        .matcher(e.getMessage());
                     if (matcher.matches()) {
                         String msg = Messages.getMessage(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, matcher.group(1));
                         actionListener.onFailure(ExceptionsHelper.badRequestException(msg, e));

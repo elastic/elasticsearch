@@ -294,6 +294,7 @@ public class TransformIndexerTests extends ESTestCase {
         assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
     }
 
+    @AwaitsFix(bugUrl = "no issue yet")
     public void testDoProcessAggNullCheck() {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
         TransformConfig config = new TransformConfig(

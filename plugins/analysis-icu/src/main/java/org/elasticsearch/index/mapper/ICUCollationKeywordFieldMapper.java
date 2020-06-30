@@ -599,6 +599,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
         if (!Objects.equals(collator, icuMergeWith.collator)) {

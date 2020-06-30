@@ -30,7 +30,7 @@
         index:   simple-data-stream1
         id:      1
         op_type: create
-        body:    { "number": 4 }
+        body:    { "number": 4, '@timestamp': '2020-12-12' }
 
   # rollover data stream to create new backing index
   - do:

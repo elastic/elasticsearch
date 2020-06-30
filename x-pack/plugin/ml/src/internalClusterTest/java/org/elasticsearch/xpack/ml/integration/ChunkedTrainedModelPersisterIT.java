@@ -43,7 +43,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ChunkedTrainedMoodelPersisterIT extends MlSingleNodeTestCase {
+public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
@@ -111,9 +111,9 @@ public class ChunkedTrainedMoodelPersisterIT extends MlSingleNodeTestCase {
             .setInput(TrainedModelInputTests.createRandomInput());
     }
 
-    private static List<String> chunkStringWithSize(String str, int chunkSize) {
-        List<String> subStrings = new ArrayList<>((int)Math.ceil(str.length()/(double)chunkSize));
-        for (int i = 0; i < str.length();i += chunkSize) {
+    public static List<String> chunkStringWithSize(String str, int chunkSize) {
+        List<String> subStrings = new ArrayList<>((str.length() + chunkSize - 1) / chunkSize);
+        for (int i = 0; i < str.length(); i += chunkSize) {
             subStrings.add(str.substring(i, Math.min(i + chunkSize, str.length())));
         }
         return subStrings;

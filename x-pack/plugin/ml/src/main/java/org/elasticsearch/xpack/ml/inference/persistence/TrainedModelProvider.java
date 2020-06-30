@@ -349,32 +349,16 @@ public class TrainedModelProvider {
                 List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
                     modelId,
                     this::parseModelDefinitionDocLenientlyFromSource);
-                String compressedString = docs.stream()
-                    .map(TrainedModelDefinitionDoc::getCompressedString)
-                    .collect(Collectors.joining());
-                // BWC for when we tracked the total definition length
-                // TODO: remove in 9
-                if (docs.get(0).getTotalDefinitionLength() != null) {
-                    if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                        listener.onFailure(ExceptionsHelper.serverError(
-                            Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                        return;
-                    }
-                } else {
-                    TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
-                    // Either we are missing the last doc, or some previous doc
-                    if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
-                        listener.onFailure(ExceptionsHelper.serverError(
-                            Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                        return;
-                    }
+                try {
+                    String compressedString = getDefinitionFromDocs(docs, modelId);
+                    InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
+                        compressedString,
+                        InferenceDefinition::fromXContent,
+                        xContentRegistry);
+                    listener.onResponse(inferenceDefinition);
+                } catch (ElasticsearchException elasticsearchException) {
+                    listener.onFailure(elasticsearchException);
                 }
-
-                InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                    compressedString,
-                    InferenceDefinition::fromXContent,
-                    xContentRegistry);
-                listener.onResponse(inferenceDefinition);
             },
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -449,27 +433,14 @@ public class TrainedModelProvider {
                         List<TrainedModelDefinitionDoc> docs = handleSearchItems(multiSearchResponse.getResponses()[1],
                             modelId,
                             this::parseModelDefinitionDocLenientlyFromSource);
-                        String compressedString = docs.stream()
-                            .map(TrainedModelDefinitionDoc::getCompressedString)
-                            .collect(Collectors.joining());
-                        // BWC for when we tracked the total definition length
-                        // TODO: remove in 9
-                        if (docs.get(0).getTotalDefinitionLength() != null) {
-                            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                                listener.onFailure(ExceptionsHelper.serverError(
-                                    Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                                return;
-                            }
-                        } else {
-                            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
-                            // Either we are missing the last doc, or some previous doc
-                            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
-                                listener.onFailure(ExceptionsHelper.serverError(
-                                    Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
-                                return;
-                            }
+                        try {
+                            String compressedString = getDefinitionFromDocs(docs, modelId);
+                            builder.setDefinitionFromString(compressedString);
+                        } catch (ElasticsearchException elasticsearchException) {
+                            listener.onFailure(elasticsearchException);
+                            return;
                         }
-                        builder.setDefinitionFromString(compressedString);
+
                     } catch (ResourceNotFoundException ex) {
                         listener.onFailure(new ResourceNotFoundException(
                             Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
@@ -904,6 +875,26 @@ public class TrainedModelProvider {
             }
         }
         return results;
+    }
+
+    private static String getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
+        String compressedString = docs.stream()
+            .map(TrainedModelDefinitionDoc::getCompressedString)
+            .collect(Collectors.joining());
+        // BWC for when we tracked the total definition length
+        // TODO: remove in 9
+        if (docs.get(0).getTotalDefinitionLength() != null) {
+            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
+            }
+        } else {
+            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+            // Either we are missing the last doc, or some previous doc
+            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
+            }
+        }
+        return compressedString;
     }
 
     static List<String> chunkStringWithSize(String str, int chunkSize) {

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -47,13 +49,14 @@ import static java.util.stream.Collectors.toList;
 public class ChunkedTrainedModelPersister {
 
     private static final Logger LOGGER = LogManager.getLogger(ChunkedTrainedModelPersister.class);
+    private static final int STORE_TIMEOUT_SEC = 30;
     private final TrainedModelProvider provider;
     private final AtomicReference<String> currentModelId;
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameAnalyticsAuditor auditor;
     private final Consumer<Exception> failureHandler;
     private final ExtractedFields extractedFields;
-    private volatile boolean readyToStoreNewModel = true;
+    private final AtomicBoolean readyToStoreNewModel = new AtomicBoolean(true);
 
     public ChunkedTrainedModelPersister(TrainedModelProvider provider,
                                         DataFrameAnalyticsConfig analytics,
@@ -77,56 +80,23 @@ public class ChunkedTrainedModelPersister {
         }
         TrainedModelDefinitionDoc trainedModelDefinitionDoc = trainedModelDefinitionChunk.createTrainedModelDoc(this.currentModelId.get());
 
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Void> storeListener = ActionListener.wrap(
-            r -> {
-                LOGGER.debug(() -> new ParameterizedMessage(
-                    "[{}] stored trained model definition chunk [{}] [{}]",
-                    analytics.getId(),
-                    trainedModelDefinitionDoc.getModelId(),
-                    trainedModelDefinitionDoc.getDocNum()));
-
-                if (trainedModelDefinitionChunk.isEos()) {
-                    readyToStoreNewModel = true;
-                    LOGGER.info(
-                        "[{}] finished stored trained model definition chunks with id [{}]",
-                        analytics.getId(),
-                        this.currentModelId.get());
-                    auditor.info(analytics.getId(), "Stored trained model with id [" + this.currentModelId.get() + "]");
-                    CountDownLatch refreshLatch = new CountDownLatch(1);
-                    provider.refreshInferenceIndex(
-                        new LatchedActionListener<>(ActionListener.wrap(
-                            refreshResponse -> LOGGER.debug(() -> new ParameterizedMessage(
-                                "[{}] refreshed inference index after model store",
-                                analytics.getId()
-                            )),
-                            e -> LOGGER.warn("[{}] failed to refresh inference index after model store", analytics.getId())),
-                            refreshLatch));
-                    try {
-                        if (refreshLatch.await(30, TimeUnit.SECONDS) == false) {
-                            LOGGER.error("[{}] Timed out (30s) waiting for index refresh", analytics.getId());
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            },
-            e -> failureHandler.accept(ExceptionsHelper.serverError("error storing trained model definition chunk [{}] with id [{}]", e,
-                trainedModelDefinitionDoc.getModelId(), trainedModelDefinitionDoc.getDocNum()))
-        );
-        provider.storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, new LatchedActionListener<>(storeListener, latch));
+        CountDownLatch latch = storeTrainedModelDoc(trainedModelDefinitionDoc);
         try {
-            if (latch.await(30, TimeUnit.SECONDS) == false) {
+            if (latch.await(STORE_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                 LOGGER.error("[{}] Timed out (30s) waiting for chunked inference definition to be stored", analytics.getId());
+                if (trainedModelDefinitionChunk.isEos()) {
+                    this.readyToStoreNewModel.set(true);
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            this.readyToStoreNewModel.set(true);
             failureHandler.accept(ExceptionsHelper.serverError("interrupted waiting for chunked inference definition to be stored"));
         }
     }
 
     public void createAndIndexInferenceModelMetadata(ModelSizeInfo inferenceModelSize) {
-        if (readyToStoreNewModel == false) {
+        if (readyToStoreNewModel.compareAndSet(true, false) == false) {
             failureHandler.accept(ExceptionsHelper.serverError(
                 "new inference model is attempting to be stored before completion previous model storage"
             ));
@@ -135,29 +105,86 @@ public class ChunkedTrainedModelPersister {
         TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModelSize);
         CountDownLatch latch = storeTrainedModelMetadata(trainedModelConfig);
         try {
-            readyToStoreNewModel = false;
-            if (latch.await(30, TimeUnit.SECONDS) == false) {
+            if (latch.await(STORE_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                 LOGGER.error("[{}] Timed out (30s) waiting for inference model metadata to be stored", analytics.getId());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            this.readyToStoreNewModel.set(true);
             failureHandler.accept(ExceptionsHelper.serverError("interrupted waiting for inference model metadata to be stored"));
         }
     }
 
+    private CountDownLatch storeTrainedModelDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc) {
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // Latch is attached to this action as it is the last one to execute.
+        ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(
+            refreshed -> {
+                if (refreshed != null) {
+                    LOGGER.debug(() -> new ParameterizedMessage(
+                        "[{}] refreshed inference index after model store",
+                        analytics.getId()
+                    ));
+                }
+            },
+            e -> LOGGER.warn(
+                new ParameterizedMessage("[{}] failed to refresh inference index after model store", analytics.getId()),
+                e)
+        ), latch);
+
+        // First, store the model and refresh is necessary
+        ActionListener<Void> storeListener = ActionListener.wrap(
+            r -> {
+                LOGGER.debug(() -> new ParameterizedMessage(
+                    "[{}] stored trained model definition chunk [{}] [{}]",
+                    analytics.getId(),
+                    trainedModelDefinitionDoc.getModelId(),
+                    trainedModelDefinitionDoc.getDocNum()));
+                if (trainedModelDefinitionDoc.isEos() == false) {
+                    refreshListener.onResponse(null);
+                    return;
+                }
+                readyToStoreNewModel.set(true);
+                LOGGER.info(
+                    "[{}] finished storing trained model with id [{}]",
+                    analytics.getId(),
+                    this.currentModelId.get());
+                auditor.info(analytics.getId(), "Stored trained model with id [" + this.currentModelId.get() + "]");
+                this.currentModelId.set("");
+                provider.refreshInferenceIndex(refreshListener);
+            },
+            e -> {
+                this.readyToStoreNewModel.set(true);
+                failureHandler.accept(ExceptionsHelper.serverError(
+                    "error storing trained model definition chunk [{}] with id [{}]",
+                    e,
+                    trainedModelDefinitionDoc.getModelId(),
+                    trainedModelDefinitionDoc.getDocNum()));
+                refreshListener.onResponse(null);
+            }
+        );
+        provider.storeTrainedModelDefinitionDoc(trainedModelDefinitionDoc, storeListener);
+        return latch;
+    }
     private CountDownLatch storeTrainedModelMetadata(TrainedModelConfig trainedModelConfig) {
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Boolean> storeListener = ActionListener.wrap(
             aBoolean -> {
                 if (aBoolean == false) {
                     LOGGER.error("[{}] Storing trained model metadata responded false", analytics.getId());
+                    readyToStoreNewModel.set(true);
                     failureHandler.accept(ExceptionsHelper.serverError("storing trained model responded false"));
                 } else {
-                    LOGGER.info("[{}] Stored trained model metadata with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
+                    LOGGER.debug("[{}] Stored trained model metadata with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
                 }
             },
-            e -> failureHandler.accept(ExceptionsHelper.serverError("error storing trained model metadata with id [{}]", e,
-                trainedModelConfig.getModelId()))
+            e -> {
+                readyToStoreNewModel.set(true);
+                failureHandler.accept(ExceptionsHelper.serverError("error storing trained model metadata with id [{}]",
+                    e,
+                    trainedModelConfig.getModelId()));
+            }
         );
         provider.storeTrainedModelMetadata(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
         return latch;

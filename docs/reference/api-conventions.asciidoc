@@ -18,14 +18,13 @@ API, unless otherwise specified.
 Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
-In multi-target syntax, you can use a comma-separated list (e.g.,
-`test1,test2,test3`) to execute a request across multiple resources, such as
-data streams, indices, or index aliases. You can also use
+In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
+data streams, indices, or index aliases: `test1,test2,test3`. You can also use
 https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
-expressions (e.g., `test*` or `*test` or `te*t` or `*test*`) to target any
-resources that match the pattern.
+expressions to target any
+resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
 
-You can exclude targets using the `-` character (e.g., `test*,-test3`).
+You can exclude targets using the `-` character: `test*,-test3`.
 
 Multi-target APIs that can target indices support the following query
 string parameters:
@@ -43,7 +42,7 @@ string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-NOTE: Single index APIs, such as the <<docs>> and the
+NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
 syntax.
 
@@ -675,10 +674,9 @@ Many users use a proxy with URL-based access control to secure access to
 the choice of specifying a data stream or  index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
-To prevent the user from overriding the data stream or index which has been specified in the
-URL, add this setting to the `elasticsearch.yml` file:
+To prevent the user from overriding the data stream or index specified in the
+URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
 
-    rest.action.multi.allow_explicit_index: false
 
-The default value is `true`, but when set to `false`, {es} will
-reject requests that have an explicit data stream or index specified in the request body.
+This causes  {es} to
+reject requests that explicitly specfiy a data stream or index in the request body.

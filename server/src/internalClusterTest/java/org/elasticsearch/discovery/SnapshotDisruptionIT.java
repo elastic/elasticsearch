@@ -221,7 +221,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFuture =
                 client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
         AbstractSnapshotIntegTestCase.waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
-        AbstractSnapshotIntegTestCase.unblockNode(repoName, masterNode);
+        unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 
         logger.info("--> create a snapshot expected to be successful");

@@ -100,11 +100,9 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            executeShardOperation(shardRequest, replica);
-            return new ReplicaResult();
-        });
+    protected ReplicaResult shardOperationOnReplica(ShardRequest shardRequest, IndexShard replica) {
+        executeShardOperation(shardRequest, replica);
+        return new ReplicaResult();
     }
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {

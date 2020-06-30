@@ -143,6 +143,4 @@ public class DateFormatTests extends ESTestCase {
         assertThat(DateFormat.fromString("tai64n"), equalTo(DateFormat.Java));
         assertThat(DateFormat.fromString("prefix-" + randomAlphaOfLengthBetween(1, 10)), equalTo(DateFormat.Java));
     }
-
-
 }

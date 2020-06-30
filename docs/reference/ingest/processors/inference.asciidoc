@@ -42,7 +42,7 @@ Regression configuration for inference.
 
 `results_field`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
@@ -65,7 +65,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 `results_field`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field-processor]
 
 `top_classes_results_field`::
 (Optional, string)

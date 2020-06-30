@@ -424,7 +424,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 values = List.of();
             } else if (claimValueObject instanceof String) {
                 values = List.of((String) claimValueObject);
-            } else if (claimValueObject instanceof Collection && ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+            } else if (claimValueObject instanceof Collection &&
+                ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
                 values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");

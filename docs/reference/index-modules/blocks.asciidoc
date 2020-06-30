@@ -30,7 +30,7 @@ index:
 
 Deleting documents from an index to release resources - rather than deleting the index itself - can increase the index size over time. When `index.blocks.read_only_allow_delete` is set to `true`, deleting documents is not permitted. However, deleting the index itself releases the read-only index block and makes resources available almost immediately.
 
-IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood_stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
+IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
 
 `index.blocks.read`::
 
@@ -143,4 +143,3 @@ The API returns following response:
     } ]
 }
 --------------------------------------------------
-

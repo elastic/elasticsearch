@@ -9,24 +9,28 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript.Factory;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
-    LongScriptFieldScript,
     LongScriptFieldScript.Factory,
-    LongScriptFieldScript.LeafFactory,
+    LongRuntimeValues,
+    SortedNumericDocValues,
     Long> {
 
     public void testConstant() throws IOException {
@@ -102,19 +106,22 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected LongScriptFieldScript.LeafFactory newLeafFactory(
-        LongScriptFieldScript.Factory factory,
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData
-    ) {
-        return factory.newFactory(params, source, fieldData);
+    protected LongRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
+        throws IOException {
+        return factory.newFactory(params, source, fieldData).runtimeValues();
     }
 
     @Override
-    protected LongScriptFieldScript newInstance(LongScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context, List<Long> result)
-        throws IOException {
+    protected CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesBuilder(LongRuntimeValues values) {
+        return values.docValues();
+    }
 
-        return leafFactory.newInstance(context, result::add);
+    @Override
+    protected void readAllDocValues(SortedNumericDocValues docValues, int docId, Consumer<Long> sync) throws IOException {
+        assertTrue(docValues.advanceExact(docId));
+        int count = docValues.docValueCount();
+        for (int i = 0; i < count; i++) {
+            sync.accept(docValues.nextValue());
+        }
     }
 }

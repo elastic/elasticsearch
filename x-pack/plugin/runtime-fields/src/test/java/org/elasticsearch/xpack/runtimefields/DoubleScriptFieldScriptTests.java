@@ -12,23 +12,27 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript.Factory;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
-    DoubleScriptFieldScript,
     DoubleScriptFieldScript.Factory,
-    DoubleScriptFieldScript.LeafFactory,
+    DoubleRuntimeValues,
+    SortedNumericDoubleValues,
     Double> {
 
     public void testConstant() throws IOException {
@@ -36,7 +40,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     public void testTwoConstants() throws IOException {
-        assertThat(randomDoubles().collect("value(3.14); value(2.72)"), equalTo(List.of(3.14, 2.72, 3.14, 2.72)));
+        assertThat(randomDoubles().collect("value(3.14); value(2.72)"), equalTo(List.of(2.72, 3.14, 2.72, 3.14)));
     }
 
     public void testSource() throws IOException {
@@ -111,21 +115,22 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected DoubleScriptFieldScript.LeafFactory newLeafFactory(
-        DoubleScriptFieldScript.Factory factory,
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData
-    ) {
-        return factory.newFactory(params, source, fieldData);
+    protected DoubleRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
+        throws IOException {
+        return factory.newFactory(params, source, fieldData).runtimeValues();
     }
 
     @Override
-    protected DoubleScriptFieldScript newInstance(
-        DoubleScriptFieldScript.LeafFactory leafFactory,
-        LeafReaderContext context,
-        List<Double> result
-    ) throws IOException {
-        return leafFactory.newInstance(context, result::add);
+    protected CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesBuilder(DoubleRuntimeValues values) {
+        return values.docValues();
+    }
+
+    @Override
+    protected void readAllDocValues(SortedNumericDoubleValues docValues, int docId, Consumer<Double> sync) throws IOException {
+        assertTrue(docValues.advanceExact(docId));
+        int count = docValues.docValueCount();
+        for (int i = 0; i < count; i++) {
+            sync.accept(docValues.nextValue());
+        }
     }
 }

@@ -11,14 +11,17 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript.Factory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,14 +30,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
-    StringScriptFieldScript,
     StringScriptFieldScript.Factory,
-    StringScriptFieldScript.LeafFactory,
+    StringRuntimeValues,
+    SortedBinaryDocValues,
     String> {
+
+    private final Set<Integer> visited = new LinkedHashSet<>();
 
     public void testConstant() throws IOException {
         assertThat(randomStrings().collect("value('cat')"), equalTo(List.of("cat", "cat")));
@@ -65,18 +71,23 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermQuery() throws IOException {
         TestCase c = twoValuesInDocValues();
-        StringScriptFieldScript.LeafFactory addO = c.testScript("add_o");
-//        assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
+        visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "cato"), addO), equalTo(List.of("cato", "pigo")));
-//        assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
+        visited.clear();
+        assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testPrefixQuery() throws IOException {
         TestCase c = twoValuesInDocValues();
-        StringScriptFieldScript.LeafFactory addO = c.testScript("add_o");
+        StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.prefixQuery("foo", "catdog"), addO), equalTo(List.of()));
+        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "cat"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
+        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "d"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -154,7 +165,6 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
                     private StringScriptFieldScript.Factory compile(String name) {
                         if (name.equals("add_o")) {
-                            Set<Integer> visited = new LinkedHashSet<>();
                             return (params, source, fieldData) -> {
                                 StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
                                     return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
@@ -195,21 +205,22 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected StringScriptFieldScript.LeafFactory newLeafFactory(
-        StringScriptFieldScript.Factory factory,
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData
-    ) {
-        return factory.newFactory(params, source, fieldData);
+    protected StringRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
+        throws IOException {
+        return factory.newFactory(params, source, fieldData).runtimeValues();
     }
 
     @Override
-    protected StringScriptFieldScript newInstance(
-        StringScriptFieldScript.LeafFactory leafFactory,
-        LeafReaderContext context,
-        List<String> result
-    ) throws IOException {
-        return leafFactory.newInstance(context, result::add);
+    protected CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesBuilder(StringRuntimeValues values) {
+        return values.docValues();
+    }
+
+    @Override
+    protected void readAllDocValues(SortedBinaryDocValues docValues, int docId, Consumer<String> sync) throws IOException {
+        assertTrue(docValues.advanceExact(docId));
+        int count = docValues.docValueCount();
+        for (int i = 0; i < count; i++) {
+            sync.accept(docValues.nextValue().utf8ToString());
+        }
     }
 }

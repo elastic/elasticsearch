@@ -34,6 +34,16 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
 
     public interface LeafFactory {
         DoubleScriptFieldScript newInstance(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
+
+        default DoubleRuntimeValues runtimeValues() throws IOException {
+            return new DoubleRuntimeValues((ctx, sync) -> {
+                DoubleScriptFieldScript script = newInstance(ctx, sync);
+                return docId -> {
+                    script.setDocId(docId);
+                    script.execute();
+                };
+            });
+        }
     }
 
     private final DoubleConsumer sync;

@@ -20,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -46,12 +47,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScript, F, LF, R> extends ESTestCase {
+public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase {
     private final List<Closeable> lazyClose = new ArrayList<>();
     private final ScriptService scriptService;
 
@@ -80,9 +82,11 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
 
     protected abstract ScriptContext<F> scriptContext();
 
-    protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+    protected abstract V newValues(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData) throws IOException;
 
-    protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
+    protected abstract CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder(V values);
+
+    protected abstract void readAllDocValues(DV docValues, int docId, Consumer<R> sync) throws IOException;
 
     protected final TestCase testCase(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder) throws IOException {
         return new TestCase(indexBuilder);
@@ -111,25 +115,26 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
             }
         }
 
-        protected LF script(String script) {
+        protected V script(String script) throws IOException {
             return script(new Script(script));
         }
 
-        protected LF testScript(String name) {
+        protected V testScript(String name) throws IOException {
             return script(new Script(ScriptType.INLINE, "test", name, Map.of()));
         }
 
-        protected LF script(Script script) {
-            return newLeafFactory(scriptService.compile(script, scriptContext()), Map.of(), sourceLookup, fieldData);
+        protected V script(Script script) throws IOException {
+            return newValues(scriptService.compile(script, scriptContext()), Map.of(), sourceLookup, fieldData);
         }
 
         protected List<R> collect(String script) throws IOException {
             return collect(new MatchAllDocsQuery(), script(script));
         }
 
-        protected List<R> collect(Query query, LF script) throws IOException {
+        protected List<R> collect(Query query, V values) throws IOException {
             // Now run the query and collect the results
             List<R> result = new ArrayList<>();
+            CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder = docValuesBuilder(values);
             searcher.search(query, new Collector() {
                 @Override
                 public ScoreMode scoreMode() {
@@ -137,16 +142,15 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                 }
 
                 @Override
-                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                    S compiled = newInstance(script, context, result);
+                public LeafCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                    DV docValues = docValuesBuilder.apply(ctx);
                     return new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) throws IOException {}
 
                         @Override
-                        public void collect(int doc) throws IOException {
-                            compiled.setDocument(doc);
-                            compiled.execute();
+                        public void collect(int docId) throws IOException {
+                            readAllDocValues(docValues, docId, result::add);
                         }
                     };
                 }

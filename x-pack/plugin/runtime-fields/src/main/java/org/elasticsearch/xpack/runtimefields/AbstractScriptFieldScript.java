@@ -35,7 +35,7 @@ public abstract class AbstractScriptFieldScript {
     /**
      * Set the document to run the script against.
      */
-    public final void setDocument(int docId) {
+    public final void setDocId(int docId) {
         source.setSegmentAndDocument(ctx, docId);
         fieldData.setDocument(docId);
         onSetDocument(docId);

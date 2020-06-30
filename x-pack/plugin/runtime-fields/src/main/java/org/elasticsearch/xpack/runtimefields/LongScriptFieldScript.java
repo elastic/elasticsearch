@@ -34,6 +34,16 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
 
     public interface LeafFactory {
         LongScriptFieldScript newInstance(LeafReaderContext ctx, LongConsumer sync) throws IOException;
+
+        default LongRuntimeValues runtimeValues() throws IOException {
+            return new LongRuntimeValues((ctx, sync) -> {
+                LongScriptFieldScript script = newInstance(ctx, sync);
+                return docId -> {
+                    script.setDocId(docId);
+                    script.execute();
+                };
+            });
+        }
     }
 
     private final LongConsumer sync;

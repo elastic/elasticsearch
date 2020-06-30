@@ -334,10 +334,22 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
+        Stage[] regularRecoveryStages = Arrays.stream(Stage.values())
+            .filter(stage -> stage != Stage.LAZY_RECOVERY)
+            .toArray(Stage[]::new);
+        assertStageSequenceIsEnforces(regularRecoveryStages);
+
+        Stage[] lazyRecoveryStages = Arrays.stream(Stage.values())
+            .filter(stage -> stage != Stage.DONE)
+            .toArray(Stage[]::new);
+        assertStageSequenceIsEnforces(lazyRecoveryStages);
+    }
+
+    public void assertStageSequenceIsEnforces(Stage[] stageSequence) {
         final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
         final AssertionError error = expectThrows(AssertionError.class, () -> {
-            Stage[] stages = Stage.values();
+            Stage[] stages = Arrays.copyOf(stageSequence, stageSequence.length);
             int i = randomIntBetween(0, stages.length - 1);
             int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
             Stage t = stages[i];
@@ -353,7 +365,7 @@ public class RecoveryTargetTests extends ESTestCase {
         });
         assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        Stage[] stages = Stage.values();
+        Stage[] stages = Arrays.copyOf(stageSequence, stageSequence.length);
         int i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
@@ -365,7 +377,7 @@ public class RecoveryTargetTests extends ESTestCase {
             state.setStage(stage);
         }
 
-        assertThat(state.getStage(), equalTo(Stage.DONE));
+        assertThat(state.getStage(), equalTo(stages[stages.length - 1]));
     }
 
     public void testTranslog() throws Throwable {

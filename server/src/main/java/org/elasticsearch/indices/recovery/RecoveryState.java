@@ -231,6 +231,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 break;
             case LAZY_RECOVERY:
                 validateAndSetStage(Stage.FINALIZE, stage);
+                // Index recovery will be performed lazily
+                // as searches hit the shard
+                getIndex().resetStopTime();
                 break;
             default:
                 throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
@@ -432,6 +435,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             startTime = 0;
             startNanoTime = 0;
             time = -1;
+            stopTime = 0;
+        }
+
+        public synchronized void resetStopTime() {
+            assert stopTime != 0: "expected to be stopped";
+
             stopTime = 0;
         }
 
@@ -777,7 +786,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized void addFileDetail(String name, long length, boolean reused) {
-            File existing = addFileDetails(new File(name, length, reused));
+            File existing = addFileDetails(name, new File(name, length, reused));
             assert existing == null : "file [" + name + "] is already reported";
         }
 
@@ -786,8 +795,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             file.addRecoveredBytes(bytes);
         }
 
-        protected File addFileDetails(File file) {
-            return fileDetails.put(file.name, file);
+        protected synchronized File addFileDetails(String name, File file) {
+            return fileDetails.put(name, file);
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {

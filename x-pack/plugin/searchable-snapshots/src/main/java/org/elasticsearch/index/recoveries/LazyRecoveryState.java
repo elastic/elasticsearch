@@ -35,8 +35,8 @@ public class LazyRecoveryState extends RecoveryState {
     @Override
     public synchronized RecoveryState setStage(Stage stage) {
         // The recovery will be performed in the background,
-        // therefor the reason for capturing the DONE state
-        // and moving it to LAZY_RECOVERY instead.
+        // so we move to the latest stage of lazy recovery
+        // instead of DONE
         if (stage == Stage.DONE) {
             return super.setStage(Stage.LAZY_RECOVERY);
         }
@@ -60,15 +60,18 @@ public class LazyRecoveryState extends RecoveryState {
             } else {
                 // Since we're doing a lazy recovery, we ignore the
                 // reused flag and mark the file as not reused
-                addFileDetails(new File(name, length, false));
+                addFileDetails(name, new File(name, length, false));
             }
         }
 
         @Override
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
-            File file = getFileDetails(name);
-            if (file == null) {
-                addFileDetails(File.fileWithUnknownLength(name));
+            // During a searchable snapshot shard recovery it's possible that
+            // this class has to track files that we don't know its length beforehand
+            // (i.e. when the cache that backs the directory starts pre-warming
+            // its cache before the shard is initialized)
+            if (getFileDetails(name) == null) {
+                addFileDetails(name, File.fileWithUnknownLength(name));
             }
 
             super.addRecoveredBytesToFile(name, bytes);

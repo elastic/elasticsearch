@@ -89,6 +89,8 @@ public class LazyRecoveryStateTests extends ESTestCase {
         recoveryState.setStage(RecoveryState.Stage.FINALIZE);
         recoveryState.setStage(RecoveryState.Stage.DONE);
 
+        assertThat(recoveryState.getTimer().stopTime(), is(0L));
+        assertThat(recoveryState.getIndex().stopTime(), is(0L));
     }
 
     public void testReusedIndexFileFlagIsIgnored() {

@@ -64,7 +64,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -134,7 +133,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final boolean cacheEnabled = true;
+        final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
         Settings.Builder indexSettingsBuilder = Settings.builder()
@@ -597,7 +596,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
-        ensureGreen(indexName);
         final Thread[] threads = new Thread[between(1, 5)];
         final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
         final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
@@ -646,10 +644,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             for (RecoveryState recoveryState : recoveryStates) {
                 logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
                 assertThat(
-                    " " + cacheEnabled + " --->> " + Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n`
-                                                                                      // file
+                    Strings.toString(recoveryState),
                     recoveryState.getIndex().recoveredFileCount(),
-                    cacheEnabled ? greaterThan(0) : greaterThanOrEqualTo(0)
+                    // we make a new commit so we write a new `segments_n` file when the cache is disabled
+                    cacheEnabled ? greaterThan(0) : lessThanOrEqualTo(1)
                 );
 
                 assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.LAZY_RECOVERY));

@@ -22,11 +22,10 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
 
@@ -60,7 +59,7 @@ public class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -75,13 +74,13 @@ public class EBool extends AExpression {
 
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
-        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
                 leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
-        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
                 rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 

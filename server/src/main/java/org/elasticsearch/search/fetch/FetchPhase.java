@@ -57,6 +57,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -116,7 +117,7 @@ public class FetchPhase implements SearchPhase {
 
                 Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+                    MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         if (context.getObjectMapper(fieldName) != null) {
@@ -140,13 +141,20 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
+            DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+            }
+            Arrays.sort(docs);
+
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
+                int docId = docs[index].docId;
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                 int subDocId = docId - subReaderContext.docBase;
@@ -161,7 +169,8 @@ public class FetchPhase implements SearchPhase {
                         storedToRequestedFields, subReaderContext);
                 }
 
-                hits[index] = searchHit;
+                sortedHits[index] = searchHit;
+                hits[docs[index].index] = searchHit;
                 hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
                 for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                     fetchSubPhase.hitExecute(context, hitContext);
@@ -172,7 +181,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, hits);
+                fetchSubPhase.hitsExecute(context, sortedHits);
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
@@ -182,6 +191,21 @@ public class FetchPhase implements SearchPhase {
             context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    static class DocIdToIndex implements Comparable<DocIdToIndex> {
+        final int docId;
+        final int index;
+
+        DocIdToIndex(int docId, int index) {
+            this.docId = docId;
+            this.index = index;
+        }
+
+        @Override
+        public int compareTo(DocIdToIndex o) {
+            return Integer.compare(docId, o.docId);
         }
     }
 

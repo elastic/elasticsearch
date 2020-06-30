@@ -21,14 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,7 +61,7 @@ public class EMapInit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
@@ -74,14 +73,14 @@ public class EMapInit extends AExpression {
         Output output = new Output();
         output.actual = HashMap.class;
 
-        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
+        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
                     "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
         }
 
-        PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
+        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
 
         if (method == null) {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
@@ -101,7 +100,7 @@ public class EMapInit extends AExpression {
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
             keyOutputs.add(expressionOutput);
             keyCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
@@ -110,7 +109,7 @@ public class EMapInit extends AExpression {
             expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
-            expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
             valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope.FunctionScope;
+import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
@@ -33,14 +33,14 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AStatement.Input;
 import org.elasticsearch.painless.node.AStatement.Output;
 import org.elasticsearch.painless.symbol.FunctionTable;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.painless.Scope.newFunctionScope;
+import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
 
 /**
  * Represents a user-defined function.
@@ -115,15 +115,15 @@ public class SFunction extends ANode {
         return isAutoReturnEnabled;
     }
 
-    void buildClassScope(ScriptRoot scriptRoot) {
+    void buildClassScope(ScriptScope scriptScope) {
         if (canonicalTypeNameParameters.size() != parameterNames.size()) {
             throw createError(new IllegalStateException(
                 "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
                 "parameter names size [" + parameterNames.size() + "]"));
         }
 
-        PainlessLookup painlessLookup = scriptRoot.getPainlessLookup();
-        FunctionTable functionTable = scriptRoot.getFunctionTable();
+        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+        FunctionTable functionTable = scriptScope.getFunctionTable();
 
         String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
 
@@ -154,12 +154,12 @@ public class SFunction extends ANode {
         functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
     }
 
-    FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
+    FunctionNode analyze(ClassNode classNode, ScriptScope scriptScope) {
         FunctionTable.LocalFunction localFunction =
-                scriptRoot.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
+                scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
-        FunctionScope functionScope = newFunctionScope(localFunction.getReturnType());
+        FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
 
         for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
             Class<?> typeParameter = localFunction.getTypeParameters().get(index);
@@ -167,7 +167,7 @@ public class SFunction extends ANode {
             functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
         }
 
-        int maxLoopCounter = scriptRoot.getCompilerSettings().getMaxLoopCounter();
+        int maxLoopCounter = scriptScope.getCompilerSettings().getMaxLoopCounter();
 
         if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
@@ -175,7 +175,7 @@ public class SFunction extends ANode {
 
         Input blockInput = new Input();
         blockInput.lastSource = true;
-        Output blockOutput = blockNode.analyze(classNode, scriptRoot, functionScope.newLocalScope(), blockInput);
+        Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope(), blockInput);
         boolean methodEscape = blockOutput.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
@@ -186,7 +186,7 @@ public class SFunction extends ANode {
         // TODO: do not specialize for execute
         // TODO: https://github.com/elastic/elasticsearch/issues/51841
         if ("execute".equals(functionName)) {
-            scriptRoot.setUsedVariables(functionScope.getUsedVariables());
+            scriptScope.setUsedVariables(functionScope.getUsedVariables());
         }
         // TODO: end
 

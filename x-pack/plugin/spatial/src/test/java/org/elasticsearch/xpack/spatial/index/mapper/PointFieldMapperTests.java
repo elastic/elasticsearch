@@ -228,7 +228,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
 
-        Object nullValue = ((PointFieldMapper) fieldMapper).fieldType().nullValue();
+        Object nullValue = ((PointFieldMapper) fieldMapper).getNullValue();
         assertThat(nullValue, equalTo(new CartesianPoint(1, 2)));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",

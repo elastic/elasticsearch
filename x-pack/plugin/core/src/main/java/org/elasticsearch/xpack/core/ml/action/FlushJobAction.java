@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Objects;
 
 public class FlushJobAction extends ActionType<FlushJobAction.Response> {
@@ -62,6 +62,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         }
 
         private boolean calcInterim = false;
+        private boolean waitForNormalization = true;
         private String start;
         private String end;
         private String advanceTime;
@@ -77,6 +78,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
+            waitForNormalization = in.readBoolean();
         }
 
         @Override
@@ -87,6 +89,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
+            out.writeBoolean(waitForNormalization);
         }
 
         public Request(String jobId) {
@@ -133,9 +136,22 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             this.skipTime = skipTime;
         }
 
+        public boolean isWaitForNormalization() {
+            return waitForNormalization;
+        }
+
+        /**
+         * Used internally. Datafeeds do not need to wait renormalization to complete before continuing.
+         *
+         * For large jobs, renormalization can take minutes, causing datafeeds to needlessly pause execution.
+         */
+        public void setWaitForNormalization(boolean waitForNormalization) {
+            this.waitForNormalization = waitForNormalization;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization);
         }
 
         @Override
@@ -149,6 +165,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) &&
                     calcInterim == other.calcInterim &&
+                    waitForNormalization == other.waitForNormalization &&
                     Objects.equals(start, other.start) &&
                     Objects.equals(end, other.end) &&
                     Objects.equals(advanceTime, other.advanceTime) &&
@@ -186,33 +203,35 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean flushed;
-        private Date lastFinalizedBucketEnd;
+        private final boolean flushed;
+        private final Instant lastFinalizedBucketEnd;
 
-        public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
+        public Response(boolean flushed, @Nullable Instant lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
-            this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
+            // Round to millisecond accuracy to ensure round-tripping via XContent results in an equal object
+            this.lastFinalizedBucketEnd =
+                (lastFinalizedBucketEnd != null) ? Instant.ofEpochMilli(lastFinalizedBucketEnd.toEpochMilli()) : null;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             flushed = in.readBoolean();
-            lastFinalizedBucketEnd = new Date(in.readVLong());
+            lastFinalizedBucketEnd = in.readOptionalInstant();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(flushed);
-            out.writeVLong(lastFinalizedBucketEnd.getTime());
+            out.writeOptionalInstant(lastFinalizedBucketEnd);
         }
 
         public boolean isFlushed() {
             return flushed;
         }
 
-        public Date getLastFinalizedBucketEnd() {
+        public Instant getLastFinalizedBucketEnd() {
             return lastFinalizedBucketEnd;
         }
 
@@ -222,7 +241,8 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
                 builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
-                        FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string", lastFinalizedBucketEnd.getTime());
+                    FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string",
+                    lastFinalizedBucketEnd.toEpochMilli());
             }
             builder.endObject();
             return builder;
@@ -242,7 +262,4 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             return Objects.hash(flushed, lastFinalizedBucketEnd);
         }
     }
-
 }
-
-

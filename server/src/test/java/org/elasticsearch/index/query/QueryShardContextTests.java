@@ -54,7 +54,7 @@ public class QueryShardContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType();
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
@@ -118,7 +118,7 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, clusterAlias);
 
         Mapper.BuilderContext ctx = new Mapper.BuilderContext(context.getIndexSettings().getSettings(), new ContentPath());
-        IndexFieldMapper mapper = new IndexFieldMapper.Builder(null).build(ctx);
+        IndexFieldMapper mapper = new IndexFieldMapper.Builder().build(ctx);
 
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());
         String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetadata().getIndex().getName()

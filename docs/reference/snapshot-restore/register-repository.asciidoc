@@ -156,7 +156,7 @@ The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and
 unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
+`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to unlimited. Note that restores are also throttled through <<recovery,recovery settings>>.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.
 
@@ -202,7 +202,7 @@ accessible to all master and data nodes in the cluster. This location must be
 registered in the `path.repo` setting, similar to a
 <<snapshots-filesystem-repository,shared file system repository>>.
 
-URLs using the `ftp`, `http`, or `https` protocols must be whitelisted in the
+URLs using the `ftp`, `http`, or `https` protocols must be explicitly allowed with the
 `repositories.url.allowed_urls` setting. This setting supports wildcards (`*`)
 in place of a host, path, query, or fragment in the URL. For example:
 

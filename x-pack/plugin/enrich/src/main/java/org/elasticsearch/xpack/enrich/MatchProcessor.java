@@ -20,6 +20,7 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
 
     MatchProcessor(
         String tag,
+        String description,
         Client client,
         String policyName,
         TemplateScript.Factory field,
@@ -29,12 +30,13 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
         String matchField,
         int maxMatches
     ) {
-        super(tag, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
 
     /** used in tests **/
     MatchProcessor(
         String tag,
+        String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
@@ -44,7 +46,7 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
         String matchField,
         int maxMatches
     ) {
-        super(tag, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
 
     @Override

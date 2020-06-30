@@ -36,9 +36,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 
@@ -473,14 +470,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         try {
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
-            fieldType.setName("value_field");
-            fieldType.setHasDocValues(true);
-
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(fieldNumberType);
-            fieldType2.setName("weight_field");
-            fieldType2.setHasDocValues(true);
-
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value_field", fieldNumberType);
+            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("weight_field", fieldNumberType);
             WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);

@@ -561,8 +561,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final PendingReplicationActions pendingReplicationActions;
-        final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
-        final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
+        final Map<String, Long> knownLocalCheckpoints = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, Long> knownGlobalCheckpoints = Collections.synchronizedMap(new HashMap<>());
 
         TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier, ThreadPool threadPool) {
             this.routing = routing;

@@ -33,8 +33,8 @@ setup:
 ---
 "Create data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -50,12 +50,12 @@ setup:
       indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
   - match: { 0.generation: 1 }
   - length: { 1.indices: 1 }
   - match: { 1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
@@ -105,7 +105,7 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason: "change to 7.8.99 after backport"
 
   - do:
@@ -121,27 +121,32 @@ setup:
   - do:
       indices.get_data_stream: {}
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
+  - match: { 1.timestamp_field.mapping: {type: date} }
   - match: { 1.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream1
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream*
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
+  - match: { 1.timestamp_field.mapping: {type: date} }
   - match: { 1.generation: 1 }
 
   - do:
@@ -170,8 +175,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -196,7 +201,7 @@ setup:
   - do:
       indices.get_data_stream: {}
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
@@ -214,8 +219,8 @@ setup:
 ---
 "append-only writes to backing indices prohobited":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:

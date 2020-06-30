@@ -73,10 +73,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public String getDescription() {
+            return null;
+        }
+
         static class Factory implements Processor.Factory {
 
             @Override
-            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                    Map<String, Object> config) {
                 return new NotInferenceProcessor();
             }
         }

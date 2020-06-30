@@ -44,7 +44,6 @@ public class DeclarationNode extends StatementNode {
 
     protected String name;
     protected Class<?> declarationType;
-    protected boolean requiresDefault;
 
     public void setName(String name) {
         this.name = name;
@@ -66,14 +65,6 @@ public class DeclarationNode extends StatementNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
     }
 
-    public void setRequiresDefault(boolean requiresDefault) {
-        this.requiresDefault = requiresDefault;
-    }
-
-    public boolean requiresDefault() {
-        return requiresDefault;
-    }
-
     /* ---- end node data ---- */
 
     @Override
@@ -83,21 +74,19 @@ public class DeclarationNode extends StatementNode {
         Variable variable = scopeTable.defineVariable(declarationType, name);
 
         if (expressionNode == null) {
-            if (requiresDefault) {
-                Class<?> sort = variable.getType();
+            Class<?> sort = variable.getType();
 
-                if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                        sort == short.class || sort == char.class || sort == int.class) {
-                    methodWriter.push(0);
-                } else if (sort == long.class) {
-                    methodWriter.push(0L);
-                } else if (sort == float.class) {
-                    methodWriter.push(0F);
-                } else if (sort == double.class) {
-                    methodWriter.push(0D);
-                } else {
-                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
-                }
+            if (sort == void.class || sort == boolean.class || sort == byte.class ||
+                    sort == short.class || sort == char.class || sort == int.class) {
+                methodWriter.push(0);
+            } else if (sort == long.class) {
+                methodWriter.push(0L);
+            } else if (sort == float.class) {
+                methodWriter.push(0F);
+            } else if (sort == double.class) {
+                methodWriter.push(0D);
+            } else {
+                methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
             expressionNode.write(classWriter, methodWriter, scopeTable);

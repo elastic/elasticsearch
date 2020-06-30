@@ -117,12 +117,12 @@ public class RSquaredMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(that.value, this.value);
+            return this.value == that.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return Double.hashCode(value);
         }
     }
 }

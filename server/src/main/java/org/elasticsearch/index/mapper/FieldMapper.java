@@ -423,14 +423,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (fieldType.tokenized() == false) {
             return;
         }
-        assert fieldType().getTextSearchInfo().getSearchAnalyzer() != null;
         if (fieldType().indexAnalyzer() == null) {
             if (includeDefaults) {
                 builder.field("analyzer", "default");
             }
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer().name();
+            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
+                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
             final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
                 ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
             boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;

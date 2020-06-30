@@ -80,6 +80,20 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(addO.termQuery("foo", 100), addO), equalTo(List.of(100L, 200L)));
     }
 
+    public void testTermsQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        LongRuntimeValues addO = c.testScript("times_ten");
+        assertThat(c.collect(addO.termsQuery("foo", 1, 2), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", 10, 11), addO), equalTo(List.of(10L, 20L)));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", 20, 21), addO), equalTo(List.of(10L, 20L)));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", 19, 20), addO), equalTo(List.of(10L, 20L)));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", 100, 11), addO), equalTo(List.of(100L, 200L)));
+    }
+
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues addO = c.testScript("times_ten");

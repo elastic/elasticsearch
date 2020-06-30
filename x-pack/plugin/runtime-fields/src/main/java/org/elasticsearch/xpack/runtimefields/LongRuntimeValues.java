@@ -40,6 +40,10 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
         return unstarted().new TermQuery(fieldName, value);
     }
 
+    public Query termsQuery(String fieldName, long... value) {
+        return unstarted().new TermsQuery(fieldName, value);
+    }
+
     public Query rangeQuery(String fieldName, long lowerValue, long upperValue) {
         return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
     }
@@ -170,6 +174,52 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
                 }
                 TermQuery other = (TermQuery) obj;
                 return term == other.term;
+            }
+        }
+
+        private class TermsQuery extends AbstractRuntimeQuery {
+            private final long[] terms;
+
+            private TermsQuery(String fieldName, long[] terms) {
+                super(fieldName);
+                this.terms = terms.clone();
+                Arrays.sort(terms);
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (Arrays.binarySearch(terms, values[i]) >= 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                for (long term : terms) {
+                    visitor.consumeTerms(this, new Term(fieldName, Long.toString(term)));
+                }
+            }
+
+            @Override
+            protected String bareToString() {
+                return "{" + Arrays.toString(terms) + "}";
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), Arrays.hashCode(terms));
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                TermsQuery other = (TermsQuery) obj;
+                return Arrays.equals(terms, other.terms);
             }
         }
 

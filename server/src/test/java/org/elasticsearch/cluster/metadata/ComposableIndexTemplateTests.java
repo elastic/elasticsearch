@@ -238,10 +238,13 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
     }
 
     public void testGetDefaultMappingSnippet() {
-        Map<String, Object> result = DataStreamTemplate.getDefaultMappingSnippet("my_field");
-        assertThat(result, equalTo(Map.of("my_field", Map.of("type", "date"))));
+        DataStreamTemplate template = new DataStreamTemplate("my_field");
+        Map<String, Object> result = template.getDefaultMappingSnippet();
+        assertThat(result, equalTo(Map.of("_doc", Map.of("properties", Map.of("my_field", Map.of("type", "date"))))));
 
-        result = DataStreamTemplate.getDefaultMappingSnippet("my.first.field");
-        assertThat(result, equalTo(Map.of("my", Map.of("first", Map.of("field", Map.of("type", "date"))))));
+        template = new DataStreamTemplate("my.first.field");
+        result = template.getDefaultMappingSnippet();
+        assertThat(result, equalTo(Map.of("_doc", Map.of("properties", Map.of("my", Map.of("properties", Map.of("first",
+            Map.of("properties", Map.of("field", Map.of("type", "date"))))))))));
     }
 }

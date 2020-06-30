@@ -912,6 +912,20 @@ public class MetadataIndexTemplateService {
             })
             .ifPresent(mappings::add);
 
+        // Add default timestamp field mapping with the lowest priority, so that it can be overwritten by a component template,
+        // composable index template and data stream timestamp field definition
+        Optional.ofNullable(template.getDataStreamTemplate())
+            .map(DataStreamTemplate::getDefaultMappingSnippet)
+            .map(mapping -> {
+                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    builder.value(mapping);
+                    return new CompressedXContent(BytesReference.bytes(builder));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            })
+            .ifPresent(result -> mappings.add(0, result));
+
         return Collections.unmodifiableList(mappings);
     }
 

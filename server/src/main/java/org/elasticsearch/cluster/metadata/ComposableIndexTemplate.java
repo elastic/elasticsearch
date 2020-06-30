@@ -338,11 +338,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         /**
-         * @return A mapping snippet with a default timestamp field definition for the provided path.
-         *         If the path contains object notation then the returned map is inflated.
+         * @return A full mapping with a default timestamp field definition for the timestamp field
+         *         The returned map is inflated based on the mapping path of the timestamp field.
          */
-        public static Map<String, Object> getDefaultMappingSnippet(String path) {
-            return inflate(path, Map.of("type", "date"));
+        public Map<String, Object> getDefaultMappingSnippet() {
+            String mappingPath = "_doc." + convertFieldPathToMappingPath(timestampField);
+            return inflate(mappingPath, Map.of("type", "date"));
         }
     }
 }

@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
-  testImplementation project(path: xpackModule('watcher'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('watcher'))
 }
 
 String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')

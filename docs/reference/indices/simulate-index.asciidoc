@@ -106,18 +106,20 @@ The response shows the index settings, mappings, and aliases applied by the spec
   "template" : {
     "settings" : {
       "index" : {
-        "number_of_replicas" : "1" <1>
+        "number_of_shards" : "2",
+        "number_of_replicas" : "0"
       }
     },
     "mappings" : {
       "properties" : {
-        "@timestamp" : { <2>
+        "@timestamp" : {
           "type" : "date"
         }
       }
     },
     "aliases" : { }
-  }
+  },
+  "overlapping" : [ ]
 }
 ---------------------------------------------------------
 <1> The number of replicas from the simulated template body

@@ -812,6 +812,32 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(deleteFuture.get(30L, TimeUnit.SECONDS));
     }
 
+    public void testEquivalentDeletesAreDeduplicated() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-test");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+
+        blockMasterFromDeletingIndexNFile(repoName);
+        final int deletes = randomIntBetween(2, 10);
+        final List<ActionFuture<AcknowledgedResponse>> deleteResponses = new ArrayList<>(deletes);
+        for (int i = 0; i < deletes; ++i) {
+            deleteResponses.add(client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute());
+        }
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        awaitNDeletionsInProgress(1);
+        for (ActionFuture<AcknowledgedResponse> deleteResponse : deleteResponses) {
+            assertFalse(deleteResponse.isDone());
+        }
+        awaitNDeletionsInProgress(1);
+        unblockNode(repoName, masterName);
+        for (ActionFuture<AcknowledgedResponse> deleteResponse : deleteResponses) {
+            assertAcked(deleteResponse.get());
+        }
+    }
+
     private List<String> createNSnapshots(String repoName, int count) throws Exception {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";

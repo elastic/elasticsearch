@@ -1803,6 +1803,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             try {
                 ActionListener.onFailure(listeners, failure);
             } catch (Exception ex) {
+                assert false : new AssertionError(ex);
                 logger.warn("Failed to notify listeners", ex);
             }
         }
@@ -1813,6 +1814,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             try {
                 ActionListener.onResponse(listeners, result);
             } catch (Exception ex) {
+                assert false : new AssertionError(ex);
                 logger.warn("Failed to notify listeners", ex);
             }
         }
@@ -2179,28 +2181,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     updatedEntries.add(entry);
                 }
             }
-            final SnapshotDeletionsInProgress updatedDeletions =
-                    changed ? SnapshotDeletionsInProgress.of(updatedEntries) : deletionsInProgress;
-            final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
-            final SnapshotsInProgress updatedSnapshotsInProgress;
-            if (snapshotsInProgress == null) {
-                updatedSnapshotsInProgress = null;
-            } else {
-                final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-                boolean changedSnapshots = false;
-                for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                    if (entry.repository().equals(repository)) {
-                        // We failed to read repository data for this delete, it is not the job of SnapshotsService to
-                        // retry these kinds of issues so we fail all the pending snapshots
-                        snapshotsToFail.add(entry.snapshot());
-                        changedSnapshots = true;
-                    } else {
-                        // Entry is for another repository we just keep it as is
-                        snapshotEntries.add(entry);
-                    }
+            final SnapshotDeletionsInProgress updatedDeletions = changed ? SnapshotDeletionsInProgress.of(updatedEntries) : null;
+            final SnapshotsInProgress snapshotsInProgress =
+                currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
+            boolean changedSnapshots = false;
+            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                if (entry.repository().equals(repository)) {
+                    // We failed to read repository data for this delete, it is not the job of SnapshotsService to
+                    // retry these kinds of issues so we fail all the pending snapshots
+                    snapshotsToFail.add(entry.snapshot());
+                    changedSnapshots = true;
+                } else {
+                    // Entry is for another repository we just keep it as is
+                    snapshotEntries.add(entry);
                 }
-                updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
             }
+            final SnapshotsInProgress updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
             return updateWithSnapshots(currentState, updatedSnapshotsInProgress, updatedDeletions);
         }
 

@@ -1077,10 +1077,10 @@ public class MetadataIndexTemplateService {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                        if (template.getDataStreamTemplate() != null) {
-                            String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                            validateTimestampFieldMapping(tsFieldName, mapperService);
-                        }
+                    }
+                    if (template.getDataStreamTemplate() != null) {
+                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
+                        validateTimestampFieldMapping(tsFieldName, mapperService);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

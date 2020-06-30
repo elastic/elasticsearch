@@ -24,7 +24,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -286,7 +285,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        Releasable releasable = checkPrimaryLimits(request.getRequest(), request.rerouteWasLocal());
+        Releasable releasable = checkPrimaryLimits(request.getRequest(), request.sentFromLocalReroute());
         ActionListener<Response> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
 
@@ -1102,17 +1101,14 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
-        private final boolean rerouteWasLocal;
+        // Indicates if this primary shard request originated by a reroute on this local node.
+        private final boolean sentFromLocalReroute;
 
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+            // sendFromLocalReroute
             targetAllocationID = in.readString();
             primaryTerm  = in.readVLong();
-            // TODO: Change after backport
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                rerouteWasLocal = in.readBoolean();
-            } else {
-                rerouteWasLocal = false;
-            }
+            sentFromLocalReroute = false;
             request = requestReader.read(in);
         }
 
@@ -1120,13 +1116,13 @@ public abstract class TransportReplicationAction<
             this(request, targetAllocationID, primaryTerm, false);
         }
 
-        public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm, boolean rerouteWasLocal) {
+        public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm, boolean sentFromLocalReroute) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
-            this.rerouteWasLocal = rerouteWasLocal;
+            this.sentFromLocalReroute = sentFromLocalReroute;
         }
 
         @Override
@@ -1155,17 +1151,17 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            // If sentFromLocalReroute is marked true, then this request should just be looped back through
+            // the local transport. It should never be serialized to be sent over the wire. If it is sent over
+            // the wire, then it was NOT sent from a local reroute.
+            assert sentFromLocalReroute == false;
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
-            // TODO: Change after backport
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(rerouteWasLocal);
-            }
             request.writeTo(out);
         }
 
-        public boolean rerouteWasLocal() {
-            return rerouteWasLocal;
+        public boolean sentFromLocalReroute() {
+            return sentFromLocalReroute;
         }
 
         public R getRequest() {

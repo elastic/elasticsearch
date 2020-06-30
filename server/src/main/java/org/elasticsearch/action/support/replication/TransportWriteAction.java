@@ -85,7 +85,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
-        // If the reroute this primary request was submitted by a reroute on this local node, we have already
+        // If this primary request was submitted by a reroute performed on this local node, we have already
         // accounted the bytes.
         if (rerouteWasLocal) {
             return () -> {};

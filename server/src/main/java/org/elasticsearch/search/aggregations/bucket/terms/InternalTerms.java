@@ -84,7 +84,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (showDocCountError) {
                 docCountError = in.readLong();
             }
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override

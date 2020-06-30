@@ -1113,22 +1113,21 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
 
         @Override
-        protected LogicalPlan nonMatchingFilter(Filter filter) {
-            return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
+        protected LogicalPlan skipPlan(Filter filter) {
+            return Optimizer.skipPlan(filter);
         }
     }
 
+    static class SkipQueryOnLimitZero extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SkipQueryOnLimitZero {
 
-    static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override
-        protected LogicalPlan rule(Limit limit) {
-            if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
-                    return new LocalRelation(limit.source(), new EmptyExecutable(limit.output()));
-                }
-            }
-            return limit;
+        protected LogicalPlan skipPlan(Limit limit) {
+            return Optimizer.skipPlan(limit);
         }
+    }
+
+    private static LogicalPlan skipPlan(UnaryPlan plan) {
+        return new LocalRelation(plan.source(), new EmptyExecutable(plan.output()));
     }
 
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {

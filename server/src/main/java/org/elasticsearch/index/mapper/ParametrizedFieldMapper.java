@@ -197,7 +197,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<String> stringParam(String name, boolean updateable,
                                                     Function<FieldMapper, String> initializer, String defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), initializer);
+            return new Parameter<>(name, updateable, defaultValue,
+                (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), initializer);
         }
     }
 

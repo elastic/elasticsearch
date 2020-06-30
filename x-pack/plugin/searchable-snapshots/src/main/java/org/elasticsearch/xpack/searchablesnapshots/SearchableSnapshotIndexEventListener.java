@@ -26,16 +26,16 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
-        injectRecoveryStats(indexShard);
+        setRecoveryState(indexShard);
         ensureSnapshotIsLoaded(indexShard);
         associateNewEmptyTranslogWithIndex(indexShard);
     }
 
-    private static void injectRecoveryStats(IndexShard indexShard) {
+    private static void setRecoveryState(IndexShard indexShard) {
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        directory.addRecoveryListener(indexShard.recoveryState());
+        directory.setRecoveryState(indexShard.recoveryState());
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {

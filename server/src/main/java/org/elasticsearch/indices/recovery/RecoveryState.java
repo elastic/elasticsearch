@@ -661,9 +661,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public void setLength(long length) {
-            assert this.length == UNKNOWN_LENGTH;
+            assert this.length == UNKNOWN_LENGTH : "Expected to have unknown length but it was " + length;
             assert length >= recovered : "expected length to be greater than " + recovered + " but it was " + length;
-            assert reused == false;
+            assert reused == false : "file is marked as reused, can't set the length of a reused file";
 
             this.length = length;
         }
@@ -926,7 +926,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             long recovered = 0;
             Collection<File> fileDetails = getFileDetails();
             for (File file : fileDetails) {
-                if (file.reused() == false && file.unknownLength() == false) {
+                if (file.reused() == false) {
                     total += file.length();
                     recovered += file.recovered();
                 }

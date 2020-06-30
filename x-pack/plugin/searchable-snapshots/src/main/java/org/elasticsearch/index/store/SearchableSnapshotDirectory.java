@@ -308,9 +308,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     protected IndexInputStats createIndexInputStats(final String fileName, final long fileLength) {
-        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier, (writtenBytes) -> {
+        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier, (bytesWritten) -> {
             if (recoveryState != null) {
-                recoveryState.getIndex().addRecoveredBytesToFile(fileName, writtenBytes);
+                recoveryState.getIndex().addRecoveredBytesToFile(fileName, bytesWritten);
             }
         });
     }
@@ -519,7 +519,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public void addRecoveryListener(RecoveryState recoveryState) {
+    public void setRecoveryState(RecoveryState recoveryState) {
         this.recoveryState = recoveryState;
     }
 

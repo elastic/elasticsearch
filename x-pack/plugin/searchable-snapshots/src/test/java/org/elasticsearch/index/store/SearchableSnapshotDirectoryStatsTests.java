@@ -608,7 +608,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     if (seekingThreshold == null) {
                         return super.createIndexInputStats(fileName, fileLength);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos, (l) -> {});
+                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos, (b) -> {});
                 }
             }
         ) {

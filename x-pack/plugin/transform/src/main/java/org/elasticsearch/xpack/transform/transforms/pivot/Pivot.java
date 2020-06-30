@@ -60,7 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class Pivot implements Function {
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
-    public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
+    private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
@@ -242,8 +242,14 @@ public class Pivot implements Function {
                         )
                     );
                     break;
-                default:
+                case GEOTILE_GRID:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.GeoTileFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
                     break;
+                default:
+                    throw new IllegalArgumentException("unknown type");
             }
         }
 
@@ -287,10 +293,6 @@ public class Pivot implements Function {
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
-            logger.info(
-                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
-                transformId
-            );
             return null;
         }
 

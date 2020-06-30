@@ -229,12 +229,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                // create the function
-                function = FunctionFactory.create(getConfig());
-
-                if (isContinuous()) {
-                    changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
-                }
+                initializeFunction();
 
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
@@ -325,6 +320,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         } else {
             hasSourceChanged = true;
             changedSourceListener.onResponse(null);
+        }
+    }
+
+    protected void initializeFunction() {
+        // create the function
+        function = FunctionFactory.create(getConfig());
+
+        if (isContinuous()) {
+            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
         }
     }
 
@@ -733,7 +737,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         sourceBuilder.query(filteredQuery);
-
         logger.trace("running query: {}", sourceBuilder);
 
         return sourceBuilder;

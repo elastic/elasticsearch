@@ -232,7 +232,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     public boolean processSearchResponse(final SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
-            // todo: log
             return true;
         }
 

@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -123,6 +122,10 @@ public class TransformIndexerTests extends ESTestCase {
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
+        }
+
+        public void initialize() {
+            this.initializeFunction();
         }
 
         public CountDownLatch newLatch(int count) {
@@ -294,7 +297,6 @@ public class TransformIndexerTests extends ESTestCase {
         assertThat(pageSizeAfterFirstReduction, greaterThan((long) TransformIndexer.MINIMUM_PAGE_SIZE));
     }
 
-    @AwaitsFix(bugUrl = "no issue yet")
     public void testDoProcessAggNullCheck() {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
         TransformConfig config = new TransformConfig(
@@ -345,12 +347,12 @@ public class TransformIndexerTests extends ESTestCase {
             auditor,
             context
         );
+        indexer.initialize();
 
         IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
         assertThat(newPosition.getToIndex(), is(empty()));
         assertThat(newPosition.getPosition(), is(nullValue()));
         assertThat(newPosition.isDone(), is(true));
-        verify(auditor, times(1)).info(anyString(), anyString());
     }
 
     public void testScriptError() throws Exception {

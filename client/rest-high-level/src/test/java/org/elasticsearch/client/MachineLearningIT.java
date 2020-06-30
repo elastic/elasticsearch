@@ -1869,7 +1869,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
-        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+        assertThat(mseResult.getValue(), closeTo(0.061000000, 1e-9));
 
         MeanSquaredLogarithmicErrorMetric.Result msleResult =
             evaluateDataFrameResponse.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME);

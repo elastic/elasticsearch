@@ -3582,7 +3582,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::evaluate-data-frame-results-regression
             MeanSquaredErrorMetric.Result meanSquaredErrorResult = response.getMetricByName(MeanSquaredErrorMetric.NAME); // <1>
-            double meanSquaredError = meanSquaredErrorResult.getError(); // <2>
+            double meanSquaredError = meanSquaredErrorResult.getValue(); // <2>
 
             MeanSquaredLogarithmicErrorMetric.Result meanSquaredLogarithmicErrorResult =
                 response.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME); // <3>

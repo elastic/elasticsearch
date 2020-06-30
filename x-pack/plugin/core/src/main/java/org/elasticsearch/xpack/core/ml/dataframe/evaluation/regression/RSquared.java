@@ -185,7 +185,7 @@ public class RSquared implements EvaluationMetric {
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(value);
+            return Double.hashCode(value);
         }
     }
 }

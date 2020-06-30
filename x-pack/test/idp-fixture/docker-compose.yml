@@ -78,7 +78,7 @@ services:
       - xpack.security.authc.realms.oidc.c2id-post.claims.mail=email
       - xpack.security.authc.realms.oidc.c2id-post.claims.groups=groups
       - xpack.security.authc.realms.oidc.c2id-jwt.order=6
-      - xpack.security.authc.realms.oidc.c2id-jwt.op.issuer=http://oidc-provider:8080/c2idaggre
+      - xpack.security.authc.realms.oidc.c2id-jwt.op.issuer=http://oidc-provider:8080/c2id
       - xpack.security.authc.realms.oidc.c2id-jwt.op.authorization_endpoint=http://oidc-provider:8080/c2id-login
       - xpack.security.authc.realms.oidc.c2id-jwt.op.token_endpoint=http://oidc-provider:8080/c2id/token
       - xpack.security.authc.realms.oidc.c2id-jwt.op.userinfo_endpoint=http://oidc-provider:8080/c2id/userinfo

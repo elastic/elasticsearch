@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -121,7 +122,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                     .indices(concreteIndices).type(request.type())
                     .source(request.source());
 
-        metadataMappingService.putMapping(updateRequest, new ActionListener<>() {
+        metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

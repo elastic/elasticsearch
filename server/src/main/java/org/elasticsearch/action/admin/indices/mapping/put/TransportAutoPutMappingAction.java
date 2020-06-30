@@ -83,7 +83,7 @@ public class TransportAutoPutMappingAction extends TransportMasterNodeAction<Put
     }
 
     @Override
-    protected void masterOperation(Task task, final PutMappingRequest request, final ClusterState state,
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = new Index[] {request.getConcreteIndex()};
         performMappingUpdate(concreteIndices, request, listener, metadataMappingService);

@@ -21,7 +21,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -381,57 +380,4 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         builder.field("mode", mode);
     }
-
-    public static DocValueFormat VERSION_SEMVER = new DocValueFormat() {
-
-        @Override
-        public String getWriteableName() {
-            return "version_semver";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {}
-
-        @Override
-        public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value, SortMode.SEMVER);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value, SortMode.SEMVER);
-        }
-
-        @Override
-        public String toString() {
-            return getWriteableName();
-        }
-    };
-
-    public static DocValueFormat VERSION_NUMERIC = new DocValueFormat() {
-
-        @Override
-        public String getWriteableName() {
-            return "version_numeric";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {}
-
-        @Override
-        public String format(BytesRef value) {
-            return VersionEncoder.decodeVersion(value, SortMode.NATURAL);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
-        }
-
-        @Override
-        public String toString() {
-            return getWriteableName();
-        }
-    };
-
 }

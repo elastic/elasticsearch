@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.index.mapper.VersionStringFieldMapper;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
@@ -76,35 +76,26 @@ public class VersionEncoder {
          * strict semver precedence treats everything alphabetically, e.g. "rc11" &lt; "rc2"
          */
         SEMVER {
-            @Override
-            public void encode(String part, BytesRefBuilder result) {
-                result.append(new BytesRef(part));
-            }
 
             @Override
             public DocValueFormat docValueFormat() {
-                return VersionStringFieldMapper.VERSION_SEMVER;
+                return VERSION_SEMVER;
             }
 
             @Override
             public String toString() {
                 return "semver";
             }
-
         },
         /**
          * This mode will order mixed strings so that the numeric parts are treated with numeric ordering,
          * e.g. "rc2" &lt; "rc11", "alpha523" &lt; "alpha1234"
          */
         NATURAL {
-            @Override
-            public void encode(String part, BytesRefBuilder result) {
-                prefixDigitGroupsWithLength(part, result);
-            }
 
             @Override
             public DocValueFormat docValueFormat() {
-                return VersionStringFieldMapper.VERSION_NUMERIC;
+                return VERSION_NUMERIC;
             }
 
             @Override
@@ -113,8 +104,57 @@ public class VersionEncoder {
             }
         };
 
-        public abstract void encode(String part, BytesRefBuilder result);
+        private static DocValueFormat VERSION_SEMVER = new DocValueFormat() {
 
+            @Override
+            public String getWriteableName() {
+                return "version_semver";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public String format(BytesRef value) {
+                return VersionEncoder.decodeVersion(value);
+            }
+
+            @Override
+            public BytesRef parseBytesRef(String value) {
+                return VersionEncoder.encodeVersion(value, SortMode.SEMVER);
+            }
+
+            @Override
+            public String toString() {
+                return getWriteableName();
+            }
+        };
+
+        private static DocValueFormat VERSION_NUMERIC = new DocValueFormat() {
+
+            @Override
+            public String getWriteableName() {
+                return "version_numeric";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public String format(BytesRef value) {
+                return VersionEncoder.decodeVersion(value);
+            }
+
+            @Override
+            public BytesRef parseBytesRef(String value) {
+                return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
+            }
+
+            @Override
+            public String toString() {
+                return getWriteableName();
+            }
+        };
         public abstract DocValueFormat docValueFormat();
 
         public static SortMode fromString(String mode) {
@@ -127,7 +167,6 @@ public class VersionEncoder {
                     throw new IllegalArgumentException("Unknown version field mode: " + mode);
             }
         }
-
     }
 
     /**
@@ -163,7 +202,11 @@ public class VersionEncoder {
                 if (isNumeric) {
                     prefixDigitGroupsWithLength(preReleasePart, encodedVersion);
                 } else {
-                    mode.encode(preReleasePart, encodedVersion);
+                    if (mode == SortMode.SEMVER) {
+                        encodedVersion.append(new BytesRef(preReleasePart));
+                    } else {
+                        prefixDigitGroupsWithLength(preReleasePart, encodedVersion);
+                    }
                 }
                 first = false;
             }
@@ -213,7 +256,7 @@ public class VersionEncoder {
         }
     }
 
-    public static String decodeVersion(BytesRef version, SortMode mode) {
+    public static String decodeVersion(BytesRef version) {
         // System.out.println("decoding: " + version);
         int pos = 0;
         StringBuilder sb = new StringBuilder();

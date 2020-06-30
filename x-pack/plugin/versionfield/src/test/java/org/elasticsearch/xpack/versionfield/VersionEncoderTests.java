@@ -61,7 +61,7 @@ public class VersionEncoderTests extends ESTestCase {
             "1.0.0-beta+someBuildNumber-123456-open",
             "1.3.0+build1234567"
         )) {
-            String decoded = decodeVersion(encSemver(version), SortMode.SEMVER);
+            String decoded = decodeVersion(encSemver(version));
             assertEquals(version, decoded);
         }
     }
@@ -104,7 +104,7 @@ public class VersionEncoderTests extends ESTestCase {
             "1.0.0-beta+someBuildNumber-123456-open",
             "1.3.0+build1234567"
         )) {
-            String decoded = decodeVersion(encSemver(version), SortMode.NATURAL);
+            String decoded = decodeVersion(encSemver(version));
             assertEquals(version, decoded);
         }
     }
@@ -113,7 +113,7 @@ public class VersionEncoderTests extends ESTestCase {
         String versionString = "1.0." + "1".repeat(128);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> decodeVersion(encSemver(versionString), SortMode.SEMVER)
+            () -> decodeVersion(encSemver(versionString))
         );
         assertEquals("Groups of digits cannot be longer than 127, but found: 128", ex.getMessage());
     }
@@ -124,7 +124,7 @@ public class VersionEncoderTests extends ESTestCase {
     public void testRandomRoundtrip() {
         VersionEncoder.strictSemverCheck = false;
         String versionString = randomVersionString();
-        assertEquals(versionString, decodeVersion(encSemver(versionString), SortMode.SEMVER));
+        assertEquals(versionString, decodeVersion(encSemver(versionString)));
     }
 
     private String randomVersionString() {

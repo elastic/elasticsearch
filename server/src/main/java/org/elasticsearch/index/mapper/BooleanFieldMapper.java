@@ -262,7 +262,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(name()).init(this);
+        return new Builder(simpleName()).init(this);
     }
 
     @Override

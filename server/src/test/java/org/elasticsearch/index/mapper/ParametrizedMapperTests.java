@@ -21,19 +21,37 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class ParametrizedMapperTests extends ESTestCase {
+public class ParametrizedMapperTests extends AbstractBuilderTestCase {
+
+    public static class TestPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Map<String, Mapper.TypeParser> getMappers() {
+            return Map.of("test_mapper", new TypeParser());
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class); //WTF
+    }
 
     private static TestMapper toType(Mapper in) {
         return (TestMapper) in;
@@ -59,8 +77,8 @@ public class ParametrizedMapperTests extends ESTestCase {
 
         @Override
         public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
-            return new TestMapper(buildFullName(context), fixed.getValue(), fixed2.getValue(), variable.getValue(),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+            return new TestMapper(name(), buildFullName(context),
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -80,11 +98,12 @@ public class ParametrizedMapperTests extends ESTestCase {
         private final boolean fixed2;
         private final String variable;
 
-        protected TestMapper(String simpleName, boolean fixed, boolean fixed2, String variable, MultiFields multiFields, CopyTo copyTo) {
-            super(simpleName, new KeywordFieldMapper.KeywordFieldType("test"), multiFields, copyTo);
-            this.fixed = fixed;
-            this.fixed2 = fixed2;
-            this.variable = variable;
+        protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
+                             ParametrizedMapperTests.Builder builder) {
+            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), multiFields, copyTo);
+            this.fixed = builder.fixed.getValue();
+            this.fixed2 = builder.fixed2.getValue();
+            this.variable = builder.variable.getValue();
         }
 
         @Override
@@ -195,6 +214,19 @@ public class ParametrizedMapperTests extends ESTestCase {
         TestMapper removeCopyTo = fromMapping("{\"type\":\"test_mapper\",\"variable\":\"updated\"}");
         TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo);
         assertEquals("{\"test\":{\"type\":\"test_mapper\",\"variable\":\"updated\"}}", Strings.toString(noCopyTo));
+    }
+
+    public void testObjectSerialization() throws IOException {
+
+        QueryShardContext c = createShardContext();
+
+        String mapping = "{\"properties\":{\"object\":{\"properties\":{\"nestedobject\":{\"type\":\"test_mapper\"}}}}}";
+        DocumentMapperParser parser = new DocumentMapperParser(c.getIndexSettings(), c.getMapperService(),
+            c.getXContentRegistry(), c.getSimilarityService(), c.getMapperService().mapperRegistry, () -> c);
+
+        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        assertEquals("{\"_doc\":" + mapping + "}", Strings.toString(mapper));
+
     }
 
 }

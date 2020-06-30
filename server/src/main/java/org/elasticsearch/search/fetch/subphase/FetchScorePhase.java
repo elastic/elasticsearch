@@ -30,8 +30,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 
 public class FetchScorePhase implements FetchSubPhase {
@@ -43,9 +41,6 @@ public class FetchScorePhase implements FetchSubPhase {
                 context.sort() == null) {
             return;
         }
-
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         final IndexSearcher searcher = context.searcher();
         final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);

@@ -15,7 +15,7 @@ setup:
         body:  >
           {
             "indices": [
-              { "names": ["simple*"], "privileges": ["read", "write"] }
+              { "names": ["simple*"], "privileges": ["read", "write", "view_index_metadata"] }
             ]
           }
 
@@ -111,6 +111,37 @@ teardown:
         body:   { foo: bar2 }
 
   - match: { _version: 2 }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Test that requests not supporting data streams do not include data streams among authorized indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create:
+        index: simple-index
+        body:
+          aliases:
+            simple-alias: {}
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get_alias:
+        name: simple*
+
+  - match: {simple-index.aliases.simple-alias: {}}
+  - is_false: simple-data-stream1
 
   - do: # superuser
       indices.delete_data_stream:

@@ -251,9 +251,29 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(createSlowFuture);
     }
 
+    public void testMultipleReposAreIndependent3() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String blockedRepoName = "test-repo-blocked";
+        final String otherRepoName = "test-repo";
+        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createRepository(otherRepoName, "fs", randomRepoPath());
+        createIndexWithContent("test-index");
+
+        createFullSnapshot( blockedRepoName, "blocked-snapshot");
+        blockNodeOnAnyFiles(blockedRepoName, masterNode);
+        final ActionFuture<AcknowledgedResponse> slowDeleteFuture = startDelete(blockedRepoName, "*");
+
+        logger.info("--> waiting for concurrent snapshot(s) to finish");
+        createNSnapshots(otherRepoName, randomIntBetween(1, 5));
+        assertAcked(startDelete(otherRepoName, "*").get());
+
+        unblockNode(blockedRepoName, masterNode);
+        assertAcked(slowDeleteFuture.actionGet());
+    }
+
     private static String startDataNodeWithLargeSnapshotPool() {
-        return internalCluster().startDataOnlyNode(Settings.builder()
-                .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build());
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
     }
     public void testSnapshotRunsAfterInProgressDelete() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -704,8 +724,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 
-        internalCluster().startMasterOnlyNodes(3, Settings.builder()
-            .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build());
+        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
@@ -973,6 +992,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             future.get(30L, TimeUnit.SECONDS);
         }
     }
+
+    // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
+    // threads so that blocking some threads on one repository doesn't block other repositories from doing work
+    private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
     private static final Settings SINGLE_SHARD_NO_REPLICA =
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();

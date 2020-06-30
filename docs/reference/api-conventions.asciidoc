@@ -19,15 +19,16 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list (e.g.,
-`test1,test2,test3`) to execute a request across multiple data streams, indices,
-and index aliases. You can also use 
+`test1,test2,test3`) to execute a request across multiple resources, such as
+data streams, indices, or index aliases. You can also use
 https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
-expressions (e.g., `test*` or `*test` or `te*t` or `*test*`) to target any 
-data stream, index, or index alias that matches the pattern.
+expressions (e.g., `test*` or `*test` or `te*t` or `*test*`) to target any
+resources that match the pattern.
 
 You can exclude targets using the `-` character (e.g., `test*,-test3`).
 
-Multi-target APIs also support the following query string parameters:
+Multi-target APIs that can target indices support the following query
+string parameters:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -37,7 +38,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
-Some multi-target APIs also support the following query string parameter:
+Some multi-target APIs that can target indices also support the following query
+string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
@@ -51,10 +53,11 @@ syntax.
 Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter support _date math_.
 
-Date math name resolution lets you dynamically search a range of data streams, indices, or
-index aliases that include a time or date component in their name. For indices,
-this is a useful alternative to maintaining an index alias or searching all
-indices in a cluster and filtering the results.
+Date math name resolution lets you dynamically search a range of resources, such
+as data streams or indices, that include a time or date component in their name.
+
+For indices, this is a useful alternative to maintaining an index alias or
+searching all indices in a cluster and filtering the results.
 Limiting the number of indices that are searched reduces the load on the cluster and improves
 execution performance. For example, if you are searching for errors in your
 daily logs, you can use a date math name template to restrict the search to the past

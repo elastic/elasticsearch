@@ -21,7 +21,7 @@ http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
 The following settings can be configured for HTTP. These settings also use the common <<modules-network,network settings>>.
 
-NOTE: HTTP settings cannot be updated dynamically. You must configure these settings in the {es} <<settings, configuration file>> 
+NOTE: HTTP settings cannot be updated dynamically. You must configure these settings in the {es} <<settings, configuration file>>
 and restart {es} for changes to take effect.
 
 `http.port`::
@@ -114,10 +114,9 @@ NOTE: This header is only returned when the setting is set to `true`.
 // end::http-cors-allow-credentials-tag[]
 
 `http.detailed_errors.enabled`::
-Enables or disables the output of detailed error messages and stack traces in response output. Defaults to `true`.
+If `true`, enables the output of detailed error messages and stack traces in the response output. Defaults to `true`.
 +
-NOTE: When set to `false` and the `error_trace` request
-parameter is specified, an error will be returned. When `error_trace` is not specified, a simple message will be returned.
+If `false`, use the `error_trace` parameter to <<common-options-error-options,enable stack traces>> and return detailed error messages. Otherwise, only a simple message will be returned.
 
 `http.pipelining.max_events`::
 The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.

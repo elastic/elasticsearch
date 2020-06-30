@@ -107,7 +107,7 @@ task copyRuntimeLibs(type: Copy) {
     Files.createDirectories(vendorPath)
   }
   into vendorPath.toString()
-  from configurations.compile, configurations.runtime
+  from configurations.runtimeClasspath
 }
 
 task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {

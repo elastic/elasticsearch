@@ -45,7 +45,7 @@ if (!isEclipse) {
   }
 
   configurations {
-    java11Compile.extendsFrom(compile)
+    java11Compile.extendsFrom(api)
   }
 
   dependencies {

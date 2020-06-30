@@ -140,7 +140,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
-    private Settings settings;
+    private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;

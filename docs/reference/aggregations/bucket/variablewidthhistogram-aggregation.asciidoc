@@ -1,6 +1,8 @@
 [[search-aggregations-bucket-variablewidthhistogram-aggregation]]
 === Variable Width Histogram Aggregation
 
+experimental::["We're evaluating the request and response format for this new aggregation.",https://github.com/elastic/elasticsearch/issues/58573]
+
 This is a multi-bucket aggregation similar to <<search-aggregations-bucket-histogram-aggregation>>.
 However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals
 are dynamically determined based on the document distribution. This is done using a simple one-pass document clustering algorithm

@@ -49,7 +49,7 @@ public class EnforceDeprecationFailuresPlugin implements Plugin<Project> {
             sourceSetContainer.all(
                 sourceSet -> {
                     // TODO: remove that guard once we removed general compile usage from es build
-                    if (sourceSet.getName().equals("test")) {
+                    if (sourceSet.getName().equals("test") || sourceSet.getName().equals("main")) {
                         failOnCompileConfigurationResolution(sourceSet);
                         failOnCompileConfigurationDependencyDeclaration(sourceSet);
                     }
@@ -78,15 +78,13 @@ public class EnforceDeprecationFailuresPlugin implements Plugin<Project> {
             .getByName(sourceSet.getCompileConfigurationName())
             .getIncoming()
             .beforeResolve(resolvableDependencies -> {
-                if (resolvableDependencies.getDependencies().size() > 0) {
-                    throw new GradleException(
-                        "Resolving configuration "
-                            + sourceSet.getCompileConfigurationName()
-                            + " is no longer supported. Use "
-                            + sourceSet.getImplementationConfigurationName()
-                            + " instead."
-                    );
-                }
+                throw new GradleException(
+                    "Resolving configuration "
+                        + sourceSet.getCompileConfigurationName()
+                        + " is no longer supported. Use "
+                        + sourceSet.getImplementationConfigurationName()
+                        + " instead."
+                );
             });
     }
 

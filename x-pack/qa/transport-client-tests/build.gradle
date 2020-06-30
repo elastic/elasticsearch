@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testImplementation project(path: xpackProject('transport-client').path)
 }
 
 testClusters.integTest {

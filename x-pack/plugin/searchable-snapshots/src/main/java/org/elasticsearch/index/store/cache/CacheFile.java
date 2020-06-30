@@ -7,12 +7,11 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,13 +19,17 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 
 public class CacheFile {
 
@@ -259,38 +262,68 @@ public class CacheFile {
         }
     }
 
-    CompletableFuture<Integer> fetchRange(
-        long start,
-        long end,
-        CheckedBiFunction<Long, Long, Integer, IOException> onRangeAvailable,
-        CheckedBiConsumer<Long, Long, IOException> onRangeMissing
+    @FunctionalInterface
+    interface CacheReader {
+        int read(FileChannel channel) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface CacheWriter {
+        void write(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+    }
+
+    CompletableFuture<Integer> fetchAsync(
+        final Tuple<Long, Long> rangeToWrite,
+        final Tuple<Long, Long> rangeToRead,
+        final CacheReader reader,
+        final CacheWriter writer,
+        final Executor executor
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
-            if (start < 0 || start > tracker.getLength() || start > end || end > tracker.getLength()) {
-                throw new IllegalArgumentException(
-                    "Invalid range [start=" + start + ", end=" + end + "] for length [" + tracker.getLength() + ']'
-                );
-            }
             ensureOpen();
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                Tuple.tuple(start, end),
-                Tuple.tuple(start, end), // TODO use progressive sub range to trigger read operations sooner
-                ActionListener.wrap(
-                    rangeReady -> future.complete(onRangeAvailable.apply(start, end)),
-                    rangeFailure -> future.completeExceptionally(rangeFailure)
-                )
+                rangeToWrite,
+                rangeToRead,
+                ActionListener.wrap(success -> future.complete(reader.read(channel)), future::completeExceptionally)
             );
 
-            for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    ensureOpen();
-                    onRangeMissing.accept(gap.start(), gap.end());
-                    gap.onProgress(gap.end()); // TODO update progress in onRangeMissing
-                    gap.onCompletion();
-                } catch (Exception e) {
-                    gap.onFailure(e);
-                }
+            if (gaps.isEmpty() == false) {
+                final Iterator<SparseFileTracker.Gap> iterator = new ArrayList<>(gaps).iterator();
+                executor.execute(new AbstractRunnable() {
+
+                    @Override
+                    protected void doRun() {
+                        while (iterator.hasNext()) {
+                            final SparseFileTracker.Gap gap = iterator.next();
+                            try {
+                                ensureOpen();
+                                if (readLock.tryLock() == false) {
+                                    throw new AlreadyClosedException("Cache file channel is being evicted, writing attempt cancelled");
+                                }
+                                try {
+                                    ensureOpen();
+                                    if (channel == null) {
+                                        throw new AlreadyClosedException("Cache file channel has been released and closed");
+                                    }
+                                    writer.write(channel, gap.start(), gap.end(), gap::onProgress);
+                                    gap.onCompletion();
+                                } finally {
+                                    readLock.unlock();
+                                }
+                            } catch (Exception e) {
+                                gap.onFailure(e);
+                            } finally {
+                                iterator.remove();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        iterator.forEachRemaining(gap -> gap.onFailure(e));
+                    }
+                });
             }
         } catch (Exception e) {
             future.completeExceptionally(e);

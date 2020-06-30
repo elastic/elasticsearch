@@ -34,7 +34,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -241,5 +243,13 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     @Override
     protected boolean docValuesByDefault() {
         return false;
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+       TimestampFieldMapper otherTimestampFieldMapper = (TimestampFieldMapper) other;
+       if (Objects.equals(path, otherTimestampFieldMapper.path) == false) {
+           conflicts.add("cannot update path setting for [_timestamp]");
+       }
     }
 }

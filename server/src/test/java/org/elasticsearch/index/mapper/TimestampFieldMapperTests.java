@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.SourceFieldMapperTests.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
@@ -122,6 +123,19 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(),
             equalTo("the timestamp field has disallowed attributes: [null_value, ignore_malformed]"));
+    }
+
+    public void testCannotUpdateTimestampField() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        String mapping1 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp\"}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
+        String mapping2 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
+            "\"@timestamp\": {\"type\": \"date\"}}}})";
+        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_timestamp]");
+
+        mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
+        mapping2 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
+            "\"@timestamp\": {\"type\": \"date\"}}}})";
+        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_timestamp]");
     }
 
 }

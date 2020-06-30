@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
@@ -62,7 +63,7 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
@@ -92,7 +93,7 @@ public class LocalModelTests extends ESTestCase {
 
         // Test with labels
         definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(true))
             .build();
         model = new LocalModel(modelId,
@@ -133,11 +134,11 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(true))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -189,7 +190,7 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegressionInference())
             .build();
         LocalModel model = new LocalModel("regression_model",
@@ -215,10 +216,10 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegressionInference())
             .build();
-        Model model = new LocalModel(
+        LocalModel model = new LocalModel(
             "regression_model",
             "test-node",
             trainedModelDefinition,
@@ -245,11 +246,11 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -279,14 +280,36 @@ public class LocalModelTests extends ESTestCase {
         }), anyBoolean());
     }
 
-    private static SingleValueInferenceResults getSingleValue(Model model,
+    public void testMapFieldsIfNecessary() {
+        Map<String, String> fieldMap = new TreeMap<>();
+        fieldMap.put("a1", "a2");
+        fieldMap.put("b1", "b2");
+        fieldMap.put("missing1", "missing2");
+
+        Map<String, Object> fields = new TreeMap<>();
+        fields.put("a1", "a_value");
+        fields.put("b1", "b_value");
+
+
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
+
+        Map<String, Object> expectedMap = new TreeMap<>();
+        expectedMap.put("a1", "a_value");
+        expectedMap.put("b1", "b_value");
+        expectedMap.put("a2", "a_value");
+        expectedMap.put("b2", "b_value");
+
+        assertThat(fields, equalTo(expectedMap));
+    }
+
+    private static SingleValueInferenceResults getSingleValue(LocalModel model,
                                                               Map<String, Object> fields,
                                                               InferenceConfigUpdate config)
         throws Exception {
         return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
     }
 
-    private static InferenceResults getInferenceResult(Model model,
+    private static InferenceResults getInferenceResult(LocalModel model,
                                                        Map<String, Object> fields,
                                                        InferenceConfigUpdate config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();

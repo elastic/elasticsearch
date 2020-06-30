@@ -232,9 +232,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MultiBucketConsumer bucketConsumer,
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
+        throws IOException {
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder
-            .rewrite(searchContext.getQueryShardContext())
+        A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
             .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
@@ -312,7 +316,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
                 BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested()).build(context);
             }
             return null;
         });
@@ -873,6 +877,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Releasables.close(releasables);
         releasables.clear();
     }
+
+    /**
+     * Hook for checking things after all {@link Aggregator}s have been closed.
+     */
+    protected void afterClose() {}
 
     /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.

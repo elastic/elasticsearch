@@ -1,5 +1,8 @@
 [[analysis-letter-tokenizer]]
-=== Letter Tokenizer
+=== Letter tokenizer
+++++
+<titleabbrev>Letter</titleabbrev>
+++++
 
 The `letter` tokenizer breaks text into terms whenever it encounters a
 character which is not a letter. It does a reasonable job for most European

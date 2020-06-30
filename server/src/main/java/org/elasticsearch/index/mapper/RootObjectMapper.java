@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -31,12 +29,14 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,9 +45,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
-
-    private static final Logger LOGGER = LogManager.getLogger(RootObjectMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
@@ -83,45 +81,45 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(BuilderContext context) {
-            fixRedundantIncludes(this, true);
             return (RootObjectMapper) super.build(context);
         }
 
-        /**
-         * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
-         * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
-         * itself included into a parent node, for which either {@code isIncludeInRoot} is
-         * {@code true} or which is transitively included in root by a chain of nodes with
-         * {@code isIncludeInParent} returning {@code true}.
-         * @param omb Builder whose children to check.
-         * @param parentIncluded True iff node is a child of root or a node that is included in
-         * root
-         */
-        @SuppressWarnings("rawtypes")
-        private static void fixRedundantIncludes(ObjectMapper.Builder omb, boolean parentIncluded) {
-            for (Object mapper : omb.mappersBuilders) {
-                if (mapper instanceof ObjectMapper.Builder) {
-                    ObjectMapper.Builder child = (ObjectMapper.Builder) mapper;
-                    Nested nested = child.nested;
-                    boolean isNested = nested.isNested();
-                    boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
-                    boolean includedInRoot = isNested && nested.isIncludeInRoot();
-                    if (includeInRootViaParent && includedInRoot) {
-                        child.nested = Nested.newNested(true, false);
-                    }
-                    fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
-                }
-            }
-        }
-
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
             return new RootObjectMapper(name, enabled, dynamic, mappers,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
                     dateDetection, numericDetection, settings);
+        }
+    }
+
+    /**
+     * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
+     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
+     * itself included into a parent node, for which either {@code isIncludeInRoot} is
+     * {@code true} or which is transitively included in root by a chain of nodes with
+     * {@code isIncludeInParent} returning {@code true}.
+     */
+    public void fixRedundantIncludes() {
+       fixRedundantIncludes(this, true);
+    }
+
+    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
+        for (Mapper mapper : objectMapper) {
+            if (mapper instanceof ObjectMapper) {
+                ObjectMapper child = (ObjectMapper) mapper;
+                Nested nested = child.nested();
+                boolean isNested = nested.isNested();
+                boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
+                boolean includedInRoot = isNested && nested.isIncludeInRoot();
+                if (includeInRootViaParent && includedInRoot) {
+                    nested.setIncludeInParent(true);
+                    nested.setIncludeInRoot(false);
+                }
+                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+            }
         }
     }
 
@@ -213,7 +211,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
 
-    RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
+    RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Explicit<DateFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
                      Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
         super(name, name, enabled, Nested.NO, dynamic, mappers, settings);
@@ -246,6 +244,10 @@ public class RootObjectMapper extends ObjectMapper {
 
     public DateFormatter[] dynamicDateTimeFormatters() {
         return dynamicDateTimeFormatters.value();
+    }
+
+    public DynamicTemplate[] dynamicTemplates() {
+        return dynamicTemplates.value();
     }
 
     @SuppressWarnings("rawtypes")
@@ -286,25 +288,41 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith) {
-        return (RootObjectMapper) super.merge(mergeWith);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
+        return (RootObjectMapper) super.merge(mergeWith, reason);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason) {
+        super.doMerge(mergeWith, reason);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;
         }
+
         if (mergeWithObject.dateDetection.explicit()) {
             this.dateDetection = mergeWithObject.dateDetection;
         }
+
         if (mergeWithObject.dynamicDateTimeFormatters.explicit()) {
             this.dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
         }
+
         if (mergeWithObject.dynamicTemplates.explicit()) {
-            this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+            if (reason == MergeReason.INDEX_TEMPLATE) {
+                Map<String, DynamicTemplate> templatesByKey = new LinkedHashMap<>();
+                for (DynamicTemplate template : this.dynamicTemplates.value()) {
+                    templatesByKey.put(template.name(), template);
+                }
+                for (DynamicTemplate template : mergeWithObject.dynamicTemplates.value()) {
+                    templatesByKey.put(template.name(), template);
+                }
+
+                DynamicTemplate[] mergedTemplates = templatesByKey.values().toArray(new DynamicTemplate[0]);
+                this.dynamicTemplates = new Explicit<>(mergedTemplates, true);
+            } else {
+                this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+            }
         }
     }
 

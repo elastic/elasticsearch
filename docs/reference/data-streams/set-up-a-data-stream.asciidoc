@@ -26,11 +26,10 @@ TIP: Data streams work well with most common log formats. While no schema is
 required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
 (ECS)].
 
-* Data streams are designed to be <<data-streams-append-only,append-only>>.
-While you can index new documents directly to a data stream, you cannot use a
-data stream to directly update or delete individual documents. To update or
-delete specific documents in a data stream, submit a <<docs-delete,delete>> or
-<<docs-update,update>> API request to the backing index containing the document.
+* Data streams are best suited for time-based,
+<<data-streams-append-only,append-only>> use cases. If you frequently need to
+update or delete existing documents, we recommend using an index alias and an
+index template instead.
 
 
 [discrete]
@@ -93,12 +92,12 @@ PUT /_ilm/policy/logs_policy
 
 [discrete]
 [[create-a-data-stream-template]]
-=== Create a composable template for a data stream
+=== Create an index template for a data stream
 
-Each data stream requires a <<indices-templates,composable template>>. The data
+Each data stream requires an <<indices-templates,index template>>. The data
 stream uses this template to create its backing indices.
 
-Composable templates for data streams must contain:
+Index templates for data streams must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
 property.
@@ -138,7 +137,13 @@ this pattern.
   stream.
 
 * A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
-  timestamp field specified in the `timestamp_field` property.
+timestamp field specified in the `timestamp_field` property.
++
+IMPORTANT: Carefully consider the timestamp field's mapping, including
+<<mapping-params,mapping parameters>> such as <<mapping-date-format,`format`>>.
+Once the stream is created, you can only update the timestamp field's mapping by
+reindexing the data stream. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
 
 * If you intend to use {ilm-init}, you must specify the
   <<configure-a-data-stream-ilm-policy,lifecycle policy>> in the
@@ -155,7 +160,7 @@ settings of a stream's backing indices may require reindexing. See
 .*Example*
 [%collapsible]
 ====
-The following <<indices-templates,put composable template API>> request
+The following <<indices-templates,put index template API>> request
 configures the `logs_data_stream` template.
 
 [source,console]
@@ -183,14 +188,14 @@ PUT /_index_template/logs_data_stream
 // TEST[continued]
 ====
 
-NOTE: You cannot delete a composable template that's in use by a data stream.
+NOTE: You cannot delete an index template that's in use by a data stream.
 This would prevent the data stream from creating new backing indices.
 
 [discrete]
 [[create-a-data-stream]]
 === Create a data stream
 
-With a composable template, you can create a data stream using one of two
+With an index template, you can create a data stream using one of two
 methods:
 
 * Submit an <<add-documents-to-a-data-stream,indexing request>> to a target

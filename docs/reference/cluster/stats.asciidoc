@@ -235,14 +235,13 @@ Total size, in bytes, of all shards assigned to selected nodes.
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores will eventually grow due to
-ongoing peer recoveries, restoring snapshots, and similar activities. A value
-of `-1b` indicates that this is not available.
+ongoing peer recoveries, restoring snapshots, and similar activities.
 
 `reserved_in_bytes`::
 (integer)
 A prediction, in bytes, of how much larger the shard stores will eventually
 grow due to ongoing peer recoveries, restoring snapshots, and similar
-activities. A value of `-1` indicates that this is not available.
+activities.
 =====
 
 `fielddata`::

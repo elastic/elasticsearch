@@ -23,7 +23,7 @@ description = 'Fixture for Google Cloud Storage service'
 test.enabled = false
 
 dependencies {
-  compile project(':server')
+  api project(':server')
 }
 
 preProcessFixture {

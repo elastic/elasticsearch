@@ -1980,17 +1980,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // ignore
         }
     }
-
+    
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore
         } else if (e instanceof RefreshFailedEngineException) {
             RefreshFailedEngineException rfee = (RefreshFailedEngineException) e;
-            if (rfee.getCause() instanceof InterruptedException) {
-                // ignore, we are being shutdown
-            } else if (rfee.getCause() instanceof ClosedByInterruptException) {
-                // ignore, we are being shutdown
-            } else if (rfee.getCause() instanceof ThreadInterruptedException) {
+            if (rfee.getCause() instanceof InterruptedException ||
+                rfee.getCause() instanceof ClosedByInterruptException ||
+                rfee.getCause() instanceof ThreadInterruptedException ) {
                 // ignore, we are being shutdown
             } else {
                 if (state != IndexShardState.CLOSED) {
@@ -2306,7 +2304,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // in the in-sync set just yet but might be blocked on waiting for its persisted local checkpoint to catch up to
             // the global checkpoint.
             final boolean syncNeeded =
-                (asyncDurability && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync()))
+                asyncDurability && (stats.getGlobalCheckpoint() < stats.getMaxSeqNo() || replicationTracker.pendingInSync())
                     // check if the persisted global checkpoint
                     || StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
@@ -2485,6 +2483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
+        out.close();
     }
 
     Engine getEngine() {

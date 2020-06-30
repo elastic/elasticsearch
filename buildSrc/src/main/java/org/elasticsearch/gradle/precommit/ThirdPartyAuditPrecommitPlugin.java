@@ -41,7 +41,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:2.7");
 
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
-        if (BuildParams.isInternal() && !project.getPath().equals(":libs:elasticsearch-core")) {
+        if (BuildParams.isInternal() && project.getPath().equals(":libs:elasticsearch-core") == false) {
             // External plugins will depend on this already via transitive dependencies.
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself

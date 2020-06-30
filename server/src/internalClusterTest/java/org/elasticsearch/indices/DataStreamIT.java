@@ -625,7 +625,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")));
         putMapping("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", "logs-foobar").get();
-        // Only the mapping of th latest backing index should be updated:
+        // The mappings of all backing indices should be updated:
         getMappingsResponse = getMapping("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));

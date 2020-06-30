@@ -291,7 +291,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         public AggregateDoubleMetricFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         AggregateDoubleMetricFieldType(AggregateDoubleMetricFieldType other) {
@@ -567,6 +567,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     public Iterator<Mapper> iterator() {
         List<Mapper> mappers = new ArrayList<>(metricFieldMappers.values());
         return mappers.iterator();
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
     }
 
     @Override

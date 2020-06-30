@@ -23,8 +23,8 @@ esplugin {
 }
 
 dependencies {
-  testImplementation project(path: ':modules:parent-join', configuration: 'runtime')
-  testImplementation project(path: ':modules:geo', configuration: 'runtime')
+  testImplementation project(':modules:parent-join')
+  testImplementation project(':modules:geo')
 }
 
 tasks.named('integTestRunner').configure {

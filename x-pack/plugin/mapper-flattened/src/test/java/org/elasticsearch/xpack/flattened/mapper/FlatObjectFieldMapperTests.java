@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -367,7 +368,8 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
 
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
 
         expectThrows(MapperParsingException.class, () ->
             newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON)));
@@ -430,7 +432,8 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         .endObject());
 
         DocumentMapper newMapper = mapper.merge(
-            parser.parse("type", new CompressedXContent(newMapping)).mapping());
+            parser.parse("type", new CompressedXContent(newMapping)).mapping(),
+            MergeReason.MAPPING_UPDATE);
 
         ParsedDocument newParsedDoc = newMapper.parse(new SourceToParse("test", "1", doc, XContentType.JSON));
         IndexableField[] newFields = newParsedDoc.rootDoc().getFields("field");

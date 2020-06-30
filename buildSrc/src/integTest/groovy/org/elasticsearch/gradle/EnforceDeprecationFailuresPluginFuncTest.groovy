@@ -23,6 +23,7 @@ import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import spock.lang.Specification
+import spock.lang.Unroll
 
 import java.lang.management.ManagementFactory
 
@@ -44,17 +45,14 @@ class EnforceDeprecationFailuresPluginFuncTest extends Specification {
         """
     }
 
-    def "fails on testCompile resolution"() {
+    @Unroll
+    def "fails on #compileConfigName resolution"() {
         given:
         buildFile << """
             apply plugin:'java'
-            dependencies {
-                compile "org.acme:some-lib:1.0"
-            }
-
             task resolve {
                 doLast {
-                    configurations.testCompile.resolve()
+                    configurations.${compileConfigName}.resolve()
                 }
             }
             """
@@ -64,25 +62,27 @@ class EnforceDeprecationFailuresPluginFuncTest extends Specification {
         assertOutputContains(result.output, """
 * What went wrong:
 Execution failed for task ':resolve'.
-> Resolving configuration testCompile is no longer supported. Use testImplementation instead.
+> Resolving configuration $compileConfigName is no longer supported. Use $implementationConfigName instead.
 """)
+        where:
+        compileConfigName | implementationConfigName
+        "compile"         | "implementation"
+        "testCompile"     | "testImplementation"
     }
 
-    def "fails on testCompile dependency declaration"() {
+    @Unroll
+    def "fails on #compileConfigName dependency declaration"() {
         given:
         buildFile << """
-            apply plugin:'java-base'
-            sourceSets {
-                test
-            }
+            apply plugin:'java'
 
             dependencies {
-                testCompile "org.acme:some-lib:1.0"
+                $compileConfigName "org.acme:some-lib:1.0"
             }
 
-            task resolve {
+            tasks.register("resolve") {
                 doLast {
-                    configurations.testCompile.resolve()
+                    configurations.${compileConfigName}.resolve()
                 }
             }
             """
@@ -92,8 +92,12 @@ Execution failed for task ':resolve'.
         assertOutputContains(result.output, """
 * What went wrong:
 Execution failed for task ':resolve'.
-> Declaring dependencies for configuration testCompile is no longer supported. Use testImplementation instead.
+> Declaring dependencies for configuration ${compileConfigName} is no longer supported. Use ${implementationConfigName} instead.
 """)
+        where:
+        compileConfigName | implementationConfigName
+        "compile"         | "implementation"
+        "testCompile"     | "testImplementation"
     }
 
     private GradleRunner gradleRunner(String... arguments) {

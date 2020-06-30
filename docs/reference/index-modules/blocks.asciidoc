@@ -42,11 +42,13 @@ index:
     make more resources available. The <<disk-based-shard-allocation,disk-based shard
     allocator>> adds and removes this block automatically.
 
-Deleting documents from an index to release resources - rather than deleting
-the index itself - can increase the index size over time. When
-`index.blocks.read_only_allow_delete` is set to `true`, deleting documents is
-not permitted. However, deleting the index itself releases the read-only index
-block and makes resources available almost immediately.
+Deleting documents from an index - rather than deleting the index itself - can
+in fact increase the index size. When you are running out of disk space
+`index.blocks.read_only_allow_delete` is set to `true`, preventing you from
+consuming more disk space by deleting some documents. However, this block does
+permit you to delete the index itself since this does not require any extra
+disk space. When you delete an index the data is removed from disk almost
+immediately, freeing the space it consumes.
 
 IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
 disk utilisation exceeds the <<cluster-routing-flood_stage,flood-stage

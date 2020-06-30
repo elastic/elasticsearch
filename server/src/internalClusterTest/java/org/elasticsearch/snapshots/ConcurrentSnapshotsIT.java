@@ -25,6 +25,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -983,6 +985,74 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    public void testStatusMultipleSnapshotsMultipleRepos() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
+        // left for the second concurrent snapshot.
+        final String dataNode = startDataNodeWithLargeSnapshotPool();
+        final String blockedRepoName = "test-repo-blocked-1";
+        final String otherBlockedRepoName = "test-repo-blocked-2";
+        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createRepository(otherBlockedRepoName, "mock", randomRepoPath());
+        createIndexWithContent("test-index");
+
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture1 =
+            startFullSnapshotBlockedOnDataNode("blocked-snapshot", blockedRepoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture2 =
+            startFullSnapshotBlockedOnDataNode("blocked-snapshot-2", blockedRepoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture3 =
+            startFullSnapshotBlockedOnDataNode("other-blocked-snapshot", otherBlockedRepoName, dataNode);
+        awaitNSnapshotsInProgress(3);
+
+        assertSnapshotStatusCountOnRepo("_all", 3);
+        assertSnapshotStatusCountOnRepo(blockedRepoName, 2);
+        assertSnapshotStatusCountOnRepo(otherBlockedRepoName, 1);
+
+        unblockNode(blockedRepoName, dataNode);
+        awaitNSnapshotsInProgress(1);
+        assertSnapshotStatusCountOnRepo("_all", 1);
+        assertSnapshotStatusCountOnRepo(blockedRepoName, 0);
+        assertSnapshotStatusCountOnRepo(otherBlockedRepoName, 1);
+
+        unblockNode(otherBlockedRepoName, dataNode);
+        assertSuccessful(createSlowFuture1);
+        assertSuccessful(createSlowFuture2);
+        assertSuccessful(createSlowFuture3);
+    }
+
+    public void testInterleavedAcrossMultipleRepos() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
+        // left for the second concurrent snapshot.
+        final String dataNode = startDataNodeWithLargeSnapshotPool();
+        final String blockedRepoName = "test-repo-blocked-1";
+        final String otherBlockedRepoName = "test-repo-blocked-2";
+        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createRepository(otherBlockedRepoName, "mock", randomRepoPath());
+        createIndexWithContent("test-index");
+
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture1 =
+            startFullSnapshotBlockedOnDataNode("blocked-snapshot", blockedRepoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture2 =
+            startFullSnapshotBlockedOnDataNode("blocked-snapshot-2", blockedRepoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture3 =
+            startFullSnapshotBlockedOnDataNode("other-blocked-snapshot", otherBlockedRepoName, dataNode);
+        awaitNSnapshotsInProgress(3);
+        unblockNode(blockedRepoName, dataNode);
+        unblockNode(otherBlockedRepoName, dataNode);
+
+        assertSuccessful(createSlowFuture1);
+        assertSuccessful(createSlowFuture2);
+        assertSuccessful(createSlowFuture3);
+    }
+
+    private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
+        final SnapshotsStatusResponse snapshotsStatusResponse =
+            client().admin().cluster().prepareSnapshotStatus(otherBlockedRepoName).get();
+        final List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
+        assertThat(snapshotStatuses, hasSize(count));
+    }
+
     private List<String> createNSnapshots(String repoName, int count) throws Exception {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
@@ -1143,10 +1213,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return fut;
     }
 
-    private ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String firstSnapshot, String repoName, String dataNode)
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshotBlockedOnDataNode(String snapshotName, String repoName, String dataNode)
             throws InterruptedException {
         blockDataNode(repoName, dataNode);
-        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, firstSnapshot);
+        final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
         return fut;
     }

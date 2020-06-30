@@ -2037,9 +2037,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shards.put(finishedShardId, updateSnapshotState.status());
                         changedCount++;
                     } else {
-                        final Set<ShardId> reusedShardIds =
-                                reusedShardIdsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>());
-                        if (entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
+                        final String updatedRepository = updateSnapshotState.snapshot().getRepository();
+                        final Set<ShardId> reusedShardIds = reusedShardIdsByRepo.computeIfAbsent(updatedRepository, k -> new HashSet<>());
+                        if (entry.repository().equals(updatedRepository) &&
+                            entry.state().completed() == false && reusedShardIds.contains(finishedShardId) == false
                                 && entry.shards().keys().contains(finishedShardId)) {
                             final ShardSnapshotStatus existingStatus = entry.shards().get(finishedShardId);
                             if (existingStatus.state() != ShardState.QUEUED) {

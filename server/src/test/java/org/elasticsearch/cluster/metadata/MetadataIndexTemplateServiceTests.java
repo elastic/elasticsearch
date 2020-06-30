@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -791,6 +792,65 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
         assertThat(parsedMappings.get(2),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
+    }
+
+    public void testResolveMappingsWithDataStreams() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"@timestamp\": {\n" +
+                "          \"type\": \"date\",\n" +
+                "          \"meta\": {\n" +
+                "            \"source\": \"component_template\"\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "my-component-template", ct1);
+        DataStreamTemplate dataStreamTemplate =
+            new DataStreamTemplate("@timestamp", Map.of("type", "date", "meta", Map.of("source", "data_stream_template")));
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs-*"),
+            new Template(null,
+                new CompressedXContent("{\n" +
+                    "    \"properties\": {\n" +
+                    "      \"@timestamp\": {\n" +
+                    "        \"type\": \"date\",\n" +
+                    "        \"meta\":{" +
+                    "          \"source\": \"composable_index_template\"\n" +
+                    "        }" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }"), null),
+            List.of("my-component-template"), null, null, null, dataStreamTemplate);
+        state = service.addIndexTemplateV2(state, true, "my-composable-index-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-composable-index-template");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(4));
+        List<Map<String, Object>> parsedMappings = mappings.stream()
+            .map(m -> {
+                try {
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                } catch (Exception e) {
+                    logger.error(e);
+                    fail("failed to parse mappings: " + m.string());
+                    return null;
+                }
+            })
+            .collect(Collectors.toList());
+
+        assertThat(parsedMappings.get(0),
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("@timestamp", Map.of("type", "date")))))); // default timestamp mapping
+        assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("@timestamp",
+            Map.of("type", "date", "meta", Map.of("source", "component_template")))))));
+        assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("@timestamp",
+            Map.of("type", "date", "meta", Map.of("source", "composable_index_template")))))));
+        assertThat(parsedMappings.get(3), equalTo(Map.of("_doc", Map.of("properties", Map.of("@timestamp",
+            Map.of("type", "date", "meta", Map.of("source", "data_stream_template")))))));
     }
 
     public void testResolveSettings() throws Exception {

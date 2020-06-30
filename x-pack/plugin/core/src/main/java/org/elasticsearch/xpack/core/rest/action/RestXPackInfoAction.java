@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -23,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestXPackInfoAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestXPackInfoAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestXPackInfoAction.class);
 
     @Override
     public List<Route> routes() {

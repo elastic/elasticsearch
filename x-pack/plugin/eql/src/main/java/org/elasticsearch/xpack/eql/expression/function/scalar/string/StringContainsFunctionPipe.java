@@ -84,6 +84,9 @@ public class StringContainsFunctionPipe extends Pipe {
         return substring;
     }
 
+    protected boolean isCaseSensitive() {
+        return isCaseSensitive;
+    }
 
     @Override
     public int hashCode() {

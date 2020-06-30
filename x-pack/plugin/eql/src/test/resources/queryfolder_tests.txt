@@ -189,7 +189,7 @@ process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
-stringContains
+stringContains-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
@@ -197,22 +197,12 @@ InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
 "params":{"v0":"process_name","v1":"foo","v2":true}
 ;
 
-
-stringContains-casesensitive
+stringContains-caseInsensitive
 process where stringContains(process_name, "foo")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":true}
-;
-
-
-stringContains-caseinsensitive
-process where stringContains(process_name, "foo")
-;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
-"params":{"v0":"process_name","v1":"foo","v2":false},
+"params":{"v0":"process_name","v1":"foo","v2":false}
 ;
 
 

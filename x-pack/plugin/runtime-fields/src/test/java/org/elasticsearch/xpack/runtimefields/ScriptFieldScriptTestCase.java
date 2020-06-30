@@ -123,12 +123,16 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
             return script(new Script(ScriptType.INLINE, "test", name, Map.of()));
         }
 
-        protected V script(Script script) throws IOException {
+        private V script(Script script) throws IOException {
             return newValues(scriptService.compile(script, scriptContext()), Map.of(), sourceLookup, fieldData);
         }
 
         protected List<R> collect(String script) throws IOException {
             return collect(new MatchAllDocsQuery(), script(script));
+        }
+
+        protected List<R> collect(V values) throws IOException {
+            return collect(new MatchAllDocsQuery(), values);
         }
 
         protected List<R> collect(Query query, V values) throws IOException {

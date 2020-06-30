@@ -75,44 +75,44 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues addO = c.testScript("times_nine_point_nine");
-        assertThat(c.collect(addO.termQuery("foo", 1), addO), equalTo(List.of()));
+        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        assertThat(c.collect(timesTen.termQuery("foo", 1), timesTen), equalTo(List.of()));
         visited.clear();
-        assertThat(c.collect(addO.termQuery("foo", 10.89), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.termQuery("foo", 10.89), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.termQuery("foo", 21.78), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.termQuery("foo", 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.termQuery("foo", 99.99), addO), equalTo(List.of(99.99, 198.99)));
+        assertThat(c.collect(timesTen.termQuery("foo", 99.99), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
     public void testTermsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues addO = c.testScript("times_nine_point_nine");
-        assertThat(c.collect(addO.termsQuery("foo", 1, 2), addO), equalTo(List.of()));
+        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        assertThat(c.collect(timesTen.termsQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         visited.clear();
-        assertThat(c.collect(addO.termsQuery("foo", 10.89, 11), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.termsQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.termsQuery("foo", 21.78, 22), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.termsQuery("foo", 21.78, 22), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.termsQuery("foo", 20, 21.78), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.termsQuery("foo", 20, 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.termsQuery("foo", 99.99, 100), addO), equalTo(List.of(99.99, 198.99)));
+        assertThat(c.collect(timesTen.termsQuery("foo", 99.99, 100), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues addO = c.testScript("times_nine_point_nine");
-        assertThat(c.collect(addO.rangeQuery("foo", 1, 2), addO), equalTo(List.of()));
+        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        assertThat(c.collect(timesTen.rangeQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         visited.clear();
-        assertThat(c.collect(addO.rangeQuery("foo", 9, 11), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.rangeQuery("foo", 9, 11), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.rangeQuery("foo", 10.89, 11), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.rangeQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.rangeQuery("foo", 21.78, 22), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.rangeQuery("foo", 21.78, 22), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.rangeQuery("foo", 21, 21.78), addO), equalTo(List.of(10.89, 21.78)));
+        assertThat(c.collect(timesTen.rangeQuery("foo", 21, 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
         visited.clear();
-        assertThat(c.collect(addO.rangeQuery("foo", 99, 100), addO), equalTo(List.of(99.99, 198.99)));
+        assertThat(c.collect(timesTen.rangeQuery("foo", 99, 100), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
     private TestCase randomDoubles() throws IOException {

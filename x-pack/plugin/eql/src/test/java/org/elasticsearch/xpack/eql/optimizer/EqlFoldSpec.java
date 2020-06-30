@@ -14,17 +14,18 @@ public class EqlFoldSpec {
 
     private final String name;
     private final String description;
-    private final boolean caseSensitiveOnly;
-    private final boolean caseInsensitiveOnly;
     private final String expression;
     private final Object expected;
+    // flag to dictate which modes are supported for the test
+    // null -> apply the test to both modes (case sensitive and case insensitive)
+    // TRUE -> case sensitive
+    // FALSE -> case insensitive
+    private Boolean caseSensitive = null;
 
-    EqlFoldSpec(String name, String description, boolean caseSensitiveOnly,
-                boolean caseInsensitiveOnly, String expression, Object expected) {
+    EqlFoldSpec(String name, String description, Boolean caseSensitive, String expression, Object expected) {
         this.name = name;
         this.description = description;
-        this.caseInsensitiveOnly = caseInsensitiveOnly;
-        this.caseSensitiveOnly = caseSensitiveOnly;
+        this.caseSensitive = caseSensitive;
         this.expression = expression;
         this.expected = expected;
     }
@@ -37,21 +38,16 @@ public class EqlFoldSpec {
         return expected;
     }
 
-    public boolean supportsCaseSensitive() {
-        return caseInsensitiveOnly == false;
-    }
-
-    public boolean supportsCaseInsensitive() {
-        return caseSensitiveOnly == false;
+    public Boolean caseSensitive() {
+        return caseSensitive;
     }
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         appendWithComma(sb, "name", name);
         appendWithComma(sb, "expression", expression);
-        appendWithComma(sb, "case_sensitive", caseSensitiveOnly);
-        appendWithComma(sb, "case_insensitive", caseInsensitiveOnly);
-        appendWithComma(sb, "expected", expected == null ? "null": expected);
+        appendWithComma(sb, "case_sensitive", caseSensitive == null ? "null" : caseSensitive);
+        appendWithComma(sb, "expected", expected == null ? "null" : expected);
         return sb.toString();
     }
 
@@ -59,7 +55,7 @@ public class EqlFoldSpec {
         if (value != null) {
             String valueStr = value.toString();
 
-            if (!Strings.isEmpty(valueStr)) {
+            if (Strings.isEmpty(valueStr) == false) {
                 if (builder.length() > 0) {
                     builder.append(", ");
                 }
@@ -83,12 +79,11 @@ public class EqlFoldSpec {
         EqlFoldSpec that = (EqlFoldSpec) other;
 
         return Objects.equals(this.expression, that.expression)
-            && Objects.equals(this.caseSensitiveOnly, that.caseSensitiveOnly)
-            && Objects.equals(this.caseInsensitiveOnly, that.caseInsensitiveOnly);
+            && Objects.equals(this.caseSensitive, that.caseSensitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.expression, this.caseSensitiveOnly, this.caseInsensitiveOnly);
+        return Objects.hash(this.expression, this.caseSensitive);
     }
 }

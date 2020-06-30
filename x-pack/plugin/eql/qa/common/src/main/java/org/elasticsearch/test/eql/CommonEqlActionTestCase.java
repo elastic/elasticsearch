@@ -89,7 +89,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         return asArray(filteredSpecs);
     }
 
-    public static List<Object[]> asArray(List<EqlSpec> specs) {
+    private static List<Object[]> asArray(List<EqlSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
         return specs.stream().map(spec -> {
             String name = spec.description();

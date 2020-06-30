@@ -7,26 +7,48 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.tasks.TaskId;
+
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.analysis.Analyzer;
+import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_INSENSITIVE;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_SENSITIVE;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class TomlFoldTests extends ESTestCase {
+
     protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
+
+    private static EqlParser parser = new EqlParser();
+    private static final EqlFunctionRegistry functionRegistry = new EqlFunctionRegistry();
+    private static Verifier verifier = new Verifier();
+    private static Analyzer caseSensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_SENSITIVE, functionRegistry, verifier);
+    private static Analyzer caseInsensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, functionRegistry, verifier);
+
+    private final int num;
+    private final EqlFoldSpec spec;
+
+    public TomlFoldTests(int num, EqlFoldSpec spec) {
+        this.num = num;
+        this.spec = spec;
+    }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
@@ -39,64 +61,51 @@ public class TomlFoldTests extends ESTestCase {
         return asArray(filteredSpecs);
     }
 
-    public static List<Object[]> asArray(Collection<EqlFoldSpec> specs) {
+    private static List<Object[]> asArray(Collection<EqlFoldSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
         return specs.stream().map(spec -> new Object[] {
             counter.incrementAndGet(), spec
         }).collect(toList());
     }
 
-    private static final EqlConfiguration caseSensitiveConfig = config(true);
-    private static final EqlConfiguration caseInsensitiveConfig = config(false);
-    private static EqlParser parser = new EqlParser();
-    private static final EqlFunctionRegistry functionRegistry = new EqlFunctionRegistry();
-
-    private final int num;
-    private final EqlFoldSpec spec;
-
-    private static EqlConfiguration config(boolean isCaseSensitive) {
-        return new EqlConfiguration(new String[]{"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster",
-            null, TimeValue.timeValueSeconds(30), -1, false, isCaseSensitive, "",
-            new TaskId("foobarbaz", 1234567890), () -> false);
+    public void test() {
+        // run both tests if case sensitivity doesn't matter
+        if (spec.caseSensitive() == null) {
+            testCaseSensitive(spec);
+            testCaseInsensitive(spec);
+        }
+        // run only the case sensitive test
+        else if (spec.caseSensitive()) {
+            testCaseSensitive(spec);
+        }
+        // run only the case insensitive test
+        else {
+            testCaseInsensitive(spec);
+        }
     }
 
-    public TomlFoldTests(int num, EqlFoldSpec spec) {
-        this.num = num;
-        this.spec = spec;
+    private void testCaseSensitive(EqlFoldSpec spec) {
+        testWithAnalyzer(caseSensitiveAnalyzer, spec);
     }
 
-    private void testWithConfig(EqlConfiguration testConfig, EqlFoldSpec spec) {
+    private void testCaseInsensitive(EqlFoldSpec spec) {
+        testWithAnalyzer(caseInsensitiveAnalyzer, spec);
+    }
+
+    private void testWithAnalyzer(Analyzer analyzer, EqlFoldSpec spec) {
         Expression expr = parser.createExpression(spec.expression());
+        LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
+            singletonList(new Alias(Source.EMPTY, "test", expr)));
+        LogicalPlan analyzed = analyzer.analyze(logicalPlan);
 
-        // resolve all function calls
-        expr = expr.transformUp(e -> {
-            if (e instanceof UnresolvedFunction) {
-                UnresolvedFunction uf = (UnresolvedFunction) e;
+        assertTrue(analyzed instanceof Project);
+        List<?> projections = ((Project) analyzed).projections();
+        assertEquals(1, projections.size());
+        assertTrue(projections.get(0) instanceof Alias);
+        Alias a = (Alias) projections.get(0);
 
-                if (uf.analyzed()) {
-                    return uf;
-                }
-
-                String name = uf.name();
-
-                if (uf.childrenResolved() == false) {
-                    return uf;
-                }
-
-                String functionName = functionRegistry.resolveAlias(name);
-                if (functionRegistry.functionExists(functionName) == false) {
-                    return uf.missing(functionName, functionRegistry.listFunctions());
-                }
-                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                Function f = uf.buildResolved(testConfig, def);
-                return f;
-            }
-            return e;
-        });
-
-        assertTrue(expr.foldable());
-        Object folded = expr.fold();
+        assertTrue(a.child().foldable());
+        Object folded = a.child().fold();
 
         // upgrade to a long, because the parser typically downgrades Long -> Integer when possible
         if (folded instanceof Integer) {
@@ -104,15 +113,5 @@ public class TomlFoldTests extends ESTestCase {
         }
 
         assertEquals(spec.expected(), folded);
-    }
-
-    public void test() {
-        if (this.spec.supportsCaseSensitive()) {
-            testWithConfig(caseSensitiveConfig, spec);
-        }
-
-        if (this.spec.supportsCaseInsensitive()) {
-            testWithConfig(caseInsensitiveConfig, spec);
-        }
     }
 }

@@ -45,7 +45,7 @@ dependencies {
   testImplementation project(path: ':modules:transport-netty4', configuration: 'runtime') // for http in RestEqlCancellationIT
   testImplementation project(path: ':plugins:transport-nio', configuration: 'runtime') // for http in RestEqlCancellationIT
 
-  testCompile 'io.ous:jtoml:2.0.0'
+  testImplementation 'io.ous:jtoml:2.0.0'
 }
 
 

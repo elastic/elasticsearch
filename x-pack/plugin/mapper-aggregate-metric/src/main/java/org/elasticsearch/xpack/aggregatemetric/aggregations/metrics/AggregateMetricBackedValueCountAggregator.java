@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
@@ -37,13 +38,16 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
 
     AggregateMetricBackedValueCountAggregator(
         String name,
-        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues()
+            ? (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource()
+            : null;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
         }

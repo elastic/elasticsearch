@@ -38,13 +38,12 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
     AggregateMetricBackedMinAggregator(
         String name,
         ValuesSourceConfig config,
-        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = config.hasValues() ? (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource() : null;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);

@@ -50,7 +50,7 @@ public class PseudoHuberTests extends AbstractSerializingTestCase<PseudoHuber> {
         pseudoHuber.process(aggs);
 
         EvaluationMetricResult result = pseudoHuber.getResult().get();
-        String expected = "{\"error\":0.8123}";
+        String expected = "{\"value\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 

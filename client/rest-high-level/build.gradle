@@ -36,13 +36,13 @@ restResources {
 }
 
 dependencies {
-  compile project(':server')
-  compile project(':client:rest')
-  compile project(':modules:mapper-extras')
-  compile project(':modules:parent-join')
-  compile project(':modules:aggs-matrix-stats')
-  compile project(':modules:rank-eval')
-  compile project(':modules:lang-mustache')
+  api project(':server')
+  api project(':client:rest')
+  api project(':modules:mapper-extras')
+  api project(':modules:parent-join')
+  api project(':modules:aggs-matrix-stats')
+  api project(':modules:rank-eval')
+  api project(':modules:lang-mustache')
 
   testImplementation project(':client:test')
   testImplementation project(':test:framework')

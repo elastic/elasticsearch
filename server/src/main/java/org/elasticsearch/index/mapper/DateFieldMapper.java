@@ -556,6 +556,11 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValueAsString;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
@@ -605,8 +610,8 @@ public final class DateFieldMapper extends FieldMapper {
     public String parseSourceValue(Object value, String format) {
         String date = value.toString();
         long timestamp = fieldType().parse(date);
-        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
 
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
         DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
         if (format != null) {
             dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());

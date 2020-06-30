@@ -1002,6 +1002,11 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         this.ignoreAbove = ((WildcardFieldMapper) other).ignoreAbove;
     }

@@ -40,12 +40,15 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -303,11 +306,18 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        IpFieldMapper mapper = new IpFieldMapper.Builder("field").build(context);
 
+        IpFieldMapper mapper = new IpFieldMapper.Builder("field").build(context);
         assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8::2:1", null));
         assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1", null));
         assertEquals("::1", mapper.parseSourceValue("0:0:0:0:0:0:0:1", null));
+
+        IpFieldMapper nullValueMapper = new IpFieldMapper.Builder("field")
+            .nullValue(InetAddresses.forString("2001:db8:0:0:0:0:2:7"))
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("2001:db8::2:7"), nullValueMapper.lookupValues(sourceLookup, null));
     }
 
     @Override

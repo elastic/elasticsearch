@@ -95,6 +95,18 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(addO.prefixQuery("foo", "d"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
+    public void testRangeQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.rangeQuery("foo", "catz", "cbat"), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.rangeQuery("foo", "c", "cb"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.rangeQuery("foo", "p", "q"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs"), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
     private TestCase randomStrings() throws IOException {
         return testCase(iw -> {
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));

@@ -48,6 +48,10 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().new PrefixQuery(fieldName, value);
     }
 
+    public Query rangeQuery(String fieldName, String lowerValue, String upperValue) {
+        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
+    }
+
     @Override
     protected SharedValues newSharedValues() {
         return new SharedValues();
@@ -202,6 +206,47 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 }
                 PrefixQuery other = (PrefixQuery) obj;
                 return prefix.equals(other.prefix);
+            }
+        }
+
+        private class RangeQuery extends AbstractRuntimeQuery {
+            private final String lowerValue;
+            private final String upperValue;
+
+            private RangeQuery(String fieldName, String lowerValue, String upperValue) {
+                super(fieldName);
+                this.lowerValue = lowerValue;
+                this.upperValue = upperValue;
+                assert lowerValue.compareTo(upperValue) <= 0;
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (lowerValue.compareTo(values[i]) <= 0 && upperValue.compareTo(values[i]) >= 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            protected String bareToString() {
+                return "[" + lowerValue + "," + upperValue + "]";
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), lowerValue, upperValue);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                RangeQuery other = (RangeQuery) obj;
+                return lowerValue.equals(other.lowerValue) && upperValue.equals(other.upperValue);
             }
         }
     }

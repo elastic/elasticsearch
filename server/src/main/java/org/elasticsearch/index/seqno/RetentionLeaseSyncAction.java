@@ -25,6 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -79,7 +79,8 @@ public class RetentionLeaseSyncAction extends
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+            final ActionFilters actionFilters,
+            final WriteMemoryLimits writeMemoryLimits) {
         super(
                 settings,
                 ACTION_NAME,
@@ -91,7 +92,7 @@ public class RetentionLeaseSyncAction extends
                 actionFilters,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT, false);
+                ThreadPool.Names.MANAGEMENT, false, writeMemoryLimits);
     }
 
     @Override
@@ -146,7 +147,7 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
@@ -158,14 +159,15 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(
-            final Request request,
-            final IndexShard replica) throws WriteStateException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.persistRetentionLeases();
-        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+    protected void dispatchedShardOperationOnReplica(Request request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+            return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+        });
     }
 
     @Override

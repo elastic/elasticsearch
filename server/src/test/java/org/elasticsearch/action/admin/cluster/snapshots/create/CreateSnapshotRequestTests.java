@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent.MapParams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,17 +68,6 @@ public class CreateSnapshotRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             original.partial(randomBoolean());
-        }
-
-        if (randomBoolean()) {
-            Map<String, Object> settings = new HashMap<>();
-            int count = randomInt(3) + 1;
-
-            for (int i = 0; i < count; ++i) {
-                settings.put(randomAlphaOfLength(randomInt(3) + 2), randomAlphaOfLength(randomInt(3) + 2));
-            }
-
-            original.settings(settings);
         }
 
         if (randomBoolean()) {
@@ -168,7 +156,6 @@ public class CreateSnapshotRequestTests extends ESTestCase {
     private CreateSnapshotRequest createSnapshotRequestWithMetadata(Map<String, Object> metadata) {
         return new CreateSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5))
             .indices(randomAlphaOfLength(5))
-            .settings(Settings.EMPTY)
             .userMetadata(metadata);
     }
 }

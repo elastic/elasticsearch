@@ -473,3 +473,36 @@ file where file.extension in ("exe", "dll")
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
 ====
+
+[discrete]
+[[eql-pipes]]
+=== Pipes
+
+EQL pipes filter, aggregate, and post-process events returned by
+an EQL query. You can use pipes to narrow down EQL query results or make them
+more specific.
+
+Pipes are delimited using the pipe (`|`) character.
+
+[source,eql]
+----
+event_category where condition | pipe
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query uses the `tail` pipe to return only the 10 most recent
+events matching the query.
+
+[source,eql]
+----
+authentication where agent.id == 4624
+| tail 10
+----
+====
+
+You can pass the output of a pipe to another pipe. This lets you use multiple
+pipes with a single query.
+
+For a list of supported pipes, see <<eql-pipe-ref>>.

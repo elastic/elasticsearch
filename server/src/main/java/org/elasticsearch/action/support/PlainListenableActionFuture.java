@@ -49,8 +49,8 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
     }
 
     @Override
-    protected void done() {
-        super.done();
+    protected void done(boolean success) {
+        super.done(success);
         synchronized (this) {
             executedListeners = true;
         }

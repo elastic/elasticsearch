@@ -35,7 +35,9 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
     private final ByteSizeValue totalStoreSize;
     private final DataStreamStats[] dataStreamStats;
 
-    public DataStreamsStatsResponse(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures, int streams, int backingIndices, ByteSizeValue totalStoreSize, DataStreamStats[] dataStreamStats) {
+    public DataStreamsStatsResponse(int totalShards, int successfulShards, int failedShards,
+                                    List<DefaultShardOperationFailedException> shardFailures, int streams, int backingIndices,
+                                    ByteSizeValue totalStoreSize, DataStreamStats[] dataStreamStats) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.streams = streams;
         this.backingIndices = backingIndices;

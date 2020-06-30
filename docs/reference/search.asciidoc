@@ -1,7 +1,7 @@
 [[search]]
 == Search APIs
 
-Most search APIs are <<search-multi-index,multi-index>>, with the
+Most search APIs support <<search-multi-index,multi-target syntax>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]

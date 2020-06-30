@@ -1,23 +1,4 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
@@ -37,6 +18,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regressio
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.stream.Collectors.toList;
@@ -80,7 +63,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
                 new Regression(
                     PRICE_FIELD,
                     PRICE_PREDICTION_FIELD,
-                    List.of(new MeanSquaredError(), new MeanSquaredLogarithmicError((Double) null), new RSquared())));
+                    Arrays.asList(new MeanSquaredError(), new MeanSquaredLogarithmicError((Double) null), new RSquared())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(
@@ -93,7 +76,9 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
     public void testEvaluate_MeanSquaredError() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredError())));
+            evaluateDataFrame(
+                HOUSES_DATA_INDEX,
+                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, Collections.singletonList(new MeanSquaredError())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -107,7 +92,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 HOUSES_DATA_INDEX,
-                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredLogarithmicError((Double) null))));
+                new Regression(
+                    PRICE_FIELD,
+                    PRICE_PREDICTION_FIELD,
+                    Collections.singletonList(new MeanSquaredLogarithmicError((Double) null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -119,7 +107,8 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
     public void testEvaluate_RSquared() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new RSquared())));
+            evaluateDataFrame(
+                HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, Collections.singletonList(new RSquared())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -131,7 +120,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
     private static void createHousesIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
-            .setMapping(
+            .setMapping("_doc",
                 PRICE_FIELD, "type=double",
                 PRICE_PREDICTION_FIELD, "type=double")
             .get();

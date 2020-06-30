@@ -1,0 +1,43 @@
+setup:
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              doc_count:
+                type: doc_count
+              str:
+                type: keyword
+              number:
+                type: integer
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"doc_count": 10, "str": "abc", "number" : 500 }'
+          - '{"index": {}}'
+          - '{"doc_count": 5, "str": "xyz", "number" : 1500 }'
+          - '{"index": {}}'
+          - '{"doc_count": 7, "str": "foo", "number" : 100 }'
+          - '{"index": {}}'
+          - '{"doc_count": 1, "str": "foo", "number" : 30 }'
+          - '{"index": {}}'
+          - '{"str": "abc", "number" : 500 }'
+---
+"Test terms agg with doc_count":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
+
+  - match: { hits.total: 5 }
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: 'abc' }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 11 }

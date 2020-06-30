@@ -48,7 +48,6 @@ public class DocCountFieldMapper extends FieldMapper {
         static {
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-//            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -85,7 +84,7 @@ public class DocCountFieldMapper extends FieldMapper {
         }
 
         public DocCountFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         protected DocCountFieldType(DocCountFieldType ref) {

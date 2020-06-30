@@ -489,8 +489,8 @@ public class OpenIdConnectAuthenticator {
                 }
             } else {
                 tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token using Token Endpoint." +
-                    "Expected client authentication method to be one of " + OpenIdConnectRealmSettings.CLIENT_AUTH_METHODS + " but was " +
-                    rpConfig.getClientAuthenticationMethod()));
+                    "Expected client authentication method to be one of " + OpenIdConnectRealmSettings.CLIENT_AUTH_METHODS
+                    + " but was [" + rpConfig.getClientAuthenticationMethod() + "]"));
             }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
             SpecialPermission.check();

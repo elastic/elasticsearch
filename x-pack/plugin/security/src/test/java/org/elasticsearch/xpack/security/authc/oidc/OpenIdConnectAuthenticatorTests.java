@@ -846,6 +846,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             JWSAlgorithm.HS384,
             new URI("https://rp.elastic.co/successfull_logout"));
     }
+
     private RelyingPartyConfiguration getRpConfig(String alg) throws URISyntaxException {
         return new RelyingPartyConfiguration(
             new ClientID("rp-my"),

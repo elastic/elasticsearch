@@ -78,10 +78,6 @@ public class PutComponentTemplateRequest extends TimedRequest implements ToXCont
         return this;
     }
 
-    public ComponentTemplate componentTemplate() {
-        return this.componentTemplate;
-    }
-
     /**
      * The cause for this component template creation.
      */

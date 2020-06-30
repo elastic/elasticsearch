@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
@@ -46,12 +47,27 @@ public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
-    private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final Group[] groups;
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
+    }
+
+    public static Predicate<String> indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
+        final Predicate<String> namePredicate;
+        if (restrictedIndices.isEmpty()) {
+            namePredicate = indexMatcher(ordinaryIndices)
+                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
+        } else if (ordinaryIndices.isEmpty()) {
+            namePredicate = indexMatcher(restrictedIndices);
+        } else {
+            namePredicate = indexMatcher(restrictedIndices)
+                    .or(indexMatcher(ordinaryIndices)
+                            .and(index -> false == RestrictedIndicesNames.isRestricted(index)));
+        }
+        return namePredicate;
     }
 
     public static Predicate<String> indexMatcher(Collection<String> indices) {
@@ -105,7 +121,7 @@ public final class IndicesPermission {
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
      */
-    public Predicate<String> allowedIndicesMatcher(String action) {
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, a -> Group.buildIndexMatcherPredicateForAction(a, groups));
     }
 
@@ -117,7 +133,7 @@ public final class IndicesPermission {
      */
     public boolean check(String action) {
         for (Group group : groups) {
-            if (group.check(action)) {
+            if (group.checkAction(action) || authorizeMappingUpdateBwcSpecialCase(group, action)) {
                 return true;
             }
         }
@@ -213,7 +229,9 @@ public final class IndicesPermission {
             }
 
             for (Group group : groups) {
-                if (group.check(action, indexOrAlias)) {
+                if (group.checkIndex(indexOrAlias) &&
+                        (group.checkAction(action) || (authorizeMappingUpdateBwcSpecialCase(group, action) &&
+                                (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)))) {
                     granted = true;
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
@@ -276,6 +294,14 @@ public final class IndicesPermission {
         return RestrictedIndicesNames.isRestricted(indexPattern);
     }
 
+    private static boolean authorizeMappingUpdateBwcSpecialCase(Group group, String action) {
+        return action.equals(PutMappingAction.NAME) ||
+                (group.privilege().name().containsAll(IndexPrivilege.CREATE_DOC.name()) ||
+                        group.privilege().name().containsAll(IndexPrivilege.CREATE.name()) ||
+                        group.privilege().name().containsAll(IndexPrivilege.INDEX.name()) ||
+                        group.privilege().name().containsAll(IndexPrivilege.WRITE.name()));
+    }
+
     public static class Group {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -317,14 +343,13 @@ public final class IndicesPermission {
             return fieldPermissions;
         }
 
-        private boolean check(String action) {
+        private boolean checkAction(String action) {
             return actionMatcher.test(action);
         }
 
-        private boolean check(String action, String index) {
+        private boolean checkIndex(String index) {
             assert index != null;
-            return check(action) && indexNameMatcher.test(index)
-                    && (allowRestrictedIndices || (false == RestrictedIndicesNames.isRestricted(index)));
+            return indexNameMatcher.test(index) && (allowRestrictedIndices || (false == RestrictedIndicesNames.isRestricted(index)));
         }
 
         boolean hasQuery() {
@@ -344,9 +369,11 @@ public final class IndicesPermission {
             }
         }
 
-        private static Predicate<String> buildIndexMatcherPredicateForAction(String action, Group... groups) {
+        private static Predicate<IndexAbstraction> buildIndexMatcherPredicateForAction(String action, Group... groups) {
             final Set<String> ordinaryIndices = new HashSet<>();
             final Set<String> restrictedIndices = new HashSet<>();
+            final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
+            final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
             for (final Group group : groups) {
                 if (group.actionMatcher.test(action)) {
                     if (group.allowRestrictedIndices) {
@@ -354,20 +381,24 @@ public final class IndicesPermission {
                     } else {
                         ordinaryIndices.addAll(Arrays.asList(group.indices()));
                     }
+                } else if (authorizeMappingUpdateBwcSpecialCase(group, action)) {
+                    // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
+                    // the privilege definition does not currently allow it
+                    if (group.allowRestrictedIndices) {
+                        grantMappingUpdatesOnRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        grantMappingUpdatesOnIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 }
             }
-            final Predicate<String> predicate;
-            if (restrictedIndices.isEmpty()) {
-                predicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
-            } else if (ordinaryIndices.isEmpty()) {
-                predicate = indexMatcher(restrictedIndices);
-            } else {
-                predicate = indexMatcher(restrictedIndices)
-                    .or(indexMatcher(ordinaryIndices)
-                         .and(index -> false == RestrictedIndicesNames.isRestricted(index)));
-            }
-            return predicate;
+            final Predicate<String> namePredicate = indexMatcher(ordinaryIndices, restrictedIndices);
+            final Predicate<String> bwcSpecialCaseNamePredicate = indexMatcher(grantMappingUpdatesOnIndices,
+                    grantMappingUpdatesOnRestrictedIndices);
+            return indexAbstraction -> {
+                return namePredicate.test(indexAbstraction.getName()) ||
+                        (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM &&
+                                bwcSpecialCaseNamePredicate.test(indexAbstraction.getName()));
+            };
         }
     }
 

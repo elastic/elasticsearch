@@ -77,8 +77,8 @@ public final class LimitedRole extends Role {
      * action on.
      */
     @Override
-    public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+        Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
     }

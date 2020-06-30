@@ -501,17 +501,16 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, IndexAbstraction> aliasAndIndexLookup) {
-        Predicate<String> predicate = role.allowedIndicesMatcher(action);
+        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(action);
 
-        List<String> indicesAndAliases = new ArrayList<>();
+        List<String> authorizedIndicesForAction = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, IndexAbstraction> entry : aliasAndIndexLookup.entrySet()) {
-            String aliasOrIndex = entry.getKey();
-            if (predicate.test(aliasOrIndex)) {
-                indicesAndAliases.add(aliasOrIndex);
+            if (predicate.test(entry.getValue())) {
+                authorizedIndicesForAction.add(entry.getValue().getName());
             }
         }
-        return Collections.unmodifiableList(indicesAndAliases);
+        return Collections.unmodifiableList(authorizedIndicesForAction);
     }
 
     private void buildIndicesAccessControl(Authentication authentication, String action,

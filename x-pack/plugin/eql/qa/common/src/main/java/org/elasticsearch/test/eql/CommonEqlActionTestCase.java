@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
@@ -20,7 +19,7 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -35,6 +34,7 @@ import static org.elasticsearch.test.eql.DataLoader.testIndexName;
 public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%1$s.test -> %2$s";
+    private static int counter = 0;
     private RestHighLevelClient highLevelClient;
 
     @BeforeClass
@@ -49,15 +49,10 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         }
     }
 
-    @AfterClass
-    public static void cleanup() throws Exception {
-        try {
-            adminClient().performRequest(new Request("DELETE", "/*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
+    @After
+    public void cleanup() throws Exception {
+        if (--counter == 0) {  
+            deleteIndex(testIndexName); 
         }
     }
 
@@ -86,6 +81,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
                 filteredSpecs.add(spec);
             }
         }
+        counter = specs.size();
         return asArray(filteredSpecs);
     }
 

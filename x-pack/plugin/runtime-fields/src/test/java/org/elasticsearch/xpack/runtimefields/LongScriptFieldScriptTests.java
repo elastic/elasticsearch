@@ -112,6 +112,24 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(timesTen.rangeQuery("foo", 99, 101), timesTen), equalTo(List.of(100L, 200L)));
     }
 
+    /*
+     *  TODO this should work but it doesn't because the BulkScorer scores a whole bunch at a time.
+    public void testInsideBoolTermQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        LongRuntimeValues timesTen = c.testScript("times_ten");
+        assertThat(
+            c.collect(
+                new BooleanQuery.Builder().add(timesTen.termQuery("foo", 1), Occur.SHOULD)
+                    .add(timesTen.termQuery("foo", 10), Occur.SHOULD)
+                    .add(timesTen.termQuery("foo", 100), Occur.SHOULD)
+                    .build(),
+                timesTen
+            ),
+            equalTo(List.of(10L, 20L, 100L, 200L))
+        );
+    }
+    */
+
     private TestCase randomLongs() throws IOException {
         return testCase(iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));

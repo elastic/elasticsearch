@@ -58,7 +58,9 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
@@ -1501,7 +1503,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         metadataCreateIndexService,
                         actionFilters, indexNameExpressionResolver
                     ));
-                final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
+                final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
@@ -1528,6 +1530,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
+                actions.put(AutoPutMappingAction.INSTANCE,
+                    new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
+                        actionFilters, indexNameExpressionResolver));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
                 final SearchTransportService searchTransportService = new SearchTransportService(transportService,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));

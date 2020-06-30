@@ -2072,6 +2072,57 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build()).get();
     }
 
+    public void testDynamicRestoreThrottling() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        Path repositoryLocation = randomRepoPath();
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+            .setType("fs").setSettings(Settings.builder()
+                .put("location", repositoryLocation)
+                .put("compress", randomBoolean())
+                .put("chunk_size", 100, ByteSizeUnit.BYTES)));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> snapshot");
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).setIndices("test-idx").get();
+
+        logger.info("--> delete index");
+        cluster().wipeIndices("test-idx");
+
+        logger.info("--> restore index");
+        client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build()).get();
+        ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).execute();
+
+        // check if throttling is active
+        assertBusy(() -> {
+            long restorePause = 0L;
+            for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+                restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
+            }
+            assertThat(restorePause, greaterThan(0L));
+        }, 30, TimeUnit.SECONDS);
+
+        // run at full speed again
+        client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build()).get();
+
+        assertThat(restoreSnapshotResponse.get().getRestoreInfo().totalShards(), greaterThan(0));
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+    }
+
     public void testSnapshotStatus() throws Exception {
         Client client = client();
         Path repositoryLocation = randomRepoPath();

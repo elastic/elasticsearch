@@ -4,9 +4,7 @@
 <titleabbrev>Delete dangling index</titleabbrev>
 ++++
 
-When {es} finds an index on disk that is not present in the current cluster
-state, that index is considerd to be "dangling". This API deletes a
-single dangling index and adds a tombstone for it to the cluster state.
+Deletes a dangling index.
 
 [[dangling-index-delete-api-request]]
 ==== {api-request-title}
@@ -18,6 +16,16 @@ DELETE /_dangling/<index-uuid>
   "accept_data_loss": true
 }
 --------------------------------------------------
+
+[[dangling-index-delete-api-desc]]
+==== {api-description-title}
+
+include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
+
+This API lets you delete single dangling index from disk. You reference the
+index by its UUID, which you can find using the
+<<dangling-indices-list,list API>>. You can also
+<<dangling-index-import,import>> a dangling index.
 
 [[dangling-index-delete-api-path-params]]
 ==== {api-path-parms-title}
@@ -31,5 +39,6 @@ UUID of the index to delete. You can find this using the
 ==== {api-request-body-title}
 
 `accept_data_loss`::
+(Required, boolean)
 This field must be set to `true` in order to carry out the import, since it
 will no longer be possible to recover the data from the dangling index.

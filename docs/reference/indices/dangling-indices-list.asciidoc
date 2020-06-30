@@ -4,10 +4,7 @@
 <titleabbrev>List dangling indices</titleabbrev>
 ++++
 
-When {es} finds an index on disk that is not present in the current cluster
-metadata, that index is considerd to be "dangling". This API looks across
-all nodes in a cluster for dangling indices, and returns information about
-them.
+Lists dangling indices.
 
 [[dangling-indices-list-api-request]]
 ==== {api-request-title}
@@ -17,7 +14,24 @@ them.
 GET /_dangling
 --------------------------------------------------
 
-The API returns the following response:
+[[dangling-indices-list-api-desc]]
+==== {api-description-title}
+
+// tag::dangling-index-description[]
+If {es} encounters index data that is absent from the current cluster
+state, those indices are considered to be dangling. For example, copying a
+data directory between clusters, or deleting more than
+`cluster.indices.tombstones.size` indices while an {es} node is offline.
+// end::dangling-index-description[]
+
+This API lets you find such indices, which you can then
+<<dangling-index-import,import>> or <<dangling-index-delete,delete>>.
+
+
+[[dangling-indices-list-api-example]]
+==== {api-examples-title}
+
+The API returns a response in the following shape:
 
 [source,console-result]
 --------------------------------------------------

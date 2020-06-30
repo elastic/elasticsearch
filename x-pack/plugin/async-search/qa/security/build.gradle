@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('async-search'), configuration: 'runtime')
+  testImplementation project(xpackModule('async-search'))
   testImplementation project(':x-pack:plugin:async-search:qa')
 }
 

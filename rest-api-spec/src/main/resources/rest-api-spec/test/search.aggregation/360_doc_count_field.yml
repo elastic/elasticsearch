@@ -7,12 +7,12 @@ setup:
             number_of_replicas: 0
           mappings:
             properties:
-              doc_count:
-                type: doc_count
               str:
                 type: keyword
               number:
                 type: integer
+              dc:
+                type: doc_count
 
   - do:
       bulk:
@@ -20,15 +20,16 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{"doc_count": 10, "str": "abc", "number" : 500 }'
+          - '{"dc": 10, "str": "abc", "number" : 500 }'
           - '{"index": {}}'
-          - '{"doc_count": 5, "str": "xyz", "number" : 1500 }'
+          - '{"dc": 5, "str": "xyz", "number" : 1500 }'
           - '{"index": {}}'
-          - '{"doc_count": 7, "str": "foo", "number" : 100 }'
+          - '{"dc": 7, "str": "foo", "number" : 100 }'
           - '{"index": {}}'
-          - '{"doc_count": 1, "str": "foo", "number" : 30 }'
+          - '{"dc": 1, "str": "foo", "number" : 30 }'
           - '{"index": {}}'
           - '{"str": "abc", "number" : 500 }'
+
 ---
 "Test terms agg with doc_count":
 

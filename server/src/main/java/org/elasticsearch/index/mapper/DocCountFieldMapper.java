@@ -62,12 +62,15 @@ public class DocCountFieldMapper extends FieldMapper {
         @Override
         public DocCountFieldMapper build(BuilderContext context) {
             DocCountFieldType defaultFieldType = new DocCountFieldType(buildFullName(context), hasDocValues, meta);
-
             return new DocCountFieldMapper(name, fieldType, defaultFieldType);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
+        public TypeParser() {
+        }
+
         @Override
         public DocCountFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
@@ -79,15 +82,15 @@ public class DocCountFieldMapper extends FieldMapper {
 
     public static final class DocCountFieldType extends MappedFieldType {
 
-        public DocCountFieldType(String name) {
-            this(name, true, Collections.emptyMap());
-        }
-
         public DocCountFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        protected DocCountFieldType(DocCountFieldType ref) {
+        public DocCountFieldType(String name) {
+            this(name, true, Collections.emptyMap());
+        }
+
+        DocCountFieldType(DocCountFieldType ref) {
             super(ref);
         }
 

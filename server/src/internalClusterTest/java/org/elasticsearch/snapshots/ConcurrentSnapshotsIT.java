@@ -701,6 +701,47 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
     }
 
+    public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
+        disableRepoConsistencyCheck("This test corrupts the repository on purpose");
+
+        internalCluster().startMasterOnlyNodes(3, Settings.builder()
+            .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build());
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        createIndexWithContent("index-one");
+        createNSnapshots(repoName, randomIntBetween(2, 5));
+
+        final String masterNode = internalCluster().getMasterName();
+
+        final String blockedRepoName = "repo-blocked";
+        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createNSnapshots(blockedRepoName, randomIntBetween(1, 5));
+        blockNodeOnAnyFiles(blockedRepoName, masterNode);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteFromNonMasterClient(blockedRepoName, "*");
+        waitForBlock(masterNode, blockedRepoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<CreateSnapshotResponse> createBlockedSnapshot =
+            startFullSnapshotFromNonMasterClient(blockedRepoName, "queued-snapshot");
+
+        final long generation = getRepositoryData(repoName).getGenId();
+        blockNodeOnAnyFiles(repoName, masterNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        corruptIndexN(repoPath, generation);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
+        internalCluster().stopCurrentMasterNode();
+        ensureStableCluster(3);
+
+        awaitNoMoreRunningOperations();
+        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+        assertAcked(deleteFuture.get());
+        expectThrows(ElasticsearchException.class, createBlockedSnapshot::actionGet);
+    }
+
     public void testMultipleSnapshotsQueuedAfterDelete() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

@@ -2284,9 +2284,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assertConsistent();
         }
 
+        /**
+         * Clear all state associated with running snapshots. To be used on master-failover if the current node stops
+         * being master.
+         */
         synchronized void clear() {
             snapshotsToFinalize.clear();
             runningDeletions.clear();
+            latestKnownMetaData = null;
         }
 
         synchronized boolean isEmpty() {

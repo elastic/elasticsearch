@@ -20,9 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -50,21 +54,22 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        return analyze(input, false);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        return analyze(semanticScope, false);
     }
 
-    Output analyze(Input input, boolean negate) {
-        if (input.write) {
+    Output analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
         }
 
         Output output = new Output();
+        Class<?> valueType;
         Object constant;
 
         String numeric = negate ? "-" + this.numeric : this.numeric;
@@ -76,7 +81,7 @@ public class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(numeric.substring(0, numeric.length() - 1));
-                output.actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + numeric + "]."));
             }
@@ -87,34 +92,35 @@ public class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(numeric.substring(0, numeric.length() - 1));
-                output.actual = float.class;
+                valueType = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + numeric + "]."));
             }
         } else if (numeric.endsWith("l") || numeric.endsWith("L")) {
             try {
                 constant = Long.parseLong(numeric.substring(0, numeric.length() - 1), radix);
-                output.actual = long.class;
+                valueType = long.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid long constant [" + numeric + "]."));
             }
         } else {
             try {
-                Class<?> sort = input.expected == null ? int.class : input.expected;
+                TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+                Class<?> sort = targetType == null ? int.class : targetType.getTargetType();
                 int integer = Integer.parseInt(numeric, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    output.actual = byte.class;
+                    valueType = byte.class;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    output.actual = char.class;
+                    valueType = char.class;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    output.actual = short.class;
+                    valueType = short.class;
                 } else {
                     constant = integer;
-                    output.actual = int.class;
+                    valueType = int.class;
                 }
             } catch (NumberFormatException exception) {
                 try {
@@ -129,11 +135,12 @@ public class ENumeric extends AExpression {
             }
         }
 
+        semanticScope.putDecoration(this, new ValueType(valueType));
+
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(valueType);
         constantNode.setConstant(constant);
-
         output.expressionNode = constantNode;
 
         return output;

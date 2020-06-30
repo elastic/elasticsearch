@@ -285,7 +285,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     public final boolean parsesArrayValue() {
-        return true;
+        return false;
     }
 
     /** parsing logic for geometry indexing */

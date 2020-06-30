@@ -212,8 +212,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
         // left for the second concurrent snapshot.
-        final String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-                .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build());
+        final String dataNode = startDataNodeWithLargeSnapshotPool();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
         createRepository(blockedRepoName, "mock", randomRepoPath());
@@ -223,14 +222,39 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
                 startFullSnapshotBlockedOnDataNode("blocked-snapshot", blockedRepoName, dataNode);
 
-        logger.info("--> waiting for concurrent snapshot to finish");
-        createFullSnapshot(otherRepoName, "snapshot");
+        logger.info("--> waiting for concurrent snapshot(s) to finish");
+        createNSnapshots(otherRepoName, randomIntBetween(1, 5));
 
-        logger.info("--> unblocking data node");
         unblockNode(blockedRepoName, dataNode);
         assertSuccessful(createSlowFuture);
     }
 
+    public void testMultipleReposAreIndependent2() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
+        // left for the second repository's concurrent operations.
+        final String dataNode = startDataNodeWithLargeSnapshotPool();
+        final String blockedRepoName = "test-repo-blocked";
+        final String otherRepoName = "test-repo";
+        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createRepository(otherRepoName, "fs", randomRepoPath());
+        createIndexWithContent("test-index");
+
+        final ActionFuture<CreateSnapshotResponse> createSlowFuture =
+                startFullSnapshotBlockedOnDataNode("blocked-snapshot", blockedRepoName, dataNode);
+
+        logger.info("--> waiting for concurrent snapshot(s) to finish");
+        createNSnapshots(otherRepoName, randomIntBetween(1, 5));
+        assertAcked(startDelete(otherRepoName, "*").get());
+
+        unblockNode(blockedRepoName, dataNode);
+        assertSuccessful(createSlowFuture);
+    }
+
+    private static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(Settings.builder()
+                .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build());
+    }
     public void testSnapshotRunsAfterInProgressDelete() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -249,7 +273,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, "second-snapshot");
 
-        logger.info("--> unblocking master node");
         unblockNode(repoName, masterNode);
         final UncategorizedExecutionException ex = expectThrows(UncategorizedExecutionException.class, deleteFuture::actionGet);
         assertThat(ex.getRootCause(), instanceOf(IOException.class));
@@ -293,7 +316,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(firstSnapshotResponse.isDone(), is(false));
         assertThat(secondSnapshotResponse.isDone(), is(false));
 
-        logger.info("--> unblocking data node");
         unblockNode(repoName, dataNode);
         assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
 
@@ -351,7 +373,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertThat(snapshotsInProgress.entries().get(0).state(), is(SnapshotsInProgress.State.ABORTED));
         }, 30L, TimeUnit.SECONDS);
 
-        logger.info("--> unblocking data node");
         unblockNode(repoName, dataNode);
 
         logger.info("--> verify all snapshots were aborted");
@@ -428,7 +449,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> stopping current master node");
         internalCluster().stopCurrentMasterNode();
 
-        logger.info("--> unblocking data nodes");
         unblockNode(repoName, dataNode);
         unblockNode(repoName, dataNode2);
 

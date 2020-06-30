@@ -271,7 +271,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
-    public static void unblockNode(final String repository, final String node) {
+    public void unblockNode(final String repository, final String node) {
+        logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 

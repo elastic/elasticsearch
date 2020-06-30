@@ -10,7 +10,6 @@ import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
@@ -107,6 +108,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    private volatile boolean blockOnDeleteIndexN;
+
     /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
      *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
     private volatile boolean blockOnWriteIndexFile;
@@ -172,6 +175,7 @@ public class MockRepository extends FsRepository {
         blockOnAnyFiles = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockOnDeleteIndexN = false;
         this.notifyAll();
     }
 
@@ -191,6 +195,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = blocked;
     }
 
+    public void setBlockOnDeleteIndexFile() {
+        blockOnDeleteIndexN = true;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -200,7 +208,7 @@ public class MockRepository extends FsRepository {
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile) {
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -339,6 +347,15 @@ public class MockRepository extends FsRepository {
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
                     List.of(path().toArray()[path().toArray().length - 1]));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+                if (blockOnDeleteIndexN && blobNames.stream().anyMatch(
+                    name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
+                    blockExecutionAndMaybeWait("index-{N}");
+                }
+                super.deleteBlobsIgnoringIfNotExists(blobNames);
             }
 
             @Override

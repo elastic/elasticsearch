@@ -794,6 +794,24 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(deleteSnapshotOne.get());
     }
 
+    public void testStartDeleteDuringFinalizationCleanup() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-test");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+        final String snapshotName = "snap-name";
+        blockMasterFromDeletingIndexNFile(repoName);
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshot(repoName, snapshotName);
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDelete(repoName, snapshotName);
+        awaitNDeletionsInProgress(1);
+        unblockNode(repoName, masterName);
+        assertSuccessful(snapshotFuture);
+        assertAcked(deleteFuture.get(30L, TimeUnit.SECONDS));
+    }
+
     private List<String> createNSnapshots(String repoName, int count) throws Exception {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";

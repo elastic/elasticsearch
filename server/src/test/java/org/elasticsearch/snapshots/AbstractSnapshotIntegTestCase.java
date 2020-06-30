@@ -212,6 +212,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return masterName;
     }
 
+    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
+            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+    }
+
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)

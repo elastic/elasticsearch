@@ -24,13 +24,19 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class TimestampFieldMapper extends MetadataFieldMapper {
 
@@ -131,35 +137,55 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         this.path = path;
     }
 
-    public void validate(FieldTypeLookup lookup) {
+    public void validate(DocumentFieldMappers lookup) {
         if (path == null) {
             // not configured, so skip the validation
             return;
         }
 
-        MappedFieldType fieldType = lookup.get(path);
-        if (fieldType == null) {
+        Mapper mapper = lookup.getMapper(path);
+        if (mapper == null) {
             throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] points to a non existing field");
         }
 
-        if (DateFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false &&
-            DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(fieldType.typeName()) == false) {
+        if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false &&
+            DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is of type [" +
-                fieldType.typeName() + "], but [" + DateFieldMapper.CONTENT_TYPE + "," + DateFieldMapper.DATE_NANOS_CONTENT_TYPE +
+                mapper.typeName() + "], but [" + DateFieldMapper.CONTENT_TYPE + "," + DateFieldMapper.DATE_NANOS_CONTENT_TYPE +
                 "] is expected");
         }
 
-        if (fieldType.isSearchable() == false) {
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
+        if (dateFieldMapper.fieldType().isSearchable() == false) {
             throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is not indexed");
         }
-        if (fieldType.hasDocValues() == false) {
+        if (dateFieldMapper.fieldType().hasDocValues() == false) {
             throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] doesn't have doc values");
+        }
+
+        // Validate whether disallowed mapping attributes have been specified on the field this meta field refers to:
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            dateFieldMapper.doXContentBody(builder, false, EMPTY_PARAMS);
+            builder.endObject();
+            Map<String, Object> configuredSettings =
+                XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+
+            // Only type, meta and format attributes are allowed:
+            configuredSettings.remove("type");
+            configuredSettings.remove("meta");
+            configuredSettings.remove("format");
+            // All other configured attributes are not allowed:
+            if (configuredSettings.isEmpty() == false) {
+                throw new IllegalArgumentException("the timestamp field has disallowed attributes: " + configuredSettings.keySet());
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-
     }
 
     @Override

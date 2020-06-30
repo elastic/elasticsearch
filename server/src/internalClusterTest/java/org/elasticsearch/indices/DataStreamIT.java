@@ -568,8 +568,7 @@ public class DataStreamIT extends ESIntegTestCase {
             "          \"format\": \"yyyy-MM\",\n" +
             "          \"meta\": {\n" +
             "            \"x\": \"y\"\n" +
-            "          },\n" +
-            "          \"store\": true\n" +
+            "          }\n" +
             "        }\n" +
             "      }\n" +
             "    }";
@@ -582,7 +581,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getName(), equalTo("@timestamp"));
-        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"), "store", true);
+        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField().getFieldMapping(), equalTo(expectedTimestampMapping));
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
 

@@ -393,7 +393,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
             if (metadataFieldMapper instanceof TimestampFieldMapper) {
-                ((TimestampFieldMapper) metadataFieldMapper).validate(newFieldTypes);
+                ((TimestampFieldMapper) metadataFieldMapper).validate(newMapper.mappers());
             }
         }
 

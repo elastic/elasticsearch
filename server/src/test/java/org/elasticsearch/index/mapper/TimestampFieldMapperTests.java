@@ -111,4 +111,17 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("timestamp meta field's field_name [@timestamp] doesn't have doc values"));
     }
 
+    public void testValidateNotDisallowedAttribute() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("properties").startObject("@timestamp").field("type", "date").field("ignore_malformed", "true")
+                .field("null_value", "2020-12-12").endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(),
+            equalTo("the timestamp field has disallowed attributes: [null_value, ignore_malformed]"));
+    }
+
 }

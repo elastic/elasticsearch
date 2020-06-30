@@ -577,7 +577,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                 }
                 try {
-                    Request compReq = new Request("GET", "_component_templates");
+                    Request compReq = new Request("GET", "_component_template");
                     String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
                     Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
                     @SuppressWarnings("unchecked")

@@ -125,6 +125,59 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         client().performRequest(new Request("DELETE", "/_data_stream/" + indexName));
     }
 
+    public void testSimpleBooleanPivot() throws Exception {
+        String transformId = "simple-boolean-pivot";
+        String sourceIndex = "boolean_value";
+        String transformIndex = "pivot_boolean_value";
+
+        Request doc1 = new Request("POST", sourceIndex + "/_doc");
+        doc1.setJsonEntity("{\"bool\": true, \"val\": 1.0}");
+        client().performRequest(doc1);
+        Request doc2 = new Request("POST", sourceIndex + "/_doc");
+        doc2.setJsonEntity("{\"bool\": true, \"val\": 0.0}");
+        client().performRequest(doc2);
+        Request doc3 = new Request("POST", sourceIndex + "/_doc");
+        doc3.setJsonEntity("{\"bool\": false, \"val\": 2.0}");
+        client().performRequest(doc3);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = ""
+            + "{"
+            + "\"source\":{\"index\": \"boolean_value\"},"
+            + "\"dest\" :{\"index\": \"pivot_boolean_value\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"bool\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"bool\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"val\""
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=bool:true", 0.5);
+        assertOnePivotValue(transformIndex + "/_search?q=bool:false", 2.0);
+
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        // Should be less than the total number of users since we filtered every user who had an average review less than or equal to 3.8
+        assertEquals(2, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+    }
+
     public void testSimplePivotWithQuery() throws Exception {
         String transformId = "simple_pivot_with_query";
         String transformIndex = "pivot_reviews_user_id_above_20";

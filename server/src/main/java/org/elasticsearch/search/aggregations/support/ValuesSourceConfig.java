@@ -22,7 +22,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
@@ -30,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -370,5 +373,25 @@ public class ValuesSourceConfig {
 
     public boolean hasGlobalOrdinals() {
         return valuesSource.hasGlobalOrdinals();
+    }
+
+    @Nullable
+    public Function<byte[], Number> getPointReaderOrNull() {
+        if (fieldContext() != null && script() == null && missing() == null) {
+            MappedFieldType fieldType = fieldContext().fieldType();
+            if (fieldType == null || fieldType.isSearchable() == false) {
+                return null;
+            }
+            Function<byte[], Number> converter = null;
+            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
+            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
+                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
+                converter = dft.resolution()::parsePointAsMillis;
+            }
+            return converter;
+        }
+        return null;
+
     }
 }

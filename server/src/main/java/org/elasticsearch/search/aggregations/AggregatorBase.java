@@ -23,9 +23,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -117,29 +114,14 @@ public abstract class AggregatorBase extends Aggregator {
      *
      * @param config The config for the values source metric.
      */
-    protected Function<byte[], Number> getPointReaderOrNull(ValuesSourceConfig config) {
-        if (context.query() != null &&
-                context.query().getClass() != MatchAllDocsQuery.class) {
+    public Function<byte[], Number> getPointReaderOrNull(ValuesSourceConfig config) {
+        if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
             return null;
         }
         if (parent != null) {
             return null;
         }
-        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.isSearchable() == false) {
-                return null;
-            }
-            Function<byte[], Number> converter = null;
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
-            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-                converter = dft.resolution()::parsePointAsMillis;
-            }
-            return converter;
-        }
-        return null;
+        return config.getPointReaderOrNull();
     }
 
     /**

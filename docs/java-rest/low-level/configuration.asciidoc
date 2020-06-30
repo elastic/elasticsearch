@@ -25,6 +25,13 @@ seconds).
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-timeouts]
 --------------------------------------------------
 
+timeouts also can set by RequestOptions per request.this will override RestClient customizeRequestConfig.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-request-options-timeouts]
+--------------------------------------------------
+
 === Number of threads
 
 The Apache Http Async Client starts by default one dispatcher thread, and a

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Multi
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.PrecisionResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.RecallResultTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 
 import java.util.List;
@@ -37,6 +38,7 @@ public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializin
                 RecallResultTests.createRandom(),
                 MulticlassConfusionMatrixResultTests.createRandom(),
                 new MeanSquaredError.Result(randomDouble()),
+                new MeanSquaredLogarithmicError.Result(randomDouble()),
                 new RSquared.Result(randomDouble()));
         return new Response(evaluationName, randomSubsetOf(metrics));
     }

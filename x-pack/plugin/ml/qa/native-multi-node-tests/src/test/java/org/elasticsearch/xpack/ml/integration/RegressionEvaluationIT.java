@@ -28,7 +28,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
@@ -62,10 +61,6 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("search.max_buckets"))
-            .get();
     }
 
     public void testEvaluate_DefaultMetrics() {

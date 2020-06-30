@@ -87,13 +87,15 @@ public class RestPutMappingAction extends BaseRestHandler {
 
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        } else if (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
-            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
-                "the include_type_name parameter is set to true.");
         }
 
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        if (includeTypeName == false && (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
+            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
+                "the include_type_name parameter is set to true.");
+        }
+
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(sourceAsMap);
 

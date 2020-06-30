@@ -66,6 +66,12 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(multipleValuesInDocValues().collect(c.testScript("times_ten")), equalTo(List.of(10L, 20L, 100L, 200L)));
     }
 
+    public void testExistsQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        LongRuntimeValues isOne = c.testScript("is_one");
+        assertThat(c.collect(isOne.existsQuery("foo"), isOne), equalTo(List.of(1L)));
+    }
+
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
@@ -217,6 +223,32 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                                         public void execute() {
                                             for (Object v : getDoc().get("foo")) {
                                                 sync.accept(((long) v) * 10);
+                                            }
+                                        }
+                                    };
+                                };
+                                return leafFactory;
+                            };
+                        }
+                        if (name.equals("is_one")) {
+                            return (params, source, fieldData) -> {
+                                LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                                    return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
+                                        @Override
+                                        protected void onSetDocument(int docId) {
+                                            int rebased = ctx.docBase + docId;
+                                            if (false == visited.add(rebased)) {
+                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
+                                            }
+                                        }
+
+                                        @Override
+                                        public void execute() {
+                                            for (Object v : getDoc().get("foo")) {
+                                                long l = (long) v;
+                                                if (l == 1) {
+                                                    sync.accept(1);
+                                                }
                                             }
                                         }
                                     };

@@ -73,6 +73,12 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         );
     }
 
+    public void testExistsQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        DoubleRuntimeValues isOnePointOne = c.testScript("is_one_point_one");
+        assertThat(c.collect(isOnePointOne.existsQuery("foo"), isOnePointOne), equalTo(List.of(1.1)));
+    }
+
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
@@ -230,6 +236,32 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                                         public void execute() {
                                             for (Object v : getDoc().get("foo")) {
                                                 sync.accept(((double) v) * 9.9);
+                                            }
+                                        }
+                                    };
+                                };
+                                return leafFactory;
+                            };
+                        }
+                        if (name.equals("is_one_point_one")) {
+                            return (params, source, fieldData) -> {
+                                DoubleScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                                    return new DoubleScriptFieldScript(params, source, fieldData, ctx, sync) {
+                                        @Override
+                                        protected void onSetDocument(int docId) {
+                                            int rebased = ctx.docBase + docId;
+                                            if (false == visited.add(rebased)) {
+                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
+                                            }
+                                        }
+
+                                        @Override
+                                        public void execute() {
+                                            for (Object v : getDoc().get("foo")) {
+                                                double d = (double) v;
+                                                if (d == 1.1) {
+                                                    sync.accept(1.1);
+                                                }
                                             }
                                         }
                                     };

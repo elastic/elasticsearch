@@ -70,6 +70,12 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(multipleValuesInDocValues().collect(ADD_O), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
     }
 
+    public void testExistsQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues isCat = c.testScript("is_cat");
+        assertThat(c.collect(isCat.existsQuery("foo"), isCat), equalTo(List.of("cat")));
+    }
+
     public void testFuzzyQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
@@ -245,6 +251,31 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                                         public void execute() {
                                             for (Object v : getDoc().get("foo")) {
                                                 sync.accept(v + "o");
+                                            }
+                                        }
+                                    };
+                                };
+                                return leafFactory;
+                            };
+                        }
+                        if (name.equals("is_cat")) {
+                            return (params, source, fieldData) -> {
+                                StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                                    return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
+                                        @Override
+                                        protected void onSetDocument(int docId) {
+                                            int rebased = ctx.docBase + docId;
+                                            if (false == visited.add(rebased)) {
+                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
+                                            }
+                                        }
+
+                                        @Override
+                                        public void execute() {
+                                            for (Object v : getDoc().get("foo")) {
+                                                if (v.equals("cat")) {
+                                                    sync.accept("cat");
+                                                }
                                             }
                                         }
                                     };

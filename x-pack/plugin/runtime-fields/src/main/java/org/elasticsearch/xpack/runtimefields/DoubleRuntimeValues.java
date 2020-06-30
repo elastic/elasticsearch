@@ -36,16 +36,20 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
         return unstarted().docValues();
     }
 
+    public Query existsQuery(String fieldName) {
+        return unstarted().new ExistsQuery(fieldName);
+    }
+
+    public Query rangeQuery(String fieldName, double lowerValue, double upperValue) {
+        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
+    }
+
     public Query termQuery(String fieldName, double value) {
         return unstarted().new TermQuery(fieldName, value);
     }
 
     public Query termsQuery(String fieldName, double... value) {
         return unstarted().new TermsQuery(fieldName, value);
-    }
-
-    public Query rangeQuery(String fieldName, double lowerValue, double upperValue) {
-        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
     }
 
     @Override
@@ -103,6 +107,62 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
                 leafCursor.accept(target);
                 next = 0;
                 return count > 0;
+            }
+        }
+
+        private class ExistsQuery extends AbstractRuntimeQuery {
+            private ExistsQuery(String fieldName) {
+                super(fieldName);
+            }
+
+            @Override
+            protected boolean matches() {
+                return count > 0;
+            }
+
+            @Override
+            protected String bareToString() {
+                return "*";
+            }
+        }
+
+        private class RangeQuery extends AbstractRuntimeQuery {
+            private final double lowerValue;
+            private final double upperValue;
+
+            private RangeQuery(String fieldName, double lowerValue, double upperValue) {
+                super(fieldName);
+                this.lowerValue = lowerValue;
+                this.upperValue = upperValue;
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (lowerValue <= values[i] && values[i] <= upperValue) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            protected String bareToString() {
+                return "[" + lowerValue + "," + upperValue + "]";
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), lowerValue, upperValue);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                RangeQuery other = (RangeQuery) obj;
+                return lowerValue == other.lowerValue && upperValue == other.upperValue;
             }
         }
 
@@ -192,46 +252,6 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
                 }
                 TermsQuery other = (TermsQuery) obj;
                 return Arrays.equals(terms, other.terms);
-            }
-        }
-
-        private class RangeQuery extends AbstractRuntimeQuery {
-            private final double lowerValue;
-            private final double upperValue;
-
-            private RangeQuery(String fieldName, double lowerValue, double upperValue) {
-                super(fieldName);
-                this.lowerValue = lowerValue;
-                this.upperValue = upperValue;
-            }
-
-            @Override
-            protected boolean matches() {
-                for (int i = 0; i < count; i++) {
-                    if (lowerValue <= values[i] && values[i] <= upperValue) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            protected String bareToString() {
-                return "[" + lowerValue + "," + upperValue + "]";
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(super.hashCode(), lowerValue, upperValue);
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (false == super.equals(obj)) {
-                    return false;
-                }
-                RangeQuery other = (RangeQuery) obj;
-                return lowerValue == other.lowerValue && upperValue == other.upperValue;
             }
         }
     }

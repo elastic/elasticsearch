@@ -43,6 +43,10 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().docValues();
     }
 
+    public Query existsQuery(String fieldName) {
+        return unstarted().new ExistsQuery(fieldName);
+    }
+
     public Query fuzzyQuery(String fieldName, String value, int maxEdits, int prefixLength, int maxExpansions, boolean transpositions) {
         return unstarted().new FuzzyQuery(fieldName, value, maxEdits, prefixLength, maxExpansions, transpositions);
     }
@@ -131,6 +135,22 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             public BytesRef nextValue() throws IOException {
                 ref.copyChars(values[next++]);
                 return ref.get();
+            }
+        }
+
+        private class ExistsQuery extends AbstractRuntimeQuery {
+            private ExistsQuery(String fieldName) {
+                super(fieldName);
+            }
+
+            @Override
+            protected boolean matches() {
+                return count > 0;
+            }
+
+            @Override
+            protected String bareToString() {
+                return "*";
             }
         }
 

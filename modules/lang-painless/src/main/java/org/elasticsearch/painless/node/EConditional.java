@@ -41,27 +41,27 @@ import java.util.Objects;
 public class EConditional extends AExpression {
 
     private final AExpression conditionNode;
-    private final AExpression leftNode;
-    private final AExpression rightNode;
+    private final AExpression trueNode;
+    private final AExpression falseNode;
 
-    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression leftNode, AExpression rightNode) {
+    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression trueNode, AExpression falseNode) {
         super(identifier, location);
 
         this.conditionNode = Objects.requireNonNull(conditionNode);
-        this.leftNode = Objects.requireNonNull(leftNode);
-        this.rightNode = Objects.requireNonNull(rightNode);
+        this.trueNode = Objects.requireNonNull(trueNode);
+        this.falseNode = Objects.requireNonNull(falseNode);
     }
 
     public AExpression getConditionNode() {
         return conditionNode;
     }
 
-    public AExpression getLeftNode() {
-        return leftNode;
+    public AExpression getTrueNode() {
+        return trueNode;
     }
 
-    public AExpression getRightNode() {
-        return rightNode;
+    public AExpression getFalseNode() {
+        return falseNode;
     }
 
     @Override
@@ -82,19 +82,19 @@ public class EConditional extends AExpression {
         Output conditionOutput = analyze(conditionNode, classNode, semanticScope);
         PainlessCast conditionCast = conditionNode.cast(semanticScope);
 
-        semanticScope.setCondition(leftNode, Read.class);
-        semanticScope.copyDecoration(this, leftNode, TargetType.class);
-        semanticScope.replicateCondition(this, leftNode, Explicit.class);
-        semanticScope.replicateCondition(this, leftNode, Internal.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
+        semanticScope.setCondition(trueNode, Read.class);
+        semanticScope.copyDecoration(this, trueNode, TargetType.class);
+        semanticScope.replicateCondition(this, trueNode, Explicit.class);
+        semanticScope.replicateCondition(this, trueNode, Internal.class);
+        Output leftOutput = analyze(trueNode, classNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(trueNode, ValueType.class).getValueType();
 
-        semanticScope.setCondition(rightNode, Read.class);
-        semanticScope.copyDecoration(this, rightNode, TargetType.class);
-        semanticScope.replicateCondition(this, rightNode, Explicit.class);
-        semanticScope.replicateCondition(this, rightNode, Internal.class);
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+        semanticScope.setCondition(falseNode, Read.class);
+        semanticScope.copyDecoration(this, falseNode, TargetType.class);
+        semanticScope.replicateCondition(this, falseNode, Explicit.class);
+        semanticScope.replicateCondition(this, falseNode, Internal.class);
+        Output rightOutput = analyze(falseNode, classNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(falseNode, ValueType.class).getValueType();
 
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
         Class<?> valueType;
@@ -108,15 +108,15 @@ public class EConditional extends AExpression {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
             }
 
-            semanticScope.putDecoration(leftNode, new TargetType(promote));
-            semanticScope.putDecoration(rightNode, new TargetType(promote));
+            semanticScope.putDecoration(trueNode, new TargetType(promote));
+            semanticScope.putDecoration(falseNode, new TargetType(promote));
             valueType = promote;
         } else {
             valueType = targetType.getTargetType();
         }
 
-        PainlessCast leftCast = leftNode.cast(semanticScope);
-        PainlessCast rightCast = rightNode.cast(semanticScope);
+        PainlessCast leftCast = trueNode.cast(semanticScope);
+        PainlessCast rightCast = falseNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(valueType));
 

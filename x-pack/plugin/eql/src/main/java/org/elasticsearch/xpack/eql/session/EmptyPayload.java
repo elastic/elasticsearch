@@ -37,11 +37,6 @@ public class EmptyPayload implements Payload {
     }
 
     @Override
-    public Object[] nextKeys() {
-        return null;
-    }
-
-    @Override
     public <V> List<V> values() {
         return emptyList();
     }

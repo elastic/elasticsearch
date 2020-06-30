@@ -26,11 +26,10 @@ TIP: Data streams work well with most common log formats. While no schema is
 required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
 (ECS)].
 
-* Data streams are designed to be <<data-streams-append-only,append-only>>.
-While you can index new documents directly to a data stream, you cannot use a
-data stream to directly update or delete individual documents. To update or
-delete specific documents in a data stream, submit a <<docs-delete,delete>> or
-<<docs-update,update>> API request to the backing index containing the document.
+* Data streams are best suited for time-based,
+<<data-streams-append-only,append-only>> use cases. If you frequently need to
+update or delete existing documents, we recommend using an index alias and an
+index template instead.
 
 
 [discrete]

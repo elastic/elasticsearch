@@ -216,9 +216,12 @@ public class RestoreService implements ClusterStateApplier {
                     dataStreams = new HashMap<>();
                 } else {
                     globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
-                    dataStreams = globalMetadata.dataStreams();
-                    if (request.includeGlobalState() == false) {
-                        dataStreams.keySet().retainAll(requestedDataStreams);
+                    final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
+                    dataStreams = new HashMap<>(requestedDataStreams.size());
+                    for (String requestedDataStream : requestedDataStreams) {
+                        final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
+                        assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
+                        dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                     }
                 }
                 requestIndices.removeAll(dataStreams.keySet());

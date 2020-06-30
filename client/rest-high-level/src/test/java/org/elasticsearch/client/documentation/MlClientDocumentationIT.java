@@ -161,6 +161,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -3570,7 +3571,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     "predicted_value", // <3>
                     // Evaluation metrics // <4>
                     new MeanSquaredErrorMetric(), // <5>
-                    new RSquaredMetric()); // <6>
+                    new MeanSquaredLogarithmicErrorMetric(1.0), // <6>
+                    new RSquaredMetric()); // <7>
             // end::evaluate-data-frame-evaluation-regression
 
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
@@ -3580,11 +3582,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             MeanSquaredErrorMetric.Result meanSquaredErrorResult = response.getMetricByName(MeanSquaredErrorMetric.NAME); // <1>
             double meanSquaredError = meanSquaredErrorResult.getError(); // <2>
 
-            RSquaredMetric.Result rSquaredResult = response.getMetricByName(RSquaredMetric.NAME); // <3>
-            double rSquared = rSquaredResult.getValue(); // <4>
+            MeanSquaredLogarithmicErrorMetric.Result meanSquaredLogarithmicErrorResult =
+                response.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME); // <3>
+            double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getError(); // <4>
+
+            RSquaredMetric.Result rSquaredResult = response.getMetricByName(RSquaredMetric.NAME); // <5>
+            double rSquared = rSquaredResult.getValue(); // <6>
             // end::evaluate-data-frame-results-regression
 
             assertThat(meanSquaredError, closeTo(0.021, 1e-3));
+            assertThat(meanSquaredLogarithmicError, closeTo(0.003, 1e-3));
             assertThat(rSquared, closeTo(0.941, 1e-3));
         }
     }

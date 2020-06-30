@@ -63,13 +63,20 @@ the current write index, the data stream must first be
 <<rollover-data-stream-ex,rolled over>> so that a new write index is created
 and then the previous write index can be closed.
 
+// end::closed-index[]
+
+[[open-index-api-wait-for-active-shards]]
 ===== Wait For active shards
+
+// tag::wait-for-active-shards[]
 
 Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the `_open` and `_close` index actions as well.
 
-// end::closed-index[]
+// end::wait-for-active-shards[]
+
+
 
 
 [[open-index-api-path-params]]

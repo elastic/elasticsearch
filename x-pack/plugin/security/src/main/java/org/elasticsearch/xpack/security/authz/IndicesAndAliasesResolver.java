@@ -360,7 +360,7 @@ class IndicesAndAliasesResolver {
                     // continue
                     aliasOrIndex = dateMathName;
                 } else if (authorizedIndices.contains(dateMathName) &&
-                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metadata, true)) {
+                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {

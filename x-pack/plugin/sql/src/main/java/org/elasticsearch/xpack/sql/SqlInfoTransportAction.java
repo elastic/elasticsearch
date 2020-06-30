@@ -31,7 +31,7 @@ public class SqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.checkFeature(XPackLicenseState.Feature.SQL);
+        return licenseState.isAllowed(XPackLicenseState.Feature.SQL);
     }
 
     @Override

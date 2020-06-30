@@ -31,7 +31,7 @@ public class MonitoringInfoTransportAction extends XPackInfoFeatureTransportActi
 
     @Override
     public boolean available() {
-        return licenseState.checkFeature(XPackLicenseState.Feature.MONITORING);
+        return licenseState.isAllowed(XPackLicenseState.Feature.MONITORING);
     }
 
     @Override

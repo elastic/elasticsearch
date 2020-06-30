@@ -59,7 +59,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         EqlInfoTransportAction featureSet = new EqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.checkFeature(XPackLicenseState.Feature.EQL)).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.EQL)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

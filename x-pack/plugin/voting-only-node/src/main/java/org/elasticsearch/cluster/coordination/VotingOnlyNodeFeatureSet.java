@@ -43,7 +43,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.checkFeature(Feature.VOTING_ONLY);
+        return licenseState != null && licenseState.isAllowed(Feature.VOTING_ONLY);
     }
 
     @Override

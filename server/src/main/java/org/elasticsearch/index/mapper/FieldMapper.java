@@ -225,6 +225,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * A value to use in place of a {@code null} value in the document source.
+     */
+    protected Object nullValue() {
+        return null;
+    }
+
+    /**
      * Whether this mapper can handle an array value during document parsing. If true,
      * when an array is encountered during parsing, the document parser will pass the
      * whole array to the mapper. If false, the array is split into individual values
@@ -286,7 +293,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @return a list a standardized field values.
      */
     public List<?> lookupValues(SourceLookup lookup, @Nullable String format) {
-        Object sourceValue = lookup.extractValue(name());
+        Object sourceValue = lookup.extractValue(name(), nullValue());
         if (sourceValue == null) {
             return List.of();
         }
@@ -337,6 +344,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new AssertionError(e);
         }
     }
+
 
     @Override
     public FieldMapper merge(Mapper mergeWith) {

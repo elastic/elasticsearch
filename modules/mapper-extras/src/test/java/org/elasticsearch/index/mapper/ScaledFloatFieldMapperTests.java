@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -405,11 +406,22 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloat
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
         ScaledFloatFieldMapper mapper = new ScaledFloatFieldMapper.Builder("field")
             .scalingFactor(100)
             .build(context);
-
         assertEquals(3.14, mapper.parseSourceValue(3.1415926, null), 0.00001);
         assertEquals(3.14, mapper.parseSourceValue("3.1415", null), 0.00001);
+        assertNull(mapper.parseSourceValue("", null));
+
+        ScaledFloatFieldMapper nullValueMapper = new ScaledFloatFieldMapper.Builder("field")
+            .scalingFactor(100)
+            .nullValue(2.71)
+            .build(context);
+        assertEquals(2.71, nullValueMapper.parseSourceValue("", null), 0.00001);
+
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of(2.71), nullValueMapper.lookupValues(sourceLookup, null));
     }
 }

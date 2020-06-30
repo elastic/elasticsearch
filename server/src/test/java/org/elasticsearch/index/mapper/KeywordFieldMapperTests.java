@@ -46,6 +46,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -648,5 +649,12 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         assertNull(ignoreAboveMapper.parseSourceValue("value", null));
         assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
         assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+
+        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(context);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of("NULL"), nullValueMapper.lookupValues(sourceLookup, null));
     }
 }

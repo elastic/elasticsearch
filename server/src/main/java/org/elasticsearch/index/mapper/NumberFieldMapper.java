@@ -1037,6 +1037,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Number nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
@@ -1090,6 +1095,11 @@ public class NumberFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
+
+        if (value.equals("")) {
+            return nullValue;
+        }
+
         return fieldType().type.parse(value, coerce.value());
     }
 

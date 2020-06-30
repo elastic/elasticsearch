@@ -1377,9 +1377,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return;
                 }
                 if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
-                    final boolean added = currentlyFinalizing.add(repoName);
-                    assert added;
-                    deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
+                    if (currentlyFinalizing.add(repoName)) {
+                        deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
+                    } else {
+                        logger.trace("Delete [{}] could not execute directly and was queued", newDelete);
+                    }
                 } else {
                     for (SnapshotsInProgress.Entry completedSnapshot : completedSnapshots) {
                         endSnapshot(completedSnapshot, newState.metadata(), repositoryData);

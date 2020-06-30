@@ -34,7 +34,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPostParse() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("field_name", "@timestamp").endObject()
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type",
                 randomBoolean() ? "date" : "date_nanos").endObject().endObject()
             .endObject().endObject());
@@ -68,7 +68,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNonExistingField() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("field_name", "non-existing-field").endObject()
+            .startObject("_timestamp").field("path", "non-existing-field").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").endObject().endObject()
             .endObject().endObject());
 
@@ -79,7 +79,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateInvalidFieldType() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("field_name", "@timestamp").endObject()
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "keyword").endObject().endObject()
             .endObject().endObject());
 
@@ -91,7 +91,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNotIndexed() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("field_name", "@timestamp").endObject()
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("index", "false").endObject().endObject()
             .endObject().endObject());
 
@@ -102,7 +102,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNotDocValues() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("field_name", "@timestamp").endObject()
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("doc_values", "false").endObject().endObject()
             .endObject().endObject());
 

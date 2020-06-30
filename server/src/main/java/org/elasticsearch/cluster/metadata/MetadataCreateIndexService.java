@@ -506,7 +506,7 @@ public class MetadataCreateIndexService {
                 timestampField = template.getDataStreamTemplate().getTimestampField();
             }
             // Add mapping for timestamp field mapper last, so that it can't be overwritten:
-            mappings.add(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("field_name", timestampField))));
+            mappings.add(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", timestampField))));
         }
 
         final Settings aggregatedIndexSettings =

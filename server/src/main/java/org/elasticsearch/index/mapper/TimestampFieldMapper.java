@@ -38,25 +38,25 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public static class Defaults  {
 
-        public static final FieldType DATA_STREAM_TIMESTAMP_FIELD_TYPE = new FieldType();
+        public static final FieldType TIMESTAMP_FIELD_TYPE = new FieldType();
 
         static {
-            DATA_STREAM_TIMESTAMP_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            DATA_STREAM_TIMESTAMP_FIELD_TYPE.freeze();
+            TIMESTAMP_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            TIMESTAMP_FIELD_TYPE.freeze();
         }
     }
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
-    public static final class DataStreamTimestampFieldFieldType extends MappedFieldType {
+    public static final class TimestampFieldType extends MappedFieldType {
 
-        public DataStreamTimestampFieldFieldType() {
+        public TimestampFieldType() {
             super(NAME, false, false, TextSearchInfo.NONE, Map.of());
         }
 
         @Override
         public MappedFieldType clone() {
-            return new DataStreamTimestampFieldFieldType();
+            return new TimestampFieldType();
         }
 
         @Override
@@ -78,22 +78,22 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        private String fieldName;
+        private String path;
 
         public Builder() {
-            super(NAME, Defaults.DATA_STREAM_TIMESTAMP_FIELD_TYPE);
+            super(NAME, Defaults.TIMESTAMP_FIELD_TYPE);
         }
 
-        public void setFieldName(String fieldName) {
-            this.fieldName = fieldName;
+        public void setPath(String path) {
+            this.path = path;
         }
 
         @Override
         public MetadataFieldMapper build(BuilderContext context) {
             return new TimestampFieldMapper(
                 fieldType,
-                new DataStreamTimestampFieldFieldType(),
-                fieldName
+                new TimestampFieldType(),
+                path
             );
         }
     }
@@ -109,8 +109,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("field_name")) {
-                    builder.setFieldName((String) fieldNode);
+                if (fieldName.equals("path")) {
+                    builder.setPath((String) fieldNode);
                     iterator.remove();
                 }
             }
@@ -119,41 +119,41 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext parserContext) {
-            return new TimestampFieldMapper(Defaults.DATA_STREAM_TIMESTAMP_FIELD_TYPE,
-                new DataStreamTimestampFieldFieldType(), null);
+            return new TimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE,
+                new TimestampFieldType(), null);
         }
     }
 
-    private final String fieldName;
+    private final String path;
 
-    private TimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String fieldName) {
+    private TimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String path) {
         super(fieldType, mappedFieldType);
-        this.fieldName = fieldName;
+        this.path = path;
     }
 
     public void validate(FieldTypeLookup lookup) {
-        if (fieldName == null) {
+        if (path == null) {
             // not configured, so skip the validation
             return;
         }
 
-        MappedFieldType fieldType = lookup.get(fieldName);
+        MappedFieldType fieldType = lookup.get(path);
         if (fieldType == null) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] points to a non existing field");
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] points to a non existing field");
         }
 
         if (DateFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false &&
             DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(fieldType.typeName()) == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] is of type [" +
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is of type [" +
                 fieldType.typeName() + "], but [" + DateFieldMapper.CONTENT_TYPE + "," + DateFieldMapper.DATE_NANOS_CONTENT_TYPE +
                 "] is expected");
         }
 
         if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] is not indexed");
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is not indexed");
         }
         if (fieldType.hasDocValues() == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + fieldName + "] doesn't have doc values");
+            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] doesn't have doc values");
         }
     }
 
@@ -164,19 +164,20 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-
+        // Meta field doesn't create any fields, so this shouldn't happen.
+        throw new IllegalStateException(NAME + " field mapper cannot create fields");
     }
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (fieldName == null) {
+        if (path == null) {
             // not configured, so skip the validation
             return;
         }
 
-        IndexableField[] fields = context.rootDoc().getFields(fieldName);
+        IndexableField[] fields = context.rootDoc().getFields(path);
         if (fields.length == 0) {
-            throw new IllegalArgumentException("data stream timestamp field [" + fieldName + "] is missing");
+            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is missing");
         }
 
         long numberOfValues =
@@ -184,20 +185,20 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
                 .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
                 .count();
         if (numberOfValues > 1) {
-            throw new IllegalArgumentException("data stream timestamp field [" + fieldName + "] encountered multiple values");
+            throw new IllegalArgumentException("data stream timestamp field [" + path + "] encountered multiple values");
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fieldName == null) {
+        if (path == null) {
             return builder;
         }
 
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.startObject(simpleName());
         doXContentBody(builder, includeDefaults, params);
-        builder.field("field_name", fieldName);
+        builder.field("path", path);
         return builder.endObject();
     }
 

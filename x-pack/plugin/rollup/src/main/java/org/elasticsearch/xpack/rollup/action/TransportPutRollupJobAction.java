@@ -68,8 +68,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,

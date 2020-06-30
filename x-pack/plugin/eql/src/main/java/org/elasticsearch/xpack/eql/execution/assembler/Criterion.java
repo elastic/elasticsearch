@@ -10,6 +10,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
+import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -22,12 +24,17 @@ public class Criterion implements QueryRequest {
     private final HitExtractor tiebreakerExtractor;
 
     // search after markers
-    private Object[] startMarker;
-    private Object[] stopMarker;
+    private Ordinal startMarker;
+    private Ordinal stopMarker;
+    
+    private boolean reverse;
 
     //TODO: should accept QueryRequest instead of another SearchSourceBuilder
-    public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
-                     HitExtractor tiebreakerExtractor) {
+    public Criterion(SearchSourceBuilder searchSource,
+                     List<HitExtractor> searchAfterExractors,
+                     HitExtractor timestampExtractor,
+                     HitExtractor tiebreakerExtractor,
+                     boolean reverse) {
         this.searchSource = searchSource;
         this.keyExtractors = searchAfterExractors;
         this.timestampExtractor = timestampExtractor;
@@ -35,6 +42,7 @@ public class Criterion implements QueryRequest {
 
         this.startMarker = null;
         this.stopMarker = null;
+        this.reverse = reverse;
     }
 
     @Override
@@ -54,54 +62,45 @@ public class Criterion implements QueryRequest {
         return tiebreakerExtractor;
     }
 
-    public long timestamp(SearchHit hit) {
-        Object ts = timestampExtractor.extract(hit);
-        if (ts instanceof Number) {
-            return ((Number) ts).longValue();
-        }
-        throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
-    }
-
     @SuppressWarnings({ "unchecked" })
-    public Comparable<Object> tiebreaker(SearchHit hit) {
-        if (tiebreakerExtractor == null) {
-            return null;
-        }
-        Object tb = tiebreakerExtractor.extract(hit);
-        if (tb instanceof Comparable) {
-            return (Comparable<Object>) tb;
-        }
-        throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
-    }
+    public Ordinal ordinal(SearchHit hit) {
 
-    public Object[] startMarker() {
-        return startMarker;
-    }
-
-    public Object[] stopMarker() {
-        return stopMarker;
-    }
-
-    private Object[] marker(SearchHit hit) {
-        long timestamp = timestamp(hit);
-        Object tiebreaker = null;
-        if (tiebreakerExtractor() != null) {
-            tiebreaker = tiebreaker(hit);
+        Object ts = timestampExtractor.extract(hit);
+        if (ts instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
         }
 
-        return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
+        long timestamp = ((Number) ts).longValue();
+        Comparable<Object> tiebreaker = null;
+
+        if (tiebreakerExtractor != null) {
+            Object tb = tiebreakerExtractor.extract(hit);
+            if (tb instanceof Comparable == false) {
+                throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+            }
+            tiebreaker = (Comparable<Object>) tb;
+        }
+        return new Ordinal(timestamp, tiebreaker);
     }
 
-    public void startMarker(SearchHit hit) {
-        startMarker = marker(hit);
+    public void startMarker(Ordinal ordinal) {
+        startMarker = ordinal;
     }
 
-    public void stopMarker(SearchHit hit) {
-        stopMarker = marker(hit);
+    public void stopMarker(Ordinal ordinal) {
+        stopMarker = ordinal;
     }
 
-    public Criterion useMarker(Object[] marker) {
-        searchSource.searchAfter(marker);
+    public Ordinal nextMarker() {
+        return startMarker.compareTo(stopMarker) < 1 ? startMarker : stopMarker;
+    }
+
+    public Criterion useMarker(Ordinal marker) {
+        searchSource.searchAfter(marker.toArray());
         return this;
+    }
+
+    public Iterable<SearchHit> iterable(List<SearchHit> hits) {
+        return () -> reverse ? new ReversedIterator<>(hits) : hits.iterator();
     }
 }

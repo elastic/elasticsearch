@@ -80,7 +80,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         private final int ordinal;
 
         TestCriterion(int ordinal) {
-            super(SearchSourceBuilder.searchSource().size(ordinal), keyExtractors, tsExtractor, tbExtractor);
+            super(SearchSourceBuilder.searchSource().size(ordinal), keyExtractors, tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;
         }
 
@@ -144,11 +144,6 @@ public class SequenceRuntimeTests extends ESTestCase {
             return TimeValue.ZERO;
         }
 
-        @Override
-        public Object[] nextKeys() {
-            return new Object[0];
-        }
-
         @SuppressWarnings("unchecked")
         @Override
         public <V> List<V> values() {
@@ -191,7 +186,7 @@ public class SequenceRuntimeTests extends ESTestCase {
         SequenceRuntime runtime = new SequenceRuntime(criteria, (r, l) -> {
             Map<Integer, Tuple<String, String>> evs = events.get(r.searchSource().size());
             l.onResponse(new TestPayload(evs));
-        }, false, null);
+        }, TimeValue.MINUS_ONE, null);
 
         // finally make the assertion at the end of the listener
         runtime.execute(wrap(this::checkResults, ex -> {

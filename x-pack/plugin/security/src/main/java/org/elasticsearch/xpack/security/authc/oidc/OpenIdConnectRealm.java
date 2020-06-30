@@ -417,19 +417,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return name;
         }
 
-        private static List<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
-            List<String> values;
+        private static Collection<String> parseClaimValues(JWTClaimsSet claimsSet, String claimName, String settingKey) {
+            Collection<String> values;
             final Object claimValueObject = claimsSet.getClaim(claimName);
             if (claimValueObject == null) {
                 values = List.of();
             } else if (claimValueObject instanceof String) {
                 values = List.of((String) claimValueObject);
-            } else if (claimValueObject instanceof Collection) {
-                if (claimValueObject instanceof Collection && ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
-                    values = (List<String>) claimValueObject;
-                } else {
-                    throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
-                }
+            } else if (claimValueObject instanceof Collection && ((Collection) claimValueObject).stream().allMatch(c -> c instanceof String)) {
+                values = (Collection<String>) claimValueObject;
             } else {
                 throw new SettingsException("Setting [ " + settingKey + " expects a claim with String or a String Array value");
             }
@@ -447,7 +443,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         "OpenID Connect Claim [" + claimName + "] with pattern [" + regex.pattern() + "] for ["
                             + setting.name(realmConfig) + "]",
                         claims -> {
-                            List<String> values =
+                            Collection<String> values =
                                 parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()));
                             return values.stream().map(s -> {
                                 if (s == null) {
@@ -472,12 +468,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                 } else {
                     return new ClaimParser(
                         "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
-                        claims -> {
-                            return parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
-                                .stream()
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toUnmodifiableList());
-                        });
+                        claims -> parseClaimValues(claims, claimName, RealmSettings.getFullSettingKey(realmConfig, setting.getClaim()))
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toUnmodifiableList()));
                 }
             } else if (required) {
                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())

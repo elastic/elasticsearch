@@ -1238,6 +1238,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
+            case "ilm-history":
             case "logs":
             case "logs-settings":
             case "logs-mappings":

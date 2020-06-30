@@ -409,7 +409,6 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 return "/" + pattern + "/";
             }
 
-
             @Override
             public int hashCode() {
                 return Objects.hash(super.hashCode(), pattern, flags);

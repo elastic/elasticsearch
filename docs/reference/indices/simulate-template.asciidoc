@@ -229,11 +229,11 @@ The response shows the index settings, mappings, and aliases applied by the fina
   "template" : {
     "settings" : {
       "index" : {
-        "number_of_shards" : "2",
-        "number_of_replicas" : "0"
+        "number_of_shards" : "2",  <1>
+        "number_of_replicas" : "0" <2>
       }
     },
-    "mappings" : {
+    "mappings" : {                 <3>
       "properties" : {
         "@timestamp" : {
           "type" : "date"
@@ -245,8 +245,8 @@ The response shows the index settings, mappings, and aliases applied by the fina
   "overlapping" : [ ]
 }
 ---------------------------------------------------------
-<1> The number of replicas from `ct2`
-<2> The number of shards from `ct1`
+<1> The number of shards from `ct1`
+<2> The number of replicas from `ct2`
 <3> The mappings from `ct1`
 
 
@@ -284,15 +284,15 @@ The response shows any overlapping templates with a lower priority.
       }
     },
     "mappings" : {
-      "properties" : {
-        "@timestamp" : { <2>
+      "properties" : { 
+        "@timestamp" : {           <2>
           "type" : "date"
         }
       }
     },
     "aliases" : { }
   },
-  "overlapping" : [ <3>
+  "overlapping" : [                <3>
     {
       "name" : "final-template",
       "index_patterns" : [

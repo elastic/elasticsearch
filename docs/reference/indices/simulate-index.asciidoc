@@ -59,7 +59,7 @@ an existing template.
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/ct1 <1>
+PUT /_component_template/ct1                             <1>
 {
   "template": {
     "settings": {
@@ -68,7 +68,7 @@ PUT /_component_template/ct1 <1>
   }
 }
 
-PUT /_component_template/ct2 <2>
+PUT /_component_template/ct2                             <2>
 {
   "template": {
     "settings": {
@@ -84,7 +84,7 @@ PUT /_component_template/ct2 <2>
   }
 }
 
-PUT /_index_template/final-template <3>
+PUT /_index_template/final-template                      <3>
 {
   "index_patterns": ["logdata-*"],
   "composed_of": ["ct1", "ct2"],
@@ -107,13 +107,13 @@ The response shows the index settings, mappings, and aliases applied by the spec
     "settings" : {
       "index" : {
         "number_of_shards" : "2",
-        "number_of_replicas" : "0"
+        "number_of_replicas" : "0" <1>
       }
     },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
-          "type" : "date"
+          "type" : "date"          <2>
         }
       }
     },

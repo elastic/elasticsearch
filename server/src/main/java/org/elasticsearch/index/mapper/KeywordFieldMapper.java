@@ -417,6 +417,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         KeywordFieldMapper k = (KeywordFieldMapper) other;
         if (Objects.equals(fieldType().indexAnalyzer(), k.fieldType().indexAnalyzer()) == false) {

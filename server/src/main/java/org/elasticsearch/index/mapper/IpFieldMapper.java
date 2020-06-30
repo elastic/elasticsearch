@@ -349,6 +349,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object nullValue() {
+        return nullValue;
+    }
+
+    @Override
     protected IpFieldMapper clone() {
         return (IpFieldMapper) super.clone();
     }
@@ -406,7 +411,12 @@ public class IpFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
 
-        InetAddress address = InetAddresses.forString(value.toString());
+        InetAddress address;
+        if (value instanceof InetAddress) {
+            address = (InetAddress) value;
+        } else {
+            address = InetAddresses.forString(value.toString());
+        }
         return InetAddresses.toAddrString(address);
     }
 

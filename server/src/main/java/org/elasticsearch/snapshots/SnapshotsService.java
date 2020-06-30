@@ -625,6 +625,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         } catch (Exception e) {
+            assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
         }
         assert assertConsistentWithClusterState(event.state());
@@ -826,6 +827,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (ObjectCursor<String> index : entry.waitingIndices().keys()) {
                     if (event.indexRoutingTableChanged(index.value)) {
                         IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index.value);
+                        if (indexShardRoutingTable == null) {
+                            // index got removed concurrently and we have to fail WAITING state shards
+                            return true;
+                        }
                         for (ShardId shardId : entry.waitingIndices().get(index.value)) {
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
                             if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {

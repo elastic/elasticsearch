@@ -2127,6 +2127,46 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> done");
     }
 
+    public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs", randomRepoPath());
+
+        // Create index on two nodes and make sure each node has a primary by setting no replicas
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName, 2, Settings.builder()
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_NUMBER_OF_SHARDS, between(2, 10))));
+        ensureGreen(indexName);
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        assertThat(client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+
+        logger.info("--> start relocations");
+        allowNodes(indexName, 1);
+
+        logger.info("--> wait for relocations to start");
+
+        assertBusy(() -> assertThat(
+                client().admin().cluster().prepareHealth(indexName).execute().actionGet().getRelocatingShards(), greaterThan(0)),
+                1L, TimeUnit.MINUTES);
+
+        logger.info("--> snapshot");
+        client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+                .setWaitForCompletion(false).setPartial(true).setIndices(indexName).get();
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("--> wait for snapshot to complete");
+        SnapshotInfo snapshotInfo = waitForCompletion(repoName, "test-snap", TimeValue.timeValueSeconds(600));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        logger.info("--> done");
+    }
+
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
         Client client = client();
 

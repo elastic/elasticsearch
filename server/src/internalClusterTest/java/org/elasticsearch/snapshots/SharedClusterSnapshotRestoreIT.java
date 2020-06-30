@@ -2112,12 +2112,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
             }
-            assertThat(restorePause, greaterThan(0L));
+            assertThat(restorePause, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(1, 5)).nanos()));
+            assertFalse(restoreSnapshotResponse.isDone());
         }, 30, TimeUnit.SECONDS);
 
         // run at full speed again
         client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build()).get();
+
+        // check that restore now completes quickly (i.e. within 10 seconds)
+        assertBusy(() -> assertTrue(restoreSnapshotResponse.isDone()));
 
         assertThat(restoreSnapshotResponse.get().getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));

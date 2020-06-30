@@ -52,7 +52,7 @@ public class FieldValueRetriever {
 
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
-                if (fieldMappers.getMapper(field) != null) {
+                if (fieldMappers.getMapper(field) != null && mapperService.isMetadataField(field) == false) {
                     Set<String> sourcePath = mapperService.sourcePath(field);
                     fields.add(new FieldContext(field, sourcePath, format));
                 }
@@ -61,6 +61,7 @@ public class FieldValueRetriever {
 
         return new FieldValueRetriever(fieldMappers, fields);
     }
+
 
     private FieldValueRetriever(DocumentFieldMappers fieldMappers,
                                 List<FieldContext> fieldContexts) {

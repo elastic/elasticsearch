@@ -604,8 +604,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         // Index doc with custom routing that targets the data stream
         IndexRequest indexRequestWithRouting =
-            new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.CREATE).routing("custom");
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequestWithRouting).actionGet());
+            new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.CREATE)
+                .routing("custom");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequestWithRouting).actionGet());
         assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
             "backing indices directly or remove the custom routing."));
 
@@ -636,8 +638,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
         // Index doc with custom routing that targets the backing index
         IndexRequest indexRequestWithRouting = new IndexRequest(getDefaultBackingIndexName("logs-foobar", 1L))
-            .source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.INDEX).routing("custom").id(indexResponse.getId())
-            .setIfPrimaryTerm(indexResponse.getPrimaryTerm()).setIfSeqNo(indexResponse.getSeqNo());
+            .source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.INDEX).routing("custom")
+            .id(indexResponse.getId()).setIfPrimaryTerm(indexResponse.getPrimaryTerm()).setIfSeqNo(indexResponse.getSeqNo());
         IndexResponse response = client().index(indexRequestWithRouting).actionGet();
         assertThat(response.getIndex(), equalTo(getDefaultBackingIndexName("logs-foobar", 1)));
     }

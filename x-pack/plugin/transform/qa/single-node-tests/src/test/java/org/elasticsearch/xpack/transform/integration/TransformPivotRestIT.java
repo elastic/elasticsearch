@@ -139,6 +139,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Request doc3 = new Request("POST", sourceIndex + "/_doc");
         doc3.setJsonEntity("{\"bool\": false, \"val\": 2.0}");
         client().performRequest(doc3);
+        refreshIndex(sourceIndex);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
         final Request createTransformRequest = createRequestWithAuth(
@@ -169,12 +170,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         startAndWaitForTransform(transformId, transformIndex);
         assertTrue(indexExists(transformIndex));
-        // get and check some users
         assertOnePivotValue(transformIndex + "/_search?q=bool:true", 0.5);
         assertOnePivotValue(transformIndex + "/_search?q=bool:false", 2.0);
 
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
-        // Should be less than the total number of users since we filtered every user who had an average review less than or equal to 3.8
         assertEquals(2, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
     }
 

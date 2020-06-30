@@ -886,7 +886,7 @@ setup:
             }
           }
 
-  - match: { regression.pseudo_huber.error: 1.9205280586939963 }
+  - match: { regression.pseudo_huber.value: 1.9205280586939963 }
   - is_false: regression.mean_squared_logarithmic_error.value
   - is_false: regression.mean_squared_error.value
   - is_false: regression.r_squared.value

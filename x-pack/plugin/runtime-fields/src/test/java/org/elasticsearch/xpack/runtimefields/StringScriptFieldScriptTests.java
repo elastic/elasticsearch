@@ -11,10 +11,11 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -129,6 +130,18 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(addO.rangeQuery("foo", "p", "q"), addO), equalTo(List.of("cato", "pigo")));
         visited.clear();
         assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs"), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
+    public void testRegexpQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.regexpQuery("foo", "cat", RegExp.ALL, 100000), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.regexpQuery("foo", "cat[aeiou]", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.regexpQuery("foo", "p.*", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.regexpQuery("foo", "dog?o", RegExp.ALL, 100000), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testWildcardQuery() throws IOException {

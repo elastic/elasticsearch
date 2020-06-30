@@ -14,8 +14,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -59,6 +61,10 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
 
     public Query rangeQuery(String fieldName, String lowerValue, String upperValue) {
         return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
+    }
+
+    public Query regexpQuery(String fieldName, String pattern, int flags, int maxDeterminizedStates) {
+        return unstarted().new RegexpQuery(fieldName, pattern, flags, maxDeterminizedStates);
     }
 
     public Query wildcardQuery(String fieldName, String pattern) {
@@ -146,6 +152,7 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 );
                 automaton = delegate.getAutomata();
                 if (automaton.type != CompiledAutomaton.AUTOMATON_TYPE.NORMAL) {
+                    // TODO I'll bet we have to actually implement all of these types
                     throw new IllegalArgumentException("Can't compile automaton for [" + delegate + "]");
                 }
             }
@@ -367,38 +374,48 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
         }
 
-        private class WildcardQuery extends AbstractRuntimeQuery {
-            private final BytesRefBuilder scratch = new BytesRefBuilder();
+        private class RegexpQuery extends AbstractAutomatonQuery {
             private final String pattern;
-            private final ByteRunAutomaton automaton;
+            private final int flags;
 
-            private WildcardQuery(String fieldName, String pattern) {
-                super(fieldName);
+            private RegexpQuery(String fieldName, String pattern, int flags, int maxDeterminizedStates) {
+                super(fieldName, new RegExp(pattern, flags).toAutomaton(maxDeterminizedStates));
                 this.pattern = pattern;
-                automaton = new ByteRunAutomaton(org.apache.lucene.search.WildcardQuery.toAutomaton(new Term(fieldName, pattern)));
+                this.flags = flags;
             }
 
             @Override
-            protected boolean matches() {
-                for (int i = 0; i < count; i++) {
-                    scratch.copyChars(values[i]);
-                    if (automaton.run(scratch.bytes(), 0, scratch.length())) {
-                        return true;
-                    }
+            protected String bareToString() {
+                return "/" + pattern + "/";
+            }
+
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), pattern, flags);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
                 }
-                return false;
+                RegexpQuery other = (RegexpQuery) obj;
+                return pattern.equals(other.pattern) && flags == other.flags;
+            }
+        }
+
+        private class WildcardQuery extends AbstractAutomatonQuery {
+            private final String pattern;
+
+            private WildcardQuery(String fieldName, String pattern) {
+                super(fieldName, org.apache.lucene.search.WildcardQuery.toAutomaton(new Term(fieldName, pattern)));
+                this.pattern = pattern;
             }
 
             @Override
             protected String bareToString() {
                 return pattern;
-            }
-
-            @Override
-            public void visit(QueryVisitor visitor) {
-                if (visitor.acceptField(fieldName)) {
-                    visitor.consumeTermsMatching(this, fieldName, () -> automaton);
-                }
             }
 
             @Override
@@ -413,6 +430,34 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 }
                 WildcardQuery other = (WildcardQuery) obj;
                 return pattern.equals(other.pattern);
+            }
+        }
+
+        private abstract class AbstractAutomatonQuery extends AbstractRuntimeQuery {
+            private final BytesRefBuilder scratch = new BytesRefBuilder();
+            private final ByteRunAutomaton automaton;
+
+            private AbstractAutomatonQuery(String fieldName, Automaton automaton) {
+                super(fieldName);
+                this.automaton = new ByteRunAutomaton(automaton);
+            }
+
+            @Override
+            protected final boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    scratch.copyChars(values[i]);
+                    if (automaton.run(scratch.bytes(), 0, scratch.length())) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public final void visit(QueryVisitor visitor) {
+                if (visitor.acceptField(fieldName)) {
+                    visitor.consumeTermsMatching(this, fieldName, () -> automaton);
+                }
             }
         }
     }

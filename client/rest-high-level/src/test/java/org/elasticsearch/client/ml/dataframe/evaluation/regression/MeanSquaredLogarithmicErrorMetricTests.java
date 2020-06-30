@@ -18,59 +18,32 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Predicate;
 
-public class RegressionTests extends AbstractXContentTestCase<Regression> {
+public class MeanSquaredLogarithmicErrorMetricTests extends AbstractXContentTestCase<MeanSquaredLogarithmicErrorMetric> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    public static Regression createRandom() {
-        List<EvaluationMetric> metrics = new ArrayList<>();
-        if (randomBoolean()) {
-            metrics.add(new MeanSquaredErrorMetric());
-        }
-        if (randomBoolean()) {
-            metrics.add(new MeanSquaredLogarithmicErrorMetricTests().createTestInstance());
-        }
-        if (randomBoolean()) {
-            metrics.add(new RSquaredMetric());
-        }
-        return randomBoolean() ?
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+    @Override
+    protected MeanSquaredLogarithmicErrorMetric createTestInstance() {
+        return new MeanSquaredLogarithmicErrorMetric(randomBoolean() ? randomDouble() : null);
     }
 
     @Override
-    protected Regression createTestInstance() {
-        return createRandom();
-    }
-
-    @Override
-    protected Regression doParseInstance(XContentParser parser) throws IOException {
-        return Regression.fromXContent(parser);
+    protected MeanSquaredLogarithmicErrorMetric doParseInstance(XContentParser parser) throws IOException {
+        return MeanSquaredLogarithmicErrorMetric.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
     }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
-    }
-
 }

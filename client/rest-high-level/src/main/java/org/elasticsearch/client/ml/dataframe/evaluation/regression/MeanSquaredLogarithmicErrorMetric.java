@@ -19,9 +19,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,27 +30,48 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Calculates the mean squared error between two known numerical fields.
  *
- * equation: mse = 1/n * Σ(y - y´)^2
+ * equation: msle = 1/n * Σ(log(y + offset) - log(y´ + offset))^2
+ * where offset is used to make sure the argument to log function is always positive
  */
-public class MeanSquaredErrorMetric implements EvaluationMetric {
+public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
 
-    public static final String NAME = "mean_squared_error";
+    public static final String NAME = "mean_squared_logarithmic_error";
 
-    private static final ObjectParser<MeanSquaredErrorMetric, Void> PARSER = new ObjectParser<>(NAME, true, MeanSquaredErrorMetric::new);
+    public static final ParseField OFFSET = new ParseField("offset");
 
-    public static MeanSquaredErrorMetric fromXContent(XContentParser parser) {
+    private static final ConstructingObjectParser<MeanSquaredLogarithmicErrorMetric, Void> PARSER =
+        new ConstructingObjectParser<>(NAME, true, args -> new MeanSquaredLogarithmicErrorMetric((Double) args[0]));
+
+    static {
+        PARSER.declareDouble(optionalConstructorArg(), OFFSET);
+    }
+
+    public static MeanSquaredLogarithmicErrorMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public MeanSquaredErrorMetric() {}
+    private final Double offset;
+
+    public MeanSquaredLogarithmicErrorMetric(@Nullable Double offset) {
+        this.offset = offset;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        if (offset != null) {
+            builder.field(OFFSET.getPreferredName(), offset);
+        }
         builder.endObject();
         return builder;
     }
@@ -59,21 +80,16 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return true;
+        MeanSquaredLogarithmicErrorMetric that = (MeanSquaredLogarithmicErrorMetric) o;
+        return Objects.equals(this.offset, that.offset);
     }
 
     @Override
     public int hashCode() {
-        // create static hash code from name as there are currently no unique fields per class instance
-        return Objects.hashCode(NAME);
+        return Objects.hash(offset);
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
-    public static class Result implements EvaluationMetric.Result {
+    public static class Result implements EvaluationMetric.Result  {
 
         public static final ParseField ERROR = new ParseField("error");
         private final double error;

@@ -384,8 +384,8 @@ public final class ExpressionTranslators {
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
-                if (sw.isCaseSensitive() && sw.field() instanceof FieldAttribute && sw.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.field()).exactAttribute());
+                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
                     return new PrefixQuery(f.source(), targetFieldName, pattern);

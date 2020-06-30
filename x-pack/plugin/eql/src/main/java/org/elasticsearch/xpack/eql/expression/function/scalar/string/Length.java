@@ -34,11 +34,11 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class Length extends ScalarFunction {
 
-    private final Expression source;
+    private final Expression input;
     
-    public Length(Source source, Expression src) {
-        super(source, Arrays.asList(src));
-        this.source = src;
+    public Length(Source source, Expression input) {
+        super(source, Arrays.asList(input));
+        this.input = input;
     }
 
     @Override
@@ -47,38 +47,38 @@ public class Length extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
         
-        return isStringAndExact(source, sourceText(), ParamOrdinal.DEFAULT);
+        return isStringAndExact(input, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new LengthFunctionPipe(source(), this, Expressions.pipe(source));
+        return new LengthFunctionPipe(source(), this, Expressions.pipe(input));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable();
+        return input.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold());
+        return doProcess(input.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Length::new, source);
+        return NodeInfo.create(this, Length::new, input);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
 
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
                 "length",
-                sourceScript.template()),
+                inputScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params())
+                    .script(inputScript.params())
                     .build(), dataType());
     }
 

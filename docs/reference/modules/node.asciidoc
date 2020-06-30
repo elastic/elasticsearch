@@ -22,39 +22,37 @@ dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
 
-A node that has `node.master` set to `true` (default), which makes it eligible
-to be <<modules-discovery,elected as the _master_ node>>, which controls the
-cluster.
+A node that has the `master` role (default), which makes it eligible to be
+<<modules-discovery,elected as the _master_ node>>, which controls the cluster.
 
 <<data-node,Data node>>::
 
-A node that has `node.data` set to `true` (default). Data nodes hold data and
-perform data related operations such as CRUD, search, and aggregations.
+A node that has the `data` role (default). Data nodes hold data and perform data
+related operations such as CRUD, search, and aggregations.
 
 <<ingest,Ingest node>>::
 
-A node that has `node.ingest` set to `true` (default). Ingest nodes are able
-to apply an <<pipeline,ingest pipeline>> to a document in order to transform
-and enrich the document before indexing. With a heavy ingest load, it makes
-sense to use dedicated ingest nodes and to mark the master and data nodes as
-`node.ingest: false`.
+A node that has the `ingest` role (default). Ingest nodes are able to apply an
+<<pipeline,ingest pipeline>> to a document in order to transform and enrich the
+document before indexing. With a heavy ingest load, it makes sense to use
+dedicated ingest nodes and to not include the `ingest` role from nodes that have
+the `master` or `data` roles.
 
 <<ml-node,Machine learning node>>::
 
-A node that has `xpack.ml.enabled` and `node.ml` set to `true`, which is the
-default behavior in the {es} {default-dist}. If you want to use {ml-features},
-there must be at least one {ml} node in your cluster. For more information about
-{ml-features}, see
-{ml-docs}/index.html[Machine learning in the {stack}].
+A node that has `xpack.ml.enabled` and the `ml` role, which is the default
+behavior in the {es} {default-dist}. If you want to use {ml-features}, there
+must be at least one {ml} node in your cluster. For more information about
+{ml-features}, see {ml-docs}/index.html[Machine learning in the {stack}].
 +
-IMPORTANT: If you use the {oss-dist}, do not set `node.ml`. Otherwise, the node
-fails to start.
+IMPORTANT: If you use the {oss-dist}, do not add the `ml` role. Otherwise, the
+node fails to start.
 
 <<transform-node,{transform-cap} node>>::
 
-A node that has `node.transform` set to `true`. If you want to use {transforms},
-there must be at least one {transform} node in your cluster. For more
-information, see <<transform-settings>> and <<transforms>>.
+A node that has the `transform` role. If you want to use {transforms}, there
+be at least one {transform} node in your cluster. For more information, see
+<<transform-settings>> and <<transforms>>.
 
 [NOTE]
 [[coordinating-node]]
@@ -73,10 +71,9 @@ coordinating node reduces each data node's results into a single global
 resultset.
 
 Every node is implicitly a coordinating node. This means that a node that has
-all three `node.master`, `node.data` and `node.ingest` set to `false` will
-only act as a coordinating node, which cannot be disabled. As a result, such
-a node needs to have enough memory and CPU in order to deal with the gather
-phase.
+an explicit empty list of roles via `node.roles` will only act as a coordinating
+node, which cannot be disabled. As a result, such a node needs to have enough
+memory and CPU in order to deal with the gather phase.
 
 ===============================================
 
@@ -112,41 +109,12 @@ focus on managing the cluster. While master nodes can also behave as
 from clients to data nodes, it is better _not_ to use dedicated master nodes for
 this purpose.
 
-To create a dedicated master-eligible node in the {default-dist}, set:
+To create a dedicated master-eligible node, set:
 
 [source,yaml]
 -------------------
-node.master: true <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
+node.roles: [ master ]
 -------------------
-<1> The `node.master` role is enabled by default.
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
-
-To create a dedicated master-eligible node in the {oss-dist}, set:
-
-[source,yaml]
--------------------
-node.master: true <1>
-node.data: false <2>
-node.ingest: false <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> The `node.master` role is enabled by default.
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable remote cluster connections (enabled by default).
 
 [[voting-only-node]]
 ===== Voting-only master-eligible node
@@ -163,19 +131,19 @@ master-eligible nodes are those nodes that participate in elections and perform
 certain tasks during cluster state publications, and voting-only nodes have the
 same responsibilities even if they can never become the elected master.
 
-To configure a master-eligible node as a voting-only node, set the following
-setting:
+To configure a master-eligible node as a voting-only node, include `master` and
+`voting_only` in the list of roles. For example to create a voting-only data
+node:
 
 [source,yaml]
 -------------------
-node.voting_only: true <1>
+node.roles: [ data, master, voting_only ]
 -------------------
-<1> The default for `node.voting_only` is `false`.
 
 IMPORTANT: The `voting_only` role requires the {default-dist} of {es} and is not
-supported in the {oss-dist}. If you use the {oss-dist} and set
-`node.voting_only` then the node will fail to start.  Also note that only
-master-eligible nodes can be marked as voting-only.
+supported in the {oss-dist}. If you use the {oss-dist} and add the `voting_only`
+role then the node will fail to start.  Also note that only nodes with the
+`master` role can be marked as having the `voting_only` role.
 
 High availability (HA) clusters require at least three master-eligible nodes, at
 least two of which are not voting-only nodes. Such a cluster will be able to
@@ -196,23 +164,8 @@ dedicated voting-only master-eligible node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-node.master: true <1>
-node.voting_only: true <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
+node.roles: [ master, voting_only ]
 -------------------
-<1> The `node.master` role is enabled by default.
-<2> Enable the `node.voting_only` role (disabled by default).
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
 
 [[data-node]]
 ==== Data node
@@ -225,37 +178,11 @@ monitor these resources and to add more data nodes if they are overloaded.
 The main benefit of having dedicated data nodes is the separation of the master
 and data roles.
 
-To create a dedicated data node in the {default-dist}, set:
+To create a dedicated data node, set:
 [source,yaml]
 -------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: true <3>
-node.ingest: false <4>
-node.ml: false <5>
-node.transform: false <6>
-node.remote_cluster_client: false <7>
+node.roles: [ data ]
 -------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> The `node.data` role is enabled by default.
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> Disable the `node.transform` role.
-<7> Disable remote cluster connections (enabled by default).
-
-To create a dedicated data node in the {oss-dist}, set:
-[source,yaml]
--------------------
-node.master: false <1>
-node.data: true <2>
-node.ingest: false <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.data` role is enabled by default.
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable remote cluster connections (enabled by default).
 
 [[node-ingest-node]]
 ==== Ingest node
@@ -265,39 +192,12 @@ ingest processors. Depending on the type of operations performed by the ingest
 processors and the required resources, it may make sense to have dedicated
 ingest nodes, that will only perform this specific task.
 
-To create a dedicated ingest node in the {default-dist}, set:
+To create a dedicated ingest node, set:
 
 [source,yaml]
 -------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: true <4>
-node.ml: false <5>
-node.transform: false <6>
-node.remote_cluster_client: false <7>
+node.roles: [ ingest ]
 -------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> The `node.ingest` role is enabled by default.
-<5> Disable the `node.ml` role (enabled by default).
-<6> Disable the `node.transform` role.
-<7> Disable remote cluster connections (enabled by default).
-
-To create a dedicated ingest node in the {oss-dist}, set:
-
-[source,yaml]
--------------------
-node.master: false <1>
-node.data: false <2>
-node.ingest: true <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> The `node.ingest` role is enabled by default.
-<4> Disable remote cluster connections (enabled by default).
 
 [[coordinating-only-node]]
 ==== Coordinating only node
@@ -319,48 +219,19 @@ acknowledgement of cluster state updates from every node! The benefit of
 coordinating only nodes should not be overstated -- data nodes can happily
 serve the same purpose.
 
-To create a dedicated coordinating node in the {default-dist}, set:
+To create a dedicated coordinating node, set:
 
 [source,yaml]
 -------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
+node.roles: [ ]
 -------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> Disable the `node.ml` role (enabled by default).
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
-
-To create a dedicated coordinating node in the {oss-dist}, set:
-
-[source,yaml]
--------------------
-node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-node.remote_cluster_client: false <4>
--------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable remote cluster connections (enabled by default).
 
 [[ml-node]]
 ==== [xpack]#Machine learning node#
 
 The {ml-features} provide {ml} nodes, which run jobs and handle {ml} API
-requests. If `xpack.ml.enabled` is set to `true` and `node.ml` is set to `false`,
-the node can service API requests but it cannot run jobs.
+requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
+`ml` role, the node can service API requests but it cannot run jobs.
 
 If you want to use {ml-features} in your cluster, you must enable {ml}
 (set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
@@ -373,53 +244,27 @@ To create a dedicated {ml} node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: true <5>
-xpack.ml.enabled: true <6>
-node.transform: false <7>
-node.remote_cluster_client: false <8>
+node.roles: [ ml ]
+xpack.ml.enabled: true <1>
 -------------------
-<1> Disable the `node.master` role (enabled by default).
-<2> The `node.voting_only` role is disabled by default.
-<3> Disable the `node.data` role (enabled by default).
-<4> Disable the `node.ingest` role (enabled by default).
-<5> The `node.ml` role is enabled by default.
-<6> The `xpack.ml.enabled` setting is enabled by default.
-<7> Disable the `node.transform` role.
-<8> Disable remote cluster connections (enabled by default).
+<1> The `xpack.ml.enabled` setting is enabled by default.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
 {transform-cap} nodes run {transforms} and handle {transform} API requests.
 
-If you want to use {transforms} in your cluster, you must have `node.transform`
-set to `true` on at least one node. This is the default behavior. If you have
-the {oss-dist}, do not use these settings. For more information, see
-<<transform-settings>>.
+If you want to use {transforms} in clients (including {kib}), it must also be
+enabled on all coordinating nodes. You must also have at least one node with the
+`transform` role. This is the default behavior. If you have the {oss-dist}, do
+not use these settings. For more information, see <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 
 [source,yaml]
 -------------------
-node.master: false <1>
-node.voting_only: false <2>
-node.data: false <3>
-node.ingest: false <4>
-node.ml: false <5>
-node.transform: true <6>
-node.remote_cluster_client: false <7>
+node.roles: [ transform ]
 -------------------
-<1> Disable the `node.master` role.
-<2> Disable the `node.voting_only`.
-<3> Disable the `node.data` role.
-<4> Disable the `node.ingest` role.
-<5> Disable the `node.ml` role.
-<6> Enable the `node.transform` role.
-<7> Disable remote cluster connections.
 
 [[change-node-role]]
 ==== Changing the role of a node
@@ -438,26 +283,25 @@ Similarly, each master-eligible node maintains the following data on disk:
 Each node checks the contents of its data path at startup. If it discovers
 unexpected data then it will refuse to start. This is to avoid importing
 unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
-to a red cluster health. To be more precise, nodes with `node.data: false` will
+to a red cluster health. To be more precise, nodes without the `data` role will
 refuse to start if they find any shard data on disk at startup, and nodes with
-both `node.master: false` and `node.data: false` will refuse to start if they
-have any index metadata on disk at startup.
+without both the `master` and `data` roles will refuse to start if they have any index metadata on disk at startup.
 
 It is possible to change the roles of a node by adjusting its
 `elasticsearch.yml` file and restarting it. This is known as _repurposing_ a
 node. In order to satisfy the checks for unexpected data described above, you
-must perform some extra steps to prepare a node for repurposing when setting
-its `node.data` or `node.master` roles to `false`:
+must perform some extra steps to prepare a node for repurposing when starting
+the node without the `data` or `master` roles.
 
-* If you want to repurpose a data node by changing `node.data` to `false` then
-  you should first use an <<allocation-filtering,allocation filter>> to safely
+* If you want to repurpose a data node by removing the `data` role then you
+  should first use an <<allocation-filtering,allocation filter>> to safely
   migrate all the shard data onto other nodes in the cluster.
 
-* If you want to repurpose a node to have both `node.master: false` and
-  `node.data: false` then it is simplest to start a brand-new node with an
-  empty data path and the desired roles. You may find it safest to use an
-  <<allocation-filtering,allocation filter>> to migrate the shard data
-  elsewhere in the cluster first.
+* If you want to repurpose a node to have neither the `data` nor `master` roles
+  then it is simplest to start a brand-new node with an empty data path and the
+  desired roles. You may find it safest to use an
+  <<allocation-filtering,allocation filter>> to migrate the shard data elsewhere
+  in the cluster first.
 
 If it is not possible to follow these extra steps then you may be able to use
 the <<node-tool-repurpose,`elasticsearch-node repurpose`>> tool to delete any

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -187,4 +188,20 @@ public final class TimeSeriesRestDriver {
                 .endObject()));
         client.performRequest(request);
     }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> getOnlyIndexSettings(RestClient client, String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings");
+        request.addParameter("flat_settings", "true");
+        Response response = client.performRequest(request);
+        try (InputStream is = response.getEntity().getContent()) {
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            Map<String, Object> indexSettings = (Map<String, Object>) responseMap.get(index);
+            if (indexSettings == null) {
+                return Collections.emptyMap();
+            }
+            return (Map<String, Object>) indexSettings.get("settings");
+        }
+    }
+
 }

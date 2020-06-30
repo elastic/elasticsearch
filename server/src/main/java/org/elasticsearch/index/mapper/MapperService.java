@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -87,6 +86,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * Create or update a mapping.
          */
         MAPPING_UPDATE,
+        /**
+         * Merge mappings from a composable index template.
+         */
+        INDEX_TEMPLATE,
         /**
          * Recovery of an existing mapping, for instance because of a restart,
          * if a shard was moved to a different node or for administrative
@@ -159,17 +162,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
-    }
-
-    public FieldType getLuceneFieldType(String field) {
-        Mapper mapper = documentMapper().mappers().getMapper(field);
-        if (mapper == null) {
-            return null;
-        }
-        if (mapper instanceof FieldMapper == false) {
-            return null;
-        }
-        return ((FieldMapper) mapper).fieldType;
     }
 
     /**
@@ -339,7 +331,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
         boolean hasNested = this.hasNested;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
-        FieldTypeLookup fieldTypes = this.fieldTypes;
 
         assert mapper != null;
         // check naming
@@ -349,10 +340,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper oldMapper = this.mapper;
         DocumentMapper newMapper;
         if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping());
+            newMapper = oldMapper.merge(mapper.mapping(), reason);
         } else {
             newMapper = mapper;
         }
+        newMapper.root().fixRedundantIncludes();
 
         // check basic sanity of the new mapping
         List<ObjectMapper> objectMappers = new ArrayList<>();
@@ -362,11 +354,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Collections.addAll(fieldMappers, metadataMappers);
         MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
-        MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers, fieldTypes);
+        MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers);
         checkPartitionedIndexConstraints(newMapper);
 
         // update lookup data-structures
-        fieldTypes = fieldTypes.copyAndAddAll(fieldMappers, fieldAliasMappers);
+        FieldTypeLookup newFieldTypes = new FieldTypeLookup(fieldMappers, fieldAliasMappers);
 
         for (ObjectMapper objectMapper : objectMappers) {
             if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -381,28 +373,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-            fullPathObjectMappers, fieldTypes);
+            fullPathObjectMappers, newFieldTypes);
 
-        ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
+        ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
-        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            // this check will only be performed on the master node when there is
-            // a call to the update mapping API. For all other cases like
-            // the master node restoring mappings from disk or data nodes
-            // deserializing cluster state that was sent by the master node,
-            // this check will be skipped.
+        if (reason != MergeReason.MAPPING_RECOVERY) {
+            // These checks will only be performed on the master node when an index is created, or
+            // there is a call to the update mapping API. For all other cases like the master node
+            // restoring mappings from disk or data nodes deserializing cluster state that was sent
+            // by the master node, these checks will be skipped.
             // Also, don't take metadata mappers into account for the field limit check
             checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                 + fieldAliasMappers.size() );
             checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
-        }
-
-        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            // this check will only be performed on the master node when there is
-            // a call to the update mapping API. For all other cases like
-            // the master node restoring mappings from disk or data nodes
-            // deserializing cluster state that was sent by the master node,
-            // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkDepthLimit(fullPathObjectMappers.keySet());
         }
@@ -420,7 +403,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // commit the change
         this.mapper = newMapper;
-        this.fieldTypes = fieldTypes;
+        this.fieldTypes = newFieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
 

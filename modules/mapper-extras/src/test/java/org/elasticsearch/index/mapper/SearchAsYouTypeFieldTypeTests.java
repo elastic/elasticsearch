@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -41,12 +43,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     private static final String NAME = "a_field";
+    private static final FieldType UNSEARCHABLE = new FieldType();
+    static {
+        UNSEARCHABLE.setIndexOptions(IndexOptions.NONE);
+        UNSEARCHABLE.freeze();
+    }
 
     @Override
     protected SearchAsYouTypeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(name, true, meta, true);
-        fieldType.setPrefixField(new PrefixFieldType(NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
-        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType.name(), 2, true) });
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(name, Defaults.FIELD_TYPE, null, meta);
+        fieldType.setPrefixField(new PrefixFieldType(NAME, Defaults.FIELD_TYPE, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
+        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType.name(), 2, Defaults.FIELD_TYPE) });
         return fieldType;
     }
 
@@ -55,7 +62,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
 
         assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
-        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, false, Collections.emptyMap(), true);
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null, Collections.emptyMap());
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("foo", null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
@@ -66,7 +73,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
         assertThat(fieldType.termsQuery(asList("foo", "bar"), null),
             equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar")))));
 
-        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, false, Collections.emptyMap(), true);
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null, Collections.emptyMap());
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(asList("foo", "bar"), null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));

@@ -11,7 +11,6 @@ import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,14 +40,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
 
         @Override
         public PointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                      Settings indexSettings,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                       Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
             PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new PointIndexer(ft));
             ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
-            return new PointFieldMapper(simpleName, fieldType, ft, indexSettings, multiFields,
+            return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
                 ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
         }
 
@@ -91,9 +89,9 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
     }
 
     public PointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                            Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                            MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                             Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
     }
 
     @Override

@@ -117,6 +117,15 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, indexExpressions);
     }
 
+    public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options, false, false, true);
+        return Arrays.stream(indexExpressions)
+            .flatMap(expression -> WildcardExpressionResolver.matches(context, state.metadata(), expression).values().stream())
+            .filter(i -> i.getType() == IndexAbstraction.Type.DATA_STREAM)
+            .map(IndexAbstraction::getName)
+            .collect(Collectors.toList());
+    }
+
     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *

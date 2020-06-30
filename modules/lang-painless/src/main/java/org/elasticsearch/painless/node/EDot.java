@@ -20,7 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DotNode;
@@ -37,7 +38,6 @@ import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
@@ -77,13 +77,15 @@ public class EDot extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+
         Output output = new Output();
-        Output prefixOutput = prefixNode.analyze(classNode, scriptRoot, scope, new Input());
+        Output prefixOutput = prefixNode.analyze(classNode, semanticScope, new Input());
 
         if (prefixOutput.partialCanonicalTypeName != null) {
             if (output.isStaticType) {
@@ -92,7 +94,7 @@ public class EDot extends AExpression {
             }
 
             String canonicalTypeName = prefixOutput.partialCanonicalTypeName + "." + index;
-            Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+            Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
             if (type == null) {
                 output.partialCanonicalTypeName = canonicalTypeName;
@@ -163,21 +165,21 @@ public class EDot extends AExpression {
                 expressionNode = dotSubDefNode;
             } else {
                 PainlessField field =
-                        scriptRoot.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefixOutput.isStaticType, index);
+                        scriptScope.getPainlessLookup().lookupPainlessField(prefixOutput.actual, prefixOutput.isStaticType, index);
 
                 if (field == null) {
                     PainlessMethod getter;
                     PainlessMethod setter;
 
-                    getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
+                    getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                             "get" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter == null) {
-                        getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
+                        getter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                                 "is" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
                     }
 
-                    setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
+                    setter = scriptScope.getPainlessLookup().lookupPainlessMethod(prefixOutput.actual, false,
                             "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                     if (getter != null || setter != null) {
@@ -210,8 +212,8 @@ public class EDot extends AExpression {
                         expressionNode = dotSubShortcutNode;
                     } else {
                         if (Map.class.isAssignableFrom(prefixOutput.actual)) {
-                            getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
-                            setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "put", 2);
+                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
+                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(targetType, false, "put", 2);
 
                             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
                                 throw createError(new IllegalArgumentException(
@@ -258,8 +260,8 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("invalid list index [" + this.index + "]"));
                             }
 
-                            getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
-                            setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetType, false, "set", 2);
+                            getter = scriptScope.getPainlessLookup().lookupPainlessMethod(targetType, false, "get", 1);
+                            setter = scriptScope.getPainlessLookup().lookupPainlessMethod(targetType, false, "set", 2);
 
                             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
                                     getter.typeParameters.get(0) != int.class)) {

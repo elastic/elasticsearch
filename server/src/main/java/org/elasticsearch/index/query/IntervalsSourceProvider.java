@@ -663,7 +663,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.hasPositions() == false) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }
@@ -801,7 +801,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private void checkPositions(MappedFieldType type) {
-            if (type.hasPositions() == false) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }

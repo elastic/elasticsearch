@@ -107,7 +107,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
             InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
             aggs.add(aggResult);
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs), bucket);
+            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
             newBuckets.add(newBucket);
         }
 

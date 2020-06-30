@@ -721,6 +721,38 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
     }
 
+    public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver2() throws Exception {
+        disableRepoConsistencyCheck("This test corrupts the repository on purpose");
+
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        createIndexWithContent("index-one");
+        createNSnapshots(repoName, randomIntBetween(2, 5));
+
+        final long generation = getRepositoryData(repoName).getGenId();
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromNonMasterClient(repoName, "snapshot-three");
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+
+        corruptIndexN(repoPath, generation);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
+        awaitNSnapshotsInProgress(2);
+
+        final NetworkDisruption networkDisruption = disconnectMasterDisruption();
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+        unblockNode(repoName, masterNode);
+        networkDisruption.stopDisrupting();
+        awaitNoMoreRunningOperations();
+        expectThrows(ElasticsearchException.class, snapshotThree::actionGet);
+        expectThrows(ElasticsearchException.class, snapshotFour::actionGet);
+    }
+
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOverMultipleRepos() throws Exception {
         disableRepoConsistencyCheck("This test corrupts the repository on purpose");
 

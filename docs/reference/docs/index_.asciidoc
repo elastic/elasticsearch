@@ -165,7 +165,7 @@ automatic creation of indices that match specified patterns, or set it to
 comma-separated list of patterns you want to allow, or prefix each pattern with
 `+` or `-` to indicate whether it should be allowed or blocked.  When a list is
 specified, the default behaviour is to disallow.
-+
+
 IMPORTANT: The `action.auto_create_index` setting only affects the automatic
 creation of indices. It does not affect the creation of data streams.
 

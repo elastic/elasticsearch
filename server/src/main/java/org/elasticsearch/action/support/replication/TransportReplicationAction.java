@@ -1108,7 +1108,7 @@ public abstract class TransportReplicationAction<
             targetAllocationID = in.readString();
             primaryTerm  = in.readVLong();
             // TODO: Change after backport
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 rerouteWasLocal = in.readBoolean();
             } else {
                 rerouteWasLocal = false;
@@ -1157,7 +1157,10 @@ public abstract class TransportReplicationAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
-            out.writeBoolean(rerouteWasLocal);
+            // TODO: Change after backport
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(rerouteWasLocal);
+            }
             request.writeTo(out);
         }
 

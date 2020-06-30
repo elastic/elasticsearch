@@ -69,6 +69,18 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(multipleValuesInDocValues().collect(ADD_O), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
     }
 
+    public void testFuzzyQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.fuzzyQuery("foo", "caaaaat", 1, 1, 1, true), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.fuzzyQuery("foo", "cat", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.fuzzyQuery("foo", "pig", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.fuzzyQuery("foo", "dog", 1, 1, 1, true), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
@@ -79,6 +91,18 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(addO.termQuery("foo", "pigo"), addO), equalTo(List.of("cato", "pigo")));
         visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
+    public void testTermsQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.termsQuery("foo", "cat", "dog"), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", "cato", "piglet"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", "pigo", "catington"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.termsQuery("foo", "dogo", "lightbulb"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testPrefixQuery() throws IOException {

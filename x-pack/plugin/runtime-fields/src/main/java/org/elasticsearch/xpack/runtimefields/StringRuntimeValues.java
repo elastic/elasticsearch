@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -40,8 +41,16 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().docValues();
     }
 
+    public Query fuzzyQuery(String fieldName, String value, int maxEdits, int prefixLength, int maxExpansions, boolean transpositions) {
+        return unstarted().new FuzzyQuery(fieldName, value, maxEdits, prefixLength, maxExpansions, transpositions);
+    }
+
     public Query termQuery(String fieldName, String value) {
         return unstarted().new TermQuery(fieldName, value);
+    }
+
+    public Query termsQuery(String fieldName, String... values) {
+        return unstarted().new TermsQuery(fieldName, values);
     }
 
     public Query prefixQuery(String fieldName, String value) {
@@ -115,6 +124,64 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
         }
 
+        private class FuzzyQuery extends AbstractRuntimeQuery {
+            private final BytesRefBuilder scratch = new BytesRefBuilder();
+            private final String term;
+            private final org.apache.lucene.search.FuzzyQuery delegate;
+            private final CompiledAutomaton automaton;
+
+            private FuzzyQuery(String fieldName, String term, int maxEdits, int prefixLength, int maxExpansions, boolean transpositions) {
+                super(fieldName);
+                this.term = term;
+                delegate = new org.apache.lucene.search.FuzzyQuery(
+                    new Term(fieldName, term),
+                    maxEdits,
+                    prefixLength,
+                    maxExpansions,
+                    transpositions
+                );
+                automaton = delegate.getAutomata();
+                if (automaton.type != CompiledAutomaton.AUTOMATON_TYPE.NORMAL) {
+                    throw new IllegalArgumentException("Can't compile automaton for [" + delegate + "]");
+                }
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    scratch.copyChars(values[i]);
+                    if (automaton.runAutomaton.run(scratch.bytes(), 0, scratch.length())) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.consumeTerms(this, new Term(fieldName, term));
+            }
+
+            @Override
+            protected String bareToString() {
+                return term + "~" + delegate.getMaxEdits();
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), term);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                FuzzyQuery other = (FuzzyQuery) obj;
+                return delegate.equals(other.delegate);
+            }
+        }
+
         private class TermQuery extends AbstractRuntimeQuery {
             private final String term;
 
@@ -155,6 +222,52 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 }
                 TermQuery other = (TermQuery) obj;
                 return term.equals(other.term);
+            }
+        }
+
+        private class TermsQuery extends AbstractRuntimeQuery {
+            private final String[] terms;
+
+            private TermsQuery(String fieldName, String[] terms) {
+                super(fieldName);
+                this.terms = terms.clone();
+                Arrays.sort(terms);
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (Arrays.binarySearch(terms, values[i]) >= 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                for (String term : terms) {
+                    visitor.consumeTerms(this, new Term(fieldName, term));
+                }
+            }
+
+            @Override
+            protected String bareToString() {
+                return "{" + Arrays.toString(terms) + "}";
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), Arrays.hashCode(terms));
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                TermsQuery other = (TermsQuery) obj;
+                return Arrays.equals(terms, other.terms);
             }
         }
 

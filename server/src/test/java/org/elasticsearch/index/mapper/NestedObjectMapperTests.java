@@ -402,7 +402,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
         DocumentMapper docMapper = mapperService.documentMapper();
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject().startArray("nested1")
                         .startObject().startArray("nested2").startObject().field("foo", "bar")
@@ -440,7 +440,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
         DocumentMapper docMapper = mapperService.documentMapper();
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", MapperService.SINGLE_MAPPING_NAME, "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject().startArray("nested1")
                         .startObject().startArray("nested2")

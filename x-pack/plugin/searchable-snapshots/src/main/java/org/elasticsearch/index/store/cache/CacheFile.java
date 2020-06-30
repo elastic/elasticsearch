@@ -285,8 +285,8 @@ public class CacheFile {
             for (SparseFileTracker.Gap gap : gaps) {
                 try {
                     ensureOpen();
-                    onRangeMissing.accept(gap.start, gap.end);
-                    gap.onProgress(gap.end); // TODO update progress in onRangeMissing
+                    onRangeMissing.accept(gap.start(), gap.end());
+                    gap.onProgress(gap.end()); // TODO update progress in onRangeMissing
                     gap.onCompletion();
                 } catch (Exception e) {
                     gap.onFailure(e);

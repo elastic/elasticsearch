@@ -108,7 +108,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("deprecation");
 
         final int numberOfThreads = randomIntBetween(2, 4);
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
@@ -194,7 +194,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("deprecation");
 
         final int iterations = randomIntBetween(1, 16);
 

@@ -241,3 +241,100 @@
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged
+
+---
+"Verify data stream resolvability for graph explore API":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-ds-rolluptemplate] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-ds-rolluptemplate] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-ds-rolluptemplate
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      1
+        op_type: create
+        body:    { keys: [1,2,3] }
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      2
+        op_type: create
+        body:    { keys: [4,5,6] }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      graph.explore:
+        index:  simple-data-stream1
+        body:  {"query": {"match": {"keys": 1}},"controls":{"use_significance":false},"vertices":[{"field": "keys","min_doc_count": 1}]}
+  - length: {failures: 0}
+  - length: {vertices: 3}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in migrations API":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      migration.deprecations:
+        index: "simple-data-stream1"
+  - length: { cluster_settings: 0 }
+  - length: { node_settings: 0 }
+  - length: { index_settings: 0 }
+  - length: { ml_settings: 0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged

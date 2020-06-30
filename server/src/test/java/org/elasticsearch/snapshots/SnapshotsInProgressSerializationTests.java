@@ -49,7 +49,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         for (int i = 0; i < numberOfSnapshots; i++) {
             entries.add(randomSnapshot());
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     private Entry randomSnapshot() {
@@ -112,7 +112,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 }
             }
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     @Override
@@ -134,7 +134,6 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         } else {
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
-
 }

@@ -178,7 +178,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 slice[i] = aggregations[i][ord];
             }
             final int thisOrd = ord;
-            result[ord] = new InternalAggregations(new AbstractList<InternalAggregation>() {
+            result[ord] = InternalAggregations.from(new AbstractList<InternalAggregation>() {
                 @Override
                 public InternalAggregation get(int index) {
                     return aggregations[index][thisOrd];
@@ -351,17 +351,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     @FunctionalInterface
     protected interface ResultBuilderForVariable<B> {
         InternalAggregation build(long owninigBucketOrd, List<B> buckets);
-    }
-
-    /**
-     * Utility method to build empty aggregations of the sub aggregators.
-     */
-    protected final InternalAggregations bucketEmptyAggregations() {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
-        for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = subAggregators[i].buildEmptyAggregation();
-        }
-        return new InternalAggregations(Arrays.asList(aggregations));
     }
 
     @Override

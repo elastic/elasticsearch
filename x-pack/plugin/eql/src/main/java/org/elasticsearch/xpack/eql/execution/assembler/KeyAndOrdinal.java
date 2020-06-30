@@ -6,16 +6,42 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
+
+import java.util.Objects;
 
 class KeyAndOrdinal {
     final SequenceKey key;
-    final long timestamp;
-    final Comparable<Object> tiebreaker;
+    final Ordinal ordinal;
 
-    KeyAndOrdinal(SequenceKey key, long timestamp, Comparable<Object> tiebreaker) {
+    KeyAndOrdinal(SequenceKey key, Ordinal ordinal) {
         this.key = key;
-        this.timestamp = timestamp;
-        this.tiebreaker = tiebreaker;
+        this.ordinal = ordinal;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, ordinal);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        
+        KeyAndOrdinal other = (KeyAndOrdinal) obj;
+        return Objects.equals(key, other.key)
+                && Objects.equals(ordinal, other.ordinal);
+    }
+
+    @Override
+    public String toString() {
+        return key.toString() + ordinal.toString();
     }
 }

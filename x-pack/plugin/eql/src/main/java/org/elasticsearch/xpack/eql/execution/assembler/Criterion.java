@@ -9,25 +9,43 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
+import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
 
-public class Criterion {
+public class Criterion implements QueryRequest {
 
     private final SearchSourceBuilder searchSource;
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor timestampExtractor;
     private final HitExtractor tiebreakerExtractor;
 
-    public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
-                     HitExtractor tiebreakerExtractor) {
+    // search after markers
+    private Ordinal startMarker;
+    private Ordinal stopMarker;
+    
+    private boolean reverse;
+
+    //TODO: should accept QueryRequest instead of another SearchSourceBuilder
+    public Criterion(SearchSourceBuilder searchSource,
+                     List<HitExtractor> searchAfterExractors,
+                     HitExtractor timestampExtractor,
+                     HitExtractor tiebreakerExtractor,
+                     boolean reverse) {
         this.searchSource = searchSource;
         this.keyExtractors = searchAfterExractors;
         this.timestampExtractor = timestampExtractor;
         this.tiebreakerExtractor = tiebreakerExtractor;
+
+        this.startMarker = null;
+        this.stopMarker = null;
+        this.reverse = reverse;
     }
 
+    @Override
     public SearchSourceBuilder searchSource() {
         return searchSource;
     }
@@ -44,28 +62,45 @@ public class Criterion {
         return tiebreakerExtractor;
     }
 
-    public long timestamp(SearchHit hit) {
-        Object ts = timestampExtractor.extract(hit);
-        if (ts instanceof Number) {
-            return ((Number) ts).longValue();
-        }
-        throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
-    }
-
     @SuppressWarnings({ "unchecked" })
-    public Comparable<Object> tiebreaker(SearchHit hit) {
-        if (tiebreakerExtractor == null) {
-            return null;
+    public Ordinal ordinal(SearchHit hit) {
+
+        Object ts = timestampExtractor.extract(hit);
+        if (ts instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
         }
-        Object tb = tiebreakerExtractor.extract(hit);
-        if (tb instanceof Comparable) {
-            return (Comparable<Object>) tb;
+
+        long timestamp = ((Number) ts).longValue();
+        Comparable<Object> tiebreaker = null;
+
+        if (tiebreakerExtractor != null) {
+            Object tb = tiebreakerExtractor.extract(hit);
+            if (tb instanceof Comparable == false) {
+                throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+            }
+            tiebreaker = (Comparable<Object>) tb;
         }
-        throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+        return new Ordinal(timestamp, tiebreaker);
     }
 
-    public void fromMarkers(Object[] markers) {
-        // TODO: this is likely to be rewritten afterwards
-        searchSource.searchAfter(markers);
+    public void startMarker(Ordinal ordinal) {
+        startMarker = ordinal;
+    }
+
+    public void stopMarker(Ordinal ordinal) {
+        stopMarker = ordinal;
+    }
+
+    public Ordinal nextMarker() {
+        return startMarker.compareTo(stopMarker) < 1 ? startMarker : stopMarker;
+    }
+
+    public Criterion useMarker(Ordinal marker) {
+        searchSource.searchAfter(marker.toArray());
+        return this;
+    }
+
+    public Iterable<SearchHit> iterable(List<SearchHit> hits) {
+        return () -> reverse ? new ReversedIterator<>(hits) : hits.iterator();
     }
 }

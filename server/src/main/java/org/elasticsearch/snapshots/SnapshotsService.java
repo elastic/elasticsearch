@@ -888,6 +888,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param repositoryData current repository data
      * @param repository     repository name
+     * @param attemptDelete  whether to try and run delete operations that are ready in the cluster state if no
+     *                       snapshot create operations remain to execute
      */
     private void runNextQueuedOperation(RepositoryData repositoryData, String repository, boolean attemptDelete) {
         synchronized (currentlyFinalizing) {

@@ -19,18 +19,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -41,27 +43,28 @@ public class DocCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "doc_count";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new DocCountFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
+//            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<DocCountFieldMapper.Builder, DocCountFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<DocCountFieldMapper.Builder> {
 
         public Builder(String name) {
-            super(name, DocCountFieldMapper.Defaults.FIELD_TYPE, DocCountFieldMapper.Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
         public DocCountFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new DocCountFieldMapper(name, fieldType, defaultFieldType, context.indexSettings());
+            DocCountFieldType defaultFieldType = new DocCountFieldType(buildFullName(context), hasDocValues, meta);
+
+            return new DocCountFieldMapper(name, fieldType, defaultFieldType);
         }
     }
 
@@ -75,9 +78,14 @@ public class DocCountFieldMapper extends FieldMapper {
         }
     }
 
-    static final class DocCountFieldType extends MappedFieldType {
+    public static final class DocCountFieldType extends MappedFieldType {
 
-        DocCountFieldType() {
+        public DocCountFieldType(String name) {
+            this(name, true, Collections.emptyMap());
+        }
+
+        public DocCountFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         protected DocCountFieldType(DocCountFieldType ref) {
@@ -106,9 +114,11 @@ public class DocCountFieldMapper extends FieldMapper {
         }
     }
 
-    protected DocCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
-
+    protected DocCountFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType defaultFieldType) {
+        super(simpleName, fieldType, defaultFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -123,12 +133,17 @@ public class DocCountFieldMapper extends FieldMapper {
         if (value != null) {
             if (value.longValue() < 0 || value.floatValue() != value.longValue()) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] must always be a positive integer");
+                    "Field [" + fieldType().name() + "] must always be a positive integer");
             }
 
             final Field docCount = new NumericDocValuesField(name(), value.longValue());
             context.doc().add(docCount);
         }
+    }
+
+    @Override
+    public DocCountFieldType fieldType() {
+        return (DocCountFieldType) super.fieldType();
     }
 
     @Override
@@ -142,7 +157,7 @@ public class DocCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         // nothing to do
     }
 }

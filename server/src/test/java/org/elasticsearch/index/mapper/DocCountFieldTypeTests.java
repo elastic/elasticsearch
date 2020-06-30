@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-public class DocCountFieldTypeTests extends FieldTypeTestCase {
+import java.util.Map;
+
+public class DocCountFieldTypeTests extends FieldTypeTestCase<DocCountFieldMapper.DocCountFieldType> {
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        DocCountFieldMapper.DocCountFieldType fieldType = new DocCountFieldMapper.DocCountFieldType();
+    protected DocCountFieldMapper.DocCountFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        DocCountFieldMapper.DocCountFieldType fieldType = new DocCountFieldMapper.DocCountFieldType(name, true, meta);
         return fieldType;
     }
 }

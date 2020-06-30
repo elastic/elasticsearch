@@ -106,7 +106,7 @@ public class SamlResponseHandlerTests extends SamlTestCase {
     public static void initCredentials() throws Exception {
         idpSigningCertificatePair = readRandomKeyPair(SamlResponseHandlerTests.randomSigningAlgorithm());
         spSigningCertificatePair = readRandomKeyPair(SamlResponseHandlerTests.randomSigningAlgorithm());
-        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("RSA_2048"), readKeyPair("RSA_4096"));
+        spEncryptionCertificatePairs = Arrays.asList(readKeyPair("ENCRYPTION_RSA_2048"), readKeyPair("ENCRYPTION_RSA_4096"));
     }
 
     protected static String randomSigningAlgorithm() {

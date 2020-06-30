@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 
@@ -24,33 +25,25 @@ public class SequenceStateMachine {
     /** Current keys on each stage */
     private final StageToKeys stageToKeys;
 
-    /** minimum timestamp per stage */
-    /** this ignores the key */
-    private final long[] timestampMarkers;
-
-    private final Comparable<?>[] tiebreakerMarkers;
-    private final boolean hasTieBreaker;
-
     private final int completionStage;
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
-    
+    private final long maxSpanInMillis;
+
     private int offset = 0;
     private int limit = -1;
     private boolean limitReached = false;
 
     @SuppressWarnings("rawtypes")
-    public SequenceStateMachine(int stages, boolean hasTiebreaker, Limit limit) {
+    public SequenceStateMachine(int stages, TimeValue maxSpan, Limit limit) {
         this.completionStage = stages - 1;
 
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
-        this.timestampMarkers = new long[completionStage];
-        this.tiebreakerMarkers = new Comparable[completionStage];
         this.completed = new LinkedList<>();
 
-        this.hasTieBreaker = hasTiebreaker;
+        this.maxSpanInMillis = maxSpan.millis();
 
         // limit && offset
         if (limit != null) {
@@ -63,34 +56,11 @@ public class SequenceStateMachine {
         return completed;
     }
 
-    public long getTimestampMarker(int stage) {
-        return timestampMarkers[stage];
-    }
-
-    public Comparable<?> getTiebreakerMarker(int stage) {
-        return tiebreakerMarkers[stage];
-    }
-
-    public void setTimestampMarker(int stage, long timestamp) {
-        timestampMarkers[stage] = timestamp;
-    }
-
-    public void setTiebreakerMarker(int stage, Comparable<Object> tiebreaker) {
-        tiebreakerMarkers[stage] = tiebreaker;
-    }
-
-    public Object[] getMarkers(int stage) {
-        long ts = timestampMarkers[stage];
-        Comparable<?> tb = tiebreakerMarkers[stage];
-        return hasTieBreaker ? new Object[] { ts, tb } : new Object[] { ts };
-    }
-
-    public void trackSequence(Sequence sequence, long tStart, long tStop) {
+    public void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
         stageToKeys.keys(0).add(key);
         SequenceFrame frame = keyToSequences.frame(0, key);
-        frame.setTimeFrame(tStart, tStop);
         frame.add(sequence);
     }
 
@@ -98,23 +68,27 @@ public class SequenceStateMachine {
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    public boolean match(int stage, SequenceKey key, long timestamp, Comparable<Object> tiebreaker, SearchHit hit) {
+    public boolean match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
         int previousStage = stage - 1;
         // check key presence to avoid creating a collection
         SequenceFrame frame = keyToSequences.frameIfPresent(previousStage, key);
         if (frame == null || frame.isEmpty()) {
             return false;
         }
-        // pick the sequence with the highest (for ASC) / lowest (for DESC) timestamp lower than current match timestamp
-        Tuple<Sequence, Integer> neighbour = frame.before(timestamp, tiebreaker);
-        if (neighbour == null) {
+        Tuple<Sequence, Integer> before = frame.before(ordinal);
+        if (before == null) {
             return false;
         }
-        Sequence sequence = neighbour.v1();
+        Sequence sequence = before.v1();
         // eliminate the match and all previous values from the frame
-        frame.trim(neighbour.v2() + 1);
-        // update sequence
-        sequence.putMatch(stage, hit, timestamp, tiebreaker);
+        frame.trim(before.v2() + 1);
+        
+        // check maxspan before continuing the sequence
+        if (maxSpanInMillis > 0 && (ordinal.timestamp - sequence.startTimestamp() >= maxSpanInMillis)) {
+            return false;
+        }
+
+        sequence.putMatch(stage, hit, ordinal);
 
         // remove the frame and keys early (as the key space is large)
         if (frame.isEmpty()) {

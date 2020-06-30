@@ -60,7 +60,7 @@ public class RestPutMappingActionTests extends RestActionTestCase {
         assertWarnings(RestPutMappingAction.TYPES_DEPRECATION_MESSAGE);
 
         Map<String, String> params = new HashMap<>();
-        params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping")

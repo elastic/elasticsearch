@@ -41,6 +41,12 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
+
+  // explicitly add our dependency on the JDK
+  String jdkVersion = VersionProperties.versions.get('bundled_jdk')
+  String jdkMajorVersion = jdkVersion.split('[+.]')[0]
+  String sourceUrl = "http://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 }
 
 /*****************************************************************************
@@ -281,13 +287,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
-        from { project(':server').configurations.runtime }
+        from { project(':server').configurations.runtimeClasspath }
         from { project(':libs:elasticsearch-plugin-classloader').jar }
         from { project(':distribution:tools:java-version-checker').jar }
         from { project(':distribution:tools:launchers').jar }
         into('tools/plugin-cli') {
           from { project(':distribution:tools:plugin-cli').jar }
-          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+          from { project(':distribution:tools:plugin-cli').configurations.runtimeClasspath }
         }
         into('tools/keystore-cli') {
           from { project(':distribution:tools:keystore-cli').jar }
@@ -295,7 +301,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (oss == false) {
           into('tools/security-cli') {
             from { project(':x-pack:plugin:security:cli').jar }
-            from { project(':x-pack:plugin:security:cli').configurations.compile }
+            from { project(':x-pack:plugin:security:cli').configurations.compileClasspath }
           }
         }
       }

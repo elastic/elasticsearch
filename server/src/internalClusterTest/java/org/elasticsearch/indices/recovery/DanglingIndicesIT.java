@@ -240,8 +240,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, true);
-
-        client().admin().cluster().importDanglingIndex(request).actionGet();
+        client().admin().cluster().importDanglingIndex(request).get();
 
         assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }
@@ -480,6 +479,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         AtomicReference<String> stoppedNodeName = new AtomicReference<>();
 
+        final int nodes = internalCluster().size();
         // Restart node, deleting the indices in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
@@ -493,6 +493,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+        ensureStableCluster(nodes);
 
         return stoppedNodeName.get();
     }

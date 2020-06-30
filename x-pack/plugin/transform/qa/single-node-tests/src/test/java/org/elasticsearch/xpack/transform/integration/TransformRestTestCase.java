@@ -80,7 +80,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return super.buildClient(settings, hosts);
     }
 
-    protected void createReviewsIndex(String indexName, int numDocs, String dateType) throws IOException {
+    protected void createReviewsIndex(String indexName, int numDocs, String dateType, boolean isDataStream) throws IOException {
         int[] distributionTable = { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1 };
 
         // create mapping
@@ -110,10 +110,25 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .endObject();
             }
             builder.endObject();
-            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", indexName);
-            req.setEntity(entity);
-            client().performRequest(req);
+            if (isDataStream) {
+                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
+                createCompositeTemplate.setJsonEntity(
+                    "{\n" +
+                        "  \"index_patterns\": [ \"" + indexName + "\" ],\n" +
+                        "  \"data_stream\": {\n" +
+                        "    \"timestamp_field\": \"timestamp\"\n" +
+                        "  },\n" +
+                        "  \"template\": \n" + Strings.toString(builder) +
+                        "}"
+                );
+                client().performRequest(createCompositeTemplate);
+                client().performRequest(new Request("PUT",  "_data_stream/" + indexName));
+            } else {
+                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+                Request req = new Request("PUT", indexName);
+                req.setEntity(entity);
+                client().performRequest(req);
+            }
         }
 
         // create index
@@ -122,7 +137,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int hour = 10;
         int min = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
+            bulk.append("{\"create\":{\"_index\":\"" + indexName + "\"}}\n");
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
@@ -183,7 +198,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndex(String indexName) throws IOException {
-        createReviewsIndex(indexName, 1000, "date");
+        createReviewsIndex(indexName, 1000, "date", false);
     }
 
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
@@ -196,7 +211,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndexNano() throws IOException {
-        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos");
+        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos", false);
     }
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
@@ -226,8 +241,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void createPivotReviewsTransform(String transformId, String transformIndex, String query, String pipeline, String authHeader)
-        throws IOException {
+    protected void createPivotReviewsTransform(String transformId,
+                                               String transformIndex,
+                                               String query,
+                                               String pipeline,
+                                               String authHeader,
+                                               String sourceIndex) throws IOException {
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{";
@@ -239,9 +258,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         }
 
         if (query != null) {
-            config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\", \"query\":{" + query + "}},";
+            config += " \"source\": {\"index\":\"" + sourceIndex + "\", \"query\":{" + query + "}},";
         } else {
-            config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},";
+            config += " \"source\": {\"index\":\"" + sourceIndex + "\"},";
         }
 
         config += " \"pivot\": {"
@@ -262,6 +281,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
+    protected void createPivotReviewsTransform(String transformId, String transformIndex, String query, String pipeline, String authHeader)
+        throws IOException {
+        createPivotReviewsTransform(transformId, transformIndex, query, pipeline, authHeader, REVIEWS_INDEX_NAME);
     }
 
     protected void startTransform(String transformId) throws IOException {

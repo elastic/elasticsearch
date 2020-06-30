@@ -1,8 +1,8 @@
 ---
 "Roll over a data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -46,7 +46,7 @@
       indices.get_data_stream:
         name: "*"
   - match: { 0.name: data-stream-for-rollover }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 2 }
   - length: { 0.indices: 2 }
   - match: { 0.indices.0.index_name: '.ds-data-stream-for-rollover-000001' }

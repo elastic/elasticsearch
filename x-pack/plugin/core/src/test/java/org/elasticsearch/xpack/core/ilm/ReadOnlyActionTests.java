@@ -38,13 +38,19 @@ public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(1, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
-        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
+        assertEquals(2, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
+        CheckNotDataStreamWriteIndexStep firstStep = (CheckNotDataStreamWriteIndexStep) steps.get(0);
+        UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
+
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
-        assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
+        assertThat(firstStep.getNextStepKey(), equalTo(expectedSecondStepKey));
+
+        assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
+        assertThat(secondStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(secondStep.getSettings().size(), equalTo(1));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(secondStep.getSettings()));
     }
 
 }

@@ -130,7 +130,17 @@ class MutableSearchResponse {
         //note that when search fails, we may have gotten partial results before the failure. In that case async
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
-        this.failure = ElasticsearchException.guessRootCauses(exc)[0];
+        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(exc);
+        if (rootCauses == null || rootCauses.length == 0) {
+            this.failure = new ElasticsearchException(exc.getMessage(), exc) {
+                @Override
+                protected String getExceptionName() {
+                    return getExceptionName(getCause());
+                }
+            };
+        } else {
+            this.failure = rootCauses[0];
+        }
         this.frozen = true;
     }
 

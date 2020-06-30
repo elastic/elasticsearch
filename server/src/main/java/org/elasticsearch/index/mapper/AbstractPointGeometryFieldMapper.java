@@ -24,7 +24,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -66,7 +65,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
 
         public abstract AbstractPointGeometryFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                                               Settings indexSettings, MultiFields multiFields,
+                                                               MultiFields multiFields,
                                                                Explicit<Boolean> ignoreMalformed,
                                                                Explicit<Boolean> ignoreZValue,
                                                                ParsedPoint nullValue, CopyTo copyTo);
@@ -74,7 +73,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
         @Override
         public AbstractPointGeometryFieldMapper build(BuilderContext context) {
-            return build(context, name, fieldType, context.indexSettings(),
+            return build(context, name, fieldType,
                 multiFieldsBuilder.build(this, context), ignoreMalformed(context),
                 ignoreZValue(context), nullValue, copyTo);
         }
@@ -125,9 +124,9 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     protected AbstractPointGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                               Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

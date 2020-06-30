@@ -19,8 +19,8 @@ setup:
 ---
 "Delete backing index on data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -58,7 +58,7 @@ setup:
       indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 2 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-simple-data-stream-000002' }
@@ -71,7 +71,7 @@ setup:
 ---
 "Attempt to delete write index on data stream is rejected":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason:  "mute bwc until backported"
 
   - do:

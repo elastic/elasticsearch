@@ -82,7 +82,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("doc_values");
+        return Set.of("doc_values", "index");
     }
 
     @Override

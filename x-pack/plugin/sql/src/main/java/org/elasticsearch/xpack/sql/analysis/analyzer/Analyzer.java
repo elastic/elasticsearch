@@ -852,7 +852,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return condition.transformDown(u -> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
-                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())) {
+                    // don't replace field with their own aliases (it creates infinite cycles)
+                    if (u != alias.child() &&
+                           (qualified ?
+                               Objects.equals(alias.qualifiedName(), u.qualifiedName()) :
+                               Objects.equals(alias.name(), u.name()))) {
                         return alias;
                     }
                 }
@@ -1299,7 +1303,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return true;
         }
     }
-    
+
     abstract static class BaseAnalyzeRule extends AnalyzeRule<LogicalPlan> {
 
         @Override

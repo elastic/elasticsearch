@@ -15,11 +15,11 @@ GET /twitter/_search
 [[search-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search`
+`GET /<target>/_search`
 
 `GET /_search`
 
-`POST /<index>/_search`
+`POST /<target>/_search`
 
 `POST /_search`
 
@@ -33,7 +33,13 @@ query string parameter>> or <<search-request-body,request body>>.
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list or wildcard (`*`) expression of data streams, indices,
+and index aliases used to limit the request.
++
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [role="child_attributes"]
 [[search-search-api-query-params]]
@@ -147,9 +153,7 @@ level settings.
 (Optional, boolean) Indicates whether hits.total should be rendered as an
 integer or an object in the rest search response. Defaults to `false`.
 
-`routing`::
-(Optional, <<time-units, time units>>) Specifies how long a consistent view of
-the index should be maintained for scrolled search.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[search-api-scroll-query-param]]
 `scroll`::
@@ -586,7 +590,7 @@ Key is the field name. Value is the value for the field.
 ==== {api-examples-title}
 
 [[search-api-specific-ex]]
-===== Search an index using the `q` query parameter
+===== Search a single data stream or index using the `q` query parameter
 
 [source,console]
 ----
@@ -632,7 +636,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"took": 5/"took": $body.took/]
 
 [[search-multi-index]]
-===== Search several indices using the `q` query parameter
+===== Search several data streams and indices using the `q` query parameter
 
 [source,console]
 ----
@@ -641,10 +645,10 @@ GET /kimchy,elasticsearch/_search?q=user:kimchy
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [[search-api-all-ex]]
-===== Search all indices using the `q` query parameter
+===== Search a cluster using the `q` query parameter
 
-To search all indices in a cluster,
-omit the `<index>` parameter.
+To search all data streams and indices in a cluster,
+omit the `<target>` parameter.
 
 [source,console]
 ----
@@ -653,7 +657,7 @@ GET /_search?q=user:kimchy
 // TEST[continued]
 
 Alternatively,
-you can use the `_all` or `*` value in the `<index>` parameter.
+you can use the `_all` or `*` value in the `<target>` parameter.
 
 [source,console]
 ----
@@ -668,7 +672,7 @@ GET /*/_search?q=user:kimchy
 // TEST[continued]
 
 [[search-request-body-api-example]]
-===== Search an index using the `query` request body parameter
+===== Search using the `query` request body parameter
 
 [source,console]
 --------------------------------------------------

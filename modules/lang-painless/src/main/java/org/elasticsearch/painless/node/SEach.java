@@ -21,8 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionNode;
@@ -33,7 +31,8 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Iterator;
 import java.util.Objects;
@@ -76,20 +75,20 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
         Output output = new Output();
 
         AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(iterableNode, classNode, semanticScope, expressionInput);
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        scope = scope.newLocalScope();
-        Variable variable = scope.defineVariable(getLocation(), clazz, symbol, true);
+        semanticScope = semanticScope.newLocalScope();
+        Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
 
         if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -98,7 +97,7 @@ public class SEach extends AStatement {
         Input blockInput = new Input();
         blockInput.beginLoop = true;
         blockInput.inLoop = true;
-        Output blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
+        Output blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
         blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
@@ -108,8 +107,9 @@ public class SEach extends AStatement {
         ConditionNode conditionNode;
 
         if (expressionOutput.actual.isArray()) {
-            Variable array = scope.defineVariable(getLocation(), expressionOutput.actual, "#array" + getLocation().getOffset(), true);
-            Variable index = scope.defineVariable(getLocation(), int.class, "#index" + getLocation().getOffset(), true);
+            Variable array =
+                    semanticScope.defineVariable(getLocation(), expressionOutput.actual, "#array" + getLocation().getOffset(), true);
+            Variable index = semanticScope.defineVariable(getLocation(), int.class, "#index" + getLocation().getOffset(), true);
             Class<?> indexed = expressionOutput.actual.getComponentType();
             PainlessCast cast = AnalyzerCaster.getLegalCast(getLocation(), indexed, variable.getType(), true, true);
 
@@ -130,14 +130,15 @@ public class SEach extends AStatement {
         } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
             // We must store the iterator as a variable for securing a slot on the stack, and
             // also add the location offset to make the name unique in case of nested for each loops.
-            Variable iterator = scope.defineVariable(getLocation(), Iterator.class, "#itr" + getLocation().getOffset(), true);
+            Variable iterator = semanticScope.defineVariable(getLocation(), Iterator.class, "#itr" + getLocation().getOffset(), true);
 
             PainlessMethod method;
 
             if (expressionOutput.actual == def.class) {
                 method = null;
             } else {
-                method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expressionOutput.actual, false, "iterator", 0);
+                method = semanticScope.getScriptScope().getPainlessLookup().
+                        lookupPainlessMethod(expressionOutput.actual, false, "iterator", 0);
 
                 if (method == null) {
                     throw createError(new IllegalArgumentException(

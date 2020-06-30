@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -61,7 +60,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public RankFeatureMetaFieldMapper build(BuilderContext context) {
-            return new RankFeatureMetaFieldMapper(context.indexSettings());
+            return new RankFeatureMetaFieldMapper();
         }
     }
 
@@ -74,8 +73,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new RankFeatureMetaFieldMapper(indexSettings);
+            return new RankFeatureMetaFieldMapper();
         }
     }
 
@@ -84,7 +82,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
         private RankFeatureMetaFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
@@ -112,8 +110,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private RankFeatureMetaFieldMapper(Settings indexSettings) {
-        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE, indexSettings);
+    private RankFeatureMetaFieldMapper() {
+        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE);
     }
 
     @Override

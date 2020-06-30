@@ -19,8 +19,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
@@ -71,7 +71,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        client().prepareIndex(AnomalyDetectorsIndex.configIndexName())
+        client().prepareIndex(MlConfigIndex.indexName())
             .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
             .get();
@@ -82,7 +82,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
             getConfigHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver);
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(),
@@ -107,7 +107,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         assertBusy(() -> {
             try {
                 GetResponse getResponse = client().prepareGet(
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     DatafeedConfig.documentId("farequote-datafeed-with-old-agg")
                 ).get();
                 assertTrue(getResponse.isExists());

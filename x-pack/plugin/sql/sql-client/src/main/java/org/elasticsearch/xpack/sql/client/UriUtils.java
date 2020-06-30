@@ -18,12 +18,26 @@ public final class UriUtils {
      */
     public static URI parseURI(String connectionString, URI defaultURI) {
         final URI uri = parseWithNoScheme(connectionString);
+        // Repack the connection string with provided default elements - where missing from the original string - and reparse into a URI.
         final String path = "".equals(uri.getPath()) ? defaultURI.getPath() : uri.getPath();
-        final String query = uri.getQuery() == null ? defaultURI.getQuery() : uri.getQuery();
+        final String rawQuery = uri.getQuery() == null ? defaultURI.getRawQuery() : uri.getRawQuery();
+        final String rawFragment = uri.getFragment() == null ? defaultURI.getRawFragment() : uri.getRawFragment();
         final int port = uri.getPort() < 0 ? defaultURI.getPort() : uri.getPort();
         try {
-            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), port, path, query, defaultURI.getFragment());
+            // The query part is attached in original "raw" format, to preserve the escaping of characters. This is needed since any
+            // escaped query structure characters (`&` and `=`) wouldn't remain escaped when passed back through the URI constructor
+            // (since they are legal in the query part), and that would later interfere with correctly parsing the attributes.
+            // And same with escaped `#` chars in the fragment part.
+            String connStr = new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), port, path, null, null).toString();
+            if (StringUtils.hasLength(rawQuery)) {
+                connStr += "?" + rawQuery;
+            }
+            if (StringUtils.hasLength(rawFragment)) {
+                connStr += "#" + rawFragment;
+            }
+            return new URI(connStr);
         } catch (URISyntaxException e) {
+            // should only happen if the defaultURI is malformed
             throw new IllegalArgumentException("Invalid connection configuration [" + connectionString + "]: " + e.getMessage(), e);
         }
     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.EnabledAttributeMapper;
@@ -67,7 +66,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             return new SizeFieldMapper(fieldType, enabledState,
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER), context.indexSettings());
+                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
         }
     }
 
@@ -92,16 +91,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             return new SizeFieldMapper(Defaults.SIZE_FIELD_TYPE, Defaults.ENABLED_STATE,
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER),
-                context.mapperService().getIndexSettings().getSettings());
+                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
         }
     }
 
     private EnabledAttributeMapper enabledState;
 
     private SizeFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled,
-                            MappedFieldType mappedFieldType, Settings indexSettings) {
-        super(fieldType, mappedFieldType, indexSettings);
+                            MappedFieldType mappedFieldType) {
+        super(fieldType, mappedFieldType);
         this.enabledState = enabled;
     }
 

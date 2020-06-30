@@ -120,11 +120,13 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             seen.add(new OwningBucketOrdAndValue(0, 0));
             seen.add(new OwningBucketOrdAndValue(1, 0));
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
-            long maxOwningBucketOrd = scaledRandomIntBetween(0, values.length);
+            long maxAllowedOwningBucketOrd = scaledRandomIntBetween(0, values.length);
+            long maxOwningBucketOrd = Long.MIN_VALUE;
             for (int i = 0; i < values.length; i++) {
                 values[i] = randomValueOtherThanMany(seen::contains, () ->
-                        new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), randomLong()));
+                        new OwningBucketOrdAndValue(randomLongBetween(0, maxAllowedOwningBucketOrd), randomLong()));
                 seen.add(values[i]);
+                maxOwningBucketOrd = Math.max(maxOwningBucketOrd, values[i].owningBucketOrd);
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(-1L));
@@ -144,7 +146,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.add(1, 0), equalTo(-2L));
 
 
-            for (long owningBucketOrd = 0; owningBucketOrd <= maxOwningBucketOrd; owningBucketOrd++) {
+            for (long owningBucketOrd = 0; owningBucketOrd <= maxAllowedOwningBucketOrd; owningBucketOrd++) {
                 long expectedCount = 0;
                 LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(owningBucketOrd);
                 if (owningBucketOrd <= 1) {
@@ -183,7 +185,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return owningBucketOrd + "/" + value; 
+            return owningBucketOrd + "/" + value;
         }
 
         @Override
@@ -192,7 +194,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 return false;
             }
             OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value; 
+            return owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

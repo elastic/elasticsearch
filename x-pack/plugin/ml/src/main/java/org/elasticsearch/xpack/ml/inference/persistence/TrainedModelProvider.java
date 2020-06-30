@@ -633,6 +633,8 @@ public class TrainedModelProvider {
                     .field(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName()))
                 .aggregation(AggregationBuilders.sum(InferenceStats.INFERENCE_COUNT.getPreferredName())
                     .field(InferenceStats.INFERENCE_COUNT.getPreferredName()))
+                .aggregation(AggregationBuilders.sum(InferenceStats.CACHE_MISS_COUNT.getPreferredName())
+                    .field(InferenceStats.CACHE_MISS_COUNT.getPreferredName()))
                 .aggregation(AggregationBuilders.max(InferenceStats.TIMESTAMP.getPreferredName())
                     .field(InferenceStats.TIMESTAMP.getPreferredName()))
                 .query(queryBuilder));
@@ -645,12 +647,14 @@ public class TrainedModelProvider {
         }
         Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
         Sum missing = response.getAggregations().get(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName());
+        Sum cacheMiss = response.getAggregations().get(InferenceStats.CACHE_MISS_COUNT.getPreferredName());
         Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());
         Max timeStamp = response.getAggregations().get(InferenceStats.TIMESTAMP.getPreferredName());
         return new InferenceStats(
             missing == null ? 0L : Double.valueOf(missing.getValue()).longValue(),
             count == null ? 0L : Double.valueOf(count.getValue()).longValue(),
             failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
+            cacheMiss == null ? 0L : Double.valueOf(cacheMiss.getValue()).longValue(),
             modelId,
             null,
             timeStamp == null || (Numbers.isValidDouble(timeStamp.getValue()) == false) ?

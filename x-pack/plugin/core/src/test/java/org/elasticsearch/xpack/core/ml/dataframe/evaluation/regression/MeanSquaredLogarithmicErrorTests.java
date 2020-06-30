@@ -46,10 +46,10 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
-        MeanSquaredLogarithmicError mse = new MeanSquaredLogarithmicError((Double) null);
-        mse.process(aggs);
+        MeanSquaredLogarithmicError msle = new MeanSquaredLogarithmicError((Double) null);
+        msle.process(aggs);
 
-        EvaluationMetricResult result = mse.getResult().get();
+        EvaluationMetricResult result = msle.getResult().get();
         String expected = "{\"error\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
@@ -59,10 +59,10 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
-        MeanSquaredLogarithmicError mse = new MeanSquaredLogarithmicError((Double) null);
-        mse.process(aggs);
+        MeanSquaredLogarithmicError msle = new MeanSquaredLogarithmicError((Double) null);
+        msle.process(aggs);
 
-        EvaluationMetricResult result = mse.getResult().get();
+        EvaluationMetricResult result = msle.getResult().get();
         assertThat(result, equalTo(new MeanSquaredLogarithmicError.Result(0.0)));
     }
 }

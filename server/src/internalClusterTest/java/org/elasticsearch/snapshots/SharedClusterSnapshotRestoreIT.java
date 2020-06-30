@@ -2103,8 +2103,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> restore index");
         client.admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build()).get();
-        ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).execute();
+        ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin().cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
 
         // check if throttling is active
         assertBusy(() -> {

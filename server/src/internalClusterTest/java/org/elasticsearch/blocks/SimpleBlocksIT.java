@@ -266,7 +266,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+            .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
 
         final APIBlock block = randomFrom(APIBlock.values());
         try {
@@ -286,7 +286,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         if (randomBoolean()) {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(1, 10))
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+                .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
         }
         final APIBlock block = randomFrom(APIBlock.values());
         try {
@@ -325,7 +325,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         final int nbDocs = randomIntBetween(10, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
-            .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
+            .mapToObj(i -> client().prepareIndex(indexName,"zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
         ensureYellowAndNoInitializingShards(indexName);
 
         final CountDownLatch startClosing = new CountDownLatch(1);
@@ -401,7 +401,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             createIndex(indexName);
             if (randomBoolean()) {
                 indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, 10)
-                    .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n)).collect(toList()));
+                    .mapToObj(n -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(n))
+                        .setSource("num", n)).collect(toList()));
             }
             indices[i] = indexName;
         }

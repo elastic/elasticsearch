@@ -115,18 +115,21 @@ public class MetadataIndexStateService {
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
     private final TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction;
+    private final TransportVerifyShardIndexBlockAction transportVerifyShardIndexBlockAction;
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public MetadataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetadataIndexUpgradeService metadataIndexUpgradeService,
                                      IndicesService indicesService, ShardLimitValidator shardLimitValidator, ThreadPool threadPool,
-                                     TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction) {
+                                     TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction,
+                                     TransportVerifyShardIndexBlockAction transportVerifyShardIndexBlockAction) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.threadPool = threadPool;
         this.transportVerifyShardBeforeCloseAction = transportVerifyShardBeforeCloseAction;
+        this.transportVerifyShardIndexBlockAction = transportVerifyShardIndexBlockAction;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
         this.shardLimitValidator = shardLimitValidator;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
@@ -706,7 +709,7 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, shardRequest, listener);
+            transportVerifyShardIndexBlockAction.execute(shardRequest, listener);
         }
     }
 

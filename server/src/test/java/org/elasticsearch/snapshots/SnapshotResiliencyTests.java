@@ -1340,6 +1340,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ClusterService clusterService;
 
+            private final RecoverySettings recoverySettings;
+
             private final NodeConnectionsService nodeConnectionsService;
 
             private final RepositoriesService repositoriesService;
@@ -1387,6 +1389,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             // don't do anything, and don't block
                         }
                     });
+                recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, logger) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
@@ -1621,7 +1624,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService) {
+                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService,
+                        recoverySettings) {
                         @Override
                         protected void assertSnapshotOrGenericThread() {
                             // eliminate thread name check as we create repo in the test thread
@@ -1629,7 +1633,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     };
                 } else {
                     return metadata ->
-                        new MockEventuallyConsistentRepository(metadata, xContentRegistry(), clusterService, blobStoreContext, random());
+                        new MockEventuallyConsistentRepository(metadata, xContentRegistry(), clusterService, recoverySettings,
+                            blobStoreContext, random());
                 }
             }
             public void restart() {

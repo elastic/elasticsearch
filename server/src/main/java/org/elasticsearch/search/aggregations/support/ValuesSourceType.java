@@ -98,4 +98,10 @@ public interface ValuesSourceType {
     default DocValueFormat getFormatter(String format, ZoneId tz) {
         return DocValueFormat.RAW;
     }
+
+    /**
+     * Returns the name of the Values Source Type for stats purposes
+     * @return the name of the Values Source Type
+     */
+    String typeName();
 }

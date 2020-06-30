@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -108,7 +109,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
-        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+        if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
             validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
                 + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
         }
@@ -128,7 +129,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets a concrete index for this put mapping request.
      */
     public PutMappingRequest setConcreteIndex(Index index) {
-        Objects.requireNonNull(indices, "index must not be null");
+        Objects.requireNonNull(index, "index must not be null");
         this.concreteIndex = index;
         return this;
     }

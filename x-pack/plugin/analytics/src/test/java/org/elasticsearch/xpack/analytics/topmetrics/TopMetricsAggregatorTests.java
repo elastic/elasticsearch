@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -64,9 +66,11 @@ import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -377,7 +381,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                  * BigArrays allocates the new array before freeing the old one.
                  * That causes us to trip when we're about 2/3 of the way to the
                  * limit. And 2/3 of 190 is 126. Which is pretty much what we
-                 * expect. Sort of. 
+                 * expect. Sort of.
                  */
                 int bucketThatBreaks = 646;
                 for (int b = 0; b < bucketThatBreaks; b++) {
@@ -476,22 +480,15 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType numberFieldType(NumberType numberType, String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(numberType);
-        type.setName(name);
-        return type;
+        return new NumberFieldMapper.NumberFieldType(name, numberType);
     }
 
     private MappedFieldType textFieldType(String name) {
-        TextFieldMapper.TextFieldType type = new TextFieldMapper.TextFieldType();
-        type.setName(name);
-        return type;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     private MappedFieldType geoPointFieldType(String name) {
-        GeoPointFieldMapper.GeoPointFieldType type = new GeoPointFieldMapper.GeoPointFieldType();
-        type.setName(name);
-        type.setHasDocValues(true);
-        return type;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     private IndexableField doubleField(String name, double value) {
@@ -507,7 +504,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private IndexableField textField(String name, String value) {
-        return new Field(name, value, textFieldType(name));
+        return new TextField(name, value, Field.Store.NO);
     }
 
     private IndexableField geoPointField(String name, double lat, double lon) {
@@ -583,5 +580,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 emptyMap());
         Map<String, ScriptEngine> engines = singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new AnalyticsPlugin());
     }
 }

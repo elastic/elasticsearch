@@ -10,7 +10,7 @@ esplugin {
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':client:rest-high-level')
 }
 
 

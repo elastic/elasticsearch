@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -94,13 +95,10 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
             when(queryShardContext.getForField(fieldMapper.fieldType()))
-                .thenReturn(new BytesBinaryDVIndexFieldData(new Index("index", "uuid"), fieldMapper.name()));
+                .thenReturn(new BytesBinaryIndexFieldData(new Index("index", "uuid"), fieldMapper.name(), CoreValuesSourceType.BYTES));
             when(queryShardContext.fieldMapper(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
-                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-                ft.setName(fieldName);
-                ft.freeze();
-                return ft;
+                return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext);
 

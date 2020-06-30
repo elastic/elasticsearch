@@ -32,7 +32,7 @@ esplugin {
 // No unit tests in this example
 test.enabled = false
 
-task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
   env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"

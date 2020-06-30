@@ -69,13 +69,15 @@ public class AnalyticsProcessManager {
     private final DataFrameAnalyticsAuditor auditor;
     private final TrainedModelProvider trainedModelProvider;
     private final ResultsPersisterService resultsPersisterService;
+    private final int numAllocatedProcessors;
 
     public AnalyticsProcessManager(Client client,
                                    ThreadPool threadPool,
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this(
             client,
             threadPool.generic(),
@@ -83,7 +85,8 @@ public class AnalyticsProcessManager {
             analyticsProcessFactory,
             auditor,
             trainedModelProvider,
-            resultsPersisterService);
+            resultsPersisterService,
+            numAllocatedProcessors);
     }
 
     // Visible for testing
@@ -93,7 +96,8 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this.client = Objects.requireNonNull(client);
         this.executorServiceForJob = Objects.requireNonNull(executorServiceForJob);
         this.executorServiceForProcess = Objects.requireNonNull(executorServiceForProcess);
@@ -101,6 +105,7 @@ public class AnalyticsProcessManager {
         this.auditor = Objects.requireNonNull(auditor);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.numAllocatedProcessors = numAllocatedProcessors;
     }
 
     public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory) {
@@ -246,7 +251,7 @@ public class AnalyticsProcessManager {
                     }
                 }
                 rowsProcessed += rows.get().size();
-                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
+                progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -422,7 +427,7 @@ public class AnalyticsProcessManager {
             dataExtractor.set(dataExtractorFactory.newExtractor(false));
             AnalyticsProcessConfig analyticsProcessConfig =
                 createProcessConfig(dataExtractor.get(), dataExtractorFactory.getExtractedFields());
-            LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
+            LOGGER.debug("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
             // If we have no rows, that means there is no data so no point in starting the native process
             // just finish the task
             if (analyticsProcessConfig.rows() == 0) {
@@ -438,12 +443,13 @@ public class AnalyticsProcessManager {
                                                            ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
+            int threads = config.getMaxNumThreads() == null ? 1 : Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),
                 dataSummary.rows,
                 dataSummary.cols,
                 config.getModelMemoryLimit(),
-                1,
+                threads,
                 config.getDest().getResultsField(),
                 categoricalFields,
                 config.getAnalysis(),
@@ -457,7 +463,7 @@ public class AnalyticsProcessManager {
                         dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
-                dataExtractor.get().getAllExtractedFields());
+                dataExtractor.get().getExtractedFields());
         }
     }
 }

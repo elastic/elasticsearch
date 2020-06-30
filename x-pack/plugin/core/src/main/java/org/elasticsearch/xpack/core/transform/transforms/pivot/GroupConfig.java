@@ -60,6 +60,8 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 return new HistogramGroupSource(stream);
             case DATE_HISTOGRAM:
                 return new DateHistogramGroupSource(stream);
+            case GEOTILE_GRID:
+                return new GeoTileGroupSource(stream);
             default:
                 throw new IOException("Unknown group type");
             }
@@ -176,6 +178,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 break;
             case DATE_HISTOGRAM:
                 groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
+                break;
+            case GEOTILE_GRID:
+                groupSource = GeoTileGroupSource.fromXContent(parser, lenient);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);

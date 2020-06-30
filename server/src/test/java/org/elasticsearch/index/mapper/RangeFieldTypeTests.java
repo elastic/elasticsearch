@@ -25,7 +25,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -48,12 +47,13 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.net.InetAddress;
-import java.util.Locale;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RangeFieldTypeTests extends FieldTypeTestCase {
+public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     RangeType type;
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
@@ -63,32 +63,19 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
-        if (type == RangeType.DATE) {
-            addModifier(new Modifier("format", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
-                }
-            });
-            addModifier(new Modifier("locale", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
-                }
-            });
-        }
     }
 
     @Override
-    protected RangeFieldType createDefaultFieldType() {
-        return new RangeFieldType(type);
+    protected RangeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        if (type == RangeType.DATE) {
+            return new RangeFieldType(name, true, true, RangeFieldMapper.Defaults.DATE_FORMATTER, meta);
+        }
+        return new RangeFieldType(name, type, true, true, meta);
     }
 
     public void testRangeQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(type);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
 
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         boolean includeLower = randomBoolean();
@@ -110,9 +97,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         QueryShardContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
-        RangeFieldType ft = new RangeFieldType(type);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
 
         Object from = null;
         Object to = null;
@@ -169,9 +154,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      */
     public void testFromLargerToErrors() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(type);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
 
         final Object from;
         final Object to;
@@ -235,10 +218,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
-        RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
-        fieldType.setName(FIELDNAME);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setHasDocValues(false);
+        RangeFieldType strict
+            = new RangeFieldType(FIELDNAME, true, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
@@ -247,7 +228,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         final String to = "2016-16-06T15:29:50+08:00";
 
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-            () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
+            () -> strict.rangeQuery(from, to, true, true, relation, null, null, context));
         assertThat(ex.getMessage(),
             containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
         );
@@ -257,14 +238,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        fieldType.setDateTimeFormatter(formatter);
+        RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, true, formatter, Collections.emptyMap());
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
-        DateFieldType dateFieldType = new DateFieldType();
-        dateFieldType.setName(FIELDNAME);
-        dateFieldType.setDateTimeFormatter(formatter);
+        DateFieldType dateFieldType
+            = new DateFieldType(FIELDNAME, true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, null, context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -275,17 +255,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      */
     public void testDateVsDateRangeBounds() {
         QueryShardContext context = createContext();
-        RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
-        fieldType.setName(FIELDNAME);
-        fieldType.setIndexOptions(IndexOptions.DOCS);
-        fieldType.setHasDocValues(false);
 
         // date formatter that truncates seconds, so we get some rounding behavior
         final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm");
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        fieldType.setDateTimeFormatter(formatter);
+        RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, false, formatter, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -301,7 +277,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 null, context);
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
-        DateFieldType dateFieldType = new DateFieldType();
+        DateFieldType dateFieldType = new DateFieldType("field");
         long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, !includeLower, null, formatter.toDateMathParser(), () -> 0);
         if (includeLower == false) {
             ++lowerBoundLong;
@@ -498,9 +474,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(type);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
 
         Object value = nextFrom();
         ShapeRelation relation = ShapeRelation.INTERSECTS;

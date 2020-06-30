@@ -56,7 +56,7 @@ public class IndicesOptionsTests extends ESTestCase {
             Version version = randomVersionBetween(random(), Version.V_7_0_0, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(version);
@@ -80,11 +80,6 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            if (version.before(Version.V_7_8_0)) {
-                assertThat(indicesOptions2.includeDataStreams(), is(false));
-            } else {
-                assertThat(indicesOptions2.includeDataStreams(), equalTo(indicesOptions.includeDataStreams()));
-            }
         }
     }
 
@@ -98,11 +93,10 @@ public class IndicesOptionsTests extends ESTestCase {
         final boolean forbidClosedIndices = randomBoolean();
         final boolean ignoreAliases = randomBoolean();
         final boolean ignoreThrottled = randomBoolean();
-        final boolean includeDataStreams = randomBoolean();
 
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
             expandToClosedIndices, expandToHiddenIndices, allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases,
-            ignoreThrottled, includeDataStreams);
+            ignoreThrottled);
 
         assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
         assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
@@ -114,7 +108,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
         assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
-        assertThat(indicesOptions.includeDataStreams(), equalTo(includeDataStreams));
     }
 
     public void testFromOptionsWithDefaultOptions() {
@@ -124,7 +117,7 @@ public class IndicesOptionsTests extends ESTestCase {
         boolean expandToClosedIndices = randomBoolean();
 
         IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices,
                 expandToClosedIndices, defaultOptions);
@@ -137,7 +130,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), indicesOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), indicesOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), indicesOptions.ignoreAliases());
-        assertEquals(defaultOptions.includeDataStreams(), indicesOptions.includeDataStreams());
     }
 
     public void testFromParameters() {
@@ -174,7 +166,7 @@ public class IndicesOptionsTests extends ESTestCase {
         String allowNoIndicesString = Boolean.toString(allowNoIndices);
 
         IndicesOptions defaultOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         IndicesOptions updatedOptions = IndicesOptions.fromParameters(expandWildcardsString, ignoreUnavailableString,
                 allowNoIndicesString, ignoreThrottled, defaultOptions);
@@ -187,17 +179,16 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
-        assertEquals(defaultOptions.includeDataStreams(), updatedOptions.includeDataStreams());
     }
 
     public void testEqualityAndHashCode() {
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(indicesOptions, opts -> {
             return IndicesOptions.fromOptions(opts.ignoreUnavailable(), opts.allowNoIndices(), opts.expandWildcardsOpen(),
                 opts.expandWildcardsClosed(), opts.expandWildcardsHidden(), opts.allowAliasesToMultipleIndices(),
-                opts.forbidClosedIndices(), opts.ignoreAliases(), opts.ignoreThrottled(), opts.includeDataStreams());
+                opts.forbidClosedIndices(), opts.ignoreAliases(), opts.ignoreThrottled());
         }, opts -> {
             boolean mutated = false;
             boolean ignoreUnavailable = opts.ignoreUnavailable();
@@ -209,7 +200,6 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean forbidClosed = opts.forbidClosedIndices();
             boolean ignoreAliases = opts.ignoreAliases();
             boolean ignoreThrottled = opts.ignoreThrottled();
-            boolean includeDataStreams = opts.includeDataStreams();
             while (mutated == false) {
                 if (randomBoolean()) {
                     ignoreUnavailable = !ignoreUnavailable;
@@ -247,13 +237,9 @@ public class IndicesOptionsTests extends ESTestCase {
                     ignoreThrottled = !ignoreThrottled;
                     mutated = true;
                 }
-                if (randomBoolean()) {
-                    includeDataStreams = !includeDataStreams;
-                    mutated = true;
-                }
             }
             return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, expandHidden,
-                allowAliasesToMulti, forbidClosed, ignoreAliases, ignoreThrottled, includeDataStreams);
+                allowAliasesToMulti, forbidClosed, ignoreAliases, ignoreThrottled);
         });
     }
 

@@ -1,0 +1,54 @@
+// To mute tests follow example in file: example.sql-spec
+
+simpleSubSelect
+SELECT first_name, last_name FROM (SELECT * FROM test_emp);
+simpleSubSelectWithProjection
+SELECT first_name, last_name FROM (SELECT first_name, last_name FROM test_emp);
+simpleSubSelectWithAliasedProjection
+SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp);
+simpleSubSelectWithCondition
+SELECT first_name, last_name FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) ORDER BY first_name NULLS first;
+simpleSubSelectWithOrderByAlias
+SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp) ORDER BY f DESC NULLS last;
+simpleSubSelectWithOrderByFieldName
+SELECT last_name, f FROM (SELECT first_name AS f, last_name FROM test_emp) ORDER BY last_name ASC;
+simpleSubSelectWithGroupBy
+SELECT gender FROM (SELECT first_name AS f, last_name, gender FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+
+subSelectWithCountAndComplexCondition
+SELECT COUNT(*) as c FROM (SELECT * FROM test_emp WHERE gender IS NOT NULL) WHERE ABS(salary) > 0 GROUP BY gender ORDER BY gender;
+subSelectWithCountAndGroupBy
+SELECT COUNT(*), gender FROM (SELECT first_name AS f, last_name, gender FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+subSelectWithCountAndMax
+SELECT COUNT(*), gender, MAX("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+subSelectWithCountAndMultipleAggregates
+SELECT COUNT(*), gender, MAX("salary"), MAX(salary) m, MIN("salary") FROM (SELECT first_name AS f, last_name, gender, salary FROM test_emp) GROUP BY gender ORDER BY gender ASC;
+
+subSelectWithCastAndGroupBy
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM (SELECT * FROM test_emp) GROUP BY g ORDER BY g DESC;
+subSelectWithCastAndGroupByAndLiteralsInSubQuery
+SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM (SELECT TRUE, FALSE, gender, emp_no FROM test_emp) GROUP BY g ORDER BY g ASC;
+subSelectWithLiteralsAndConditionInSubQuery
+SELECT 10, 'foo', COUNT(*), '20', 'bar' FROM (SELECT * FROM test_emp WHERE gender = 'M') GROUP BY gender ORDER BY 3;
+subSelectWithSameConditionInQueryAndSubQuery
+SELECT emp_no e, 5 FROM (SELECT * FROM test_emp WHERE emp_no < 10020) WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
+subSelectWithHavingWithCount
+SELECT languages, COUNT(*) c FROM (SELECT languages FROM test_emp WHERE languages > 2 AND gender IS NOT NULL) GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
+
+subSelectWithConditionOnCountAndMultipleConditions
+SELECT MIN("salary") min, MAX("salary") max, gender g, languages l, COUNT(*) c FROM (SELECT last_name, salary, languages, gender, first_name FROM test_emp WHERE languages > 3) WHERE languages < 5 GROUP BY g, languages HAVING c > 4 ORDER BY gender, languages;
+subSelectWithCountDistinct
+SELECT gender, COUNT(DISTINCT languages) AS c FROM (SELECT * FROM test_emp) GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
+
+subSelectWithNoMatchCondition
+SELECT last_name l FROM (SELECT last_name FROM test_emp) WHERE 1 = 2 ORDER BY 1 LIMIT 10;
+subSelectWithNoMatchConditionInSubQuery
+SELECT last_name l FROM (SELECT last_name FROM test_emp WHERE 1 = 2) WHERE 1 = 1 ORDER BY 1 LIMIT 10;
+subSelectWithMatchInSubQueryAndNoMatchInRootQuery
+SELECT last_name l FROM (SELECT last_name FROM test_emp WHERE TRUE) WHERE 1 = 1 ORDER BY 1 LIMIT 10;
+
+subSelectWithGreatestOrderBy
+SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDER BY gt LIMIT 10;
+
+subSelectWithInAndIsNotNull
+SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;

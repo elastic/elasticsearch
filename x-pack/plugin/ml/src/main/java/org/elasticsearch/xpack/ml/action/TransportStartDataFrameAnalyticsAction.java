@@ -50,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -83,7 +85,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -155,7 +159,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -244,7 +248,7 @@ public class TransportStartDataFrameAnalyticsAction
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         // Step 7. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
-            startContext -> validateSourceIndexHasRows(startContext, finalListener),
+            startContext -> validateSourceIndexHasAnalyzableData(startContext, finalListener),
             finalListener::onFailure
         );
 
@@ -317,6 +321,37 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 1. Get the config
         configProvider.get(id, getConfigListener);
+    }
+
+    private void validateSourceIndexHasAnalyzableData(StartContext startContext, ActionListener<StartContext> listener) {
+        ActionListener<Void> validateAtLeastOneAnalyzedFieldListener = ActionListener.wrap(
+            aVoid -> validateSourceIndexHasRows(startContext, listener),
+            listener::onFailure
+        );
+
+        validateSourceIndexHasAtLeastOneAnalyzedField(startContext, validateAtLeastOneAnalyzedFieldListener);
+    }
+
+    private void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
+        Set<String> requiredFields = startContext.config.getAnalysis().getRequiredFields().stream()
+            .map(RequiredField::getName)
+            .collect(Collectors.toSet());
+
+        // We assume here that required fields are not features
+        long nonRequiredFieldsCount = startContext.extractedFields.getAllFields().stream()
+            .filter(extractedField -> requiredFields.contains(extractedField.getName()) == false)
+            .count();
+        if (nonRequiredFieldsCount == 0) {
+            StringBuilder msgBuilder = new StringBuilder("at least one field must be included in the analysis");
+            if (requiredFields.isEmpty() == false) {
+                msgBuilder.append(" (excluding fields ")
+                    .append(requiredFields)
+                    .append(")");
+            }
+            listener.onFailure(ExceptionsHelper.badRequestException(msgBuilder.toString()));
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
@@ -609,7 +644,7 @@ public class TransportStartDataFrameAnalyticsAction
             List<String> unavailableIndices =
                 verifyIndicesPrimaryShardsAreActive(clusterState,
                     resolver,
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {

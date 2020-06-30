@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -67,6 +69,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -118,6 +121,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+    }
+
+    protected PutDataFrameAnalyticsAction.Response updateAnalytics(DataFrameAnalyticsConfigUpdate update) {
+        UpdateDataFrameAnalyticsAction.Request request = new UpdateDataFrameAnalyticsAction.Request(update);
+        return client().execute(UpdateDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
     protected AcknowledgedResponse deleteAnalytics(String id) {
@@ -199,19 +207,28 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
-    protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
+    protected void assertProgressIsZero(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is not all zero: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 0), is(true));
+    }
+
+    protected void assertProgressComplete(String id) {
+        List<PhaseProgress> progress = getProgress(id);
+        assertThat("progress is complete: " + progress,
+            progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 100), is(true));
+    }
+
+    private List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();
-        assertThat(progress, hasSize(4));
+        // We should have at least 4 phases: reindexing, loading_data, writing_results, plus at least one for the analysis
+        assertThat(progress.size(), greaterThanOrEqualTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
-        assertThat(progress.get(2).getPhase(), equalTo("analyzing"));
-        assertThat(progress.get(3).getPhase(), equalTo("writing_results"));
-        assertThat(progress.get(0).getProgressPercent(), equalTo(reindexing));
-        assertThat(progress.get(1).getProgressPercent(), equalTo(loadingData));
-        assertThat(progress.get(2).getProgressPercent(), equalTo(analyzing));
-        assertThat(progress.get(3).getProgressPercent(), equalTo(writingResults));
+        assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        return progress;
     }
 
     protected SearchResponse searchStoredProgress(String jobId) {

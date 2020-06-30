@@ -209,13 +209,27 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     private final Interval interval;
     private final ZoneId timeZone;
-    private Rounding rounding;
+    private final Rounding.Prepared rounding;
 
     public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, Interval interval, ZoneId timeZone) {
         super(field, scriptConfig);
         this.interval = interval;
         this.timeZone = timeZone;
+        rounding = buildRounding();
+    }
 
+    public DateHistogramGroupSource(StreamInput in) throws IOException {
+        super(in);
+        this.interval = readInterval(in);
+        this.timeZone = in.readOptionalZoneId();
+        // Format was optional in 7.2.x, removed in 7.3+
+        if (in.getVersion().before(Version.V_7_3_0)) {
+            in.readOptionalString();
+        }
+        rounding = buildRounding();
+    }
+
+    private Rounding.Prepared buildRounding() {
         Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
         final Rounding.Builder roundingBuilder;
         if (timeUnit != null) {
@@ -227,17 +241,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             roundingBuilder.timeZone(timeZone);
         }
-        this.rounding = roundingBuilder.build();
-    }
-
-    public DateHistogramGroupSource(StreamInput in) throws IOException {
-        super(in);
-        this.interval = readInterval(in);
-        this.timeZone = in.readOptionalZoneId();
-        // Format was optional in 7.2.x, removed in 7.3+
-        if (in.getVersion().before(Version.V_7_3_0)) {
-            in.readOptionalString();
-        }
+        return roundingBuilder.build().prepareForUnknown();
     }
 
     private static ConstructingObjectParser<DateHistogramGroupSource, Void> createParser(boolean lenient) {
@@ -296,7 +300,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    public Rounding getRounding() {
+    Rounding.Prepared getRounding() {
         return rounding;
     }
 

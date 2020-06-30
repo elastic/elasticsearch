@@ -60,7 +60,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchExists() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         final HttpEntity entity = entityForClusterAlert(true, minimumVersion);
 
@@ -68,7 +68,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckGetWatchDoesNotExist() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         if (randomBoolean()) {
             // it does not exist because it's literally not there
@@ -82,7 +82,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoCheckWithExceptionGetWatchError() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(true);
 
         if (randomBoolean()) {
             // error because of a server error
@@ -100,7 +100,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteExists(noWatchResource, "/_watcher/watch", watchId);
     }
@@ -110,19 +110,19 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
         final boolean clusterAlertsAllowed = randomBoolean();
 
         // should not matter
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(clusterAlertsAllowed);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(clusterAlertsAllowed);
 
         assertCheckAsDeleteWithException(noWatchResource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckAsDeleteWatchExists() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
 
         assertCheckAsDeleteExists(resource, "/_watcher/watch", watchId);
     }
 
     public void testDoCheckWithExceptionAsDeleteWatchError() throws IOException {
-        when(licenseState.isMonitoringClusterAlertsAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(false);
 
         assertCheckAsDeleteWithException(resource, "/_watcher/watch", watchId);
     }

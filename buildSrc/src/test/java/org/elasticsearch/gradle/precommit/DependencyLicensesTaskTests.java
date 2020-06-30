@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
@@ -27,6 +45,9 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class DependencyLicensesTaskTests extends GradleUnitTestCase {
+
+    private static final String PERMISSIVE_LICENSE_TEXT = "Eclipse Public License - v 2.0";
+    private static final String STRICT_LICENSE_TEXT = "GNU LESSER GENERAL PUBLIC LICENSE Version 3";
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -76,7 +97,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expectMessage(containsString("Missing SHA for "));
 
         File licensesDir = getLicensesDir(project);
-        createFileIn(licensesDir, "groovy-all-LICENSE.txt", "");
+        createFileIn(licensesDir, "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, "groovy-all-NOTICE.txt", "");
 
         project.getDependencies().add("compile", project.getDependencies().localGroovy());
@@ -102,7 +123,33 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
         project.getDependencies().add("compile", dependency);
 
-        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", "");
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
+
+        updateShas.updateShas();
+        task.get().checkDependencies();
+    }
+
+    @Test
+    public void givenProjectWithStrictDependencyButNoSourcesFileThenShouldReturnException() throws Exception {
+        expectedException.expect(GradleException.class);
+        expectedException.expectMessage(containsString("Missing SOURCES for "));
+
+        project.getDependencies().add("compile", dependency);
+
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", STRICT_LICENSE_TEXT);
+        createFileIn(getLicensesDir(project), "groovy-all-NOTICE.txt", "");
+
+        updateShas.updateShas();
+        task.get().checkDependencies();
+    }
+
+    @Test
+    public void givenProjectWithStrictDependencyAndEverythingInOrderThenShouldReturnSilently() throws Exception {
+        project.getDependencies().add("compile", dependency);
+
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", STRICT_LICENSE_TEXT);
+        createFileIn(getLicensesDir(project), "groovy-all-NOTICE.txt", "");
+        createFileIn(getLicensesDir(project), "groovy-all-SOURCES.txt", "");
 
         updateShas.updateShas();
         task.get().checkDependencies();
@@ -197,7 +244,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
-        createFileIn(licensesDir, "groovy-all-LICENSE.txt", "");
+        createFileIn(licensesDir, "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, "groovy-all-NOTICE.txt", "");
 
         task.get().ignoreSha("groovy-all");
@@ -220,7 +267,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private void createAllDefaultDependencyFiles(File licensesDir, String dependencyName) throws IOException, NoSuchAlgorithmException {
-        createFileIn(licensesDir, dependencyName + "-LICENSE.txt", "");
+        createFileIn(licensesDir, dependencyName + "-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, dependencyName + "-NOTICE.txt", "");
 
         updateShas.updateShas();

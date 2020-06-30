@@ -30,6 +30,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAgg
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.StrictlyParsedOutputAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
@@ -118,6 +121,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             ClassificationConfigUpdate::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, RegressionConfigUpdate.NAME,
             RegressionConfigUpdate::fromXContentStrict));
+
+        // Inference models
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class, Ensemble.NAME, EnsembleInferenceModel::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class, Tree.NAME, TreeInferenceModel::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class,
+            LangIdentNeuralNetwork.NAME,
+            LangIdentNeuralNetwork::fromXContentLenient));
 
         return namedXContent;
     }

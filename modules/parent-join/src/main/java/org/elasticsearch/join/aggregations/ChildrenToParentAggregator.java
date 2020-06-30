@@ -40,14 +40,14 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
     public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, metadata);
+            long maxOrd, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalParent(name, bucketDocCount(owningBucketOrdinal),
-                bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalParent(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

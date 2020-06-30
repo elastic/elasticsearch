@@ -20,6 +20,7 @@
 package org.elasticsearch.common.breaker;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -31,8 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
-    private final long memoryBytesLimit;
-    private final double overheadConstant;
+    private volatile LimitAndOverhead limitAndOverhead;
     private final Durability durability;
     private final AtomicLong used;
     private final AtomicLong trippedCount;
@@ -43,43 +43,20 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * Create a circuit breaker that will break if the number of estimated
      * bytes grows above the limit. All estimations will be multiplied by
-     * the given overheadConstant. This breaker starts with 0 bytes used.
-     * @param settings settings to configure this breaker
-     * @param parent parent circuit breaker service to delegate tripped breakers to
-     * @param name the name of the breaker
-     */
-    public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger,
-                                     HierarchyCircuitBreakerService parent, String name) {
-        this(settings, null, logger, parent, name);
-    }
-
-    /**
-     * Create a circuit breaker that will break if the number of estimated
-     * bytes grows above the limit. All estimations will be multiplied by
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
-     * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
-    public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
-                                     Logger logger, HierarchyCircuitBreakerService parent, String name) {
+    public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
-        this.memoryBytesLimit = settings.getLimit();
-        this.overheadConstant = settings.getOverhead();
+        this.limitAndOverhead = new LimitAndOverhead(settings.getLimit(), settings.getOverhead());
         this.durability = settings.getDurability();
-        if (oldBreaker == null) {
-            this.used = new AtomicLong(0);
-            this.trippedCount = new AtomicLong(0);
-        } else {
-            this.used = oldBreaker.used;
-            this.trippedCount = oldBreaker.trippedCount;
-        }
+        this.used = new AtomicLong(0);
+        this.trippedCount = new AtomicLong(0);
         this.logger = logger;
-        if (logger.isTraceEnabled()) {
-            logger.trace("creating ChildCircuitBreaker with settings {}", settings);
-        }
+        logger.trace(() -> new ParameterizedMessage("creating ChildCircuitBreaker with settings {}", settings));
         this.parent = parent;
     }
 
@@ -89,12 +66,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
+        final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
         final String message = "[" + this.name + "] Data too large, data for [" + fieldName + "]" +
                 " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
                 ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
-        logger.debug("{}", message);
+        logger.debug(() -> new ParameterizedMessage("{}", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }
 
@@ -108,6 +86,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        final LimitAndOverhead limitAndOverhead = this.limitAndOverhead;
+        final long memoryBytesLimit = limitAndOverhead.limit;
+        final double overheadConstant = limitAndOverhead.overhead;
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
             circuitBreak(label, bytes);
@@ -117,10 +98,10 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         // If there is no limit (-1), we can optimize a bit by using
         // .addAndGet() instead of looping (because we don't have to check a
         // limit), which makes the RamAccountingTermsEnum case faster.
-        if (this.memoryBytesLimit == -1) {
+        if (memoryBytesLimit == -1) {
             newUsed = noLimit(bytes, label);
         } else {
-            newUsed = limit(bytes, label);
+            newUsed = limit(bytes, label, overheadConstant, memoryBytesLimit);
         }
 
         // Additionally, we need to check that we haven't exceeded the parent's limit
@@ -139,14 +120,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private long noLimit(long bytes, String label) {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
-                this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed));
-        }
+        logger.trace(() -> new ParameterizedMessage("[{}] Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
+                this.name, new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed)));
         return newUsed;
     }
 
-    private long limit(long bytes, String label) {
+    private long limit(long bytes, String label, double overheadConstant, long memoryBytesLimit) {
         long newUsed;// Otherwise, check the addition and commit the addition, looping if
         // there are conflicts. May result in additional logging, but it's
         // trace logging and shouldn't be counted on for additions.
@@ -188,9 +167,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public long addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u);
-        }
+        logger.trace(() -> new ParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
         return u;
     }
@@ -208,7 +185,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public long getLimit() {
-        return this.memoryBytesLimit;
+        return this.limitAndOverhead.limit;
     }
 
     /**
@@ -216,7 +193,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      */
     @Override
     public double getOverhead() {
-        return this.overheadConstant;
+        return this.limitAndOverhead.overhead;
     }
 
     /**
@@ -241,5 +218,21 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public Durability getDurability() {
         return this.durability;
+    }
+
+    @Override
+    public void setLimitAndOverhead(long limit, double overhead) {
+        this.limitAndOverhead = new LimitAndOverhead(limit, overhead);
+    }
+
+    private static class LimitAndOverhead {
+
+        private final long limit;
+        private final double overhead;
+
+        LimitAndOverhead(long limit, double overhead) {
+            this.limit = limit;
+            this.overhead = overhead;
+        }
     }
 }

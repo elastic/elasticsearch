@@ -56,7 +56,6 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -64,6 +63,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -132,9 +132,6 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
-        if (bulkRequest.preferV2Templates() != null) {
-            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(bulkRequest.preferV2Templates()));
-        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -335,9 +332,6 @@ final class RequestConverters {
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
-        if (indexRequest.preferV2Templates() != null) {
-            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(indexRequest.preferV2Templates()));
-        }
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
@@ -364,9 +358,6 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
-        if (updateRequest.preferV2Templates() != null) {
-            parameters.putParam(IndexMetadata.PREFER_V2_TEMPLATES_FLAG, Boolean.toString(updateRequest.preferV2Templates()));
-        }
 
         // The Java API allows update requests with different content types
         // set for the partial document and the upsert document. This client
@@ -530,13 +521,17 @@ final class RequestConverters {
         return request;
     }
 
-    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
+        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME  : HttpGet.METHOD_NAME;
+        Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
         Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
         params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
         request.addParameters(params.asMap());
+        if (fieldCapabilitiesRequest.indexFilter() != null) {
+            request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 
@@ -577,6 +572,7 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
+
         request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -843,10 +839,10 @@ final class RequestConverters {
                 if (fetchSourceContext.fetchSource() == false) {
                     putParam("_source", Boolean.FALSE.toString());
                 }
-                if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.includes()) == false) {
                     putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
-                if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
+                if (CollectionUtils.isEmpty(fetchSourceContext.excludes()) == false) {
                     putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
@@ -854,7 +850,7 @@ final class RequestConverters {
         }
 
         Params withFields(String[] fields) {
-            if (fields != null && fields.length > 0) {
+            if (CollectionUtils.isEmpty(fields) == false) {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
@@ -955,7 +951,7 @@ final class RequestConverters {
         }
 
         Params withStoredFields(String[] storedFields) {
-            if (storedFields != null && storedFields.length > 0) {
+            if (CollectionUtils.isEmpty(storedFields) == false) {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;

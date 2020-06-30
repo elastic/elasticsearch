@@ -74,7 +74,7 @@ public enum GlobalOrdinalsBuilder {
                     new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
             );
         }
-        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
+        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(), indexFieldData.getValuesSourceType(),
                 atomicFD, ordinalMap, memorySizeInBytes, scriptFunction
         );
     }
@@ -109,7 +109,7 @@ public enum GlobalOrdinalsBuilder {
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
-        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),
+        return new GlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(), indexFieldData.getValuesSourceType(),
                 atomicFD, ordinalMap, 0, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
         );
     }

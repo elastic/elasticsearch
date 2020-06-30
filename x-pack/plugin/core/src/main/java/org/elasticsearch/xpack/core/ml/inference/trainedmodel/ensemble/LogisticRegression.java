@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax
 
 public class LogisticRegression implements StrictlyParsedOutputAggregator, LenientlyParsedOutputAggregator {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LogisticRegression.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LogisticRegression.class);
     public static final ParseField NAME = new ParseField("logistic_regression");
     public static final ParseField WEIGHTS = new ParseField("weights");
 

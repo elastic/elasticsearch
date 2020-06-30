@@ -36,68 +36,6 @@ import org.elasticsearch.painless.symbol.SemanticScope;
  */
 public abstract class AExpression extends ANode {
 
-//    public static class Input {
-//
-//        /**
-//         * Set to false when an expression will not be read from such as
-//         * a basic assignment.  Note this variable is always set by the parent
-//         * as input.
-//         */
-//        boolean read = true;
-//
-//        /**
-//         * Set to true when this node is an lhs-expression and will be storing
-//         * a value from an rhs-expression.
-//         */
-//        boolean write = false;
-//
-//        /**
-//         * Set to the expected type this node needs to be.  Note this variable
-//         * is always set by the parent as input and should never be read from.
-//         */
-//        Class<?> expected = null;
-//
-//        /**
-//         * Set by {@link EExplicit} if a cast made on an expression node should be
-//         * explicit.
-//         */
-//        boolean explicit = false;
-//
-//        /**
-//         * Set to true if a cast is allowed to boxed/unboxed.  This is used
-//         * for method arguments because casting may be required.
-//         */
-//        boolean internal = false;
-//    }
-//
-//    public static class Output {
-//
-//        /**
-//         * Set to {@code true} when actual represents a static type and
-//         * this expression does not generate a value. Set to {@code false}
-//         * when actual is the type of value this expression generates.
-//         */
-//        boolean isStaticType = false;
-//
-//        /**
-//         * Used to build a fully-qualified type name when the name comes
-//         * in as pieces since x.y.z may get broken down into multiples nodes
-//         * with the dot as a delimiter.
-//         */
-//        String partialCanonicalTypeName = null;
-//
-//        /**
-//         * {@code true} if this node or a sub-node of this node can be optimized with
-//         * rhs actual type to avoid an unnecessary cast.
-//         */
-//        boolean isDefOptimized = false;
-//
-//        /**
-//         * The {@link ExpressionNode}(s) generated from this expression.
-//         */
-//        ExpressionNode expressionNode = null;
-//    }
-
     /**
      * Standard constructor with location used for error tracking.
      */

@@ -11,28 +11,30 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.time.ZoneId;
+
 /**
  * Implements the MySQL {@code <=>} operator
  */
 public class NullEquals extends BinaryComparison {
 
-    public NullEquals(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryComparisonOperation.NULLEQ);
+    public NullEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
+        super(source, left, right, BinaryComparisonOperation.NULLEQ, zoneId);
     }
 
     @Override
     protected NodeInfo<NullEquals> info() {
-        return NodeInfo.create(this, NullEquals::new, left(), right());
+        return NodeInfo.create(this, NullEquals::new, left(), right(), zoneId());
     }
 
     @Override
     protected NullEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NullEquals(source(), newLeft, newRight);
+        return new NullEquals(source(), newLeft, newRight, zoneId());
     }
 
     @Override
     public NullEquals swapLeftAndRight() {
-        return new NullEquals(source(), right(), left());
+        return new NullEquals(source(), right(), left(), zoneId());
     }
 
     @Override

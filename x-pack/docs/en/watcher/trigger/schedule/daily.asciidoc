@@ -84,7 +84,7 @@ or minutes as an array. For example, following `daily` schedule triggers at
   "trigger" : {
     "schedule" : {
       "daily" : {
-        "at" {
+        "at" : {
           "hour" : [ 0, 12, 17 ],
           "minute" : [0, 30]
         }

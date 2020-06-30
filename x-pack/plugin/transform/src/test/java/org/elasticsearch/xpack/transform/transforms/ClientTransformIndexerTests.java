@@ -16,13 +16,12 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -38,7 +37,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         ClientTransformIndexer indexer = new ClientTransformIndexer(
-            mock(Executor.class),
+            mock(ThreadPool.class),
+            ThreadPool.Names.GENERIC,
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
             new TransformProgressGatherer(mock(Client.class)),

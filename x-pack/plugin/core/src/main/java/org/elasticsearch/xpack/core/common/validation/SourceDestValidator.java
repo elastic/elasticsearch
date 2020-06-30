@@ -163,8 +163,8 @@ public final class SourceDestValidator {
                         state,
                         IndicesOptions.lenientExpandOpen(),
                         dest,
-                        true
-                    );
+                        true,
+                        false);
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {
@@ -208,6 +208,7 @@ public final class SourceDestValidator {
                         indexNameExpressionResolver.concreteIndexNames(
                             state,
                             DEFAULT_INDICES_OPTIONS_FOR_VALIDATION,
+                            true,
                             resolvedSource.toArray(new String[0])
                         )
                     )
@@ -222,7 +223,7 @@ public final class SourceDestValidator {
 
     // note: this is equivalent to the default for search requests
     private static final IndicesOptions DEFAULT_INDICES_OPTIONS_FOR_VALIDATION = IndicesOptions
-        .strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled();
+        .strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     public static final SourceDestValidation SOURCE_MISSING_VALIDATION = new SourceMissingValidation();
     public static final SourceDestValidation REMOTE_SOURCE_VALIDATION = new RemoteSourceEnabledAndRemoteLicenseValidation();

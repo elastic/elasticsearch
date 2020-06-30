@@ -17,32 +17,31 @@ ext.compactProfile = 'full'
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
-  ignoreSha 'x-pack-core'
 }
 
 dependencies {
   compileOnly project(':server')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
-  compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
+  compileOnly project(path: ':modules:transport-netty4')
+  compileOnly project(path: ':plugins:transport-nio')
 
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(xpackModule('ilm'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('ilm'))
 
   // watcher deps
-  compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
+  api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
   runtimeOnly 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  compile 'com.sun.mail:jakarta.mail:1.6.4'
-  compile 'com.sun.activation:jakarta.activation:1.2.1'
+  api 'com.sun.mail:jakarta.mail:1.6.4'
+  api 'com.sun.activation:jakarta.activation:1.2.1'
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
-  testCompile 'org.subethamail:subethasmtp:3.1.7'
+  testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation
-  testCompile 'com.google.code.findbugs:jsr305:3.0.2'
+  testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

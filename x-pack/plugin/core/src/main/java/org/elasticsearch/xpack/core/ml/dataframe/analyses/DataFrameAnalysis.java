@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,17 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * Returns the document id for the analysis state
      */
     String getStateDocId(String jobId);
+
+    /**
+     * Returns the progress phases the analysis goes through in order
+     */
+    List<String> getProgressPhases();
+
+    /**
+     * @return the analysis inference config or {@code null} if inference is not supported
+     */
+    @Nullable
+    InferenceConfig inferenceConfig(FieldInfo fieldInfo);
 
     /**
      * Summarizes information about the fields that is necessary for analysis to generate

@@ -1,0 +1,163 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: delete-expired-data-a
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span" : "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            },
+            "results_retention_days" : 1,
+            "model_snapshot_retention_days" : 1
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: delete-expired-data-b
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span" : "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            },
+            "results_retention_days" : 1,
+            "model_snapshot_retention_days" : 1
+          }
+
+---
+"Test delete expired data with no body":
+  - do:
+      ml.delete_expired_data: {}
+
+  - match: { deleted: true}
+---
+"Test delete expired data with body parameters":
+  - do:
+      ml.delete_expired_data:
+        body:  >
+           { "timeout": "10h", "requests_per_second": 100000.0 }
+  - match: { deleted: true}
+---
+"Test delete expired data with path parameters":
+  - do:
+      ml.delete_expired_data:
+        timeout: "10h"
+        requests_per_second: 100000.0
+  - match: { deleted: true}
+---
+"Test delete expired data with unknown job id":
+  - do:
+      catch: missing
+      ml.delete_expired_data:
+        job_id: not-a-job
+---
+"Test delete expired data with job id":
+  - do:
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      index:
+        index:  .ml-anomalies-shared
+        id:     "delete-expired-data-a_model_snapshot_inactive-snapshot"
+        body: >
+          {
+            "job_id": "delete-expired-data-a",
+            "timestamp": "2020-05-01T00:00:00Z",
+            "snapshot_id": "inactive-snapshot",
+            "description": "first",
+            "latest_record_time_stamp": "2020-05-01T00:00:00Z",
+            "latest_result_time_stamp": "2020-05-01T00:00:00Z",
+            "snapshot_doc_count": 1
+          }
+
+  - do:
+      headers:
+        Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      index:
+        index:  .ml-anomalies-shared
+        id:     "delete-expired-data-a_model_snapshot_active-snapshot"
+        body: >
+          {
+            "job_id": "delete-expired-data-a",
+            "timestamp": "2020-05-10T00:00:00Z",
+            "snapshot_id": "active-snapshot",
+            "description": "second",
+            "latest_record_time_stamp": "2020-05-10T00:00:00Z",
+            "latest_result_time_stamp": "2020-05-10T00:00:00Z",
+            "snapshot_doc_count": 1,
+            "model_size_stats": {
+                "job_id" : "delete-expired-data-a",
+                "result_type" : "model_size_stats",
+                "model_bytes" : 0
+            },
+            "quantiles": {
+              "job_id": "delete-expired-data-a",
+              "timestamp": 1,
+              "quantile_state": "quantiles-1"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      indices.refresh:
+        index: [.ml-anomalies-shared]
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: delete-expired-data-a
+  - match: { count: 2 }
+
+# make the above document the current snapshot
+  - do:
+      ml.revert_model_snapshot:
+        job_id: delete-expired-data-a
+        snapshot_id: active-snapshot
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: delete-expired-data-a
+  - match: { count: 2 }
+
+  - do:
+      ml.delete_expired_data:
+        job_id: delete-expired-data-b
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: delete-expired-data-a
+  - match: { count: 2 }
+
+  - do:
+      ml.delete_expired_data:
+        job_id: delete-expired-data-a
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      indices.refresh: {}
+
+  - do:
+      ml.get_model_snapshots:
+        job_id: delete-expired-data-a
+  - match: { count: 1 }

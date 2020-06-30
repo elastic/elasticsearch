@@ -931,6 +931,7 @@ setup:
   - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
   - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
   - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
 
 ---
 "Test delete given stopped config":
@@ -1553,6 +1554,52 @@ setup:
           }
 
 ---
+"Test put regression given loss_function_parameter is zero":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": 0.0
+              }
+            }
+          }
+
+---
+"Test put regression given loss_function_parameter is negative":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": -0.01
+              }
+            }
+          }
+
+---
 "Test put regression given valid":
 
   - do:
@@ -1575,7 +1622,9 @@ setup:
                 "max_trees": 400,
                 "feature_bag_fraction": 0.3,
                 "training_percent": 60.3,
-                "randomize_seed": 42
+                "randomize_seed": 42,
+                "loss_function": "msle",
+                "loss_function_parameter": 2.0
               }
             }
           }
@@ -1592,7 +1641,9 @@ setup:
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "msle",
+      "loss_function_parameter": 2.0
     }
   }}
   - is_true: create_time
@@ -2018,7 +2069,8 @@ setup:
       "dependent_variable": "foo",
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "mse"
     }
   }}
   - is_true: create_time

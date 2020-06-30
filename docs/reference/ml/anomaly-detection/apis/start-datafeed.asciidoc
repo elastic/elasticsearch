@@ -68,14 +68,16 @@ of the latest processed record.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the last user to create or update it had at the time of
-creation/update and runs the query using those same roles.
+creation/update and runs the query using those same roles. If you provided
+<<http-clients-secondary-authorization,secondary authorization headers>> when
+you created or updated the {dfeed}, those credentials are used instead.
 
 [[ml-start-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}

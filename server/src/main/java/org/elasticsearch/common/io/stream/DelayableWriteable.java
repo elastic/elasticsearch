@@ -25,13 +25,26 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
- * A holder for {@link Writeable}s that can delays reading the underlying
- * {@linkplain Writeable} when it is read from a remote node.
+ * A holder for {@link Writeable}s that delays reading the underlying object
+ * on the receiving end. To be used for objects whose deserialized
+ * representation is inefficient to keep in memory compared to their
+ * corresponding serialized representation.
+ * The node that produces the {@link Writeable} calls {@link #referencing(Writeable)}
+ * to create a {@link DelayableWriteable} that serializes the inner object
+ * first to a buffer and writes the content of the buffer to the {@link StreamOutput}.
+ * The receiver node calls {@link #delayed(Reader, StreamInput)} to create a
+ * {@link DelayableWriteable} that reads the buffer from the @link {@link StreamInput}
+ * but delays creating the actual object by calling {@link #expand()} when needed.
+ * Multiple {@link DelayableWriteable}s coming from different nodes may be buffered
+ * on the receiver end, which may hold a mix of {@link DelayableWriteable}s that were
+ * produced locally (hence expanded) as well as received form another node (hence subject
+ * to delayed expansion). When such objects are buffered for some time it may be desirable
+ * to force their buffering in serialized format by calling
+ * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
-public abstract class DelayableWriteable<T extends Writeable> implements Supplier<T>, Writeable {
+public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -42,7 +55,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
-     * when {@link Supplier#get()} is called.
+     * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
         return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
@@ -57,15 +70,20 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
     public abstract Serialized<T> asSerialized(Writeable.Reader<T> reader, NamedWriteableRegistry registry);
 
     /**
+     * Expands the inner {@link Writeable} to its original representation and returns it
+     */
+    public abstract T expand();
+
+    /**
      * {@code true} if the {@linkplain Writeable} is being stored in
      * serialized form, {@code false} otherwise.
      */
     abstract boolean isSerialized();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
-        private T reference;
+        private final T reference;
 
-        Referencing(T reference) {
+        private Referencing(T reference) {
             this.reference = reference;
         }
 
@@ -75,17 +93,19 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         }
 
         @Override
-        public T get() {
+        public T expand() {
             return reference;
         }
 
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
+            BytesStreamOutput buffer;
             try {
-                return new Serialized<T>(reader, Version.CURRENT, registry, writeToBuffer(Version.CURRENT).bytes());
+                buffer = writeToBuffer(Version.CURRENT);
             } catch (IOException e) {
-                throw new RuntimeException("unexpected error expanding aggregations", e);
+                throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
+            return new Serialized<>(reader, Version.CURRENT, registry, buffer.bytes());
         }
 
         @Override
@@ -111,8 +131,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         private final NamedWriteableRegistry registry;
         private final BytesReference serialized;
 
-        Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) throws IOException {
+        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
+                NamedWriteableRegistry registry, BytesReference serialized) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -136,12 +156,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
                  * differences in the wire protocol. This ain't efficient but
                  * it should be quite rare.
                  */
-                referencing(get()).writeTo(out);
+                referencing(expand()).writeTo(out);
             }
         }
 
         @Override
-        public T get() {
+        public T expand() {
             try {
                 try (StreamInput in = registry == null ?
                         serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
@@ -149,7 +169,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
                     return reader.read(in);
                 }
             } catch (IOException e) {
-                throw new RuntimeException("unexpected error expanding aggregations", e);
+                throw new RuntimeException("unexpected error expanding serialized delayed writeable", e);
             }
         }
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -59,16 +59,18 @@ import java.util.Objects;
  */
 public class JodaCompatibleZonedDateTime
         implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
-    
+
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
 
     private static void logDeprecated(String key, String message, Object... params) {
-        // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecatedAndMaybeLog(key, message, params);
-            return null;
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressLoggerChecks(reason = "safely delegates to logger")
+            @Override
+            public Void run() {
+                deprecationLogger.deprecate(key, message, params);
+                return null;
+            }
         });
     }
 

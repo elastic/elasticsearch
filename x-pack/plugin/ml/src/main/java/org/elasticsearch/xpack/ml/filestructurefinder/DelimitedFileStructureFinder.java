@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
@@ -34,7 +35,6 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
-
     private final List<String> sampleMessages;
     private final FileStructure structure;
 
@@ -80,6 +80,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
+            // Indicates an illformatted row. We allow a certain number of these
+            if (row.size() != columnNames.length) {
+                prevMessageEndLineNumber = lineNumber;
+                continue;
+            }
             Map<String, String> sampleRecord = new LinkedHashMap<>();
             Util.filterListToMap(sampleRecord, columnNames,
                 trimFields ? row.stream().map(field -> (field == null) ? null : field.trim()).collect(Collectors.toList()) : row);
@@ -488,7 +493,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     }
 
     static boolean canCreateFromSample(List<String> explanation, String sample, int minFieldsPerRow, CsvPreference csvPreference,
-                                       String formatName) {
+                                       String formatName, double allowedFractionOfBadLines) {
 
         // Logstash's CSV parser won't tolerate fields where just part of the
         // value is quoted, whereas SuperCSV will, hence this extra check
@@ -501,11 +506,13 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
         }
 
+        int numberOfLinesInSample = sampleLines.length;
         try (CsvListReader csvReader = new CsvListReader(new StringReader(sample), csvPreference)) {
 
             int fieldsInFirstRow = -1;
             int fieldsInLastRow = -1;
 
+            List<Integer> illFormattedRows = new ArrayList<>();
             int numberOfRows = 0;
             try {
                 List<String> row;
@@ -529,11 +536,27 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                         --fieldsInThisRow;
                     }
 
-                    if (fieldsInLastRow != fieldsInFirstRow) {
-                        explanation.add("Not " + formatName + " because row [" + (numberOfRows - 1) +
-                            "] has a different number of fields to the first row: [" + fieldsInFirstRow + "] and [" +
-                            fieldsInLastRow + "]");
-                        return false;
+                    // TODO: might be good one day to gather a distribution of the most common field counts
+                    // But, this would require iterating (or at least sampling) all the lines.
+                    if (fieldsInThisRow != fieldsInFirstRow) {
+                        illFormattedRows.add(numberOfRows - 1);
+                        // This calculation is complicated by the possibility of multi-lined CSV columns
+                        // `getLineNumber` is a current count of lines, regardless of row count, so
+                        // this formula is just an approximation, but gets more accurate the further
+                        // through the sample you are.
+                        double totalNumberOfRows = (numberOfRows + numberOfLinesInSample - csvReader.getLineNumber());
+                        // We should only allow a certain percentage of ill formatted rows
+                        // as it may have and down stream effects
+                        if (illFormattedRows.size() > Math.ceil(allowedFractionOfBadLines * totalNumberOfRows)) {
+                            explanation.add(new ParameterizedMessage(
+                                "Not {} because {} or more rows did not have the same number of fields as the first row ({}). Bad rows {}",
+                                formatName,
+                                illFormattedRows.size(),
+                                fieldsInFirstRow,
+                                illFormattedRows).getFormattedMessage());
+                            return false;
+                        }
+                        continue;
                     }
 
                     fieldsInLastRow = fieldsInThisRow;

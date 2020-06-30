@@ -22,15 +22,11 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -194,11 +190,6 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTests {
         result = client().prepareSearch(searchIndex).setQuery(query).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     /**

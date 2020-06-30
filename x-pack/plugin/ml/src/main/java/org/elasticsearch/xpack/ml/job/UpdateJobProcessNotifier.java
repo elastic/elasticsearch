@@ -115,8 +115,8 @@ public class UpdateJobProcessNotifier {
             return;
         }
 
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
-                update.isUpdateScheduledEvents());
+        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getPerPartitionCategorizationConfig(),
+            update.getDetectorUpdates(), update.getFilter(), update.isUpdateScheduledEvents());
 
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
                 new ActionListener<Response>() {

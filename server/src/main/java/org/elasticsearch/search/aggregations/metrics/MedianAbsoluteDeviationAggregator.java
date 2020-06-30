@@ -50,16 +50,16 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     private ObjectArray<TDigestState> valueSketches;
 
     MedianAbsoluteDeviationAggregator(String name,
-                                             SearchContext context,
+                                      @Nullable ValuesSource valuesSource,
+                                      DocValueFormat format,
+                                      SearchContext context,
                                              Aggregator parent,
                                              Map<String, Object> metadata,
-                                             @Nullable ValuesSource.Numeric valuesSource,
-                                             DocValueFormat format,
                                              double compression) throws IOException {
 
         super(name, context, parent, metadata);
 
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
         this.valueSketches = context.bigArrays().newObjectArray(1);

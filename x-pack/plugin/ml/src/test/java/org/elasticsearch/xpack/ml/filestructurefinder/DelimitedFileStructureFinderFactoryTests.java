@@ -16,66 +16,66 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
 
     public void testCanCreateCsvFromSampleGivenCsv() {
 
-        assertTrue(csvFactory.canCreateFromSample(explanation, CSV_SAMPLE));
+        assertTrue(csvFactory.canCreateFromSample(explanation, CSV_SAMPLE, 0.0));
     }
 
     public void testCanCreateCsvFromSampleGivenTsv() {
 
-        assertFalse(csvFactory.canCreateFromSample(explanation, TSV_SAMPLE));
+        assertFalse(csvFactory.canCreateFromSample(explanation, TSV_SAMPLE, 0.0));
     }
 
     public void testCanCreateCsvFromSampleGivenSemiColonDelimited() {
 
-        assertFalse(csvFactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE));
+        assertFalse(csvFactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateCsvFromSampleGivenPipeDelimited() {
 
-        assertFalse(csvFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
+        assertFalse(csvFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateCsvFromSampleGivenText() {
 
-        assertFalse(csvFactory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertFalse(csvFactory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 
     // TSV - no need to check NDJSON, XML or CSV because they come earlier in the order we check formats
 
     public void testCanCreateTsvFromSampleGivenTsv() {
 
-        assertTrue(tsvFactory.canCreateFromSample(explanation, TSV_SAMPLE));
+        assertTrue(tsvFactory.canCreateFromSample(explanation, TSV_SAMPLE, 0.0));
     }
 
     public void testCanCreateTsvFromSampleGivenSemiColonDelimited() {
 
-        assertFalse(tsvFactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE));
+        assertFalse(tsvFactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateTsvFromSampleGivenPipeDelimited() {
 
-        assertFalse(tsvFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
+        assertFalse(tsvFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateTsvFromSampleGivenText() {
 
-        assertFalse(tsvFactory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertFalse(tsvFactory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 
     // Semi-colon delimited - no need to check NDJSON, XML, CSV or TSV because they come earlier in the order we check formats
 
     public void testCanCreateSemiColonDelimitedFromSampleGivenSemiColonDelimited() {
 
-        assertTrue(semiColonDelimitedfactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE));
+        assertTrue(semiColonDelimitedfactory.canCreateFromSample(explanation, SEMI_COLON_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateSemiColonDelimitedFromSampleGivenPipeDelimited() {
 
-        assertFalse(semiColonDelimitedfactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
+        assertFalse(semiColonDelimitedfactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreateSemiColonDelimitedFromSampleGivenText() {
 
-        assertFalse(semiColonDelimitedfactory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertFalse(semiColonDelimitedfactory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 
     // Pipe delimited - no need to check NDJSON, XML, CSV, TSV or semi-colon delimited
@@ -83,11 +83,11 @@ public class DelimitedFileStructureFinderFactoryTests extends FileStructureTestC
 
     public void testCanCreatePipeDelimitedFromSampleGivenPipeDelimited() {
 
-        assertTrue(pipeDelimitedFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE));
+        assertTrue(pipeDelimitedFactory.canCreateFromSample(explanation, PIPE_DELIMITED_SAMPLE, 0.0));
     }
 
     public void testCanCreatePipeDelimitedFromSampleGivenText() {
 
-        assertFalse(pipeDelimitedFactory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertFalse(pipeDelimitedFactory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 }

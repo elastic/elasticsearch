@@ -14,6 +14,6 @@ public class TextLogFileStructureFinderFactoryTests extends FileStructureTestCas
 
     public void testCanCreateFromSampleGivenText() {
 
-        assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
     }
 }

@@ -41,7 +41,7 @@ You can consult all currently applied limits with `ulimit -a`.
 
 On Linux systems, persistent limits can be set for a particular user by
 editing the `/etc/security/limits.conf` file. To set the maximum number of
-open files for the `elasticsearch` user to 65,536, add the following line to
+open files for the `elasticsearch` user to 65,535, add the following line to
 the `limits.conf` file:
 
 [source,sh]
@@ -68,16 +68,14 @@ following line:
 [[sysconfig]]
 ==== Sysconfig file
 
-When using the RPM or Debian packages, system settings and environment
-variables can be specified in the system configuration file, which is located
-in:
+When using the RPM or Debian packages, environment variables can be specified
+in the system configuration file, which is located in:
 
 [horizontal]
 RPM::     `/etc/sysconfig/elasticsearch`
 Debian::  `/etc/default/elasticsearch`
 
-However, for systems which uses `systemd`, system limits need to be specified
-via <<systemd,systemd>>.
+However, system limits need to be specified via <<systemd,systemd>>.
 
 [[systemd]]
 ==== Systemd configuration

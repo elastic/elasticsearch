@@ -97,6 +97,9 @@ public class GroupConfig implements ToXContentObject {
                 case "date_histogram":
                     groupSource = DateHistogramGroupSource.fromXContent(parser);
                     break;
+                case "geotile_grid":
+                    groupSource = GeoTileGroupSource.fromXContent(parser);
+                    break;
                 default:
                     // not a valid group source. Consume up to the dest field end object
                     consumeUntilEndObject(parser, 2);

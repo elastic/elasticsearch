@@ -48,7 +48,7 @@ public class NormalizerResultHandler {
             if (bytesRef == null) {
                 bytesRef = new BytesArray(readBuf, 0, bytesRead);
             } else {
-                bytesRef = new CompositeBytesReference(bytesRef, new BytesArray(readBuf, 0, bytesRead));
+                bytesRef = CompositeBytesReference.of(bytesRef, new BytesArray(readBuf, 0, bytesRead));
             }
             bytesRef = parseResults(xContent, bytesRef);
             readBuf = new byte[READ_BUF_SIZE];

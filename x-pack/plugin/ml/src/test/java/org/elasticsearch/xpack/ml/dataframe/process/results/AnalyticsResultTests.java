@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,11 +38,11 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 
-    @Override
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
         PhaseProgress phaseProgress = null;
@@ -48,6 +51,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         OutlierDetectionStats outlierDetectionStats = null;
         ClassificationStats classificationStats = null;
         RegressionStats regressionStats = null;
+        ModelSizeInfo modelSizeInfo = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
@@ -69,8 +73,11 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         if (randomBoolean()) {
             regressionStats = RegressionStatsTests.createRandom();
         }
+        if (randomBoolean()) {
+            modelSizeInfo = ModelSizeInfoTests.createRandom();
+        }
         return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats);
+            classificationStats, regressionStats, modelSizeInfo);
     }
 
     @Override

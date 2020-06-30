@@ -30,6 +30,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
@@ -40,8 +41,8 @@ import java.util.List;
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 
-    public ConstantFieldType() {
-        super();
+    public ConstantFieldType(String name, Map<String, String> meta) {
+        super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
     }
 
     public ConstantFieldType(ConstantFieldType other) {
@@ -56,11 +57,6 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final boolean isAggregatable() {
         return true;
-    }
-
-    @Override
-    public final Query existsQuery(QueryShardContext context) {
-        return new MatchAllDocsQuery();
     }
 
     /**

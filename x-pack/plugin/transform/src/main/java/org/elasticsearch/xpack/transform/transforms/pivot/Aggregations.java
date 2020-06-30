@@ -31,6 +31,7 @@ public final class Aggregations {
     private static final String SOURCE = "_source";
 
     public static final String FLOAT = "float";
+    public static final String FLATTENED = "flattened";
     public static final String SCALED_FLOAT = "scaled_float";
     public static final String DOUBLE = "double";
     public static final String LONG = "long";
@@ -69,17 +70,16 @@ public final class Aggregations {
         "nested",
         "percentile_ranks",
         "range",
-        "rare_terms",
         "reverse_nested",
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
         "significant_text",
         "stats", // https://github.com/elastic/elasticsearch/issues/51925
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
-        "terms", // https://github.com/elastic/elasticsearch/issues/51073
         "top_hits",
         "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
-        "t_test" // https://github.com/elastic/elasticsearch/issues/54503
+        "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
+        "variable_width_histogram" // https://github.com/elastic/elasticsearch/issues/58140
     );
 
     private Aggregations() {}
@@ -107,7 +107,9 @@ public final class Aggregations {
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),
-        FILTER("filter", LONG);
+        FILTER("filter", LONG),
+        TERMS("terms", FLATTENED),
+        RARE_TERMS("rare_terms", FLATTENED);
 
         private final String aggregationType;
         private final String targetMapping;

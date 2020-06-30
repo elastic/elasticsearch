@@ -123,6 +123,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             builder.setCreateTime(null);
             builder.setVersion(null);
         }
+        if (version.before(Version.V_8_0_0)) {
+            builder.setMaxNumThreads(null);
+        }
         return builder.build();
     }
 
@@ -144,12 +147,16 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcRegression.getBoostedTreeParams(),
                 bwcRegression.getPredictionFieldName(),
                 bwcRegression.getTrainingPercent(),
-                42L);
+                42L,
+                bwcRegression.getLossFunction(),
+                bwcRegression.getLossFunctionParameter());
             testAnalysis = new Regression(testRegression.getDependentVariable(),
                 testRegression.getBoostedTreeParams(),
                 testRegression.getPredictionFieldName(),
                 testRegression.getTrainingPercent(),
-                42L);
+                42L,
+                testRegression.getLossFunction(),
+                testRegression.getLossFunctionParameter());
         } else {
             Classification testClassification = (Classification)testInstance.getAnalysis();
             Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
@@ -228,6 +235,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
         return builder;
     }

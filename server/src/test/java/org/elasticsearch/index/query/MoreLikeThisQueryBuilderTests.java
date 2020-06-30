@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -150,7 +151,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         } else {
             likeItems = randomLikeItems;
         }
-        if (randomBoolean() && likeItems != null && likeItems.length > 0) { // for the default field
+        if (randomBoolean() && CollectionUtils.isEmpty(likeItems) == false) { // for the default field
             queryBuilder = new MoreLikeThisQueryBuilder(null, likeItems);
         } else {
             queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
@@ -257,7 +258,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
+        if (CollectionUtils.isEmpty(queryBuilder.likeItems()) == false) {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
             for (BooleanClause booleanClause : booleanQuery) {

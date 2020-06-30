@@ -8,12 +8,13 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 artifacts {
@@ -109,16 +110,9 @@ testClusters.integTest {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }
 
-validateRestSpec {
-  ignore 'searchable_snapshots.mount.json'
-  ignore 'searchable_snapshots.clear_cache.json'
-  ignore 'searchable_snapshots.stats.json'
-  ignore 'searchable_snapshots.repository_stats.json'
-  ignore 'autoscaling.delete_autoscaling_policy.json'
-  ignore 'autoscaling.get_autoscaling_policy.json'
-  ignore 'autoscaling.put_autoscaling_policy.json'
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
-}
+

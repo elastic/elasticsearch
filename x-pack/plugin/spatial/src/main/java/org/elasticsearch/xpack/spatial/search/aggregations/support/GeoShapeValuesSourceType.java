@@ -116,6 +116,11 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
+    public String typeName() {
+        return "geoshape";
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
 
     }

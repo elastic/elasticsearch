@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
-import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.EOFException;
@@ -217,11 +217,16 @@ public class BlobStoreFormatTests extends ESTestCase {
 
         {
             IOException writeBlobException = expectThrows(IOException.class, () -> {
-                BlobContainer wrapper = new BlobContainerWrapper(blobContainer) {
+                BlobContainer wrapper = new FilterBlobContainer(blobContainer) {
                     @Override
                     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                         throws IOException {
                         throw new IOException("Exception thrown in writeBlobAtomic() for " + blobName);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
                     }
                 };
                 checksumFormat.writeAtomic(blobObj, wrapper, name);

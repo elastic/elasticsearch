@@ -10,6 +10,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -270,7 +271,7 @@ class IndicesAndAliasesResolver {
 
     static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
-                || request instanceof GraphExploreRequest;
+                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, Metadata metadata) {

@@ -274,6 +274,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitNamedQuery(SqlBaseParser.NamedQueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#topClause}.
+   * @param ctx the parse tree
+   */
+  void enterTopClause(SqlBaseParser.TopClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#topClause}.
+   * @param ctx the parse tree
+   */
+  void exitTopClause(SqlBaseParser.TopClauseContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#setQuantifier}.
    * @param ctx the parse tree
    */

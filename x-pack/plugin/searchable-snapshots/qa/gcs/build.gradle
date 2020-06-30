@@ -32,8 +32,8 @@ final Project fixture = project(':test:fixtures:gcs-fixture')
 final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -59,10 +59,6 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
 } else {
   serviceAccountFile = new File(gcsServiceAccount)
-}
-
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
@@ -111,7 +107,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.gcs.bucket', gcsBucket
-    systemProperty 'test.gcs.base_path', gcsBasePath + "/searchable_snapshots_tests"
+    systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
   }
 }
 
@@ -136,3 +132,6 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
+task gcsThirdPartyTest {
+  dependsOn integTest
+}

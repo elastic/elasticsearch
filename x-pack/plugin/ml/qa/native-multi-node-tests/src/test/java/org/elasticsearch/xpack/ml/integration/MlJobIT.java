@@ -689,21 +689,17 @@ public class MlJobIT extends ESRestTestCase {
 
         refreshAllIndices();
 
-        // check that the indices still exist but are empty
+        // check that the default shared index still exists but is empty
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(indicesAfterDelete, containsString(indexName));
-        assertThat(indicesAfterDelete, containsString(indexName + "-001"));
-        assertThat(indicesAfterDelete, containsString(indexName + "-002"));
+
+        // other results indices should be deleted as this test job ID is the only job in those indices
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-001")));
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-002")));
 
         assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "/_count")).getEntity()),
                 containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-001/_count")).getEntity()),
-                containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-002/_count")).getEntity()),
-                containsString("\"count\":0"));
-
-
         expectThrows(ResponseException.class, () ->
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }

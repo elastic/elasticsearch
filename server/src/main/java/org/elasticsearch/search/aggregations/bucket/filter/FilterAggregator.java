@@ -68,8 +68,9 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalFilter(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

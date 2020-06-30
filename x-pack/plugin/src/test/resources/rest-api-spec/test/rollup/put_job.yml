@@ -1,7 +1,11 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
       indices.create:
         index: foo
         body:
@@ -272,6 +276,8 @@ setup:
                 type: keyword
 
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

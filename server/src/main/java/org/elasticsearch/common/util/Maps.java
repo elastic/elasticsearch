@@ -72,6 +72,24 @@ public class Maps {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /**
+     * Remove the specified key from the provided immutable map by copying the underlying map and filtering out the specified
+     * key if that key exists.
+     *
+     * @param map   the immutable map to remove the key from
+     * @param key   the key to be removed
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
+     * @return an immutable map that contains the items from the specified map with the provided key removed
+     */
+    public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
+        Objects.requireNonNull(map);
+        Objects.requireNonNull(key);
+        assertImmutableMap(map, key, map.get(key));
+        return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
     private static <K, V> void assertImmutableMap(final Map<K, V> map, final K key, final V value) {
         if (Assertions.ENABLED) {
             boolean immutable;

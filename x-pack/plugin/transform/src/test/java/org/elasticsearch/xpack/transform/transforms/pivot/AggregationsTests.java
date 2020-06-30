@@ -90,6 +90,16 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("long", Aggregations.resolveTargetMapping("filter", "long"));
         assertEquals("long", Aggregations.resolveTargetMapping("filter", "double"));
 
+        // terms
+        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", null));
+        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", "keyword"));
+        assertEquals("flattened", Aggregations.resolveTargetMapping("terms", "text"));
+
+        // rare_terms
+        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", null));
+        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", "text"));
+        assertEquals("flattened", Aggregations.resolveTargetMapping("rare_terms", "keyword"));
+
         // corner case: source type null
         assertEquals(null, Aggregations.resolveTargetMapping("min", null));
     }

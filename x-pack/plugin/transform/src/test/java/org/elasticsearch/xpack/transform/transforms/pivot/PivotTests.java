@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
@@ -108,7 +109,9 @@ public class PivotTests extends ESTestCase {
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
 
         pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
-        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
+        assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
+
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
     }
 
     public void testSearchFailure() throws Exception {

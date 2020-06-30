@@ -52,7 +52,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.1.0"
+  id "nebula.ospackage-base" version "8.3.0"
 }
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
@@ -251,14 +251,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     into('/usr/share/elasticsearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
       fileMode 0755
-    }
-
-    // ========= sysV init =========
-    configurationFile '/etc/init.d/elasticsearch'
-    into('/etc/init.d') {
-      fileMode 0750
-      fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/elasticsearch"
     }
 
     // ========= empty dirs =========

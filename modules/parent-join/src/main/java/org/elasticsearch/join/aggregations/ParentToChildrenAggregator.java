@@ -36,14 +36,14 @@ public class ParentToChildrenAggregator extends ParentJoinAggregator {
     public ParentToChildrenAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, parentFilter, childFilter, valuesSource, maxOrd, metadata);
+            long maxOrd, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, parentFilter, childFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal),
-                bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalChildren(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

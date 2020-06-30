@@ -6,7 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 [IMPORTANT]
 ====
@@ -185,6 +185,47 @@ Divides the value to the left of the operator by the value to the right.
 Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 ====
 
+[[eql-divide-operator-float-rounding]]
+[WARNING]
+====
+If both the dividend and divisor are integers, the divide (`\`) operation
+_rounds down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+=====
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`. 
+
+[source,eql]
+----
+process where ( 4 / process.args_count ) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the divide operation
+returns a float of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where ( 4.0 / process.args_count ) == 1
+----
+=====
+====
+
 [discrete]
 [[eql-syntax-strings]]
 ==== Strings
@@ -301,6 +342,84 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 ----
 
 [discrete]
+[[eql-sequences]]
+=== Sequences
+
+You can use EQL sequences to describe and match an ordered series of events.
+Each item in a sequence is an event category and event condition,
+surrounded by square brackets. Events are listed in ascending chronological
+order, with the most recent event listed last.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query matches this series of ordered events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+You can use the `by` keyword with sequences to only match events that share the
+same field values. If a field value should be shared across all events, you
+can use `sequence by`.
+
+[source,eql]
+----
+sequence by field_foo
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence uses the `by` keyword to constrain matching events to:
+
+* Events with the same `user.name` value
+* `file` events with a `file.path` value equal to the following `process`
+   event's `process.path` value.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ] by user.name, file.path
+  [ process where true ] by user.name, process.path
+----
+
+Because the `user.name` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following sequence is equivalent to the
+prior one.
+
+[source,eql]
+----
+sequence by user.name
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+[discrete]
 [[eql-functions]]
 === Functions
 
@@ -354,3 +473,36 @@ file where file.extension in ("exe", "dll")
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
 ====
+
+[discrete]
+[[eql-pipes]]
+=== Pipes
+
+EQL pipes filter, aggregate, and post-process events returned by
+an EQL query. You can use pipes to narrow down EQL query results or make them
+more specific.
+
+Pipes are delimited using the pipe (`|`) character.
+
+[source,eql]
+----
+event_category where condition | pipe
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query uses the `tail` pipe to return only the 10 most recent
+events matching the query.
+
+[source,eql]
+----
+authentication where agent.id == 4624
+| tail 10
+----
+====
+
+You can pass the output of a pipe to another pipe. This lets you use multiple
+pipes with a single query.
+
+For a list of supported pipes, see <<eql-pipe-ref>>.

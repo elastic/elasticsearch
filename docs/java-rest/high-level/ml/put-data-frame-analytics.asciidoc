@@ -143,6 +143,8 @@ include-tagged::{doc-tests-file}[{api}-regression]
 <8> The name of the prediction field in the results object.
 <9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
 <10> The seed to be used by the random generator that picks which rows are used in training.
+<11> The loss function used for regression. Defaults to `mse`.
+<12> An optional parameter to the loss function.
 
 ==== Analyzed fields
 

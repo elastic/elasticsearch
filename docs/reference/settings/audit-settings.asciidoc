@@ -45,8 +45,7 @@ audited in plain text when including the request body in audit events.
 
 `xpack.security.audit.logfile.emit_node_name`::
 Specifies whether to include the <<node.name,node name>> as a field in
-each audit event.
-The default value is `true`.
+each audit event. The default value is `false`.
 
 `xpack.security.audit.logfile.emit_node_host_address`::
 Specifies whether to include the node's IP address as a field in each audit event.

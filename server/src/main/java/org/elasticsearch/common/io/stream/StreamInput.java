@@ -1103,7 +1103,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Get the registry of named writeables is his stream has one,
+     * Get the registry of named writeables if this stream has one,
      * {@code null} otherwise.
      */
     public NamedWriteableRegistry namedWriteableRegistry() {

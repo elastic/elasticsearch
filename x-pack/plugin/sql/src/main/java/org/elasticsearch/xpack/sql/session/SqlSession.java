@@ -45,9 +45,9 @@ public class SqlSession implements Session {
     private final Planner planner;
     private final PlanExecutor planExecutor;
     
-    private final Configuration configuration;
+    private final SqlConfiguration configuration;
 
-    public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
+    public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
             Verifier verifier,
@@ -96,7 +96,7 @@ public class SqlSession implements Session {
     }
 
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
-        return new SqlParser().createStatement(sql, params);
+        return new SqlParser().createStatement(sql, params, configuration.zoneId());
     }
 
     public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
@@ -172,7 +172,7 @@ public class SqlSession implements Session {
         }
     }
 
-    public Configuration configuration() {
+    public SqlConfiguration configuration() {
         return configuration;
     }
 }

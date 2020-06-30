@@ -32,7 +32,7 @@ restResources {
   }
 }
 
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;

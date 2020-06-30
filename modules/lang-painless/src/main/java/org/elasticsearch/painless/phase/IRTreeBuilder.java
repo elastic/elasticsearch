@@ -641,8 +641,8 @@ public class IRTreeBuilder implements UserTreeVisitor<ScriptScope, IRNode> {
         irConditionalNode.setLocation(userConditionalNode.getLocation());
         irConditionalNode.setExpressionType(scriptScope.getDecoration(userConditionalNode, ValueType.class).getValueType());
         irConditionalNode.setConditionNode(injectCast(userConditionalNode.getConditionNode(), scriptScope));
-        irConditionalNode.setLeftNode(injectCast(userConditionalNode.getLeftNode(), scriptScope));
-        irConditionalNode.setRightNode(injectCast(userConditionalNode.getRightNode(), scriptScope));
+        irConditionalNode.setLeftNode(injectCast(userConditionalNode.getTrueNode(), scriptScope));
+        irConditionalNode.setRightNode(injectCast(userConditionalNode.getFalseNode(), scriptScope));
 
         return irConditionalNode;
     }

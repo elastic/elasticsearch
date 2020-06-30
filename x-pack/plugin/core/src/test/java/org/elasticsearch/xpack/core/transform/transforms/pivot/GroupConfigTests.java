@@ -50,8 +50,11 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
                     groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
                     break;
                 case DATE_HISTOGRAM:
-                default:
                     groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                    break;
+                case GEOTILE_GRID:
+                default:
+                    groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
                 }
 
                 source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));

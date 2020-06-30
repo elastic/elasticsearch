@@ -86,8 +86,8 @@ public class IndexingStateProcessor implements StateProcessor {
             if (findNextZeroByte(newBlock, 0, 0) == -1) {
                 searchFrom += bytesRead;
             } else {
-                BytesReference newBytes = new CompositeBytesReference(newBlocks.toArray(new BytesReference[0]));
-                bytesToDate = (bytesToDate == null) ? newBytes : new CompositeBytesReference(bytesToDate, newBytes);
+                BytesReference newBytes = CompositeBytesReference.of(newBlocks.toArray(new BytesReference[0]));
+                bytesToDate = (bytesToDate == null) ? newBytes : CompositeBytesReference.of(bytesToDate, newBytes);
                 bytesToDate = splitAndPersist(bytesToDate, searchFrom);
                 searchFrom = (bytesToDate == null) ? 0 : bytesToDate.length();
                 newBlocks.clear();

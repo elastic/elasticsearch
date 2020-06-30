@@ -20,21 +20,20 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpPipelinedMessage;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 
-public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
+public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse {
 
-    private final int sequence;
-    private final NioHttpRequest request;
+    private final HttpHeaders requestHeaders;
 
-    NioHttpResponse(NioHttpRequest request, RestStatus status, BytesReference content) {
-        super(request.nettyRequest().protocolVersion(), HttpResponseStatus.valueOf(status.getStatus()), ByteBufUtils.toByteBuf(content));
-        this.sequence = request.sequence();
-        this.request = request;
+    NioHttpResponse(HttpHeaders requestHeaders, HttpVersion version, RestStatus status, BytesReference content) {
+        super(version, HttpResponseStatus.valueOf(status.getStatus()), ByteBufUtils.toByteBuf(content));
+        this.requestHeaders = requestHeaders;
     }
 
     @Override
@@ -47,12 +46,7 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResp
         return headers().contains(name);
     }
 
-    @Override
-    public int getSequence() {
-        return sequence;
-    }
-
-    public NioHttpRequest getRequest() {
-        return request;
+    public HttpHeaders requestHeaders() {
+        return requestHeaders;
     }
 }

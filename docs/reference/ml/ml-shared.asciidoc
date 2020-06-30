@@ -183,15 +183,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -270,13 +270,26 @@ time chunks are calculated and is an advanced configuration option.
 ====
 `mode`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
 
 `time_span`:::
 (<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
+
+tag::class-assignment-objective[]
+Defines the objective to optimize when assigning class labels:
+`maximize_accuracy` or `maximize_minimum_recall`. When maximizing accuracy,
+class labels are chosen to maximize the number of correct predictions. When
+maximizing minimum recall, labels are chosen to maximize the minimum recall for
+any class. Defaults to `maximize_minimum_recall`.
+end::class-assignment-objective[]
+
+tag::compute-feature-influence[]
+Specifies whether the feature influence calculation is enabled. Defaults to
+`true`.
+end::compute-feature-influence[]
 
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
@@ -348,6 +361,17 @@ example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
 
+tag::daily-model-snapshot-retention-after-days[]
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies a period of time (in days) after which only
+the first snapshot per day is retained. This period is relative to the timestamp
+of the most recent snapshot for this job. Valid values range from `0` to
+`model_snapshot_retention_days`. For new jobs, the default value is `1`. For
+jobs created before version 7.8.0, the default value matches 
+`model_snapshot_retention_days`. For more information, refer to
+{ml-docs}/ml-model-snapshots.html[Model snapshots].
+end::daily-model-snapshot-retention-after-days[]
+
 tag::data-description[]
 The data description defines the format of the input data when you send data to
 the job by using the <<ml-post-data,post data>> API. Note that when configure
@@ -367,7 +391,7 @@ for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 
@@ -479,10 +503,6 @@ tag::dfas-downsample-factor[]
 The value of the downsample factor.
 end::dfas-downsample-factor[]
 
-tag::dfas-eta[]
-The value of the eta hyperparameter.
-end::dfas-eta[]
-
 tag::dfas-eta-growth[]
 Specifies the rate at which the `eta` increases for each new tree that is added
 to the forest. For example, a rate of `1.05` increases `eta` by 5%.
@@ -493,17 +513,9 @@ The fraction of features that is used when selecting a random bag for each
 candidate split.
 end::dfas-feature-bag-fraction[]
 
-tag::dfas-gamma[]
-Regularization factor to penalize trees with large numbers of nodes.
-end::dfas-gamma[]
-
 tag::dfas-iteration[]
 The number of iterations on the analysis.
 end::dfas-iteration[]
-
-tag::dfas-lambda[]
-Regularization factor to penalize large leaf weights.
-end::dfas-lambda[]
 
 tag::dfas-max-attempts[]
 If the algorithm fails to determine a non-trivial tree (more than a single 
@@ -518,10 +530,6 @@ hyperparameter optimization steps in the Bayesian optimization procedure.
 The maximum number of steps is determined based on the number of undefined 
 hyperparameters times the maximum optimization rounds per hyperparameter.
 end::dfas-max-optimization-rounds[]
-
-tag::dfas-max-trees[]
-The maximum number of trees in the forest.
-end::dfas-max-trees[]
 
 tag::dfas-num-folds[]
 The maximum number of folds for the cross-validation procedure.
@@ -584,10 +592,11 @@ end::empty-bucket-count[]
 
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
-values result in larger forests which have a better generalization error. However,
-the smaller the value the longer the training will take. For more information
-about shrinkage, see
+values result in larger forests which have a better generalization error.
+However, the smaller the value the longer the training will take. For more
+information about shrinkage, see
 https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article].
+By default, this value is calculated during hyperparameter optimization.
 end::eta[]
 
 tag::exclude-frequent[]
@@ -603,10 +612,23 @@ If `true`, the output excludes interim results. By default, interim results are
 included.
 end::exclude-interim-results[]
 
+tag::failed-category-count[]
+The number of times that categorization wanted to create a new category but
+couldn't because the job had hit its `model_memory_limit`. This count does not
+track which specific categories failed to be created. Therefore you cannot use
+this value to determine the number of unique categories that were missed.
+end::failed-category-count[]
+
 tag::feature-bag-fraction[]
 Advanced configuration option. Defines the fraction of features that will be
-used when selecting a random bag for each candidate split. 
+used when selecting a random bag for each candidate split. By default, this
+value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
+
+tag::feature-influence-threshold[]
+The minimum {olscore} that a document needs to have in order to calculate its 
+{fiscore}. Value range: 0-1 (`0.1` by default).
+end::feature-influence-threshold[]
 
 tag::filter[]
 One or more <<analysis-tokenfilters,token filters>>. In addition to the built-in 
@@ -653,7 +675,8 @@ Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies a linear penalty associated with the size of 
 individual trees in the forest. The higher the value the more training will 
 prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer training will take.
+will be and the longer training will take. By default, this value is calculated
+during hyperparameter optimization.
 end::gamma[]
 
 tag::groups[]
@@ -694,9 +717,8 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document. By default, it is zero and no feature
-importance calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. By 
+default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
 tag::inference-config-classification-top-classes-results-field[]
@@ -712,15 +734,20 @@ end::inference-config-classification-prediction-field-type[]
 
 tag::inference-config-regression-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. 
+By default, it is zero and no {feat-imp} calculation occurs.
 end::inference-config-regression-num-top-feature-importance-values[]
 
 tag::inference-config-results-field[]
 The field that is added to incoming documents to contain the inference
 prediction. Defaults to `predicted_value`.
 end::inference-config-results-field[]
+
+tag::inference-config-results-field-processor[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
+used to train the model, which defaults to `<dependent_variable>_prediction`.
+end::inference-config-results-field-processor[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
@@ -814,6 +841,7 @@ more training will attempt to keep leaf weights small. This makes the prediction
 function smoother at the expense of potentially not being able to capture 
 relevant relationships between the features and the {depvar}. The smaller this 
 parameter the larger individual trees will be and the longer training will take.
+By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
 
 tag::last-data-time[]
@@ -857,8 +885,17 @@ end::max-empty-searches[]
 
 tag::max-trees[]
 Advanced configuration option. Defines the maximum number of trees the forest is
-allowed to contain. The maximum value is 2000.
+allowed to contain. The maximum value is 2000. By default, this value is
+calculated during hyperparameter optimization.
 end::max-trees[]
+
+tag::method[]
+The method that {oldetection} uses. Available methods are `lof`, `ldof`,
+`distance_kth_nn`, `distance_knn`, and `ensemble`. The default value is
+`ensemble`, which means that {oldetection} uses an ensemble of different methods
+and normalises and combines their individual {olscores} to obtain the overall
+{olscore}. 
+end::method[]
 
 tag::missing-field-count[]
 The number of input documents that are missing a field that the {anomaly-job} is
@@ -957,6 +994,11 @@ must be disabled if performance issues are experienced.
 --
 end::model-plot-config[]
 
+tag::model-plot-config-annotations-enabled[]
+If true, enables calculation and storage of the model change annotations
+for each entity that is being analyzed. Defaults to `enabled`.
+end::model-plot-config-annotations-enabled[]
+
 tag::model-plot-config-enabled[]
 If true, enables calculation and storage of the model bounds for each entity
 that is being analyzed. By default, this is not enabled.
@@ -975,10 +1017,12 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-Advanced configuration option. The period of time (in days) that model snapshots 
-are retained. Age is calculated relative to the timestamp of the newest model 
-snapshot. The default value is `1`, which means snapshots that are one day 
-(twenty-four hours) older than the newest snapshot are deleted.
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies the maximum period of time (in days) that
+snapshots are retained. This period is relative to the timestamp of the most
+recent snapshot for this job. The default value is `10`, which means snapshots
+ten days older than the newest snapshot are deleted. For more information, refer
+to {ml-docs}/ml-model-snapshots.html[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]
@@ -1006,6 +1050,14 @@ NOTE: To use the `multivariate_by_fields` property, you must also specify
 
 --
 end::multivariate-by-fields[]
+
+tag::n-neighbors[]
+Defines the value for how many nearest neighbors each method of {oldetection}
+uses to calculate its {olscore}. When the value is not set, different values are
+used for different ensemble members. This default behavior helps improve the
+diversity in the ensemble; only override it if you are confident that the value
+you choose is appropriate for the data set.
+end::n-neighbors[]
 
 tag::node-address[]
 The network address of the node.
@@ -1049,6 +1101,12 @@ order documents are  discarded, since jobs require time series data to be in
 ascending chronological order.
 end::out-of-order-timestamp-count[]
 
+tag::outlier-fraction[]
+The proportion of the data set that is assumed to be outlying prior to 
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
+outliers and 95% are inliers.
+end::outlier-fraction[]
+
 tag::over-field-name[]
 The field used to split the data. In particular, this property is used for 
 analyzing the splits with respect to the history of all splits. It is used for 
@@ -1060,6 +1118,25 @@ tag::partition-field-name[]
 The field used to segment the analysis. When you use this property, you have 
 completely independent baselines for each value of this field.
 end::partition-field-name[]
+
+tag::per-partition-categorization[]
+Settings related to how categorization interacts with partition fields.
+end::per-partition-categorization[]
+
+tag::per-partition-categorization-enabled[]
+To enable this setting, you must also set the partition_field_name property to
+the same value in every detector that uses the keyword mlcategory. Otherwise,
+job creation fails.
+end::per-partition-categorization-enabled[]
+
+tag::per-partition-categorization-stop-on-warn[]
+This setting can be set to true only if per-partition categorization is enabled.
+If true, both categorization and subsequent anomaly detection stops for
+partitions where the categorization status changes to `warn`. This setting makes
+it viable to have a job where it is expected that categorization works well for
+some partitions but not others; you do not pay the cost of bad categorization
+forever in the partitions where it works badly.
+end::per-partition-categorization-stop-on-warn[]
 
 tag::prediction-field-name[]
 Defines the name of the prediction field in the results. 
@@ -1176,6 +1253,13 @@ The number of buckets that contained few data points compared to the expected
 number of data points. If your data contains many sparse buckets, consider using
 a longer `bucket_span`.
 end::sparse-bucket-count[]
+
+tag::standardization-enabled[]
+If `true`, the following operation is performed on the columns before computing 
+outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more 
+information about this concept, see 
+{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+end::standardization-enabled[]
 
 tag::state-anomaly-job[]
 The status of the {anomaly-job}, which can be one of the following values:

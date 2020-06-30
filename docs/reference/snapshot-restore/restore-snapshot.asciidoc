@@ -39,7 +39,7 @@ using regular expression that supports referencing the original text as
 explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
 Set `include_aliases` to `false` to prevent aliases from being restored together
-with associated indices
+with associated indices.
 
 [source,console]
 -----------------------------------
@@ -47,22 +47,27 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
-  "include_global_state": true,
+  "include_global_state": false,              <1>
   "rename_pattern": "index_(.+)",
-  "rename_replacement": "restored_index_$1"
+  "rename_replacement": "restored_index_$1",
+  "include_aliases": false
 }
 -----------------------------------
 // TEST[continued]
+
+<1> By default, `include_global_state` is `false`, meaning the snapshot's
+cluster state is not restored.
++
+If `true`, the snapshot's persistent settings, index templates, ingest
+pipelines, and {ilm-init} policies are restored into the current cluster. This
+overwrites any existing cluster settings, templates, pipelines and {ilm-init}
+policies whose names match those in the snapshot.
 
 The restore operation can be performed on a functioning cluster. However, an
 existing index can be only restored if it's <<indices-open-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
-new indices if they didn't exist in the cluster. If cluster state is restored
-with `include_global_state` (defaults to `false`), the restored templates that
-don't currently exist in the cluster are added and existing templates with the
-same name are replaced by the restored templates. The restored persistent
-settings are added to the existing persistent settings.
+new indices if they didn't exist in the cluster.
 
 [float]
 === Partial restore

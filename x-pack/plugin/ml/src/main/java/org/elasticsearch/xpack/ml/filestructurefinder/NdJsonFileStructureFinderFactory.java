@@ -30,7 +30,7 @@ public class NdJsonFileStructureFinderFactory implements FileStructureFinderFact
      * documents must be non-empty, to prevent lines containing "{}" from matching.
      */
     @Override
-    public boolean canCreateFromSample(List<String> explanation, String sample) {
+    public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
 
         int completeDocCount = 0;
 

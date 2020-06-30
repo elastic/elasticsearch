@@ -70,7 +70,7 @@ unknown words.  It can be set to:
 
     Extended mode outputs unigrams for unknown words. Example output:
 
-    関西, 国際, 空港
+    関西, 関西国際空港, 国際, 空港
     ア, ブ, ラ, カ, ダ, ブ, ラ
 --
 
@@ -207,6 +207,12 @@ The above `analyze` request returns the following:
   } ]
 }
 --------------------------------------------------
+
+`discard_compound_token`::
+    Whether original compound tokens should be discarded from the output with `search` mode. Defaults to `false`.
+    Example output with `search` or `extended` mode and this option `true`:
+
+    関西, 国際, 空港
 
 
 [[analysis-kuromoji-baseform]]

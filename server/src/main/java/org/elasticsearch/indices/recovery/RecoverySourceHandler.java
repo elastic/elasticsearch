@@ -51,7 +51,9 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -77,9 +79,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -111,6 +116,7 @@ public class RecoverySourceHandler {
     private final ThreadPool threadPool;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
+    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
@@ -128,12 +134,16 @@ public class RecoverySourceHandler {
         return request;
     }
 
+    public void addListener(ActionListener<RecoveryResponse> listener) {
+        future.addListener(listener, EsExecutors.newDirectExecutorService());
+    }
+
     /**
      * performs the recovery from the local engine to the target
      */
     public void recoverToTarget(ActionListener<RecoveryResponse> listener) {
+        addListener(listener);
         final Closeable releaseResources = () -> IOUtils.close(resources);
-        final ActionListener<RecoveryResponse> wrappedListener = ActionListener.notifyOnce(listener);
         try {
             cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
                 final RuntimeException e;
@@ -145,12 +155,12 @@ public class RecoverySourceHandler {
                 if (beforeCancelEx != null) {
                     e.addSuppressed(beforeCancelEx);
                 }
-                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
                 throw e;
             });
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
-                IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
             };
 
             final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
@@ -321,13 +331,13 @@ public class RecoverySourceHandler {
                     sendFileResult.existingTotalSize, sendFileResult.took.millis(), phase1ThrottlingWaitTime,
                     prepareEngineStep.result().millis(), sendSnapshotResult.totalOperations, sendSnapshotResult.tookTime.millis());
                 try {
-                    wrappedListener.onResponse(response);
+                    future.onResponse(response);
                 } finally {
                     IOUtils.close(resources);
                 }
             }, onFailure);
         } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+            IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }
     }
 
@@ -822,22 +832,29 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    private static class FileChunk implements MultiFileTransfer.ChunkRequest {
+    private static class FileChunk implements MultiFileTransfer.ChunkRequest, Releasable {
         final StoreFileMetadata md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
+        final Releasable onClose;
 
-        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk, Releasable onClose) {
             this.md = md;
             this.content = content;
             this.position = position;
             this.lastChunk = lastChunk;
+            this.onClose = onClose;
         }
 
         @Override
         public boolean lastChunk() {
             return lastChunk;
+        }
+
+        @Override
+        public void close() {
+            onClose.close();
         }
     }
 
@@ -847,7 +864,7 @@ public class RecoverySourceHandler {
         final MultiFileTransfer<FileChunk> multiFileSender =
             new MultiFileTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
-                final byte[] buffer = new byte[chunkSizeInBytes];
+                final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
                 InputStreamIndexInput currentInput = null;
                 long offset = 0;
 
@@ -868,12 +885,14 @@ public class RecoverySourceHandler {
                 protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
                     assert Transports.assertNotTransportThread("read file chunk");
                     cancellableThreads.checkForCancel();
+                    final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
                     final int bytesRead = currentInput.read(buffer);
                     if (bytesRead == -1) {
                         throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
                     }
                     final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk,
+                        () -> buffers.addFirst(buffer));
                     offset += bytesRead;
                     return chunk;
                 }
@@ -882,7 +901,8 @@ public class RecoverySourceHandler {
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.checkForCancel();
                     recoveryTarget.writeFileChunk(
-                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener);
+                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(),
+                        ActionListener.runBefore(listener, request::close));
                 }
 
                 @Override

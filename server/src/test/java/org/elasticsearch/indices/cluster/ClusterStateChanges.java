@@ -90,6 +90,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -202,13 +203,14 @@ public class ClusterStateChanges {
             transportService, clusterService, indicesService, threadPool, null, actionFilters));
         client.initialize(actions, transportService.getTaskManager(), null, null);
 
+        ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(clusterService, allocationService,
-            metadataIndexUpgradeService, indicesService, threadPool, client);
+            metadataIndexUpgradeService, indicesService, shardLimitValidator, client, threadPool);
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, shardLimitValidator, threadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(SETTINGS, clusterService, indicesService,
-            allocationService, new AliasValidator(), environment,
+            allocationService, new AliasValidator(), shardLimitValidator, environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, Collections.emptyList(), true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(SETTINGS, transportService, clusterService, threadPool,

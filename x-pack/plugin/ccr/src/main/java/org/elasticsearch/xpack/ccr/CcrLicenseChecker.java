@@ -72,7 +72,8 @@ public class CcrLicenseChecker {
      * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
      */
     CcrLicenseChecker() {
-        this(XPackPlugin.getSharedLicenseState()::isCcrAllowed, XPackPlugin.getSharedLicenseState()::isSecurityEnabled);
+        this(() -> XPackPlugin.getSharedLicenseState().isAllowed(XPackLicenseState.Feature.CCR),
+             XPackPlugin.getSharedLicenseState()::isSecurityEnabled);
     }
 
     /**

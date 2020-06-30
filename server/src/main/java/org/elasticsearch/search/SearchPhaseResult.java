@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -52,7 +53,9 @@ public abstract class SearchPhaseResult extends TransportResponse {
 
     /**
      * Returns the search context ID that is used to reference the search context on the executing node
+     * or <code>null</code> if no context was created.
      */
+    @Nullable
     public SearchContextId getContextId() {
         return contextId;
     }

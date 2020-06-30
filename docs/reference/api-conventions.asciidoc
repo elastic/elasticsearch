@@ -48,22 +48,19 @@ NOTE: Single index APIs, such as the <<docs>> and the
 syntax.
 
 [[date-math-index-names]]
-=== Date math support in target names
+=== Date math support in index names
 
-Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
-parameter support _date math_.
-
-Date math name resolution lets you dynamically search a range of resources, such
-as data streams or indices, that include a time or date component in their name.
-
-For indices, this is a useful alternative to maintaining an index alias or
-searching all indices in a cluster and filtering the results.
+Date math index name resolution enables you to search a range of time-series indices, rather
+than searching all of your time-series indices and filtering the results or maintaining aliases.
 Limiting the number of indices that are searched reduces the load on the cluster and improves
 execution performance. For example, if you are searching for errors in your
 daily logs, you can use a date math name template to restrict the search to the past
 two days.
 
-A date math target name takes the following form:
+Almost all APIs that have an `index` parameter support date math in the `index` parameter
+value.
+
+A date math index name takes the following form:
 
 [source,txt]
 ----------------------------------------------------------------------
@@ -85,7 +82,7 @@ NOTE: Pay attention to the usage of small vs capital letters used in the `date_f
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
 calendars than the Gregorian calendar.
 
-You must enclose date math name expressions within angle brackets, and
+You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
 [source,console]
@@ -120,7 +117,7 @@ The special characters used for date rounding must be URI encoded as follows:
 `,`:: `%2C`
 ======================================================
 
-The following example shows different forms of date math names and the final names
+The following example shows different forms of date math index names and the final index names
 they resolve to given the current time is 22nd March 2024 noon utc.
 
 [options="header"]

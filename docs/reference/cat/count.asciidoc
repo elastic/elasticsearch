@@ -48,7 +48,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[cat-count-api-example-ind]]
-===== Example with an individual target
+===== Example with an individual data stream or index
 
 The following `count` API request retrieves the document count for the 
 `twitter` data stream or index.
@@ -70,7 +70,7 @@ epoch      timestamp count
 // TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ non_json]
 
 [[cat-count-api-example-all]]
-===== Example with all resources in a cluster
+===== Example with all data streams and indices in a cluster
 
 The following `count` API request retrieves the document count for all data
 streams and indices in the cluster.

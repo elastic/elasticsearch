@@ -45,7 +45,9 @@ public class RSquared implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("r_squared");
 
-    private static final String PAINLESS_TEMPLATE = "def diff = doc[''{0}''].value - doc[''{1}''].value;return diff * diff;";
+    private static final String PAINLESS_TEMPLATE =
+        "def diff = doc[''{0}''].value - doc[''{1}''].value;" +
+        "return diff * diff;";
     private static final String SS_RES = "residual_sum_of_squares";
 
     private static String buildScript(Object... args) {
@@ -154,6 +156,10 @@ public class RSquared implements EvaluationMetric {
         @Override
         public String getMetricName() {
             return NAME.getPreferredName();
+        }
+
+        public double getValue() {
+            return value;
         }
 
         @Override

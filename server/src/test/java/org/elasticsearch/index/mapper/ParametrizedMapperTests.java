@@ -27,11 +27,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.AbstractBuilderTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class ParametrizedMapperTests extends AbstractBuilderTestCase {
+public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
@@ -50,7 +50,7 @@ public class ParametrizedMapperTests extends AbstractBuilderTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class); //WTF
+        return List.of(TestPlugin.class);
     }
 
     private static TestMapper toType(Mapper in) {
@@ -59,19 +59,19 @@ public class ParametrizedMapperTests extends AbstractBuilderTestCase {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        final ParametrizedFieldMapper.Parameter<Boolean> fixed
-            = ParametrizedFieldMapper.Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
-        final ParametrizedFieldMapper.Parameter<Boolean> fixed2
-            = ParametrizedFieldMapper.Parameter.boolParam("fixed2", false, m -> toType(m).fixed2, false);
-        final ParametrizedFieldMapper.Parameter<String> variable
-            = ParametrizedFieldMapper.Parameter.stringParam("variable", true, m -> toType(m).variable, "default");
+        final Parameter<Boolean> fixed
+            = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
+        final Parameter<Boolean> fixed2
+            = Parameter.boolParam("fixed2", false, m -> toType(m).fixed2, false);
+        final Parameter<String> variable
+            = Parameter.stringParam("variable", true, m -> toType(m).variable, "default");
 
         protected Builder(String name) {
             super(name);
         }
 
         @Override
-        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
+        protected List<Parameter<?>> getParameters() {
             return List.of(fixed, fixed2, variable);
         }
 
@@ -108,7 +108,7 @@ public class ParametrizedMapperTests extends AbstractBuilderTestCase {
 
         @Override
         public Builder getMergeBuilder() {
-            return new ParametrizedMapperTests.Builder(name()).init(this);
+            return new ParametrizedMapperTests.Builder(simpleName()).init(this);
         }
 
         @Override
@@ -218,11 +218,15 @@ public class ParametrizedMapperTests extends AbstractBuilderTestCase {
 
     public void testObjectSerialization() throws IOException {
 
-        QueryShardContext c = createShardContext();
+        IndexService indexService = createIndex("test");
 
         String mapping = "{\"properties\":{\"object\":{\"properties\":{\"nestedobject\":{\"type\":\"test_mapper\"}}}}}";
-        DocumentMapperParser parser = new DocumentMapperParser(c.getIndexSettings(), c.getMapperService(),
-            c.getXContentRegistry(), c.getSimilarityService(), c.getMapperService().mapperRegistry, () -> c);
+        DocumentMapperParser parser = new DocumentMapperParser(
+            indexService.getIndexSettings(),
+            indexService.mapperService(),
+            indexService.xContentRegistry(),
+            indexService.similarityService(),
+            indexService.mapperService().mapperRegistry, () -> null);
 
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         assertEquals("{\"_doc\":" + mapping + "}", Strings.toString(mapper));

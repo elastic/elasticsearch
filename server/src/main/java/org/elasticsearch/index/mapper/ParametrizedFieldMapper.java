@@ -87,88 +87,117 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         return builder.endObject();
     }
 
+    /**
+     * A configurable parameter for a field mapper
+     * @param <T> the type of the value the parameter holds
+     */
     public static final class Parameter<T> {
 
+        public final String name;
         private final T defaultValue;
         private final BiFunction<String, Object, T> parser;
-        private final Function<FieldMapper, T> merger;
-        public final String name;
-        public final boolean updateable;
+        private final Function<FieldMapper, T> initializer;
+        private final boolean updateable;
         private boolean acceptsNull = false;
         private T value;
-        private boolean frozen = false;
 
+        /**
+         * Creates a new Parameter
+         * @param name          the parameter name, used in parsing and serialization
+         * @param updateable    whether the parameter can be updated with a new value during a mapping update
+         * @param defaultValue  the default value for the parameter, used if unspecified in mappings
+         * @param parser        a function that converts an object to a parameter value
+         * @param initializer   a function that reads a parameter value from an existing mapper
+         */
         public Parameter(String name, boolean updateable, T defaultValue,
-                         BiFunction<String, Object, T> parser, Function<FieldMapper, T> merger) {
+                         BiFunction<String, Object, T> parser, Function<FieldMapper, T> initializer) {
             this.name = name;
             this.defaultValue = defaultValue;
             this.value = defaultValue;
             this.parser = parser;
-            this.merger = merger;
+            this.initializer = initializer;
             this.updateable = updateable;
         }
 
+        /**
+         * Returns the current value of the parameter
+         */
         public T getValue() {
             return value;
         }
 
+        /**
+         * Sets the current value of the parameter
+         */
+        public void setValue(T value) {
+            this.value = value;
+        }
+
+        /**
+         * Allows the parameter to accept a {@code null} value
+         */
         public Parameter<T> acceptsNull() {
             this.acceptsNull = true;
             return this;
         }
 
-        public Parameter<T> init(FieldMapper toInit) {
-            assert frozen == false;
-            this.value = merger.apply(toInit);
-            return this;
+        private void init(FieldMapper toInit) {
+            this.value = initializer.apply(toInit);
         }
 
-        public Parameter<T> update(T value) {
-            this.value = value;
-            return this;
-        }
-
-        public Parameter<T> parse(String field, Object in) {
-            assert frozen == false;
+        private void parse(String field, Object in) {
             this.value = parser.apply(field, in);
-            return this;
         }
 
-        public Parameter<T> merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = merger.apply(toMerge);
-            if (frozen && Objects.equals(this.value, value) == false) {
+        private void merge(FieldMapper toMerge, Conflicts conflicts) {
+            T value = initializer.apply(toMerge);
+            if (updateable == false && Objects.equals(this.value, value) == false) {
                 conflicts.addConflict(name, this.value.toString(), value.toString());
             } else {
                 this.value = value;
             }
-            return this;
         }
 
-        public Parameter<T> freeze() {
-            this.frozen = true;
-            return this;
-        }
-
-        public XContentBuilder toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             if (includeDefaults || (Objects.equals(defaultValue, value) == false)) {
                 builder.field(name, value);
             }
-            return builder;
         }
 
+        /**
+         * Defines a parameter that takes the values {@code true} or {@code false}
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
         public static Parameter<Boolean> boolParam(String name, boolean updateable,
-                                                   Function<FieldMapper, Boolean> merger, boolean defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeBooleanValue(o), merger);
+                                                   Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
+        /**
+         * Defines a parameter that takes a float value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
         public static Parameter<Float> floatParam(String name, boolean updateable,
-                                                  Function<FieldMapper, Float> merger, float defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeFloatValue(o), merger);
+                                                  Function<FieldMapper, Float> initializer, float defaultValue) {
+            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeFloatValue(o), initializer);
         }
 
+        /**
+         * Defines a parameter that takes a string value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
         public static Parameter<String> stringParam(String name, boolean updateable,
-                                                    Function<FieldMapper, String> merger, String defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), merger);
+                                                    Function<FieldMapper, String> initializer, String defaultValue) {
+            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), initializer);
         }
     }
 
@@ -208,21 +237,18 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             super(name);
         }
 
-        protected Builder init(FieldMapper base) {
+        protected Builder init(FieldMapper initializer) {
             for (Parameter<?> param : getParameters()) {
-                param.init(base);
+                param.init(initializer);
             }
-            for (Mapper subField : base.multiFields) {
+            for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
         }
 
-        public final void merge(FieldMapper in, Conflicts conflicts) {
+        private void merge(FieldMapper in, Conflicts conflicts) {
             for (Parameter<?> param : getParameters()) {
-                if (param.updateable == false) {
-                    param.freeze();
-                }
                 param.merge(in, conflicts);
             }
             for (Mapper newSubField : in.multiFields) {

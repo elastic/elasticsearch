@@ -71,13 +71,12 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
 
         public Builder(String name) {
-            super(name);
+            this(name, false);
         }
 
-        // For testing
-        public Builder docValues(boolean hasDocValues) {
-            this.hasDocValues.update(hasDocValues);
-            return this;
+        public Builder(String name, boolean hasDocValues) {
+            super(name);
+            this.hasDocValues.setValue(hasDocValues);
         }
 
         @Override

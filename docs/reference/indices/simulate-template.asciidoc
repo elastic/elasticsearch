@@ -229,19 +229,20 @@ The response shows the index settings, mappings, and aliases applied by the fina
   "template" : {
     "settings" : {
       "index" : {
-        "number_of_replicas" : "0", <1>
-        "number_of_shards" : "2"   <2>
+        "number_of_shards" : "2",
+        "number_of_replicas" : "0"
       }
     },
-    "mappings": {                  <3>
-      "properties": {
-        "@timestamp": {
-          "type": "date"
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
         }
       }
     },
     "aliases" : { }
-  }
+  },
+  "overlapping" : [ ]
 }
 ---------------------------------------------------------
 <1> The number of replicas from `ct2`

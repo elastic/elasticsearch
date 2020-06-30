@@ -93,6 +93,29 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertThat(fields.size(), equalTo(0));
     }
 
+    public void testMetadataFields() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "_routing");
+        assertTrue(fields.isEmpty());
+    }
+
+    public void testRetrieveAllFields() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .startObject("object")
+                .field("field", "other-value")
+            .endObject()
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(2));
+    }
+
     public void testArrayValueMappers() throws IOException {
         MapperService mapperService = createMapperService();
 

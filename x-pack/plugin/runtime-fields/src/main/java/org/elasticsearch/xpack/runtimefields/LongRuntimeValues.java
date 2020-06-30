@@ -9,23 +9,14 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.CheckedFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
@@ -47,6 +38,10 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
 
     public Query termQuery(String fieldName, long value) {
         return unstarted().new TermQuery(fieldName, value);
+    }
+
+    public Query rangeQuery(String fieldName, long lowerValue, long upperValue) {
+        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
     }
 
     @Override
@@ -135,53 +130,22 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
             }
         }
 
-        private class TermQuery extends Query {
-            private final String fieldName;
+        private class TermQuery extends AbstractRuntimeQuery {
             private final long term;
 
             private TermQuery(String fieldName, long term) {
-                this.fieldName = fieldName;
+                super(fieldName);
                 this.term = term;
             }
 
             @Override
-            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                return new ConstantScoreWeight(this, boost) {
-                    @Override
-                    public boolean isCacheable(LeafReaderContext ctx) {
-                        return false; // scripts aren't really cacheable at this point
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (term == values[i]) {
+                        return true;
                     }
-
-                    @Override
-                    public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                        IntConsumer leafCursor = leafCursor(ctx);
-                        DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                leafCursor.accept(approximation.docID());
-                                for (int i = 0; i < count; i++) {
-                                    if (term == values[i]) {
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                // TODO we have no idea what this should be and no real way to get one
-                                return 1000f;
-                            }
-                        };
-                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
-                    }
-
-                    @Override
-                    public void extractTerms(Set<Term> terms) {
-                        terms.add(new Term(fieldName, Long.toString(term)));
-                    }
-                };
+                }
+                return false;
             }
 
             @Override
@@ -190,25 +154,62 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
             }
 
             @Override
-            public String toString(String field) {
-                if (fieldName.contentEquals(field)) {
-                    return Long.toString(term);
-                }
-                return fieldName + ":" + term;
+            protected String bareToString() {
+                return Long.toString(term);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(fieldName, term);
+                return Objects.hash(super.hashCode(), term);
             }
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()) {
+                if (false == super.equals(obj)) {
                     return false;
                 }
                 TermQuery other = (TermQuery) obj;
-                return fieldName.equals(other.fieldName) && term == other.term;
+                return term == other.term;
+            }
+        }
+
+        private class RangeQuery extends AbstractRuntimeQuery {
+            private final long lowerValue;
+            private final long upperValue;
+
+            private RangeQuery(String fieldName, long lowerValue, long upperValue) {
+                super(fieldName);
+                this.lowerValue = lowerValue;
+                this.upperValue = upperValue;
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (lowerValue <= values[i] && values[i] <= upperValue) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            protected String bareToString() {
+                return "[" + lowerValue + "," + upperValue + "]";
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), lowerValue, upperValue);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                RangeQuery other = (RangeQuery) obj;
+                return lowerValue == other.lowerValue && upperValue == other.upperValue;
             }
         }
     }

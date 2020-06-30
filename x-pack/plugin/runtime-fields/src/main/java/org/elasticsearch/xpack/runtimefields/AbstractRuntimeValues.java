@@ -8,8 +8,18 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.IntConsumer;
 
 /**
@@ -96,5 +106,70 @@ public abstract class AbstractRuntimeValues<SV extends AbstractRuntimeValues<SV>
         protected abstract IntConsumer newLeafLoader(LeafReaderContext ctx) throws IOException;
 
         protected abstract void sort();
+
+        public abstract class AbstractRuntimeQuery extends Query {
+            protected final String fieldName;
+
+            protected AbstractRuntimeQuery(String fieldName) {
+                this.fieldName = fieldName;
+            }
+
+            @Override
+            public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                return new ConstantScoreWeight(this, boost) {
+                    @Override
+                    public boolean isCacheable(LeafReaderContext ctx) {
+                        return false; // scripts aren't really cacheable at this point
+                    }
+
+                    @Override
+                    public Scorer scorer(LeafReaderContext ctx) throws IOException {
+                        IntConsumer leafCursor = leafCursor(ctx);
+                        DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
+                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                leafCursor.accept(approximation.docID());
+                                return AbstractRuntimeQuery.this.matches();
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                // TODO we have no idea what this should be and no real way to get one
+                                return 1000f;
+                            }
+                        };
+                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                    }
+                };
+            }
+
+            protected abstract boolean matches();
+
+            @Override
+            public final String toString(String field) {
+                if (fieldName.contentEquals(field)) {
+                    return bareToString();
+                }
+                return fieldName + ":" + bareToString();
+            }
+
+            protected abstract String bareToString();
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(fieldName);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == null || getClass() != obj.getClass()) {
+                    return false;
+                }
+                @SuppressWarnings("unchecked")
+                AbstractRuntimeQuery other = (AbstractRuntimeQuery) obj;
+                return fieldName.equals(other.fieldName);
+            }
+        }
     }
 }

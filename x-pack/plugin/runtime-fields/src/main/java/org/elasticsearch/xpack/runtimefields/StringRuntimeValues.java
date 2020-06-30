@@ -8,16 +8,8 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -29,7 +21,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -120,53 +111,22 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
         }
 
-        private class TermQuery extends Query {
-            private final String fieldName;
+        private class TermQuery extends AbstractRuntimeQuery {
             private final String term;
 
             private TermQuery(String fieldName, String term) {
-                this.fieldName = fieldName;
+                super(fieldName);
                 this.term = term;
             }
 
             @Override
-            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                return new ConstantScoreWeight(this, boost) {
-                    @Override
-                    public boolean isCacheable(LeafReaderContext ctx) {
-                        return false; // scripts aren't really cacheable at this point
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (term.equals(values[i])) {
+                        return true;
                     }
-
-                    @Override
-                    public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                        IntConsumer leafCursor = leafCursor(ctx);
-                        DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                leafCursor.accept(approximation.docID());
-                                for (int i = 0; i < count; i++) {
-                                    if (term.equals(values[i])) {
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                // TODO we have no idea what this should be and no real way to get one
-                                return 1000f;
-                            }
-                        };
-                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
-                    }
-
-                    @Override
-                    public void extractTerms(Set<Term> terms) {
-                        terms.add(new Term(fieldName, term));
-                    }
-                };
+                }
+                return false;
             }
 
             @Override
@@ -175,75 +135,46 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
 
             @Override
-            public String toString(String field) {
-                if (fieldName.contentEquals(field)) {
-                    return term;
-                }
-                return fieldName + ":" + term;
+            protected String bareToString() {
+                return term;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(fieldName, term);
+                return Objects.hash(super.hashCode(), term);
             }
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()) {
+                if (false == super.equals(obj)) {
                     return false;
                 }
                 TermQuery other = (TermQuery) obj;
-                return fieldName.equals(other.fieldName) && term.equals(other.term);
+                return term.equals(other.term);
             }
         }
 
-        private class PrefixQuery extends Query {
-            private final String fieldName;
+        private class PrefixQuery extends AbstractRuntimeQuery {
             private final String prefix;
 
             private PrefixQuery(String fieldName, String prefix) {
-                this.fieldName = fieldName;
+                super(fieldName);
                 this.prefix = prefix;
             }
 
             @Override
-            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                return new ConstantScoreWeight(this, boost) {
-                    @Override
-                    public boolean isCacheable(LeafReaderContext ctx) {
-                        return false; // scripts aren't really cacheable at this point
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (values[i].startsWith(prefix)) {
+                        return true;
                     }
+                }
+                return false;
+            }
 
-                    @Override
-                    public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                        IntConsumer leafCursor = leafCursor(ctx);
-                        DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                leafCursor.accept(approximation.docID());
-                                for (int i = 0; i < count; i++) {
-                                    if (values[i].startsWith(prefix)) {
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                // TODO we have no idea what this should be and no real way to get one
-                                return 1000f;
-                            }
-                        };
-                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
-                    }
-
-                    @Override
-                    public void extractTerms(Set<Term> terms) {
-                        // TODO doing this is sort of difficult and maybe not needed.
-                    }
-                };
+            @Override
+            protected String bareToString() {
+                return prefix + "*";
             }
 
             @Override
@@ -260,25 +191,17 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
 
             @Override
-            public String toString(String field) {
-                if (fieldName.contentEquals(field)) {
-                    return prefix + "*";
-                }
-                return fieldName + ":" + prefix + "*";
-            }
-
-            @Override
             public int hashCode() {
-                return Objects.hash(fieldName, prefix);
+                return Objects.hash(super.hashCode(), prefix);
             }
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()) {
+                if (false == super.equals(obj)) {
                     return false;
                 }
                 PrefixQuery other = (PrefixQuery) obj;
-                return fieldName.equals(other.fieldName) && prefix.equals(other.prefix);
+                return prefix.equals(other.prefix);
             }
         }
     }

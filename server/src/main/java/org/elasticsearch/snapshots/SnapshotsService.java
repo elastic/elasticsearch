@@ -857,6 +857,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         runNextQueuedOperation(result.v1(), repository, true);
                     }, e -> handleFinalizationFailure(e, entry, repositoryData)));
         } catch (Exception e) {
+            assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
         }
     }
@@ -941,14 +942,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("Failed to run ready delete operations", e);
+                failAllListenersOnMasterFailOver(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (deletionToRun != null) {
-                    deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
-                } else {
+                if (deletionToRun == null) {
                     runNextQueuedOperation(repositoryData, repository, false);
+                } else {
+                    deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
                 }
             }
         });

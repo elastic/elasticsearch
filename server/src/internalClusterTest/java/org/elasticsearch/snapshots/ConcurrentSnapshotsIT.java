@@ -918,6 +918,39 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testMasterFailoverOnFinalizationLoop() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-test");
+        final NetworkDisruption networkDisruption = disconnectMasterDisruption();
+
+        final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
+        final String masterName = internalCluster().getMasterName();
+        blockMasterFromDeletingIndexNFile(repoName);
+        final ActionFuture<CreateSnapshotResponse> snapshotThree = startFullSnapshotFromMasterClient(repoName, "snap-other");
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+
+        final String snapshotOne = snapshotNames.get(0);
+        final ActionFuture<AcknowledgedResponse> deleteSnapshotOne = startDelete(repoName, snapshotOne);
+        awaitNDeletionsInProgress(1);
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+
+        unblockNode(repoName, masterName);
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4);
+
+        assertSuccessful(snapshotThree);
+        try {
+            deleteSnapshotOne.actionGet();
+        } catch (RepositoryException re) {
+            // ignored
+        }
+        awaitNoMoreRunningOperations();
+    }
+
     private List<String> createNSnapshots(String repoName, int count) throws Exception {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";

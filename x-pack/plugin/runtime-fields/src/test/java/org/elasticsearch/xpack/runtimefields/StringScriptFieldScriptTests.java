@@ -66,25 +66,29 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     public void testMultipleDocValuesValues() throws IOException {
-        assertThat(twoValuesInDocValues().collect(ADD_O), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
+        assertThat(multipleValuesInDocValues().collect(ADD_O), equalTo(List.of("cato", "pigo", "chickeno", "dogo")));
     }
 
     public void testTermQuery() throws IOException {
-        TestCase c = twoValuesInDocValues();
+        TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
         visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "cato"), addO), equalTo(List.of("cato", "pigo")));
         visited.clear();
+        assertThat(c.collect(addO.termQuery("foo", "pigo"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testPrefixQuery() throws IOException {
-        TestCase c = twoValuesInDocValues();
+        TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.prefixQuery("foo", "catdog"), addO), equalTo(List.of()));
         visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "cat"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.prefixQuery("foo", "pig"), addO), equalTo(List.of("cato", "pigo")));
         visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
         visited.clear();
@@ -119,7 +123,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         });
     }
 
-    private TestCase twoValuesInDocValues() throws IOException {
+    private TestCase multipleValuesInDocValues() throws IOException {
         return testCase(iw -> {
             List<IndexableField> doc = new ArrayList<>();
             doc.add(new SortedSetDocValuesField("foo", new BytesRef("cat")));

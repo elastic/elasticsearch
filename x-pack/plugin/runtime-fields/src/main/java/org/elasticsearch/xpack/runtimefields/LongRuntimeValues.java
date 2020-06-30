@@ -8,11 +8,24 @@ package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.CheckedFunction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
@@ -30,6 +43,10 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
 
     public CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValues() {
         return unstarted().docValues();
+    }
+
+    public Query termQuery(String fieldName, long value) {
+        return unstarted().new TermQuery(fieldName, value);
     }
 
     @Override
@@ -115,6 +132,83 @@ public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeVa
             public long cost() {
                 // TODO we have no idea what this should be and no real way to get one
                 return 1000;
+            }
+        }
+
+        private class TermQuery extends Query {
+            private final String fieldName;
+            private final long term;
+
+            private TermQuery(String fieldName, long term) {
+                this.fieldName = fieldName;
+                this.term = term;
+            }
+
+            @Override
+            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                return new ConstantScoreWeight(this, boost) {
+                    @Override
+                    public boolean isCacheable(LeafReaderContext ctx) {
+                        return false; // scripts aren't really cacheable at this point
+                    }
+
+                    @Override
+                    public Scorer scorer(LeafReaderContext ctx) throws IOException {
+                        IntConsumer leafCursor = leafCursor(ctx);
+                        DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
+                        TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                leafCursor.accept(approximation.docID());
+                                for (int i = 0; i < count; i++) {
+                                    if (term == values[i]) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                // TODO we have no idea what this should be and no real way to get one
+                                return 1000f;
+                            }
+                        };
+                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                    }
+
+                    @Override
+                    public void extractTerms(Set<Term> terms) {
+                        terms.add(new Term(fieldName, Long.toString(term)));
+                    }
+                };
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.consumeTerms(this, new Term(fieldName, Long.toString(term)));
+            }
+
+            @Override
+            public String toString(String field) {
+                if (fieldName.contentEquals(field)) {
+                    return Long.toString(term);
+                }
+                return fieldName + ":" + term;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(fieldName, term);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == null || getClass() != obj.getClass()) {
+                    return false;
+                }
+                TermQuery other = (TermQuery) obj;
+                return fieldName.equals(other.fieldName) && term == other.term;
             }
         }
     }

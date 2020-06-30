@@ -12,17 +12,23 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript.Factory;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,6 +38,8 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     LongRuntimeValues,
     SortedNumericDocValues,
     Long> {
+
+    private final Set<Integer> visited = new LinkedHashSet<>();
 
     public void testConstant() throws IOException {
         assertThat(randomLongs().collect("value(10)"), equalTo(List.of(10L, 10L)));
@@ -59,6 +67,19 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
             equalTo(List.of(10L, 20L, 100L, 200L))
         );
     }
+
+    public void testTermQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        LongRuntimeValues addO = c.testScript("times_ten");
+        assertThat(c.collect(addO.termQuery("foo", 1), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.termQuery("foo", 10), addO), equalTo(List.of(10L, 20L)));
+        visited.clear();
+        assertThat(c.collect(addO.termQuery("foo", 20), addO), equalTo(List.of(10L, 20L)));
+        visited.clear();
+        assertThat(c.collect(addO.termQuery("foo", 100), addO), equalTo(List.of(100L, 200L)));
+    }
+
 
     private TestCase randomLongs() throws IOException {
         return testCase(iw -> {
@@ -123,5 +144,65 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         for (int i = 0; i < count; i++) {
             sync.accept(docValues.nextValue());
         }
+    }
+
+    @Override
+    protected List<ScriptPlugin> extraScriptPlugins() {
+        return List.of(new ScriptPlugin() {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new ScriptEngine() {
+                    @Override
+                    public String getType() {
+                        return "test";
+                    }
+
+                    @Override
+                    public Set<ScriptContext<?>> getSupportedContexts() {
+                        return Set.of(LongScriptFieldScript.CONTEXT);
+                    }
+
+                    @Override
+                    public <FactoryType> FactoryType compile(
+                        String name,
+                        String code,
+                        ScriptContext<FactoryType> context,
+                        Map<String, String> params
+                    ) {
+                        assert context == LongScriptFieldScript.CONTEXT;
+                        @SuppressWarnings("unchecked")
+                        FactoryType result = (FactoryType) compile(name);
+                        return result;
+                    }
+
+                    private LongScriptFieldScript.Factory compile(String name) {
+                        if (name.equals("times_ten")) {
+                            return (params, source, fieldData) -> {
+                                LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                                    return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
+                                        @Override
+                                        protected void onSetDocument(int docId) {
+                                            int rebased = ctx.docBase + docId;
+                                            if (false == visited.add(rebased)) {
+                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
+                                            }
+                                        }
+
+                                        @Override
+                                        public void execute() {
+                                            for (Object v : getDoc().get("foo")) {
+                                                sync.accept(((long) v) * 10);
+                                            }
+                                        }
+                                    };
+                                };
+                                return leafFactory;
+                            };
+                        }
+                        throw new IllegalArgumentException();
+                    }
+                };
+            }
+        });
     }
 }

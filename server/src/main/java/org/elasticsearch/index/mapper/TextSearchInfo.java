@@ -45,6 +45,12 @@ public class TextSearchInfo {
     public static final TextSearchInfo SIMPLE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
 
+    /**
+     * Defines indexing information for fields that index as keywords, but split query input
+     * on whitespace to build disjunctions.
+     *
+     * Note that the results of {@link #isStored()} for this may not be accurate
+     */
     public static final TextSearchInfo WHITESPACE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
 

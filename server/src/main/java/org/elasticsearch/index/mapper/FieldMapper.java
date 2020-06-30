@@ -420,9 +420,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        if (fieldType.tokenized() == false || fieldType().getTextSearchInfo().getSearchAnalyzer() == null) {
+        if (fieldType.tokenized() == false) {
             return;
         }
+        assert fieldType().getTextSearchInfo().getSearchAnalyzer() != null;
         if (fieldType().indexAnalyzer() == null) {
             if (includeDefaults) {
                 builder.field("analyzer", "default");

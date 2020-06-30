@@ -102,12 +102,22 @@ public interface Function {
      */
     void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener);
 
+    /**
+     * Create a preview of the function.
+     *
+     * @param client a client instance for querying
+     * @param headers headers to be used to query only for what the caller is allowed to
+     * @param sourceConfig the source configuration
+     * @param fieldTypeMap mapping of field types
+     * @param numberOfRows number of rows to produce for the preview
+     * @param listener listener that takes a list, where every entry corresponds to 1 row/doc in the preview
+     */
     void preview(
         Client client,
         Map<String, String> headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
-        int numberOfBuckets,
+        int numberOfRows,
         ActionListener<List<Map<String, Object>>> listener
     );
 

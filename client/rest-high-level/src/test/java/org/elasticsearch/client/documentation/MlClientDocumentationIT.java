@@ -3586,7 +3586,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             MeanSquaredLogarithmicErrorMetric.Result meanSquaredLogarithmicErrorResult =
                 response.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME); // <3>
-            double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getError(); // <4>
+            double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getValue(); // <4>
 
             PseudoHuberMetric.Result pseudoHuberResult = response.getMetricByName(PseudoHuberMetric.NAME); // <5>
             double pseudoHuber = pseudoHuberResult.getValue(); // <6>

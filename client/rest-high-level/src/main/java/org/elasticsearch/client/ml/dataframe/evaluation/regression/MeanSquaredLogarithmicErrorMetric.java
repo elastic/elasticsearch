@@ -91,34 +91,34 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
 
     public static class Result implements EvaluationMetric.Result  {
 
-        public static final ParseField ERROR = new ParseField("error");
-        private final double error;
+        public static final ParseField VALUE = new ParseField("value");
+        private final double value;
 
         public static Result fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("mean_squared_error_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>("mean_squared_logarithmic_error_result", true, args -> new Result((double) args[0]));
 
         static {
-            PARSER.declareDouble(constructorArg(), ERROR);
+            PARSER.declareDouble(constructorArg(), VALUE);
         }
 
-        public Result(double error) {
-            this.error = error;
+        public Result(double value) {
+            this.value = value;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ERROR.getPreferredName(), error);
+            builder.field(VALUE.getPreferredName(), value);
             builder.endObject();
             return builder;
         }
 
-        public double getError() {
-            return error;
+        public double getValue() {
+            return value;
         }
 
         @Override
@@ -131,12 +131,12 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(that.error, this.error);
+            return this.value == that.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(error);
+            return Double.hashCode(value);
         }
     }
 }

@@ -143,8 +143,8 @@ public class MeanSquaredError implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
-        public double getError() {
-            return error;
+        public double getValue() {
+            return value;
         }
 
         @Override

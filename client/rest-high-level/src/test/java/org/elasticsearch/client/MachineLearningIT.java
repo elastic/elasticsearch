@@ -1874,7 +1874,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MeanSquaredLogarithmicErrorMetric.Result msleResult =
             evaluateDataFrameResponse.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME);
         assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicErrorMetric.NAME));
-        assertThat(msleResult.getError(), closeTo(0.02759231770210426, 1e-9));
+        assertThat(msleResult.getValue(), closeTo(0.02759231770210426, 1e-9));
 
         PseudoHuberMetric.Result pseudoHuberResult = evaluateDataFrameResponse.getMetricByName(PseudoHuberMetric.NAME);
         assertThat(pseudoHuberResult.getMetricName(), equalTo(PseudoHuberMetric.NAME));

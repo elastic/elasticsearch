@@ -8,7 +8,7 @@ import java.nio.file.Files
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(":plugins:repository-gcs")
+  api project(":plugins:repository-gcs")
   testImplementation project(":test:framework")
   testImplementation project(':x-pack:snapshot-tool')
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)

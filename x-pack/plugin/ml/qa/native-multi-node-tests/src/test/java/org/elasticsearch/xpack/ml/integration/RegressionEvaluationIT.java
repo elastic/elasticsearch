@@ -20,7 +20,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
@@ -120,7 +119,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
     private static void createHousesIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName)
-            .setMapping("_doc",
+            .addMapping("_doc",
                 PRICE_FIELD, "type=double",
                 PRICE_PREDICTION_FIELD, "type=double")
             .get();

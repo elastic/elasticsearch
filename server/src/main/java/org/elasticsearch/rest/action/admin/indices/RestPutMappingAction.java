@@ -44,9 +44,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestPutMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping " +
-        "requests is deprecated. To be compatible with 7.0, the mapping definition should not be nested under " +
-        "the type name, and the parameter include_type_name must be provided and set to false.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in put mapping requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', and requests are expected to omit the type name in mapping definitions.";
 
     public RestPutMappingAction(Settings settings, RestController controller) {
         super(settings);
@@ -81,19 +81,19 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         String type = request.param("type");
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
             request.getXContentType()).v2();
 
-        if (includeTypeName) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         } else if (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
             throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
                 "the include_type_name parameter is set to true.");
         }
 
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(sourceAsMap);
 

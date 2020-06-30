@@ -110,7 +110,7 @@ public abstract class BaseFuture<V> implements Future<V> {
         if (!sync.cancel()) {
             return false;
         }
-        done();
+        done(false);
         if (mayInterruptIfRunning) {
             interruptTask();
         }
@@ -132,7 +132,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     /**
      * Subclasses should invoke this method to set the result of the computation
      * to {@code value}.  This will set the state of the future to
-     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done()} if the
+     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done(boolean)} if the
      * state was successfully changed.
      *
      * @param value the value that was the result of the task.
@@ -141,7 +141,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     protected boolean set(@Nullable V value) {
         boolean result = sync.set(value);
         if (result) {
-            done();
+            done(true);
         }
         return result;
     }
@@ -149,7 +149,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     /**
      * Subclasses should invoke this method to set the result of the computation
      * to an error, {@code throwable}.  This will set the state of the future to
-     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done()} if the
+     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done(boolean)} if the
      * state was successfully changed.
      *
      * @param throwable the exception that the task failed with.
@@ -159,7 +159,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     protected boolean setException(Throwable throwable) {
         boolean result = sync.setException(Objects.requireNonNull(throwable));
         if (result) {
-            done();
+            done(false);
         }
 
         // If it's an Error, we want to make sure it reaches the top of the
@@ -173,7 +173,14 @@ public abstract class BaseFuture<V> implements Future<V> {
         return result;
     }
 
-    protected void done() {
+    /**
+     * Called when the {@link BaseFuture} is completed. The {@code success} boolean indicates if the {@link BaseFuture} was successfully
+     * completed (the value is {@code true}). In the cases the {@link BaseFuture} was completed with an error or cancelled the
+     * value is {@code false}.
+     *
+     * @param success indicates if the {@link BaseFuture} was completed with success (true); in other cases it equals to false
+     */
+    protected void done(boolean success) {
     }
 
     /**

@@ -78,7 +78,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 for (int i = 0; i < numAggregations; i++) {
                     aggs.add(createTestInstance(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
-                return new InternalAggregations(aggs);
+                return InternalAggregations.from(aggs);
             };
         }
     }

@@ -28,8 +28,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
 
 public final class FetchVersionPhase implements FetchSubPhase {
     @Override
@@ -38,9 +36,6 @@ public final class FetchVersionPhase implements FetchSubPhase {
             (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false)) {
             return;
         }
-
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         int lastReaderId = -1;
         NumericDocValues versions = null;

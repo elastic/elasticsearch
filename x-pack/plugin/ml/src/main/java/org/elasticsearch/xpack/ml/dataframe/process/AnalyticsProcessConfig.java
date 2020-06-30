@@ -9,12 +9,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 public class AnalyticsProcessConfig implements ToXContentObject {
@@ -99,28 +97,6 @@ public class AnalyticsProcessConfig implements ToXContentObject {
             builder.field("parameters", analysis.getParams(new AnalysisFieldInfo(extractedFields)));
             builder.endObject();
             return builder;
-        }
-    }
-
-    private static class AnalysisFieldInfo implements DataFrameAnalysis.FieldInfo {
-
-        private final ExtractedFields extractedFields;
-
-        AnalysisFieldInfo(ExtractedFields extractedFields) {
-            this.extractedFields = Objects.requireNonNull(extractedFields);
-        }
-
-        @Override
-        public Set<String> getTypes(String field) {
-            Optional<ExtractedField> extractedField = extractedFields.getAllFields().stream()
-                .filter(f -> f.getName().equals(field))
-                .findAny();
-            return extractedField.isPresent() ? extractedField.get().getTypes() : null;
-        }
-
-        @Override
-        public Long getCardinality(String field) {
-            return extractedFields.getCardinalitiesForFieldsWithConstraints().get(field);
         }
     }
 }

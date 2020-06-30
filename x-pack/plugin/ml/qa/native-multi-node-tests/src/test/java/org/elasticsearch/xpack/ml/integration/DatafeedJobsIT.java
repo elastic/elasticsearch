@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -99,8 +100,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58491")
     public void testLookbackOnlyDataStream() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         String mapping = "{\n" +
             "      \"properties\": {\n" +
             "        \"time\": {\n" +

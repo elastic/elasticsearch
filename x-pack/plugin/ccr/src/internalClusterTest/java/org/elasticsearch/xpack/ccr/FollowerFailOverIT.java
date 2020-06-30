@@ -51,13 +51,12 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58534")
     public void testFailOverOnFollower() throws Exception {
         final String leaderIndex = "leader_test_failover";
         final String followerIndex = "follower_test_failover";
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();
-        getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
+        ensureFollowerHasAtLeastNumDataAndRemoteClusterClientNodes(numberOfReplicas + between(1, 2));
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         AtomicBoolean stopped = new AtomicBoolean();
@@ -122,7 +121,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
     }
 
     public void testFollowIndexAndCloseNode() throws Exception {
-        getFollowerCluster().ensureAtLeastNumDataNodes(3);
+        ensureFollowerHasAtLeastNumDataAndRemoteClusterClientNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
@@ -181,7 +180,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
-        getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(2, 3));
+        ensureFollowerHasAtLeastNumDataAndRemoteClusterClientNodes(numberOfReplicas + between(2, 3));
         ensureFollowerGreen("follower-index");
         AtomicBoolean stopped = new AtomicBoolean();
         AtomicInteger docID = new AtomicInteger();

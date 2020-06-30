@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -73,6 +75,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -749,6 +752,22 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
         });
         latch.await();
+    }
+
+    protected void ensureFollowerHasAtLeastNumDataAndRemoteClusterClientNodes(int n) {
+        final InternalTestCluster followerCluster = getFollowerCluster();
+        final int currentNodes = followerCluster.filterNodes(node ->
+            DiscoveryNode.hasRole(node.settings(), DiscoveryNodeRole.DATA_ROLE) &&
+                DiscoveryNode.hasRole(node.settings(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)).size();
+        if (currentNodes < n) {
+            followerCluster.startNodes(n - currentNodes,
+                NodeRoles.onlyRoles(Settings.EMPTY, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
+            followerCluster.validateClusterFormed();
+        }
+        final int newNodes = followerCluster.filterNodes(node ->
+            DiscoveryNode.hasRole(node.settings(), DiscoveryNodeRole.DATA_ROLE) &&
+                DiscoveryNode.hasRole(node.settings(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)).size();
+        assertThat(newNodes, greaterThanOrEqualTo(n));
     }
 
     static class ClusterGroup implements Closeable {

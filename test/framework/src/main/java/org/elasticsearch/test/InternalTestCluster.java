@@ -2087,6 +2087,15 @@ public final class InternalTestCluster extends TestCluster {
         return filterNodes(nodes, DATA_NODE_PREDICATE);
     }
 
+    public Collection<Node> filterNodes(Predicate<Node> predicate) {
+            return nodes
+                .values()
+                .stream()
+                .map(NodeAndClient::node)
+                .filter(predicate)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     private static Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map,
             Predicate<NodeAndClient> predicate) {
         return map

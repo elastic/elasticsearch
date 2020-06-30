@@ -45,6 +45,10 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().new FuzzyQuery(fieldName, value, maxEdits, prefixLength, maxExpansions, transpositions);
     }
 
+    public Query prefixQuery(String fieldName, String value) {
+        return unstarted().new PrefixQuery(fieldName, value);
+    }
+
     public Query termQuery(String fieldName, String value) {
         return unstarted().new TermQuery(fieldName, value);
     }
@@ -53,12 +57,12 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().new TermsQuery(fieldName, values);
     }
 
-    public Query prefixQuery(String fieldName, String value) {
-        return unstarted().new PrefixQuery(fieldName, value);
-    }
-
     public Query rangeQuery(String fieldName, String lowerValue, String upperValue) {
         return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
+    }
+
+    public Query wildcardQuery(String fieldName, String pattern) {
+        return unstarted().new WildcardQuery(fieldName, pattern);
     }
 
     @Override
@@ -182,6 +186,57 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
         }
 
+        private class PrefixQuery extends AbstractRuntimeQuery {
+            private final String prefix;
+
+            private PrefixQuery(String fieldName, String prefix) {
+                super(fieldName);
+                this.prefix = prefix;
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    if (values[i].startsWith(prefix)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            protected String bareToString() {
+                return prefix + "*";
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                visitor.consumeTermsMatching(
+                    this,
+                    fieldName,
+                    () -> new ByteRunAutomaton(
+                        org.apache.lucene.search.PrefixQuery.toAutomaton(new BytesRef(prefix)),
+                        true,
+                        Integer.MAX_VALUE
+                    )
+                );
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), prefix);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                PrefixQuery other = (PrefixQuery) obj;
+                return prefix.equals(other.prefix);
+            }
+        }
+
         private class TermQuery extends AbstractRuntimeQuery {
             private final String term;
 
@@ -271,57 +326,6 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
             }
         }
 
-        private class PrefixQuery extends AbstractRuntimeQuery {
-            private final String prefix;
-
-            private PrefixQuery(String fieldName, String prefix) {
-                super(fieldName);
-                this.prefix = prefix;
-            }
-
-            @Override
-            protected boolean matches() {
-                for (int i = 0; i < count; i++) {
-                    if (values[i].startsWith(prefix)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            protected String bareToString() {
-                return prefix + "*";
-            }
-
-            @Override
-            public void visit(QueryVisitor visitor) {
-                visitor.consumeTermsMatching(
-                    this,
-                    fieldName,
-                    () -> new ByteRunAutomaton(
-                        org.apache.lucene.search.PrefixQuery.toAutomaton(new BytesRef(prefix)),
-                        true,
-                        Integer.MAX_VALUE
-                    )
-                );
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(super.hashCode(), prefix);
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (false == super.equals(obj)) {
-                    return false;
-                }
-                PrefixQuery other = (PrefixQuery) obj;
-                return prefix.equals(other.prefix);
-            }
-        }
-
         private class RangeQuery extends AbstractRuntimeQuery {
             private final String lowerValue;
             private final String upperValue;
@@ -360,6 +364,55 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
                 }
                 RangeQuery other = (RangeQuery) obj;
                 return lowerValue.equals(other.lowerValue) && upperValue.equals(other.upperValue);
+            }
+        }
+
+        private class WildcardQuery extends AbstractRuntimeQuery {
+            private final BytesRefBuilder scratch = new BytesRefBuilder();
+            private final String pattern;
+            private final ByteRunAutomaton automaton;
+
+            private WildcardQuery(String fieldName, String pattern) {
+                super(fieldName);
+                this.pattern = pattern;
+                automaton = new ByteRunAutomaton(org.apache.lucene.search.WildcardQuery.toAutomaton(new Term(fieldName, pattern)));
+            }
+
+            @Override
+            protected boolean matches() {
+                for (int i = 0; i < count; i++) {
+                    scratch.copyChars(values[i]);
+                    if (automaton.run(scratch.bytes(), 0, scratch.length())) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            protected String bareToString() {
+                return pattern;
+            }
+
+            @Override
+            public void visit(QueryVisitor visitor) {
+                if (visitor.acceptField(fieldName)) {
+                    visitor.consumeTermsMatching(this, fieldName, () -> automaton);
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(super.hashCode(), pattern);
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (false == super.equals(obj)) {
+                    return false;
+                }
+                WildcardQuery other = (WildcardQuery) obj;
+                return pattern.equals(other.pattern);
             }
         }
     }

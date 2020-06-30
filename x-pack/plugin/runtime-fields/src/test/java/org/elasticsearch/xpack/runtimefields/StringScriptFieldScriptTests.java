@@ -131,6 +131,18 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
+    public void testWildcardQuery() throws IOException {
+        TestCase c = multipleValuesInDocValues();
+        StringRuntimeValues addO = c.testScript("add_o");
+        assertThat(c.collect(addO.wildcardQuery("foo", "cat"), addO), equalTo(List.of()));
+        visited.clear();
+        assertThat(c.collect(addO.wildcardQuery("foo", "cat?"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.wildcardQuery("foo", "p*"), addO), equalTo(List.of("cato", "pigo")));
+        visited.clear();
+        assertThat(c.collect(addO.wildcardQuery("foo", "do?o"), addO), equalTo(List.of("chickeno", "dogo")));
+    }
+
     private TestCase randomStrings() throws IOException {
         return testCase(iw -> {
             iw.addDocument(List.of(new SortedSetDocValuesField("foo", new BytesRef(randomAlphaOfLength(2)))));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -96,6 +97,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testSimpleDataStreamPivot() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         String indexName = "reviews_data_stream";
         createReviewsIndex(indexName,  1000, "date", true);
         String transformId = "simple_data_stream_pivot";

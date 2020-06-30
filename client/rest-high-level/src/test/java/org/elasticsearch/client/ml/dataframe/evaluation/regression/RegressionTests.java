@@ -42,6 +42,9 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
             metrics.add(new MeanSquaredErrorMetric());
         }
         if (randomBoolean()) {
+            metrics.add(new MeanSquaredLogarithmicErrorMetricTests().createTestInstance());
+        }
+        if (randomBoolean()) {
             metrics.add(new RSquaredMetric());
         }
         return randomBoolean() ?

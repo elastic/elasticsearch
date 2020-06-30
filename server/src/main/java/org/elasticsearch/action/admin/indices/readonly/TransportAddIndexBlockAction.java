@@ -96,6 +96,12 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     }
 
     @Override
+    protected void masterOperation(AddIndexBlockRequest request, ClusterState state,
+                                   ActionListener<AddIndexBlockResponse> listener) throws Exception {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
     protected void masterOperation(final Task task,
                                    final AddIndexBlockRequest request,
                                    final ClusterState state,

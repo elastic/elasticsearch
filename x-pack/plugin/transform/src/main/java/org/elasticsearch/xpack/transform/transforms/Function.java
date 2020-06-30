@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -38,20 +39,57 @@ public interface Function {
      *
      * The purpose of the change collector is minimizing the update required for continuous transforms.
      *
-     * In a nutshell it uses queries to
-     * 1. check and collect what needs to be updated
-     * 2. apply the collected changes as filter query.
+     * The change collector is stateful, changes are stored inside. For scaling the change collector has a
+     * cursor and can run in iterations.
+     *
+     * In a nutshell the algorithm works like this:
+     * 1. check and collect what needs to be updated, but only up to the page size limit
+     * 2. apply the collected changes as filter query and search/process them
+     * 3. in case phase 1 could not collect all changes, move the collector cursor, collect changes and continue with step 2
      */
     public interface ChangeCollector {
 
-        boolean collectChanges(SearchResponse searchResponse);
+        /**
+         * Build the search query to gather the changes between 2 checkpoints.
+         *
+         * @param searchSourceBuilder a searchsource builder instance
+         * @param position the position of the change collector
+         * @param pageSize the pageSize configured by the function, used as upper boundary, a lower page size might be used
+         * @return the searchSource, expanded with the relevant parts
+         */
+        SearchSourceBuilder buildChangesQuery(SearchSourceBuilder searchSourceBuilder, Map<String, Object> position, int pageSize);
 
-        QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        /**
+         * Process the search response of the changes query and remember the changes.
+         *
+         * TODO: replace the boolean with a more descriptive enum.
+         *
+         * @param searchResponse the response after querying for changes
+         * @return true in case of no more changed buckets, false in case changes buckets have been collected
+         */
+        boolean processSearchResponse(SearchResponse searchResponse);
 
-        SearchSourceBuilder buildChangesQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize);
+        /**
+         * Build the filter query to narrow the result set given the previously collected changes.
+         *
+         * TODO: it might be useful to have the full checkpoint data.
+         *
+         * @param lastCheckpointTimestamp the timestamp of the last checkpoint
+         * @param nextcheckpointTimestamp the timestamp of the next (in progress) checkpoint
+         * @return a filter query, null in case of no filter
+         */
+        QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
 
+        /**
+         * Clear the internal state to free up memory.
+         */
         void clear();
 
+        /**
+         * Get the bucket position of the changes collector.
+         *
+         * @return the position, null in case the collector is exhausted
+         */
         Map<String, Object> getBucketPosition();
     }
 
@@ -74,7 +112,7 @@ public interface Function {
     );
 
     /**
-     * Validate configuration.
+     * Validate the configuration.
      *
      * @param listener the result listener
      */
@@ -124,38 +162,28 @@ public interface Function {
     /**
      * Build the query for the next iteration
      *
-     * @param builder a searchsource builder instance
+     * @param searchSourceBuilder a searchsource builder instance
      * @param position current position (cursor/page)
      * @param pageSize the pageSize, defining how much data to request
      * @return the searchSource, expanded with the relevant parts
      */
-    SearchSourceBuilder buildSearchQuery(SearchSourceBuilder builder, Map<String, Object> position, int pageSize);
+    SearchSourceBuilder buildSearchQuery(SearchSourceBuilder searchSourceBuilder, Map<String, Object> position, int pageSize);
 
     /**
-     * Process the search response and return a stream of index requests.
+     * Process the search response and return a stream of index requests as well as the cursor.
      *
      * @param searchResponse the search response
      * @param destinationIndex the destination index
      * @param destinationPipeline the destination pipeline
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
-     * @return stream of index requests
+     * @return a tuple with the stream of index requests and the cursor
      */
-    Stream<IndexRequest> processSearchResponse(
+    Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
         Map<String, String> fieldMappings,
         TransformIndexerStats stats
     );
-
-    /**
-     * Get the cursor given the search response.
-     *
-     * TODO: we might want to merge this with processSearchResponse
-     *
-     * @param searchResponse the search response
-     * @return the cursor
-     */
-    Map<String, Object> getAfterKey(SearchResponse searchResponse);
 }

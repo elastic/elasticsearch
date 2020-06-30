@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -274,7 +275,7 @@ public class Pivot implements Function {
     }
 
     @Override
-    public Stream<IndexRequest> processSearchResponse(
+    public Tuple<Stream<IndexRequest>, Map<String, Object>> processSearchResponse(
         final SearchResponse searchResponse,
         final String destinationIndex,
         final String destinationPipeline,
@@ -294,23 +295,14 @@ public class Pivot implements Function {
         }
 
         final CompositeAggregation compositeAgg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-        if (compositeAgg.getBuckets().isEmpty()) {
+        if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
             return null;
         }
 
-        return processBucketsToIndexRequests(compositeAgg, destinationIndex, destinationPipeline, fieldMappings, stats);
-    }
-
-    @Override
-    public Map<String, Object> getAfterKey(SearchResponse searchResponse) {
-        final Aggregations aggregations = searchResponse.getAggregations();
-        if (aggregations == null) {
-            return null;
-        }
-
-        final CompositeAggregation compositeAgg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-
-        return compositeAgg != null ? compositeAgg.afterKey() : null;
+        return new Tuple<>(
+            processBucketsToIndexRequests(compositeAgg, destinationIndex, destinationPipeline, fieldMappings, stats),
+            compositeAgg.afterKey()
+        );
     }
 
     /*

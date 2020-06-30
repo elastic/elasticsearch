@@ -229,7 +229,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public boolean collectChanges(final SearchResponse searchResponse) {
+    public boolean processSearchResponse(final SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
             // todo: log
@@ -253,7 +253,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {

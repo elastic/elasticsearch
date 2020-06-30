@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptException;
@@ -584,7 +585,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
         long docsBeforeProcess = getStats().getNumDocuments();
 
-        Stream<IndexRequest> indexRequestStream = function.processSearchResponse(
+        Tuple<Stream<IndexRequest>, Map<String, Object>> indexRequestStreamAndCursor = function.processSearchResponse(
             searchResponse,
             getConfig().getDestination().getIndex(),
             getConfig().getDestination().getPipeline(),
@@ -592,7 +593,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             getStats()
         );
 
-        if (indexRequestStream == null) {
+        if (indexRequestStreamAndCursor == null || indexRequestStreamAndCursor.v1() == null) {
             if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || function.supportsIncrementalBucketUpdate() == false) {
                 return new IterationResult<>(Collections.emptyList(), null, true);
             }
@@ -611,14 +612,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             );
         }
 
+        Stream<IndexRequest> indexRequestStream = indexRequestStreamAndCursor.v1();
         TransformIndexerPosition oldPosition = getPosition();
         TransformIndexerPosition newPosition = new TransformIndexerPosition(
-            function.getAfterKey(searchResponse),
+            indexRequestStreamAndCursor.v2(),
             oldPosition != null ? getPosition().getBucketsPosition() : null
         );
 
         List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
-        logger.info("index requests: {}", indexRequests.size());
         IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
 
         // NOTE: progress is also mutated in onFinish
@@ -631,7 +632,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final SearchResponse searchResponse) {
-        if (changeCollector.collectChanges(searchResponse)) {
+        if (changeCollector.processSearchResponse(searchResponse)) {
             changeCollector.clear();
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
@@ -725,7 +726,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
-        QueryBuilder filter = changeCollector.filterByChanges(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+        QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
 
         if (filter != null) {
             filteredQuery.filter(filter);

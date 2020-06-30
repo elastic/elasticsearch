@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -62,18 +63,15 @@ public class Map implements Function {
     }
 
     @Override
-    public Stream<IndexRequest> processSearchResponse(
+    public Tuple<Stream<IndexRequest>, java.util.Map<String, Object>> processSearchResponse(
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
         java.util.Map<String, String> fieldMappings,
         TransformIndexerStats stats
     ) {
-        logger.info("mapping buckets, total hits: {}", searchResponse.getHits().getTotalHits());
+        return new Tuple<>(Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
 
-        return Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
-
-            // logger.info("hit: {}", hit);
             BytesReference source = hit.getSourceRef();
             XContentType sourceType = XContentHelper.xContentType(source);
 
@@ -82,12 +80,7 @@ public class Map implements Function {
                 request.setPipeline(destinationPipeline);
             }
             return request;
-        });
-    }
-
-    @Override
-    public java.util.Map<String, Object> getAfterKey(SearchResponse searchResponse) {
-        return Collections.singletonMap("search_after", searchResponse.getHits().getSortFields());
+        }), Collections.singletonMap("search_after", searchResponse.getHits().getSortFields()));
     }
 
     @Override

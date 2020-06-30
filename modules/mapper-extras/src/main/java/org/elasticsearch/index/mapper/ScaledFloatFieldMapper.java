@@ -185,7 +185,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final double scalingFactor;
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
         }
 

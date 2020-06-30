@@ -116,11 +116,14 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
      * @return the created field type
      */
     private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
-        fieldType.setName(fieldName);
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
 
         for (Metric m : List.of(Metric.value_count, Metric.sum)) {
-            NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+            String subfieldName = subfieldName(fieldName, m);
+            NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
+                subfieldName,
+                NumberFieldMapper.NumberType.DOUBLE
+            );
             fieldType.addMetricField(m, subfield);
         }
         fieldType.setDefaultMetric(Metric.sum);

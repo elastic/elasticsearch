@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -201,13 +202,14 @@ import static java.util.stream.Collectors.toList;
 public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
-    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
-    public static final Setting<Boolean> NODE_MASTER_SETTING =
-        Setting.boolSetting("node.master", true, Property.NodeScope);
-    public static final Setting<Boolean> NODE_INGEST_SETTING =
-        Setting.boolSetting("node.ingest", true, Property.NodeScope);
-    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
-        Setting.boolSetting("node.remote_cluster_client", true, Property.NodeScope);
+    private static final Setting<Boolean> NODE_DATA_SETTING =
+        Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
+    private static final Setting<Boolean> NODE_MASTER_SETTING =
+        Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+    private static final Setting<Boolean> NODE_INGEST_SETTING =
+        Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
+    private static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+        Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
 
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting("node.attr.", (key) ->
@@ -313,14 +315,12 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
 
-            final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
-                    DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
-                    pluginsService.filterPlugins(Plugin.class)
-                            .stream()
-                            .map(Plugin::getRoles)
-                            .flatMap(Set::stream))
-                    .collect(Collectors.toSet());
-            DiscoveryNode.setPossibleRoles(possibleRoles);
+            final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .map(Plugin::getRoles)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+            DiscoveryNode.setAdditionalRoles(additionalRoles);
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -344,7 +344,13 @@ public class Node implements Closeable {
             HeaderWarning.setThreadContext(threadPool.getThreadContext());
             resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
-            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
+            final List<Setting<?>> additionalSettings = new ArrayList<>();
+            // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
+            additionalSettings.add(NODE_DATA_SETTING);
+            additionalSettings.add(NODE_INGEST_SETTING);
+            additionalSettings.add(NODE_MASTER_SETTING);
+            additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
+            additionalSettings.addAll(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
@@ -568,6 +574,7 @@ public class Node implements Closeable {
                 new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+            final WriteMemoryLimits bulkIndexingLimits = new WriteMemoryLimits();
 
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
@@ -586,6 +593,7 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptService);
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
+                    b.bind(WriteMemoryLimits.class).toInstance(bulkIndexingLimits);
                     b.bind(UsageService.class).toInstance(usageService);
                     b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);

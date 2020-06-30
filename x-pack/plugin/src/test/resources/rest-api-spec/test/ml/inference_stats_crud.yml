@@ -96,6 +96,12 @@ setup:
               }
             ]
           }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.health:
+        wait_for_status: yellow
+        index: .ml-stats*
 ---
 "Test get stats given missing trained model":
 

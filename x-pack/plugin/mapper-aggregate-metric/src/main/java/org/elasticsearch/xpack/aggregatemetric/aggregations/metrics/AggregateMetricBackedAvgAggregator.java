@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
@@ -38,21 +39,23 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
 
     AggregateMetricBackedAvgAggregator(
         String name,
-        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues()
+            ? (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource()
+            : null;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
             compensations = bigArrays.newDoubleArray(1, true);
         }
+        this.format = valuesSourceConfig.format();
     }
 
     @Override

@@ -251,7 +251,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
          */
         public Map<String, Map<String, Object>> getTimestampFieldMapping() {
             String mappingPath = convertFieldPathToMappingPath(name);
-            String parentObjectFieldPath = "_doc." + mappingPath.substring(0, mappingPath.lastIndexOf('.'));
+            String parentObjectFieldPath = mappingPath.substring(0, mappingPath.lastIndexOf('.'));
             String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
 
             Map<String, Object> result = new HashMap<>();

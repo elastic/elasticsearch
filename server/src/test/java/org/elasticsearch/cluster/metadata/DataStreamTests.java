@@ -171,14 +171,14 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     public void testGetTimestampFieldMapping() {
         TimestampField field = new TimestampField("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
         java.util.Map<String, java.util.Map<String, Object>> mappings = field.getTimestampFieldMapping();
-        java.util.Map<String, java.util.Map<String, Object>> expectedMapping = Map.of("_doc", Map.of("_doc", Map.of("properties",
-            Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))));
+        java.util.Map<String, java.util.Map<String, Object>> expectedMapping = Map.of("_doc", Map.of("properties",
+            Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")))));
         assertThat(mappings, equalTo(expectedMapping));
 
         TimestampField nestedField = new TimestampField("event.attr.@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
         mappings = nestedField.getTimestampFieldMapping();
-        expectedMapping = Map.of("_doc", Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
-            Map.of("properties", Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y"))))))))));
+        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
+            Map.of("properties", Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")))))))));
         assertThat(mappings, equalTo(expectedMapping));
     }
 }

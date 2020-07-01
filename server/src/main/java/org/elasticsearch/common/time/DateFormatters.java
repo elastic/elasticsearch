@@ -1672,10 +1672,14 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(getLocalDate(accessor, locale), localTime, zoneId);
-        } else if (accessor.isSupported(ChronoField.YEAR) || accessor.isSupported(ChronoField.YEAR_OF_ERA)) {
-            return of(getLocalDate(accessor, locale), localTime, zoneId);
+            return of(getLocaldate(accessor, locale), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
+            if (accessor.isSupported(MONTH_OF_YEAR)) {
+                return getFirstOfMonth(accessor).atStartOfDay(zoneId);
+            } else {
+                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
+            }
+        }  else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
@@ -1683,7 +1687,7 @@ public class DateFormatters {
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
-            return getLocalDate(accessor, locale).atStartOfDay(zoneId);
+            return getLocaldate(accessor, locale).atStartOfDay(zoneId);
         } else if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
             return localDateFromWeekBasedDate(accessor, locale).atStartOfDay(zoneId);
         }
@@ -1709,7 +1713,7 @@ public class DateFormatters {
     }
 
 
-    private static LocalDate getLocalDate(TemporalAccessor accessor, Locale locale) {
+    private static LocalDate getLocaldate(TemporalAccessor accessor, Locale locale) {
         if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
             return localDateFromWeekBasedDate(accessor, locale);
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {

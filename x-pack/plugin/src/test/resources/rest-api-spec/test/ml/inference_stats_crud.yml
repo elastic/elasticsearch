@@ -105,6 +105,16 @@ setup:
         body: >
           {
           }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.put_alias:
+        index: .ml-stats-000001
+        name: .ml-stats-write
+        body:
+          is_write_index: true
+          is_hidden: true
+
   # reference and then de-reference a model to flush the stats
   - do:
       headers:

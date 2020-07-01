@@ -20,10 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BreakNode;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a break statement.
@@ -35,17 +38,16 @@ public class SBreak extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
-        if (input.inLoop == false) {
+        if (semanticScope.getCondition(this, InLoop.class) == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        output.loopEscape = true;
-        output.allEscape = true;
-        output.anyBreak = true;
-        output.statementCount = 1;
+        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AnyBreak.class);
 
         BreakNode breakNode = new BreakNode();
         breakNode.setLocation(getLocation());

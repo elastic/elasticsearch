@@ -31,19 +31,19 @@ public class Sequence {
 
     private int currentStage = 0;
 
-    public Sequence(SequenceKey key, int stages, long timestamp, Comparable<Object> tiebreaker, SearchHit firstHit) {
+    public Sequence(SequenceKey key, int stages, Ordinal ordinal, SearchHit firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.stages = stages;
         this.matches = new Match[stages];
-        this.matches[0] = new Match(timestamp, tiebreaker, firstHit);
+        this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public int putMatch(int stage, SearchHit hit, long timestamp, Comparable<Object> tiebreaker) {
+    public int putMatch(int stage, SearchHit hit, Ordinal ordinal) {
         if (stage == currentStage + 1) {
             int previousStage = currentStage;
             currentStage = stage;
-            matches[currentStage] = new Match(timestamp, tiebreaker, hit);
+            matches[currentStage] = new Match(ordinal, hit);
             return previousStage;
         }
         throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage=]", stage, key, currentStage);
@@ -53,24 +53,12 @@ public class Sequence {
         return key;
     }
 
-    public int currentStage() {
-        return currentStage;
+    public Ordinal ordinal() {
+        return matches[currentStage].ordinal();
     }
 
-    public long currentTimestamp() {
-        return matches[currentStage].timestamp();
-    }
-
-    public Comparable<Object> currentTiebreaker() {
-        return matches[currentStage].tiebreaker();
-    }
-
-    public long timestamp(int stage) {
-        // stages not initialized yet return an out-of-band value to have no impact on the interval range
-        if (stage > currentStage) {
-            return Long.MAX_VALUE;
-        }
-        return matches[stage].timestamp();
+    public long startTimestamp() {
+        return matches[0].ordinal().timestamp;
     }
 
     public List<SearchHit> hits() {
@@ -110,7 +98,7 @@ public class Sequence {
         StringBuilder sb = new StringBuilder();
         sb.append(format(null, "[Seq<{}>[{}/{}]]",
                 key,
-                nf.format(currentStage()),
+                nf.format(currentStage),
                 nf.format(stages - 1)));
 
         for (int i = 0; i < matches.length; i++) {

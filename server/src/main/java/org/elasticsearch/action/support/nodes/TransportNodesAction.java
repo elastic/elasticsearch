@@ -90,7 +90,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      * @throws NullPointerException if {@code nodesResponses} is {@code null}
      * @see #newResponse(BaseNodesRequest, List, List)
      */
-    protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray nodesResponses) {
+    protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray<?> nodesResponses) {
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 

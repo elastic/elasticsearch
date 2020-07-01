@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -28,7 +29,7 @@ public final class EqlTestUtils {
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[]{"none"},
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, false, false, "",
-            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), () -> false);
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomTask());
 
     public static EqlConfiguration randomConfiguration() {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
@@ -42,7 +43,7 @@ public final class EqlTestUtils {
             randomBoolean(),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            () -> false);
+            randomTask());
     }
 
     public static EqlConfiguration randomConfigurationWithCaseSensitive(boolean isCaseSensitive) {
@@ -57,10 +58,11 @@ public final class EqlTestUtils {
             isCaseSensitive,
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            () -> false);
+            randomTask());
     }
 
     public static EqlSearchTask randomTask() {
-        return new EqlSearchTask(randomLong(), "transport", EqlSearchAction.NAME, () -> "", null, Collections.emptyMap());
+        return new EqlSearchTask(randomLong(), "transport", EqlSearchAction.NAME, "", null, Collections.emptyMap(), Collections.emptyMap(),
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5));
     }
 }

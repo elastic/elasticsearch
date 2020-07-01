@@ -52,7 +52,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
-                if (frozenLicenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
+                if (frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
                     IndicesAccessControl indicesAccessControl =
                         threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {

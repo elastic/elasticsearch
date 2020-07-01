@@ -44,6 +44,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
@@ -60,31 +61,36 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         return new LegacyGeoShapeFieldMapper.Builder("geoshape");
     }
 
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store");
+    }
+
     @Before
     public void addModifiers() {
         addModifier("tree", false, (a, b) -> {
-            a.fieldType().setTree("geohash");
-            b.fieldType().setTree("quadtree");
+            a.deprecatedParameters.tree = "geohash";
+            b.deprecatedParameters.tree = "quadtree";
         });
         addModifier("strategy", false, (a, b) -> {
-            a.fieldType().setStrategy(SpatialStrategy.TERM);
-            b.fieldType().setStrategy(SpatialStrategy.RECURSIVE);
+            a.deprecatedParameters.strategy = SpatialStrategy.TERM;
+            b.deprecatedParameters.strategy = SpatialStrategy.RECURSIVE;
         });
         addModifier("tree_levels", false, (a, b) -> {
-            a.fieldType().setTreeLevels(2);
-            b.fieldType().setTreeLevels(3);
+            a.deprecatedParameters.treeLevels = 2;
+            b.deprecatedParameters.treeLevels = 3;
         });
         addModifier("precision", false, (a, b) -> {
-            a.fieldType().setPrecisionInMeters(10);
-            b.fieldType().setPrecisionInMeters(20);
+            a.deprecatedParameters.precision = "10";
+            b.deprecatedParameters.precision = "20";
         });
         addModifier("distance_error_pct", true, (a, b) -> {
-            a.fieldType().setDistanceErrorPct(0.5);
-            b.fieldType().setDistanceErrorPct(0.6);
+            a.deprecatedParameters.distanceErrorPct = 0.5;
+            b.deprecatedParameters.distanceErrorPct = 0.6;
         });
         addModifier("orientation", true, (a, b) -> {
-            a.fieldType().setOrientation(ShapeBuilder.Orientation.RIGHT);
-            b.fieldType().setOrientation(ShapeBuilder.Orientation.LEFT);
+            a.orientation = ShapeBuilder.Orientation.RIGHT;
+            b.orientation = ShapeBuilder.Orientation.LEFT;
         });
     }
 
@@ -548,6 +554,11 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
+
+        Mapper fieldMapper = docMapper.mappers().getMapper("shape");
+        LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+
         String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape")
                 .field("tree", "quadtree")
@@ -565,10 +576,10 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         }
 
         // verify nothing changed
-        Mapper fieldMapper = docMapper.mappers().getMapper("shape");
+        fieldMapper = docMapper.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
-        LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
+        geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
         PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
@@ -615,7 +626,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type1", new CompressedXContent(mapping))
         );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(), containsString("fieldName is required"));
         assertFieldWarnings("tree");
     }
 
@@ -759,6 +770,17 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
         assertFieldWarnings("tree");
+    }
+
+    @Override
+    public void testSerialization() throws IOException {
+        super.testSerialization();
+        assertWarnings("Field parameter [strategy] is deprecated and will be removed in a future version.",
+            "Field parameter [tree] is deprecated and will be removed in a future version.",
+            "Field parameter [tree_levels] is deprecated and will be removed in a future version.",
+            "Field parameter [precision] is deprecated and will be removed in a future version.",
+            "Field parameter [distance_error_pct] is deprecated and will be removed in a future version."
+            );
     }
 
     public String toXContentString(LegacyGeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {

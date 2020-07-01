@@ -61,6 +61,15 @@ public class TreeInferenceModelTests extends ESTestCase {
         return new NamedXContentRegistry(namedXContent);
     }
 
+    public void testCtorWithNullTargetType() {
+        TreeInferenceModel treeInferenceModel = new TreeInferenceModel(
+            Collections.emptyList(),
+            Collections.singletonList(new TreeInferenceModel.NodeBuilder().setLeafValue(new double[]{1.0}).setNumberSamples(100L)),
+            null,
+            Collections.emptyList());
+        assertThat(treeInferenceModel.targetType(), equalTo(TargetType.REGRESSION));
+    }
+
     public void testSerializationFromEnsemble() throws Exception {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             Tree tree = TreeTests.createRandom(randomFrom(TargetType.values()));

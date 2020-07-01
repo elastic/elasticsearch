@@ -158,7 +158,7 @@ public class AppendProcessorTests extends ESTestCase {
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
         return new AppendProcessor(randomAlphaOfLength(10),
-            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
             ValueSource.wrap(fieldValue, TestTemplateService.instance()));
     }
 

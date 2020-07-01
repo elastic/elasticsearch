@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
@@ -84,11 +84,12 @@ public class InferenceProcessor extends AbstractProcessor {
     public InferenceProcessor(Client client,
                               InferenceAuditor auditor,
                               String tag,
+                              String description,
                               String targetField,
                               String modelId,
                               InferenceConfigUpdate inferenceConfig,
                               Map<String, String> fieldMap) {
-        super(tag);
+        super(tag, description);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
@@ -132,7 +133,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        Model.mapFieldsIfNecessary(fields, fieldMap);
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
         return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
@@ -270,7 +271,8 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                         Map<String, Object> config) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
@@ -300,6 +302,7 @@ public class InferenceProcessor extends AbstractProcessor {
             return new InferenceProcessor(client,
                 auditor,
                 tag,
+                description,
                 targetField,
                 modelId,
                 inferenceConfig,

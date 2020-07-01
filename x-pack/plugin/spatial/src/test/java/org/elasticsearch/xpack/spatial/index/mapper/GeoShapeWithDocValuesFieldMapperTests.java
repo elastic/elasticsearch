@@ -48,6 +48,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +60,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
     @Override
     protected GeoShapeWithDocValuesFieldMapper.Builder newBuilder() {
         return new GeoShapeWithDocValuesFieldMapper.Builder("geoshape");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store");
     }
 
     @Before
@@ -94,8 +100,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(org.elasticsearch.index.mapper.GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertFalse(geoShapeFieldMapper.docValues().explicit());
-        assertTrue(geoShapeFieldMapper.docValues().value());
         assertTrue(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
@@ -113,8 +117,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
-        assertFalse(geoShapeFieldMapper.docValues().explicit());
-        assertFalse(geoShapeFieldMapper.docValues().value());
         assertFalse(geoShapeFieldMapper.fieldType().hasDocValues());
     }
 
@@ -285,8 +287,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
         boolean hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
 
@@ -303,8 +303,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
         fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeWithDocValuesFieldMapper.class));
 
-        assertTrue(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().explicit());
-        assertFalse(((GeoShapeWithDocValuesFieldMapper)fieldMapper).docValues().value());
         hasDocValues = ((GeoShapeWithDocValuesFieldMapper)fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
     }

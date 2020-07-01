@@ -34,6 +34,10 @@ This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
+* Java based - formats with '8' prefix - week based parsing and calculations are using JDK default calendar data provider which is Sunday,1.
+Sunday is considered first day of a week and it requires only 1 day in a week to for the first week of the year.
+This issue is fixed in Elasticsearch 7.7 https://github.com/elastic/elasticsearch/pull/48209
+
 [[enhancement-6.8.9]]
 [float]
 === Enhancements

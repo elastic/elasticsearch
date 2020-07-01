@@ -20,12 +20,17 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -47,52 +52,50 @@ public class ESymbol extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
-        Class<?> type = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
+        Class<?> staticType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(symbol);
+        boolean read = semanticScope.getCondition(this, Read.class);
+        boolean write = semanticScope.getCondition(this, Write.class);
 
-        if (type != null)  {
-            if (input.write) {
+        if (staticType != null)  {
+            if (write) {
                 throw createError(new IllegalArgumentException("invalid assignment: " +
-                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
+                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "]"));
             }
 
-            if (input.read == false) {
+            if (read == false) {
                 throw createError(new IllegalArgumentException("not a statement: " +
-                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
+                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(staticType) + "] not used"));
             }
 
-            output.actual = type;
-            output.isStaticType = true;
+            semanticScope.putDecoration(this, new StaticType(staticType));
 
             StaticNode staticNode = new StaticNode();
-
             staticNode.setLocation(getLocation());
-            staticNode.setExpressionType(output.actual);
-
+            staticNode.setExpressionType(staticType);
             output.expressionNode = staticNode;
         } else if (semanticScope.isVariableDefined(symbol)) {
-            if (input.read == false && input.write == false) {
+            if (read == false && write == false) {
                 throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
             }
 
             Variable variable = semanticScope.getVariable(getLocation(), symbol);
 
-            if (input.write && variable.isFinal()) {
+            if (write && variable.isFinal()) {
                 throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
             }
 
-            output.actual = variable.getType();
+            Class<?> valueType = variable.getType();
+            semanticScope.putDecoration(this, new ValueType(valueType));
 
             VariableNode variableNode = new VariableNode();
-
             variableNode.setLocation(getLocation());
-            variableNode.setExpressionType(output.actual);
+            variableNode.setExpressionType(valueType);
             variableNode.setName(symbol);
-
             output.expressionNode = variableNode;
         } else {
-            output.partialCanonicalTypeName = symbol;
+            semanticScope.putDecoration(this, new PartialCanonicalTypeName(symbol));
         }
 
         return output;

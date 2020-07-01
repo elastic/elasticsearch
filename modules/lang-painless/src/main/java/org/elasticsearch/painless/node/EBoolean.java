@@ -20,9 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a boolean constant.
@@ -42,25 +45,24 @@ public class EBoolean extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to boolean constant [" + bool + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: boolean constant [" + bool + "] not used"));
         }
 
         Output output = new Output();
 
-        output.actual = boolean.class;
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
 
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(boolean.class);
         constantNode.setConstant(bool);
-
         output.expressionNode = constantNode;
 
         return output;

@@ -18,20 +18,15 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
-import java.io.IOException;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -76,7 +71,6 @@ public class InferenceRunner {
         }
 
         LOGGER.info("[{}] Running inference on model [{}]", config.getId(), modelId);
-
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
             modelLoadingService.getModelForSearch(modelId, localModelPlainActionFuture);
@@ -85,7 +79,7 @@ public class InferenceRunner {
             inferTestDocs(localModel, testDocsIterator);
             LOGGER.info("[{}] Inference finished", config.getId());
         } catch (Exception e) {
-
+            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
         }
     }
 

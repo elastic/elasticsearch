@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -66,13 +66,14 @@ public class DataFrameDataExtractor {
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
-    private final SetOnce<CrossValidationSplitter> crossValidationSplitter = new SetOnce<>();
+    private final CachedSupplier<CrossValidationSplitter> crossValidationSplitter;
 
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
         hasNext = true;
         searchHasShardFailure = false;
+        this.crossValidationSplitter = new CachedSupplier<>(context.crossValidationSplitterFactory::create);
     }
 
     public Map<String, String> getHeaders() {
@@ -95,12 +96,6 @@ public class DataFrameDataExtractor {
     public Optional<List<Row>> next() throws IOException {
         if (!hasNext()) {
             throw new NoSuchElementException();
-        }
-
-        if (crossValidationSplitter.get() == null) {
-            // We lazily create the cross validation splitter as its creation
-            // may involve a search
-            crossValidationSplitter.set(context.crossValidationSplitterFactory.create());
         }
 
         Optional<List<Row>> hits = scrollId == null ? Optional.ofNullable(initScroll()) : Optional.ofNullable(continueScroll());
@@ -172,7 +167,7 @@ public class DataFrameDataExtractor {
         }
     }
 
-    private List<Row> processSearchResponse(SearchResponse searchResponse) throws IOException {
+    private List<Row> processSearchResponse(SearchResponse searchResponse) {
         scrollId = searchResponse.getScrollId();
         if (searchResponse.getHits().getHits().length == 0) {
             hasNext = false;

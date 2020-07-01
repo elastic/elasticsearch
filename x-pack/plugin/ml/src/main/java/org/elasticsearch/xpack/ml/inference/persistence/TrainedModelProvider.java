@@ -371,16 +371,6 @@ public class TrainedModelProvider {
         ));
     }
 
-    public InferenceDefinition inflateModelForInference(TrainedModelConfig trainedModelConfig) throws IOException {
-        String compressedDefinition = trainedModelConfig.getCompressedDefinition();
-        assert compressedDefinition != null;
-
-        return InferenceToXContentCompressor.inflate(
-            compressedDefinition,
-            InferenceDefinition::fromXContent,
-            xContentRegistry);
-    }
-
     public void getTrainedModel(final String modelId, final boolean includeDefinition, final ActionListener<TrainedModelConfig> listener) {
 
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {

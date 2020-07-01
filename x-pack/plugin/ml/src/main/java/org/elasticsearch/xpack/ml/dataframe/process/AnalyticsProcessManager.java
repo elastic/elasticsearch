@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -328,13 +327,12 @@ public class AnalyticsProcessManager {
             return;
         }
 
-        InferenceConfig inferenceConfig = processContext.config.getAnalysis().inferenceConfig(
-            new AnalysisFieldInfo(processContext.dataExtractor.get().getExtractedFields()));
-        if (inferenceConfig != null) {
+        if (processContext.config.getAnalysis().supportsInference()) {
             refreshDest(parentTaskClient, processContext.config);
             InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, modelLoadingService, resultsPersisterService,
                 task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker(),
                 task.getStatsHolder().getDataCountsTracker());
+            processContext.setInferenceRunner(inferenceRunner);
             inferenceRunner.run(processContext.resultProcessor.get().getLatestModelId());
         }
     }

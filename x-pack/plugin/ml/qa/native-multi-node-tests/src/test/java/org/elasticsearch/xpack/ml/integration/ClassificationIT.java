@@ -888,4 +888,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String expectedDestIndexAuditMessage() {
         return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
     }
+
+    @Override
+    boolean supportsInference() {
+        return true;
+    }
 }

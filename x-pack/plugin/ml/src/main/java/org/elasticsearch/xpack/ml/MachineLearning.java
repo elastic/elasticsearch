@@ -698,8 +698,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             inferenceModelBreaker.get());
 
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
-            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService, EsExecutors.allocatedProcessors(settings));
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client,
+            threadPool,
+            analyticsProcessFactory,
+            dataFrameAnalyticsAuditor,
+            trainedModelProvider,
+            modelLoadingService,
+            resultsPersisterService,
+            EsExecutors.allocatedProcessors(settings));
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);

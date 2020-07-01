@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -64,6 +65,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
     private TrainedModelProvider trainedModelProvider;
+    private ModelLoadingService modelLoadingService;
     private ExecutorService executorServiceForJob;
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<AnalyticsResult> process;
@@ -109,9 +111,9 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
         resultsPersisterService = mock(ResultsPersisterService.class);
-
+        modelLoadingService = mock(ModelLoadingService.class);
         processManager = new AnalyticsProcessManager(client, executorServiceForJob, executorServiceForProcess, processFactory, auditor,
-            trainedModelProvider, resultsPersisterService, 1);
+            trainedModelProvider, modelLoadingService, resultsPersisterService, 1);
     }
 
     public void testRunJob_TaskIsStopping() {

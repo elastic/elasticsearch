@@ -219,6 +219,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             progress.stream().allMatch(phaseProgress -> phaseProgress.getProgressPercent() == 100), is(true));
     }
 
+    abstract boolean supportsInference();
+
     private List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
@@ -227,7 +229,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertThat(progress.size(), greaterThanOrEqualTo(4));
         assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
         assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
-//        assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        if (supportsInference()) {
+            assertThat(progress.get(progress.size() - 2).getPhase(), equalTo("writing_results"));
+            assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("inference"));
+        } else {
+            assertThat(progress.get(progress.size() - 1).getPhase(), equalTo("writing_results"));
+        }
         return progress;
     }
 

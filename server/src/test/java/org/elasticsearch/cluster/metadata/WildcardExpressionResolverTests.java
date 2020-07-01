@@ -32,9 +32,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
     public void testConvertWildcardsJustIndicesTests() {
@@ -204,6 +206,83 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                     () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias")));
             assertEquals("The provided expression [foo_alias] matches an alias, " +
                     "specify the corresponding concrete indices instead.", iae.getMessage());
+        }
+    }
+
+    public void testResolveDataStreams() {
+        String dataStreamName = "foo_logs";
+        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata firstBackingIndexMetadata =
+            IndexMetadata.builder(firstBackingIndexName).settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        String secondBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        IndexMetadata secondBackingIndexMetadata =
+            IndexMetadata.builder(secondBackingIndexName).settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("foo_foo").state(State.OPEN))
+            .put(indexBuilder("bar_bar").state(State.OPEN))
+            .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .put(firstBackingIndexMetadata, true)
+            .put(secondBackingIndexMetadata, true)
+            .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
+
+        {
+            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
+                false, false);
+            IndexNameExpressionResolver.Context indicesAndAliasesContext =
+                new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+
+            // data streams are not included but expression matches the data stream
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
+                () -> resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*")));
+            assertThat(illegalArgumentException.getMessage(), is("The provided expression [foo_*] matches a data stream, specify the " +
+                "corresponding concrete indices instead."));
+
+            // data streams are not included and expression doesn't match the data steram
+            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("bar_*"));
+            assertThat(indices, containsInAnyOrder("bar_bar", "bar_index"));
+        }
+
+        {
+            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
+                false, false);
+            IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(state,
+                indicesAndAliasesOptions, false, false, true);
+
+            // data stream's corresponding backing indices are resolved
+            List<String> indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("foo_*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
+                ".ds-foo_logs-000002"));
+
+            // include all wildcard adds the data stream but not the backing indices, they will be expanded later
+            indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", "foo_logs"));
+        }
+
+        {
+            IndicesOptions indicesAliasesAndExpandHiddenOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false,
+                true, true, false, false, false);
+            IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(state,
+                indicesAliasesAndExpandHiddenOptions, false, false, true);
+
+            // data stream's corresponding backing indices are resolved
+            List<String> indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("foo_*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
+                ".ds-foo_logs-000002"));
+
+            // include all wildcard adds the data stream and the expanded hidden backing indices
+            indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "bar_bar", "foo_foo", "foo_logs", ".ds-foo_logs-000001",
+                ".ds-foo_logs-000002"));
         }
     }
 

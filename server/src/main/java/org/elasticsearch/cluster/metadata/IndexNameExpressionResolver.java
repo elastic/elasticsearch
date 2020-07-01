@@ -182,7 +182,6 @@ public class IndexNameExpressionResolver {
         }
         Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
-        final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -248,10 +247,18 @@ public class IndexNameExpressionResolver {
                 if (addIndex(writeIndex, context)) {
                     concreteIndices.add(writeIndex.getIndex());
                 }
-            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
-                if (addIndex(writeIndex, context)) {
-                    concreteIndices.add(writeIndex.getIndex());
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                if (context.isResolveToWriteIndex()) {
+                    IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                    if (addIndex(writeIndex, context)) {
+                        concreteIndices.add(writeIndex.getIndex());
+                    }
+                } else {
+                    for (IndexMetadata index : indexAbstraction.getIndices()) {
+                        if (shouldTrackConcreteIndex(context, options, index)) {
+                            concreteIndices.add(index.getIndex());
+                        }
+                    }
                 }
             } else {
                 if (indexAbstraction.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
@@ -266,20 +273,8 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    if (index.getState() == IndexMetadata.State.CLOSE) {
-                        if (failClosed) {
-                            throw new IndexClosedException(index.getIndex());
-                        } else {
-                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
-                                concreteIndices.add(index.getIndex());
-                            }
-                        }
-                    } else if (index.getState() == IndexMetadata.State.OPEN) {
-                        if (addIndex(index, context)) {
-                            concreteIndices.add(index.getIndex());
-                        }
-                    } else {
-                        throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+                    if (shouldTrackConcreteIndex(context, options, index)) {
+                        concreteIndices.add(index.getIndex());
                     }
                 }
             }
@@ -291,6 +286,20 @@ public class IndexNameExpressionResolver {
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+        if (index.getState() == IndexMetadata.State.CLOSE) {
+            if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
+                throw new IndexClosedException(index.getIndex());
+            } else {
+                return options.forbidClosedIndices() == false && addIndex(index, context);
+            }
+        } else if (index.getState() == IndexMetadata.State.OPEN) {
+            return addIndex(index, context);
+        } else {
+            throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+        }
     }
 
     private static boolean addIndex(IndexMetadata metadata, Context context) {
@@ -742,7 +751,12 @@ public class IndexNameExpressionResolver {
                 if (context.includeDataStreams() == false && metadata.dataStreams().isEmpty() == false) {
                     throw dataStreamsNotSupportedException(expressions.toString());
                 }
-                return resolveEmptyOrTrivialWildcard(options, metadata);
+
+                List<String> resolvedExpressions = new ArrayList<>(resolveEmptyOrTrivialWildcard(options, metadata));
+                if (context.includeDataStreams()) {
+                    resolvedExpressions.addAll(metadata.dataStreams().keySet());
+                }
+                return resolvedExpressions;
             }
 
             Set<String> result = innerResolve(context, expressions, options, metadata);

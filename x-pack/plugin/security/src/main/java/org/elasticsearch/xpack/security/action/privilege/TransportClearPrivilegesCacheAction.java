@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
@@ -69,11 +68,11 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
     }
 
     @Override
-    protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request, Task task) {
+    protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request) {
         if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             privilegesStore.invalidateAll();
         } else {
-            privilegesStore.invalidate(List.of(request.getApplicationNames()));
+            privilegesStore.invalidate(org.elasticsearch.common.collect.List.of(request.getApplicationNames()));
         }
         if (request.clearRolesCache()) {
             rolesStore.invalidateAll();

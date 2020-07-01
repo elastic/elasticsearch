@@ -91,7 +91,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     class SizeFakingClusterInfo extends ClusterInfo {
         SizeFakingClusterInfo(ClusterInfo delegate) {
             super(delegate.getNodeLeastAvailableDiskUsages(), delegate.getNodeMostAvailableDiskUsages(),
-                delegate.shardSizes, delegate.routingToDataPath);
+                delegate.shardSizes, delegate.routingToDataPath, delegate.reservedSpace);
         }
 
         @Override

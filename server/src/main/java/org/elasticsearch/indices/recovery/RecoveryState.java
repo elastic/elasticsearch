@@ -209,6 +209,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 getTranslog().start();
                 break;
             case FINALIZE:
+                assert getIndex().bytesStillToRecover() >= 0 : "moving to stage FINALIZE without completing file details";
                 validateAndSetStage(Stage.TRANSLOG, stage);
                 getTranslog().stop();
                 break;
@@ -699,6 +700,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public static class Index extends Timer implements ToXContentFragment, Writeable {
 
         private final Map<String, File> fileDetails = new HashMap<>();
+        private boolean fileDetailsComplete;
 
         public static final long UNKNOWN = -1L;
 
@@ -715,6 +717,15 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 File file = new File(in);
                 fileDetails.put(file.name, file);
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                fileDetailsComplete = in.readBoolean();
+            } else {
+                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
+                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
+                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
+                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
+                fileDetailsComplete = fileDetails.isEmpty() == false;
+            }
             sourceThrottlingInNanos = in.readLong();
             targetThrottleTimeInNanos = in.readLong();
         }
@@ -727,6 +738,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             for (File file : files) {
                 file.writeTo(out);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(fileDetailsComplete);
+            }
             out.writeLong(sourceThrottlingInNanos);
             out.writeLong(targetThrottleTimeInNanos);
         }
@@ -738,14 +752,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void reset() {
             super.reset();
             fileDetails.clear();
+            fileDetailsComplete = false;
             sourceThrottlingInNanos = UNKNOWN;
             targetThrottleTimeInNanos = UNKNOWN;
         }
 
         public synchronized void addFileDetail(String name, long length, boolean reused) {
+            assert fileDetailsComplete == false : "addFileDetail for [" + name + "] when file details are already complete";
             File file = new File(name, length, reused);
             File existing = fileDetails.put(name, file);
             assert existing == null : "file [" + name + "] is already reported";
+        }
+
+        public synchronized void setFileDetailsComplete() {
+            fileDetailsComplete = true;
         }
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
@@ -866,6 +886,23 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
                     total += file.length();
+                }
+            }
+            return total;
+        }
+
+        /**
+         * @return number of bytes still to recover, i.e. {@link Index#totalRecoverBytes()} minus {@link Index#recoveredBytes()}, or
+         * {@code -1} if the full set of files to recover is not yet known
+         */
+        public synchronized long bytesStillToRecover() {
+            if (fileDetailsComplete == false) {
+                return -1L;
+            }
+            long total = 0L;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total += file.length() - file.recovered();
                 }
             }
             return total;

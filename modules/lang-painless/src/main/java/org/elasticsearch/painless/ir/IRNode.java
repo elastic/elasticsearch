@@ -22,7 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public abstract class IRNode {
 
@@ -40,7 +40,7 @@ public abstract class IRNode {
 
     /* end node data */
 
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();
     }
 
@@ -48,15 +48,15 @@ public abstract class IRNode {
         throw new UnsupportedOperationException();
     }
 
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();
     }
 
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();
     }
 
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();
     }
 }

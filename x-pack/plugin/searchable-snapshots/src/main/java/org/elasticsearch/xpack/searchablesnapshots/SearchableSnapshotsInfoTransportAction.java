@@ -19,8 +19,11 @@ public class SearchableSnapshotsInfoTransportAction extends XPackInfoFeatureTran
     private final XPackLicenseState licenseState;
 
     @Inject
-    public SearchableSnapshotsInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                                  XPackLicenseState licenseState) {
+    public SearchableSnapshotsInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS.name(), transportService, actionFilters);
         this.licenseState = licenseState;
     }

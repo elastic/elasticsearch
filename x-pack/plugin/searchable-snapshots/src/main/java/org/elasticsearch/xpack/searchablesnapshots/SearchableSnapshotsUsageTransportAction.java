@@ -28,24 +28,46 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
     private final XPackLicenseState licenseState;
 
     @Inject
-    public SearchableSnapshotsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public SearchableSnapshotsUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState
+    ) {
+        super(
+            XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         int numSnapIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings())) {
                 numSnapIndices++;
             }
         }
-        listener.onResponse(new XPackUsageFeatureResponse(new SearchableSnapshotFeatureSetUsage(
-            licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS), true, numSnapIndices)));
+        listener.onResponse(
+            new XPackUsageFeatureResponse(
+                new SearchableSnapshotFeatureSetUsage(
+                    licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS),
+                    true,
+                    numSnapIndices
+                )
+            )
+        );
     }
 }

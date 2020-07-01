@@ -30,14 +30,15 @@ bootstrap an initial index.
 To create lifecycle policies through {kib} Management
 go to **Management > Elasticsearch > Index Lifecycle Policies**.
 
+[role="screenshot"]
 image:images/ilm/create-policy.png[]
 
 You specify the lifecycle phases for the policy and the actions to perform in each phase.
 
 The <<ilm-put-lifecycle, put policy>> API is invoked to add the policy to the {es} cluster.
 
-[%collapsible]
 .API example
+[%collapsible]
 ====
 [source,console]
 ------------------------
@@ -78,12 +79,13 @@ You specify the name of the policy and the alias used to reference the rolling i
 To use the Create template wizard to create a template from {kib} Management,
 go to **Management > Elasticsearch > Index Management** and select the Index Templates view.
 
+[role="screenshot"]
 image:images/ilm/create-template-wizard.png[]
 
 The <<indices-put-template,put template API>> is invoked to add templates to a cluster.
 
-[%collapsible]
 .API example
+[%collapsible]
 ====
 [source,console]
 -----------------------
@@ -163,8 +165,8 @@ IMPORTANT: Do not manually apply a policy that uses the rollover action.
 Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
 Otherwise, the policy is not carried forward when the rollover action creates a new index.
 
-[%collapsible]
 .API example
+[%collapsible]
 ====
 [source,console]
 -----------------------

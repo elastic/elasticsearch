@@ -17,6 +17,7 @@ You can create and manage index lifecycle policies through {kib} Management or t
 When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 default policies are configured automatically.
 
+[role="screenshot"]
 image:images/ilm/index-lifecycle-policies.png[]
 
 [TIP]

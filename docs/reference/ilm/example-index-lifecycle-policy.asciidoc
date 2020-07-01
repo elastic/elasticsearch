@@ -11,7 +11,7 @@ on indices as they age and grow. {ilm-init} policies help you to manage
 performance, resilience, and retention of your data during its lifecycle. This tutorial shows
 you how to use {kib}’s *Index Lifecycle Policies* to modify and create {ilm-init}
 policies. You can learn more about all of the actions, benefits, and lifecycle
-phases in the {ref}/overview-index-lifecycle-management.html[{ilm-init} overview].
+phases in the <<overview-index-lifecycle-management, {ilm-init} overview>>.
 
 
 [discrete]
@@ -25,8 +25,8 @@ log data has the following data retention guidelines:
 * Roll over to a new index if the size reaches 50GB
 * After 30 days:
 ** Move the logs to warm data nodes
-** Set {ref}/glossary.html#glossary-replica-shard[replica shards] to 1
-** {ref}/indices-forcemerge.html[Force merge] multiple index segments to free up the space used by deleted documents
+** Set <<glossary-replica-shard, replica shards>> to 1
+** <<indices-forcemerge, Force merge>> multiple index segments to free up the space used by deleted documents
 * Delete logs after 90 days
 
 
@@ -37,13 +37,13 @@ log data has the following data retention guidelines:
 To complete this tutorial, you'll need:
 
 * An {es} cluster with hot and warm nodes configured for shard allocation
-awareness. If you’re using {cloud}/ec-getting-started-templates-hot-warm.html[{ess}],
-choose the hot-warm architecture deployment template.
+awareness. 
 
-+
-For a self-managed cluster, add node attributes as described for {ref}/shard-allocation-filtering.html[shard allocation filtering]
-to label data nodes as hot or warm. This step is required to migrate shards between
-nodes configured with specific hardware for the hot or warm phases.
+** {ess}: 
+Choose the {cloud}/ec-getting-started-templates-hot-warm.html[hot-warm architecture] deployment template.
+
+** Self-managed cluster: 
+Add node attributes as described for {ref}/shard-allocation-filtering.html[shard allocation filtering].
 +
 For example, you can set this in your `elasticsearch.yml` for each data node:
 +
@@ -72,7 +72,7 @@ becomes 30 days old.
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png["Default policy"]
 
 
-[float]
+[discrete]
 ==== Modify the policy
 
 The default policy is enough to prevent the creation of many tiny daily indices.
@@ -110,7 +110,7 @@ image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-rollover.png["Add a delete phase"]
 
-[float]
+[discrete]
 ==== Create a custom policy
 
 If meeting a specific retention time period is most important, you can create a
@@ -179,4 +179,4 @@ TIP: When you change the policy associated with the index template, the active
 index will continue to use the policy it was associated with at index creation
 unless you manually update it. The next new index will use the updated policy.
 For more reasons that your {ilm-init} policy changes might be delayed, see
-{ref}/update-lifecycle-policy.html#update-lifecycle-policy[Update Lifecycle Policy].
+<<update-lifecycle-policy, Update Lifecycle Policy>>.

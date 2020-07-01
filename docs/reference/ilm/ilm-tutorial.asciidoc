@@ -59,10 +59,11 @@ You can create the policy through {kib} Management or with the
 <<ilm-put-lifecycle, put policy>> API. 
 To create the policy from {kib}, go to **Management > Elasticsearch > Index Lifecycle Policies**.
 
+[role="screenshot"]
 image:images/ilm/create-policy.png[]
 
-[%collapsible]
 .API example
+[%collapsible]
 ====
 [source,console]
 ------------------------
@@ -112,8 +113,8 @@ You can use the {kib} Create template wizard to add the template.
 This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
 with the options you specify.
 
-[%collapsible]
 .API example
+[%collapsible]
 ====
 [source,console]
 -----------------------
@@ -319,6 +320,7 @@ You can use the {kib} Create template wizard to add the template.
 To access the wizard, go to **Management > Elasticsearch > Index Management**
 and select the Index Templates view. 
 
+[role="screenshot"]
 image:images/ilm/create-template-wizard.png[]
 
 The create template request for the example template looks like this:

@@ -157,7 +157,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

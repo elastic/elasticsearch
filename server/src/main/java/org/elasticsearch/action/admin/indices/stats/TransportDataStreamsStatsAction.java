@@ -24,23 +24,20 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -51,7 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -65,7 +61,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final IndexAbstractionResolver indexAbstractionResolver;
 
     @Inject
     public TransportDataStreamsStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
@@ -74,7 +70,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
             DataStreamsStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
     }
 
     @Override
@@ -92,134 +88,14 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private static List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata,
-                                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
-        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        List<String> finalIndices = new ArrayList<>();
-        boolean wildcardSeen = false;
-        for (String index : indices) {
-            String indexAbstraction;
-            boolean minus = false;
-            if (index.charAt(0) == '-' && wildcardSeen) {
-                indexAbstraction = index.substring(1);
-                minus = true;
-            } else {
-                indexAbstraction = index;
-            }
-
-            // we always need to check for date math expressions
-            final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
-                assert dateMathName.equals(indexAbstraction) == false;
-                if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName) &&
-                    isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, true)) {
-                    if (minus) {
-                        finalIndices.remove(dateMathName);
-                    } else {
-                        finalIndices.add(dateMathName);
-                    }
-                } else {
-                    if (indicesOptions.ignoreUnavailable() == false) {
-                        throw new IndexNotFoundException(dateMathName);
-                    }
-                }
-            }
-
-            if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
-                wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
-                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata)) {
-                        resolvedIndices.add(authorizedIndex);
-                    }
-                }
-                if (resolvedIndices.isEmpty()) {
-                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
-                        throw new IndexNotFoundException(indexAbstraction);
-                    }
-                } else {
-                    if (minus) {
-                        finalIndices.removeAll(resolvedIndices);
-                    } else {
-                        finalIndices.addAll(resolvedIndices);
-                    }
-                }
-            } else if (dateMathName.equals(indexAbstraction)) {
-                if (minus) {
-                    finalIndices.remove(indexAbstraction);
-                } else {
-                    finalIndices.add(indexAbstraction);
-                }
-            }
-        }
-        return finalIndices;
-    }
-
-    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, false);
-    }
-
-    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                          boolean dateMathExpression) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        final boolean isHidden = indexAbstraction.isHidden();
-        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            //complicated to support those options with aliases pointing to multiple indices...
-            if (indicesOptions.ignoreAliases()) {
-                return false;
-            } else if (isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
-            if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
-        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
-            return false;
-        }
-
-        // the index is not hidden and since it is a date math expression, we consider it visible regardless of open/closed
-        if (dateMathExpression) {
-            assert IndexMetadata.State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-            return true;
-        }
-        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
-            return true;
-        }
-        if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
-    }
-
     @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsRequest request, String[] concreteIndices) {
         String[] requestIndices = request.indices();
         if (requestIndices == null || requestIndices.length == 0) {
             requestIndices = new String[]{"*"};
         }
-        List<String> abstractionNames = resolveIndexAbstractions(requestIndices, request.indicesOptions(), clusterState.getMetadata(),
-            indexNameExpressionResolver);
+        List<String> abstractionNames = indexAbstractionResolver.resolveIndexAbstractions(requestIndices, request.indicesOptions(),
+            clusterState.getMetadata());
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
         String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {

@@ -47,6 +47,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
@@ -321,6 +322,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
         return cacheService.get(cacheKey, fileLength, cacheDir);
+    }
+
+    public Executor cacheFetchAsyncExecutor() {
+        return threadPool.executor(SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+    }
+
+    public Executor prewarmExecutor() {
+        return threadPool.executor(ThreadPool.Names.SAME);
     }
 
     @Override

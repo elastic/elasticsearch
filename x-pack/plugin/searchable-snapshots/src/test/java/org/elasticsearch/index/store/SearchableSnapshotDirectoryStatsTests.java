@@ -24,6 +24,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
@@ -383,15 +384,18 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.seek(0L);
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // Use assertBusy() here to wait for the cache write to be processed in the searchable snapshot thread pool
+                assertBusy(() -> {
+                    // cache file has been written in a single chunk
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -579,7 +583,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName());
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName(), SearchableSnapshots.executorBuilder());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 

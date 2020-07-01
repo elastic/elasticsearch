@@ -9,9 +9,31 @@ experimental[]
 Returns the index settings that would be applied to the specified index from an 
 <<indices-templates, index template>>.
 
+////
 [source,console]
 --------------------------------------------------
-POST /_index_template/_simulate_index/myindex
+PUT _index_template/template_1
+{
+  "index_patterns": ["myindex*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/*
+--------------------------------------------------
+// TEARDOWN
+////
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate_index/myindex-1
 --------------------------------------------------
 
 [[simulate-index-api-request]]
@@ -91,7 +113,7 @@ PUT /_index_template/final-template                      <3>
   "priority": 5
 }
 
-POST /_index_template/_simulate_index/logdata-2019-02-01 <4>
+POST /_index_template/_simulate_index/logdata-2020-02-02 <4>
 --------------------------------------------------
 <1> Creating a component template (ct1) setting the number of shards to two
 <2> Creating another component template (ct2) setting the number of replicas to zero with mappings

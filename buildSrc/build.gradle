@@ -206,6 +206,8 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
     distribution project(':distribution:archives:oss-linux-aarch64-tar')
+
+    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project

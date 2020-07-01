@@ -19,11 +19,15 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 public class MockScriptService extends ScriptService {
     /**
@@ -38,5 +42,31 @@ public class MockScriptService extends ScriptService {
     @Override
     boolean compilationLimitsEnabled() {
         return false;
+    }
+
+    public static <T> MockScriptService singleContext(ScriptContext<T> context, Function<String, T> compile,
+                                                      Map<String, StoredScriptSource> storedLookup) {
+        ScriptEngine engine = new ScriptEngine() {
+            @Override
+            public String getType() {
+                return "lang";
+            }
+
+            @Override
+            public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context, Map<String, String> params) {
+                return context.factoryClazz.cast(compile.apply(code));
+            }
+
+            @Override
+            public Set<ScriptContext<?>> getSupportedContexts() {
+                return Set.of(context);
+            }
+        };
+        return new MockScriptService(Settings.EMPTY, Map.of("lang", engine), Map.of(context.name, context)) {
+            @Override
+            public StoredScriptSource getScriptFromClusterState(String id) {
+                return storedLookup.get(id);
+            }
+        };
     }
 }

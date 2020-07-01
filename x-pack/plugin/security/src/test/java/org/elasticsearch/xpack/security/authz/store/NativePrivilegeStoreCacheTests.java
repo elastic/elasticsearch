@@ -240,7 +240,8 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         // Add the app-1 check privilege and it should be picked up
         addApplicationPrivilege("app-1", "check", "c:a:b:c");
         assertTrue(checkPrivilege("app-1", "check").getApplicationPrivileges()
-            .get("app-1").stream().findFirst().orElseThrow(() -> new NoSuchElementException("No value present")).getPrivileges().get("check"));
+            .get("app-1").stream().findFirst()
+            .orElseThrow(() -> new NoSuchElementException("No value present")).getPrivileges().get("check"));
 
         // Delete the app-1 read privilege and it should be picked up as well
         deleteApplicationPrivilege("app-1", "read");

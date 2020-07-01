@@ -21,22 +21,6 @@ PUT /_snapshot/my_repository
 // TESTSETUP
 ////
 
-////
-[source,console]
-----
-PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
-{
-  "indices": [],
-  "ignore_unavailable": true,
-  "include_global_state": false,
-  "metadata": {
-    "taken_by": "user123",
-    "taken_because": "backup"
-  }
-}
-// TESTSETUP
-////
-
 [source,console]
 -----------------------------------
 DELETE /_snapshot/my_repository/my_snapshot

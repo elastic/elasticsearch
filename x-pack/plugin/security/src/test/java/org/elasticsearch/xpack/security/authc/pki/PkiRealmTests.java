@@ -79,7 +79,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     public void testTokenSupport() throws Exception {

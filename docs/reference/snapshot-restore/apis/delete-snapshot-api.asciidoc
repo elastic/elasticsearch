@@ -16,6 +16,12 @@ PUT /_snapshot/my_repository
     "location": "my_backup_location"
   }
 }
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_3?wait_for_completion=true
 ----
 // TESTSETUP
 ////

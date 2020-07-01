@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -84,14 +83,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                            LongSupplier nowSupplier) {
             Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowSupplier);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
-        }
-
-        @Override
-        public Function<byte[], Number> getPointReader(MappedFieldType fieldType) {
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                return ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
-            }
-            return null;
         }
 
         @Override
@@ -301,15 +292,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                            LongSupplier nowSupplier) {
             return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
-        }
-
-        @Override
-        public Function<byte[], Number> getPointReader(MappedFieldType fieldType) {
-           if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-               DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-               return dft.resolution()::parsePointAsMillis;
-           }
-            return null;
         }
 
         @Override

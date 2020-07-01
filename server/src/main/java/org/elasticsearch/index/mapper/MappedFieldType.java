@@ -53,6 +53,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -135,7 +136,7 @@ public abstract class MappedFieldType {
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-    
+
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();
@@ -193,6 +194,17 @@ public abstract class MappedFieldType {
      */
     public boolean isSearchable() {
         return isIndexed;
+    }
+
+    /**
+     * If the field supports using the indexed data to speed up operations related to ordering of data, such as sorting or aggs, return
+     * a function for doing that.  If it is unsupported for this field type, there is no need to override this method.
+     *
+     * @return null if the optimization cannot be applied, otherwise a function to use for the optimization
+     */
+    @Nullable
+    public Function<byte[], Number> pointReaderIfPossible() {
+        return null;
     }
 
     /** Returns true if the field is aggregatable.

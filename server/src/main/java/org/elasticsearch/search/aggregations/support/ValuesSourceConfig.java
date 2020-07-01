@@ -383,14 +383,10 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        if (fieldContext() != null && script() == null && missing() == null) {
-            MappedFieldType fieldType = fieldContext().fieldType();
-            if (fieldType == null || fieldType.isSearchable() == false) {
-                return null;
-            }
-            return valuesSourceType.getPointReader(fieldType);
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null && script() == null && missing() == null) {
+            return fieldType.pointReaderIfPossible();
         }
         return null;
-
     }
 }

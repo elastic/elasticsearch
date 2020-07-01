@@ -64,7 +64,7 @@ public class MockScriptService extends ScriptService {
         };
         return new MockScriptService(Settings.EMPTY, Map.of("lang", engine), Map.of(context.name, context)) {
             @Override
-            public StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(String id) {
                 return storedLookup.get(id);
             }
         };

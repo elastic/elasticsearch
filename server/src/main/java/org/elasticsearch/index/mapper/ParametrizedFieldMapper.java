@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import joptsimple.internal.Strings;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -220,7 +219,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 return;
             }
             String message = "Mapper for [" + mapperName + "] conflicts with existing mapper:\n\t"
-                + Strings.join(conflicts, "\n\t");
+                + String.join("\n\t", conflicts);
             throw new IllegalArgumentException(message);
         }
 

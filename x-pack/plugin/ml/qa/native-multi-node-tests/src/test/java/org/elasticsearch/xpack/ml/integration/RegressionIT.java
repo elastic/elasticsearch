@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.DocWriteRequest;
@@ -43,7 +42,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1349")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";

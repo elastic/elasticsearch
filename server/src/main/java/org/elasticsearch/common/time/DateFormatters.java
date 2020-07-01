@@ -22,6 +22,7 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -52,7 +53,8 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
-    public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
+    // when run with JDK8, WeekFields for Locale.ROOT would return WeekFields.of(DayOfWeek.SUNDAY,1)
+    public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(DayOfWeek.MONDAY,4);
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HHmm", "Z")

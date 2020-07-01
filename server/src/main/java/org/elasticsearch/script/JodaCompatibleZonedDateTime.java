@@ -59,7 +59,7 @@ import java.util.Objects;
  */
 public class JodaCompatibleZonedDateTime
         implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
-    
+
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
@@ -474,13 +474,13 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())");
         return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
+        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())");
         return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
     }
 

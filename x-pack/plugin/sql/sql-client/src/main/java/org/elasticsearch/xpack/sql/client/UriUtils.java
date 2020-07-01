@@ -25,7 +25,9 @@ public final class UriUtils {
     static final String HTTPS_PREFIX = HTTPS_SCHEME + "://";
 
     /**
-     * Parses the URL provided by the user and
+     * Parses the URL provided by the user and substitutes any missing parts in it with defaults read from the defaultURI.
+     * The result is returned as an URI object.
+     * In case of a parsing exception, the credentials are redacted from the URISyntaxException message.
      */
     public static URI parseURI(String connectionString, URI defaultURI) {
         final URI uri = parseMaybeWithScheme(connectionString, defaultURI.getScheme() + "://");

@@ -658,6 +658,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
             recovered += bytes;
+            if (length != UNKNOWN_LENGTH) {
+                assert recovered <= length : this;
+            }
         }
 
         public void setLength(long length) {

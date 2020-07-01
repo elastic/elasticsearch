@@ -443,9 +443,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
                     blackHole += localBlackHole;
                     logger.trace("black hole [{}]", blackHole);
-                    long now = timeSupplier.getAsLong();
-                    assert now > this.lastCheckTime;
-                    this.lastCheckTime = now;
+                    this.lastCheckTime = timeSupplier.getAsLong();
                 }
             }
 

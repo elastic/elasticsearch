@@ -43,7 +43,7 @@ teardown:
   - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
 
 ---
-"Test week based date parsing":
+"Test week based date parsing with default locale - Sunday,1 rule":
   - do:
       indices.create:
         index: test
@@ -109,6 +109,75 @@ teardown:
   - match: { _source.date_source_field: "2020-33" }
 #we don't have a support for changing calendar data provider in 6.8. Hence it is using Sunday,1 (java default)
   - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }
+
+---
+"Test week based date parsing with ISO based locale - Monday,4 rule":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              properties:
+                date_source_field:
+                  type: date
+                  format: 8YYYY-ww
+                  locale: en-GB
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "formats" : ["8YYYY-ww"],
+                  "locale" : "en-GB"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "date_source_field": "2020-33"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.date_source_field: "2020-33" }
+  - match: { docs.0.doc._source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {date_source_field: "2020-33"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.date_source_field: "2020-33" }
+  - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
+
 
 ---
 "Test week based date parsing with locale":

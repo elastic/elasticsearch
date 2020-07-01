@@ -39,6 +39,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -243,7 +244,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         long parse(String value) {
-            return dateTimeFormatter().parseMillis(value);
+            return DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant().toEpochMilli();
         }
 
         @Override

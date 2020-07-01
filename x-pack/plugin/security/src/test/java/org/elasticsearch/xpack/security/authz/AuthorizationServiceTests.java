@@ -448,6 +448,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
+
     /**
      * Verifies that the behaviour tested in {@link #testUserWithNoRolesCanPerformRemoteSearch}
      * does not work for requests that are not remote-index-capable.
@@ -464,6 +465,54 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(DeleteIndexAction.NAME), eq(request),
             authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testMergingIndicesAccessControlForNestedActions() throws Exception {
+        final Authentication authentication = createAuthentication(new User("test user", "iac_test"));
+        final RoleDescriptor role = new RoleDescriptor("iac_test", null,
+            new IndicesPrivileges[]{
+                IndicesPrivileges.builder().indices("a").privileges("read").grantedFields("a.*").build(),
+                IndicesPrivileges.builder().indices("b").privileges("read").grantedFields("b.*").build()
+            }, null);
+        roleMap.put("iac_test", role);
+
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder("a")
+                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("b")
+                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .build());
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        TransportRequest getRequest1 = new GetRequest("a");
+        TransportRequest getRequest2 = new GetRequest("b");
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        authorizationService.authorize(authentication, GetAction.NAME, getRequest1, ActionListener.wrap(
+            res1 -> authorizationService.authorize(authentication, GetAction.NAME, getRequest2, ActionListener.wrap(
+                res2 -> {
+                    IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    assertThat(iac, notNullValue());
+                    IndicesAccessControl.IndexAccessControl aAccess = iac.getIndexPermissions("a");
+                    IndicesAccessControl.IndexAccessControl bAccess = iac.getIndexPermissions("b");
+                    assertThat(aAccess, notNullValue());
+                    assertThat(aAccess.getFieldPermissions().grantsAccessTo("a.field"), is(true));
+                    assertThat(aAccess.getFieldPermissions().grantsAccessTo("other.field"), is(false));
+                    assertThat(aAccess.getFieldPermissions().grantsAccessTo("b.field"), is(false));
+                    assertThat(bAccess, notNullValue());
+                    assertThat(bAccess.getFieldPermissions().grantsAccessTo("b.field"), is(true));
+                    assertThat(bAccess.getFieldPermissions().grantsAccessTo("other.field"), is(false));
+                    assertThat(bAccess.getFieldPermissions().grantsAccessTo("a.field"), is(false));
+
+                    future.onResponse(null);
+                }, future::onFailure
+            )),
+            future::onFailure
+        ));
+        future.get();
     }
 
     public void testUnknownRoleCausesDenial() throws IOException {

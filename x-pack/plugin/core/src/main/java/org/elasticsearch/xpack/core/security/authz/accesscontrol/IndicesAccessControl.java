@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -21,18 +20,18 @@ import java.util.Set;
  */
 public class IndicesAccessControl {
 
-    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
+    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Map.of());
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
-            Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
-    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
+        Map.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
+            new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Map.of());
 
     private final boolean granted;
-    private final Map<String, IndexAccessControl> indexPermissions;
+    private Map<String, IndexAccessControl> indexPermissions;
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
         this.granted = granted;
-        this.indexPermissions = indexPermissions;
+        this.indexPermissions = Map.copyOf(indexPermissions);
     }
 
     /**
@@ -49,6 +48,12 @@ public class IndicesAccessControl {
      */
     public boolean isGranted() {
         return granted;
+    }
+
+    public void addPermissionsIfNotPresent(IndicesAccessControl other) {
+        final Map<String, IndexAccessControl> map = new HashMap<>(this.indexPermissions);
+        other.indexPermissions.forEach(map::putIfAbsent);
+        this.indexPermissions = Map.copyOf(map);
     }
 
     /**

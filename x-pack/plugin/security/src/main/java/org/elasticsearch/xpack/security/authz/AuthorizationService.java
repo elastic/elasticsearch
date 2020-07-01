@@ -288,10 +288,16 @@ public class AuthorizationService {
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        if (result.getIndicesAccessControl() != null) {
-            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                result.getIndicesAccessControl());
+        IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+        if (indicesAccessControl != null) {
+            IndicesAccessControl existing = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            if (existing == null) {
+                threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            } else {
+                existing.addPermissionsIfNotPresent(indicesAccessControl);
+            }
         }
+
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
             assert request instanceof CreateIndexRequest;

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -56,7 +58,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private boolean hasCompleted;
     private long completionId;
     private final List<Runnable> initListeners = new ArrayList<>();
-    private final CompletionListeners completionListeners = new CompletionListeners();
+    private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
@@ -187,7 +189,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            listener.onResponse(getResponseWithHeaders());
         }
     }
 
@@ -195,17 +197,17 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
      * listener when the task is finished.
      */
-    public void addCompletionListener(ActionListener<AsyncSearchResponse> listener) {
+    public void addCompletionListener(Consumer<AsyncSearchResponse> listener) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                completionListeners.register(completionId++, listener);
+                this.completionListeners.put(completionId++, listener);
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            listener.accept(getResponseWithHeaders());
         }
     }
 
@@ -225,7 +227,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                             if (hasRun.compareAndSet(false, true)) {
                                 // timeout occurred before completion
                                 removeCompletionListener(id);
-                                getResponseWithHeaders(listener);
+                                listener.onResponse(getResponseWithHeaders());
                             }
                         },
                         waitForCompletion,
@@ -234,35 +236,26 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     listener.onFailure(exc);
                     return;
                 }
-                completionListeners.register(
+                completionListeners.put(
                     id,
-                    ActionListener.wrap(
-                        resp -> {
-                            if (hasRun.compareAndSet(false, true)) {
-                                // completion occurred before timeout
-                                cancellable.cancel();
-                                listener.onResponse(resp);
-                            }
-                        },
-                        failure -> {
-                            if (hasRun.compareAndSet(false, true)) {
-                                // completion occurred before timeout
-                                cancellable.cancel();
-                                listener.onFailure(failure);
-                            }
+                    resp -> {
+                        if (hasRun.compareAndSet(false, true)) {
+                            // completion occurred before timeout
+                            cancellable.cancel();
+                            listener.onResponse(resp);
                         }
-                    ));
+                    });
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            listener.onResponse(getResponseWithHeaders());
         }
     }
 
     private void removeCompletionListener(long id) {
         synchronized (this) {
             if (hasCompleted == false) {
-                completionListeners.unregister(id);
+                completionListeners.remove(id);
             }
         }
     }
@@ -295,49 +288,50 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     private void executeCompletionListeners() {
-        CompletionListeners completionListenersCopy;
+        Map<Long, Consumer<AsyncSearchResponse>> completionsListenersCopy;
         synchronized (this) {
             if (hasCompleted) {
                 return;
             }
             hasCompleted = true;
-            completionListenersCopy = completionListeners.copy();
+            completionsListenersCopy = new HashMap<>(this.completionListeners);
+            this.completionListeners.clear();
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        getResponse(completionListenersCopy);
+        for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
+            consumer.accept(getResponse());
+        }
+
     }
 
     /**
      * Returns the current {@link AsyncSearchResponse}.
      */
-    private void getResponse(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(listener, false);
+    private AsyncSearchResponse getResponse() {
+        return getResponse(false);
     }
 
     /**
      * Returns the current {@link AsyncSearchResponse} and restores the response headers
      * in the local thread context.
      */
-    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(listener, true);
+    private AsyncSearchResponse getResponseWithHeaders() {
+        return getResponse(true);
     }
 
-    private void getResponse(ActionListener<AsyncSearchResponse> listener, boolean restoreResponseHeaders) {
-        assert searchResponse.get() != null;
+    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
+        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+        assert mutableSearchResponse != null;
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
         try {
-            asyncSearchResponse = searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
         } catch(Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        listener.onResponse(asyncSearchResponse);
-    }
-
-    AsyncSearchResponse buildErrorResponse(SearchResponse searchResponse, Exception exception) {
-        return this.searchResponse.get().buildErrorResponse(this, expirationTimeMillis, searchResponse, exception);
+            ElasticsearchException exception = new ElasticsearchException("Async search: error while reducing partial results", e);
+            asyncSearchResponse = mutableSearchResponse.buildErrorResponse(this, expirationTimeMillis, exception);
+       }
+       return asyncSearchResponse;
     }
 
     // checks if the search task should be cancelled
@@ -429,47 +423,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            searchResponse.get().updateWithFailure(exc);
+            searchResponse.get().updateWithFailure(new ElasticsearchException("error while executing search", exc));
             executeInitListeners();
             executeCompletionListeners();
-        }
-    }
-
-    private static class CompletionListeners implements ActionListener<AsyncSearchResponse> {
-        private final Map<Long, ActionListener<AsyncSearchResponse>> listeners;
-
-        CompletionListeners() {
-            this.listeners = new HashMap<>();
-        }
-
-        CompletionListeners(Map<Long, ActionListener<AsyncSearchResponse>> listeners) {
-            this.listeners = listeners;
-        }
-
-        void register(long id, ActionListener<AsyncSearchResponse> listener) {
-            this.listeners.put(id, listener);
-        }
-
-        void unregister(long id) {
-            this.listeners.remove(id);
-        }
-
-        CompletionListeners copy() {
-            return new CompletionListeners(new HashMap<>(this.listeners));
-        }
-
-        @Override
-        public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-            for (ActionListener<AsyncSearchResponse> listener : listeners.values()) {
-                listener.onResponse(asyncSearchResponse);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            for (ActionListener<AsyncSearchResponse> listener : listeners.values()) {
-                listener.onFailure(e);
-            }
         }
     }
 }

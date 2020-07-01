@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -153,24 +154,27 @@ public class AsyncSearchTaskTests extends ESTestCase {
             .asSerialized(InternalAggregations::new, new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             serializedAggs, 1);
-        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         task.addCompletionListener(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-                throw new AssertionError("onResponse should not be called");
+                assertTrue(response.compareAndSet(null, asyncSearchResponse));
+                latch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
-                assertTrue(failure.compareAndSet(null, e));
-                latch.countDown();
+                throw new AssertionError("onFailure should not be called");
             }
         }, TimeValue.timeValueMillis(10L));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
-        assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
-        IllegalArgumentException iae = (IllegalArgumentException)failure.get();
-        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]", iae.getMessage());
+        assertNull(response.get().getSearchResponse());
+        assertThat(response.get().getFailure(), instanceOf(ElasticsearchException.class));
+        assertEquals("Async search: error while reducing partial results", response.get().getFailure().getMessage());
+        assertThat(response.get().getFailure().getCause(), instanceOf(IllegalArgumentException.class));
+        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]",
+            response.get().getFailure().getCause().getMessage());
     }
 
     public void testWithFailureAndGetResponseFailureDuringReduction() throws InterruptedException {
@@ -191,26 +195,29 @@ public class AsyncSearchTaskTests extends ESTestCase {
         task.addCompletionListener(new ActionListener<>() {
             @Override
             public void onResponse(AsyncSearchResponse asyncSearchResponse) {
-                throw new AssertionError("onResponse should not be called");
+                assertTrue(response.compareAndSet(null, asyncSearchResponse));
+                latch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
-                AsyncSearchResponse asyncSearchResponse = task.buildErrorResponse(null, e);
-                assertTrue(response.compareAndSet(null, asyncSearchResponse));
-                latch.countDown();
+                throw new AssertionError("onFailure should not be called");
             }
         }, TimeValue.timeValueMillis(10L));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         AsyncSearchResponse asyncSearchResponse = response.get();
         assertNull(asyncSearchResponse.getSearchResponse());
         Exception failure = asyncSearchResponse.getFailure();
-        assertThat(failure, instanceOf(CircuitBreakingException.class));
-        assertEquals("boom", failure.getMessage());
+        assertThat(failure, instanceOf(ElasticsearchException.class));
+        assertEquals("error while executing search", failure.getMessage());
+        assertThat(failure.getCause(), instanceOf(CircuitBreakingException.class));
+        assertEquals("boom", failure.getCause().getMessage());
         assertEquals(1, failure.getSuppressed().length);
-        assertThat(failure.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getSuppressed()[0], instanceOf(ElasticsearchException.class));
+        assertEquals("Async search: error while reducing partial results", failure.getSuppressed()[0].getMessage());
+        assertThat(failure.getSuppressed()[0].getCause(), instanceOf(IllegalArgumentException.class));
         assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() +
-            "]", failure.getSuppressed()[0].getMessage());
+            "]", failure.getSuppressed()[0].getCause().getMessage());
     }
 
     public void testWaitForCompletion() throws InterruptedException {

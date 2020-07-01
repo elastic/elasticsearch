@@ -30,7 +30,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Nullable
     private final SearchResponse searchResponse;
     @Nullable
-    private final Exception error;
+    private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;
 
@@ -61,7 +61,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      */
     public AsyncSearchResponse(String id,
                                SearchResponse searchResponse,
-                               Exception error,
+                               ElasticsearchException error,
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
@@ -126,7 +126,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     /**
      * Returns the failure reason or null if the query is running or has completed normally.
      */
-    public Exception getFailure() {
+    public ElasticsearchException getFailure() {
         return error;
     }
 

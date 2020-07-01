@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -124,14 +123,14 @@ class MutableSearchResponse {
      * Updates the response with a fatal failure. This method preserves the partial response
      * received from previous updates
      */
-    synchronized void updateWithFailure(Exception exc) {
+    synchronized void updateWithFailure(ElasticsearchException exc) {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         //note that when search fails, we may have gotten partial results before the failure. In that case async
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
-        this.failure = ExceptionsHelper.convertToElastic(exc);
+        this.failure = exc;
         this.frozen = true;
     }
 
@@ -188,16 +187,16 @@ class MutableSearchResponse {
 
     synchronized AsyncSearchResponse buildErrorResponse(AsyncSearchTask task,
                                                         long expirationTime,
-                                                        SearchResponse searchResponse,
-                                                        Exception exception) {
-        Exception error;
+                                                        ElasticsearchException exception) {
+        ElasticsearchException error;
         if (this.failure == null) {
             error = exception;
         } else {
             error = this.failure;
             error.addSuppressed(exception);
         }
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
+        //TODO add some search response here rather than null
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), null,
             error, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 

@@ -82,6 +82,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
                     if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
+                        cancelTaskIfNeeded(searchTask, searchResponse.isRunning(), searchResponse.getFailure().getMessage(),
+                            request.isKeepOnCompletion() ? () -> {} : () -> submitListener.onResponse(searchResponse.clone(null)));
+                        if (request.isKeepOnCompletion() == false) {
+                            return;
+                        }
+                        //TODO test behaviour when reduce fails and keep on completion is set to true
+
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
@@ -96,39 +103,25 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                         if (searchResponse.isRunning()) {
                                             try {
                                                 // store the final response on completion unless the submit is cancelled
-                                                searchTask.addCompletionListener(ActionListener.wrap(
-                                                    finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}),
-                                                    failure -> {
-                                                        //This completion listener will only be invoked when search terminates,
-                                                        //either with a final response or a failure. In practice, we can't have a
-                                                        //completion listener failure when we receive a final response, because that
-                                                        //is already reduced and we only return it as-is. What may happen is that a
-                                                        //search fatal failure occurs, but we had partial results from previous
-                                                        //partial reductions, and we fail to finally reduce those in the attempt of
-                                                        //returning them together with the search failure.
-                                                        //We can't notify the failure back to the user as submit already returned.
-                                                        //Then we store the failure with an empty search response as a best effort.
-                                                        AsyncSearchResponse finalResponse = searchTask.buildErrorResponse(
-                                                            initialResp.getSearchResponse(), failure);
-                                                        onFinalResponse(searchTask, finalResponse, () -> {});
-                                                    }));
+                                                searchTask.addCompletionListener(
+                                                    finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}));
                                             } finally {
                                                 submitListener.onResponse(searchResponse);
                                             }
                                         } else {
-                                            onFinalResponse(searchTask, searchResponse,
-                                                () -> submitListener.onResponse(searchResponse));
-                                            }
+                                            onFinalResponse(searchTask, searchResponse, () -> submitListener.onResponse(searchResponse));
+                                        }
                                     }
 
                                     @Override
                                     public void onFailure(Exception exc) {
-                                        onFatalFailure(searchTask, exc, searchResponse.isRunning(),
-                                            "unable to store initial response", submitListener);
+                                        cancelTaskIfNeeded(searchTask, searchResponse.isRunning(),
+                                            "fatal failure: unable to store initial response", () -> submitListener.onFailure(exc));
                                     }
                                 });
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "generic error", submitListener);
+                            cancelTaskIfNeeded(searchTask, searchResponse.isRunning(),
+                                "fatal failure: generic error", () -> submitListener.onFailure(exc));
                         }
                     } else {
                         // the task completed within the timeout so the response is sent back to the user
@@ -140,7 +133,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
-                    onFatalFailure(searchTask, exc, true, "addCompletionListener failure", submitListener);
+                    //this will only ever be called when there's an issue scheduling the thread will invoke
+                    //the completion listener once the wait for completion timeout expires
+                    cancelTaskIfNeeded(searchTask, true,
+                        "fatal failure: addCompletionListener", () -> submitListener.onFailure(exc));
                 }
             }, request.getWaitForCompletionTimeout());
     }
@@ -162,25 +158,20 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         return searchRequest;
     }
 
-    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, String cancelReason,
-                                ActionListener<AsyncSearchResponse> listener) {
+    private void cancelTaskIfNeeded(AsyncSearchTask task, boolean shouldCancel, String cancelReason, Runnable nextAction) {
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
-                    task.addCompletionListener(ActionListener.wrap(
-                            finalResponse -> taskManager.unregister(task),
-                            failure ->  taskManager.unregister(task)));
+                    task.addCompletionListener(finalResponse -> taskManager.unregister(task));
                 } finally {
-                    listener.onFailure(error);
+                    nextAction.run();
                 }
-            }, "fatal failure: " + cancelReason);
+            }, cancelReason);
         } else {
             try {
-                task.addCompletionListener(ActionListener.wrap(
-                    finalResponse -> taskManager.unregister(task),
-                    failure -> taskManager.unregister(task)));
+                task.addCompletionListener(finalResponse -> taskManager.unregister(task));
             } finally {
-                listener.onFailure(error);
+                nextAction.run();
             }
         }
     }

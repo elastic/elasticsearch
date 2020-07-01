@@ -19,10 +19,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -263,39 +261,43 @@ public class CacheFile {
     }
 
     @FunctionalInterface
-    interface CacheReader {
-        int read(FileChannel channel) throws IOException;
+    interface RangeAvailableHandler {
+        int onRangeAvailable(FileChannel channel) throws IOException;
     }
 
     @FunctionalInterface
-    interface CacheWriter {
-        void write(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+    interface RangeMissingHandler {
+        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
     }
 
     CompletableFuture<Integer> fetchAsync(
         final Tuple<Long, Long> rangeToWrite,
         final Tuple<Long, Long> rangeToRead,
-        final CacheReader reader,
-        final CacheWriter writer,
+        final RangeAvailableHandler reader,
+        final RangeMissingHandler writer,
         final Executor executor
     ) {
         final CompletableFuture<Integer> future = new CompletableFuture<>();
         try {
             ensureOpen();
-            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                rangeToWrite,
-                rangeToRead,
-                ActionListener.wrap(success -> future.complete(reader.read(channel)), future::completeExceptionally)
-            );
+            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, ActionListener.wrap(success -> {
+                final int read = reader.onRangeAvailable(channel);
+                assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+                    + read
+                    + "] does not match the range to read ["
+                    + rangeToRead.v2()
+                    + '-'
+                    + rangeToRead.v1()
+                    + ']';
+                future.complete(read);
+            }, future::completeExceptionally));
 
             if (gaps.isEmpty() == false) {
-                final Iterator<SparseFileTracker.Gap> iterator = new ArrayList<>(gaps).iterator();
                 executor.execute(new AbstractRunnable() {
 
                     @Override
                     protected void doRun() {
-                        while (iterator.hasNext()) {
-                            final SparseFileTracker.Gap gap = iterator.next();
+                        for (SparseFileTracker.Gap gap : gaps) {
                             try {
                                 ensureOpen();
                                 if (readLock.tryLock() == false) {
@@ -306,22 +308,20 @@ public class CacheFile {
                                     if (channel == null) {
                                         throw new AlreadyClosedException("Cache file channel has been released and closed");
                                     }
-                                    writer.write(channel, gap.start(), gap.end(), gap::onProgress);
+                                    writer.fillCacheRange(channel, gap.start(), gap.end(), gap::onProgress);
                                     gap.onCompletion();
                                 } finally {
                                     readLock.unlock();
                                 }
                             } catch (Exception e) {
                                 gap.onFailure(e);
-                            } finally {
-                                iterator.remove();
                             }
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        iterator.forEachRemaining(gap -> gap.onFailure(e));
+                        gaps.forEach(gap -> gap.onFailure(e));
                     }
                 });
             }

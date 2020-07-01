@@ -318,11 +318,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return cacheService.get(cacheKey, fileLength, cacheDir);
     }
 
-    public Executor executor() {
+    public Executor cacheFetchAsyncExecutor() {
         return threadPool.executor(SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
     }
 
-    public Executor directExecutor() {
+    public Executor prewarmExecutor() {
         return threadPool.executor(ThreadPool.Names.SAME);
     }
 

@@ -158,7 +158,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                             read = readCacheFile(channel, pos, b);
                         }
                         return read;
-                    }, this::writeCacheFile, directory.executor()).get();
+                    }, this::writeCacheFile, directory.cacheFetchAsyncExecutor()).get();
                 }
             } catch (final Exception e) {
                 if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
@@ -236,32 +236,33 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         assert totalBytesRead + remainingBytes == rangeLength;
                         final int bytesRead = readSafe(input, copyBuffer, rangeStart, rangeEnd, remainingBytes, cacheFileReference);
 
+                        // The range to prewarm in cache
                         final long readStart = rangeStart + totalBytesRead;
-                        final long readEnd = readStart + bytesRead;
+                        final Tuple<Long, Long> rangeToWrite = Tuple.tuple(readStart, readStart + bytesRead);
 
-                        cacheFile.fetchAsync(
-                            Tuple.tuple(readStart, readEnd),
-                            Tuple.tuple(readStart, readStart),
-                            (channel) -> 0,
-                            (channel, start, end, progressUpdater) -> {
-                                final ByteBuffer byteBuffer = ByteBuffer.wrap(
-                                    copyBuffer,
-                                    Math.toIntExact(start - readStart),
-                                    Math.toIntExact(end - start)
-                                );
-                                final int writtenBytes = positionalWrite(channel, start, byteBuffer);
-                                logger.trace(
-                                    "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
-                                    start,
-                                    end,
-                                    fileInfo.physicalName(),
-                                    writtenBytes
-                                );
-                                totalBytesWritten.addAndGet(writtenBytes);
-                                progressUpdater.accept(start + writtenBytes);
-                            },
-                            directory.directExecutor()
-                        );
+                        // Prewarming don't need to read the cached data after it been written in cache; so the range to read is empty. In
+                        // case where the range is actively being (or about to be) written in cache by a concurrent search the sync fetching
+                        // returns immediately and the next range can be prewarmed. If the range is not available in cache then the range
+                        // will be written by this prewarming task and blocks until fully written to disk.
+                        final Tuple<Long, Long> rangeToRead = Tuple.tuple(readStart, readStart);
+
+                        cacheFile.fetchAsync(rangeToWrite, rangeToRead, (channel) -> 0, (channel, start, end, progressUpdater) -> {
+                            final ByteBuffer byteBuffer = ByteBuffer.wrap(
+                                copyBuffer,
+                                Math.toIntExact(start - readStart),
+                                Math.toIntExact(end - start)
+                            );
+                            final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                            logger.trace(
+                                "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
+                                start,
+                                end,
+                                fileInfo.physicalName(),
+                                writtenBytes
+                            );
+                            totalBytesWritten.addAndGet(writtenBytes);
+                            progressUpdater.accept(start + writtenBytes);
+                        }, directory.prewarmExecutor());
                         totalBytesRead += bytesRead;
                         remainingBytes -= bytesRead;
                     }

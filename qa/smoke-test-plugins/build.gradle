@@ -25,10 +25,6 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 int pluginsCount = 0
 
 testClusters.integTest {

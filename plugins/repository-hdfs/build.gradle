@@ -76,7 +76,6 @@ dependencies {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
   }

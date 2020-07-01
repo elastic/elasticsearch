@@ -20,10 +20,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 esplugin {
   name 'example-rescore'
   description 'An example plugin implementing rescore and verifying that plugins *can* implement rescore'

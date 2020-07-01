@@ -1,11 +1,7 @@
-apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.yaml-rest-test'
-
-test.enabled = false
-jarHell.enabled = false
 
 restResources {
   restTests {

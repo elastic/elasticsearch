@@ -20,10 +20,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 esplugin {
   name 'script-expert-scoring'
   description 'An example script engine to use low level Lucene internals for expert scoring'

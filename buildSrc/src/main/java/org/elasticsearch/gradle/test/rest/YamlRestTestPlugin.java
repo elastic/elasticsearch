@@ -64,22 +64,25 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         RestIntegTestTask yamlRestTestTask = project.getTasks()
             .create(
                 SOURCE_SET_NAME,
-                RestIntegTestTask.class,
-                task -> { task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask")); }
+                RestIntegTestTask.class
+                //the dependency on copyRestApiSpecsTask is added in RestResourcePlugin to avoid propagating the eagerness of create :(
             );
         yamlRestTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlRestTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
 
         // setup task dependency
         if (BuildParams.isInternal()) {
-            project.getDependencies().add(SOURCE_SET_NAME + "Compile", project.project(":test:framework"));
+            project.getDependencies().add(yamlTestSourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
         } else {
             project.getDependencies()
                 .add(SOURCE_SET_NAME + "Compile", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
         }
 
+        // make the new test run after unit tests
+        yamlRestTestTask.mustRunAfter(project.getTasks().named("test"));
+
         // setup the runner
-        RestTestRunnerTask runner = (RestTestRunnerTask) project.getTasks().getByName(yamlRestTestTask.getName() + "Runner");
+        RestTestRunnerTask runner = yamlRestTestTask.getRunner();
         runner.setTestClassesDirs(yamlTestSourceSet.getOutput().getClassesDirs());
         runner.setClasspath(yamlTestSourceSet.getRuntimeClasspath());
 
@@ -112,9 +115,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);
-
-        // make the new test run after unit tests
-        yamlRestTestTask.mustRunAfter(project.getTasks().named("test"));
 
         // wire this task into check
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestTestTask));

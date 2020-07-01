@@ -28,6 +28,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.tasks.Internal;
 
 public class RestIntegTestTask extends DefaultTask {
 
@@ -103,5 +104,10 @@ public class RestIntegTestTask extends DefaultTask {
 
     public void runner(Action<? super RestTestRunnerTask> configure) {
         configure.execute(runner);
+    }
+
+    @Internal
+    public RestTestRunnerTask getRunner() {
+        return runner;
     }
 }

@@ -26,10 +26,6 @@ apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   /*
    * The goal here is to:

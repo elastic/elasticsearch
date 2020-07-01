@@ -23,10 +23,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 dependencies {
   testImplementation project(":client:rest-high-level")
 }

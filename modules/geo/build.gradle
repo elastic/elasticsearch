@@ -23,10 +23,6 @@ esplugin {
   classname 'org.elasticsearch.geo.GeoPlugin'
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 artifacts {
   restTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }

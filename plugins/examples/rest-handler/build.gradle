@@ -22,10 +22,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 esplugin {
   name 'rest-handler'
   description 'An example plugin showing how to register a REST handler'

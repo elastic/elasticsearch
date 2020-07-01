@@ -10,7 +10,6 @@ esplugin {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'indices', 'index'
     includeXpack 'async_search'

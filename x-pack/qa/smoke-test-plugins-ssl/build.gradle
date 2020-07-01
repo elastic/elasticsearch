@@ -13,10 +13,6 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')

@@ -18,7 +18,6 @@ dependencies {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'bulk', 'indices', 'index', 'search'
   }

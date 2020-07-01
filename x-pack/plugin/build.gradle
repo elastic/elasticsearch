@@ -18,10 +18,6 @@ configurations {
   testArtifacts.extendsFrom testImplementation
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 artifacts {
   restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
   restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))

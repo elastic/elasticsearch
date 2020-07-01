@@ -57,8 +57,7 @@ public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
-    String sourceSetName = "yamlRestTest";
-
+    String sourceSetName;
     Configuration coreConfig;
     Configuration xpackConfig;
 
@@ -85,7 +84,6 @@ public class CopyRestApiTask extends DefaultTask {
         return includeXpack;
     }
 
-    @org.gradle.api.tasks.Optional
     @Input
     String getSourceSetName() {
         return sourceSetName;

@@ -9,7 +9,6 @@ dependencies {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeXpack 'security'
   }

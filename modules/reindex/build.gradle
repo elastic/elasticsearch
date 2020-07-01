@@ -58,7 +58,6 @@ dependencies {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
                 'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'

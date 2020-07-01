@@ -23,7 +23,6 @@ esplugin {
   classname 'org.elasticsearch.plugin.store.smb.SMBStorePlugin'
 }
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'index', 'indices', 'get'
   }

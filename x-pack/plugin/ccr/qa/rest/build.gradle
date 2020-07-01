@@ -5,7 +5,6 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
     includeXpack 'ccr'

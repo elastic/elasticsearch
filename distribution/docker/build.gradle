@@ -11,10 +11,6 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 testFixtures.useFixture()
 
 configurations {

@@ -14,7 +14,6 @@ dependencies {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
     includeXpack 'searchable_snapshots'

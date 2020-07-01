@@ -82,7 +82,6 @@ public class CopyRestTestsTask extends DefaultTask {
         return includeXpack;
     }
 
-    @org.gradle.api.tasks.Optional
     @Input
     String getSourceSetName() {
         return sourceSetName;

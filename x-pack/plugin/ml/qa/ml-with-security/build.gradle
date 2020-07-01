@@ -11,7 +11,6 @@ dependencies {
 
 // bring in machine learning rest test suite
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest'
     includeXpack 'ml', 'cat'

@@ -55,10 +55,6 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'

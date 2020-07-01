@@ -31,7 +31,6 @@ dependencies {
   compile 'org.ow2.asm:asm-tree:5.0.4'
 }
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
   }

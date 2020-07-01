@@ -20,10 +20,6 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.rest-resources'
 
-restResources {
-  sourceSetName 'test'
-}
-
 esplugin {
   name 'custom-significance-heuristic'
   description 'An example plugin showing how to write and register a custom significance heuristic'

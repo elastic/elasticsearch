@@ -12,10 +12,6 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.pem'

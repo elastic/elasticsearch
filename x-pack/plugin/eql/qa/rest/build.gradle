@@ -6,7 +6,6 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'bulk'
     includeXpack 'eql'

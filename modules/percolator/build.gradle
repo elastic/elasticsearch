@@ -41,7 +41,6 @@ tasks.named('check').configure {
 }
 
 restResources {
-  sourceSetName 'test'
   restApi {
     includeCore '_common', 'indices', 'index', 'search', 'msearch'
   }

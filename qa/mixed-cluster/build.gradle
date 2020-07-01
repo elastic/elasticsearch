@@ -28,7 +28,6 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
-  sourceSetName 'test'
   restTests {
     includeCore '*'
   }

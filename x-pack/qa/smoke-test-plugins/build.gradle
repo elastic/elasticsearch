@@ -10,10 +10,6 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-restResources {
-  sourceSetName 'test'
-}
-
 int pluginsCount = 0
 testClusters.integTest {
   testDistribution = 'DEFAULT'

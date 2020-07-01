@@ -27,17 +27,13 @@ import java.util.function.Predicate;
  * provided role.
  */
 public final class LimitedRole extends Role {
-    private final Role limitedBy;
+    private final Role fromRole;
 
     LimitedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-            RunAsPermission runAs, Role limitedBy) {
+            RunAsPermission runAs, Role fromRole) {
         super(names, cluster, indices, application, runAs);
-        assert limitedBy != null : "limiting role is required";
-        this.limitedBy = limitedBy;
-    }
-
-    public Role limitedBy() {
-        return limitedBy;
+        assert fromRole != null : "from role is required";
+        this.fromRole = fromRole;
     }
 
     @Override
@@ -66,7 +62,7 @@ public final class LimitedRole extends Role {
                                           FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl =
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
-        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
+        IndicesAccessControl limitedByIndicesAccessControl = fromRole.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
 
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
@@ -79,7 +75,7 @@ public final class LimitedRole extends Role {
     @Override
     public Predicate<String> allowedIndicesMatcher(String action) {
         Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
+        predicate = predicate.and(fromRole.indices().allowedIndicesMatcher(action));
         return predicate;
     }
 
@@ -98,7 +94,7 @@ public final class LimitedRole extends Role {
      */
     @Override
     public boolean checkIndicesAction(String action) {
-        return super.checkIndicesAction(action) && limitedBy.checkIndicesAction(action);
+        return super.checkIndicesAction(action) && fromRole.checkIndicesAction(action);
     }
 
     /**
@@ -117,7 +113,7 @@ public final class LimitedRole extends Role {
                                                         Set<String> checkForPrivileges) {
         ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
                 checkForPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices().checkResourcePrivileges(checkForIndexPatterns,
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = fromRole.indices().checkResourcePrivileges(checkForIndexPatterns,
                 allowRestrictedIndices, checkForPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
@@ -134,7 +130,7 @@ public final class LimitedRole extends Role {
      */
     @Override
     public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
-        return super.checkClusterAction(action, request, authentication) && limitedBy.checkClusterAction(action, request, authentication);
+        return super.checkClusterAction(action, request, authentication) && fromRole.checkClusterAction(action, request, authentication);
     }
 
     /**
@@ -146,7 +142,7 @@ public final class LimitedRole extends Role {
      */
     @Override
     public boolean grants(ClusterPrivilege clusterPrivilege) {
-        return super.grants(clusterPrivilege) && limitedBy.grants(clusterPrivilege);
+        return super.grants(clusterPrivilege) && fromRole.grants(clusterPrivilege);
     }
 
     /**
@@ -168,14 +164,14 @@ public final class LimitedRole extends Role {
                                                                     Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
         ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
                 checkForPrivilegeNames, storedPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = fromRole.application().checkResourcePrivileges(applicationName,
                 checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
     @Override
     public boolean checkRunAs(String runAs) {
-        return super.checkRunAs(runAs) && limitedBy.checkRunAs(runAs);
+        return super.checkRunAs(runAs) && fromRole.checkRunAs(runAs);
     }
 
     /**
@@ -187,7 +183,7 @@ public final class LimitedRole extends Role {
      */
     public static LimitedRole createLimitedRole(Role fromRole, Role limitedByRole) {
         Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
-        return new LimitedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
-                limitedByRole);
+        return new LimitedRole(limitedByRole.names(), limitedByRole.cluster(), limitedByRole.indices(), limitedByRole.application(),
+                limitedByRole.runAs(), fromRole);
     }
 }

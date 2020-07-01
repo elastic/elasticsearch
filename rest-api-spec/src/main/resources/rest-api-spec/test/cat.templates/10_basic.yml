@@ -284,11 +284,20 @@
               $/
 
 ---
-"Mixture of V1 and V2 templates":
+"Mixture of legacy and composable templates":
     - skip:
         version: " - 7.7.99"
         reason: "format changed in 7.8 to accomodate V2 index templates"
         features: allowed_warnings
+
+    - do:
+        cluster.put_component_template:
+          name: foo
+          body:
+            template:
+              settings:
+                number_of_shards: 1
+                number_of_replicas: 0
 
     - do:
         indices.put_template:
@@ -310,7 +319,7 @@
             index_patterns: [v2-test]
             priority: 4
             version: 3
-            composed_of: [foo, bar]
+            composed_of: [foo]
 
     - do:
         cat.templates: {}
@@ -332,5 +341,5 @@
                 \[v2-test\]     \s+
                 4               \s+
                 3               \s+
-                \[foo,\ bar\]
+                \[foo\]
                /

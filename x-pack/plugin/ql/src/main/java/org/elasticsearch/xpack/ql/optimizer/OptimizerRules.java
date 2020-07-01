@@ -27,10 +27,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.rule.RuleExecutionException;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
@@ -1047,7 +1047,7 @@ public final class OptimizerRules {
         }
     }
     
-    public static final class PruneFilters extends OptimizerRule<Filter> {
+    public abstract static class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
@@ -1058,9 +1058,7 @@ public final class OptimizerRules {
                     return filter.child();
                 }
                 if (FALSE.equals(condition) || Expressions.isNull(condition)) {
-                    //TODO: re-visit this branch when it's decided if EQL needs a LocalRelation-like class
-                    //return new LocalRelation(filter.source(), new EmptyExecutable(filter.output()));
-                    throw new RuleExecutionException("Does not know how to handle a local relation");
+                    return skipPlan(filter);
                 }
             }
 
@@ -1069,6 +1067,8 @@ public final class OptimizerRules {
             }
             return filter;
         }
+
+        protected abstract LogicalPlan skipPlan(Filter filter);
 
         private static Expression foldBinaryLogic(Expression expression) {
             if (expression instanceof Or) {
@@ -1121,6 +1121,21 @@ public final class OptimizerRules {
         }
     }
     
+
+    public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            if (limit.limit().foldable()) {
+                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
+                    return skipPlan(limit);
+                }
+            }
+            return limit;
+        }
+
+        protected abstract LogicalPlan skipPlan(Limit limit);
+    }
+
     public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

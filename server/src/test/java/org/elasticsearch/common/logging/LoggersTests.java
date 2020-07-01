@@ -22,9 +22,6 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,23 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LoggersTests extends ESTestCase {
-
-    static class MockAppender extends AbstractAppender {
-        private LogEvent lastEvent;
-
-        MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            lastEvent = event.toImmutable();
-        }
-
-        ParameterizedMessage lastParameterizedMessage() {
-            return (ParameterizedMessage) lastEvent.getMessage();
-        }
-    }
 
     public void testParameterizedMessageLambda() throws Exception {
         final MockAppender appender = new MockAppender("trace_appender");

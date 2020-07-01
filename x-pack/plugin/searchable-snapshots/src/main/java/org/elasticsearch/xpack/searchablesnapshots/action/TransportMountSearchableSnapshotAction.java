@@ -154,9 +154,10 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
+            // TODO validate IDs in the restore:
             // We must fail the restore if it obtains different IDs from the ones we just obtained (e.g. the target snapshot was replaced
             // by one with the same name while we are restoring it) or else the index metadata might bear no relation to the snapshot we're
-            // searching. TODO NORELEASE validate IDs in the restore.
+            // searching.
 
             client.admin()
                 .cluster()
@@ -170,6 +171,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
                         .indexSettings(
                             Settings.builder()
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                                 .put(request.indexSettings())
                                 .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                                 .build()

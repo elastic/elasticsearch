@@ -17,12 +17,15 @@ import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredic
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
 
@@ -106,12 +109,49 @@ public class SqlParserTests extends ESTestCase {
         assertEquals("RIGHT()", f.sourceText());
     }
 
+    public void testLimit() {
+        LogicalPlan plan = parseStatement("SELECT * FROM test LIMIT 10");
+        assertEquals(With.class, plan.getClass());
+        LogicalPlan child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(10, ((Limit) child).limit().fold());
+
+        plan = parseStatement("SELECT a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 ORDER BY 2 LIMIT 30");
+        assertEquals(With.class, plan.getClass());
+        child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(30, ((Limit) child).limit().fold());
+    }
+
+    public void testTop() {
+        String selectList = randomFrom(Arrays.asList("*", "a, b", "a, b, c, d.*"));
+        LogicalPlan plan = parseStatement("SELECT TOP 10 " + selectList + " FROM test");
+        assertEquals(With.class, plan.getClass());
+        LogicalPlan child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(10, ((Limit) child).limit().fold());
+
+        plan = parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10");
+        assertEquals(With.class, plan.getClass());
+        child = ((With) plan).child();
+        assertEquals(Limit.class, child.getClass());
+        assertEquals(30, ((Limit) child).limit().fold());
+    }
+
+    public void testUseBothTopAndLimitInvalid() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 10 * FROM test LIMIT 20"));
+        assertEquals("line 1:28: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+        e = expectThrows(ParsingException.class,
+            () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40"));
+        assertEquals("line 1:82: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+    }
+
     public void testsSelectNonReservedKeywords() {
         String[] reserved = new String[] {
             "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
             "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
             "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
-            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TYPE", "TYPES", "VERIFY", "YEAR"};
+            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TOP", "TYPE", "TYPES", "VERIFY", "YEAR"};
         StringJoiner sj = new StringJoiner(",");
         for (String s : reserved) {
             sj.add(s);

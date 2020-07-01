@@ -78,48 +78,68 @@ functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"term":{"source_address":{"value":"10.0.0.0/8"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") == false
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") != true
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"bool":{"must_not":[{"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 functionNotEqualsFalse
 process where cidrMatch(source_address, "10.0.0.0/8") != false
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process"
-{"term":{"source_address":{"value":"10.0.0.0/8"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
-twoFunctionsEqualsBooleanLiterals
+twoFunctionsEqualsBooleanLiterals-caseSensitive
 process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
 ;
-{"bool":{"must":[{"term":{"event.category":{"value":"process",
-{"bool":{"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless",
-"params":{"v0":"process_path","v1":"x"}}
-{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
-InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)))","lang":"painless",
-"params":{"v0":"process_path","v1":"yx"}}
+"bool":{"must":[{"term":{"event.category":{"value":"process"
+"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
+"params":{"v0":"process_path","v1":"x","v2":true}}
+"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx","v2":true}}
 ;
 
-endsWithFunction
+twoFunctionsEqualsBooleanLiterals-caseInsensitive
+process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+;
+"bool":{"must":[{"term":{"event.category":{"value":"process"
+"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))","lang":"painless",
+"params":{"v0":"process_path","v1":"x","v2":false}}
+"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx","v2":false}}
+;
+
+endsWithFunction-caseSensitive
 process where endsWith(user_name, 'c')
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"c"}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"c","v2":true}}
+;
+
+endsWithFunction-caseInsensitive
+process where endsWith(user_name, 'c')
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"c","v2":false}}
 ;
 
 lengthFunctionWithExactSubField
@@ -146,21 +166,45 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
-startsWithFunction
+startsWithFunction-caseInsensitive
 process where startsWith(user_name, 'A')
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.startsWith(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
-"params":{"v0":"user_name","v1":"A"}
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"A","v2":false}}
 ;
 
-stringContains
+startsWithFunctionSimple-caseSensitive
+process where startsWith(user_name, 'A')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+;
+
+startsWithFunctionWithCondition-caseSensitive
+process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
+{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+;
+
+stringContains-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
-"params":{"v0":"process_name","v1":"foo"}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":true}
 ;
+
+stringContains-caseInsensitive
+process where stringContains(process_name, "foo")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":false}
+;
+
 
 stringFunction
 process where string(pid) == "123"
@@ -170,14 +214,21 @@ InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"pid","v1":"123"}
 ;
 
-indexOfFunction
+indexOfFunction-caseSensitive
 process where indexOf(user_name, 'A', 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
-InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-"params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":true,"v4":0}
 ;
 
+indexOfFunction-caseInsensitive
+process where indexOf(user_name, 'A', 2) > 0
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":false,"v4":0}
+;
 
 substringFunction
 process where substring(file_name, -4) == '.exe'
@@ -206,22 +257,44 @@ InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),par
 cidrMatchFunctionOne
 process where cidrMatch(source_address, "10.0.0.0/8")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+cidrMatchFunctionOneBool
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
 ;
 
 cidrMatchFunctionTwo
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16"]
+;
+
+cidrMatchFunctionTwoWithOr
+process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"should":[{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"],"boost":1.0}}
 ;
 
 cidrMatchFunctionThree
 process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
 ;
-"term":{"source_address":{"value":"10.0.0.0/8"
-"term":{"source_address":{"value":"192.168.0.0/16"
-"term":{"source_address":{"value":"2001:db8::/32"
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16","2001:db8::/32"]
+;
+
+cidrMatchFunctionWrapped
+process where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+;
+{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.string(
+InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)),params.v2))"
+"params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
 ;
 
 matchFunctionOne
@@ -241,6 +314,44 @@ process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 ;
 "regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 ;
+
+numberFunctionSingleArgument
+process where number(process_name) == 1;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":null,"v2":1}
+;
+
+matchFunctionScalar
+process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
+;
+
+
+numberFunctionTwoFieldArguments
+process where number(process_name, pid) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
+"params":{"v0":"process_name","v1":"pid"}
+;
+
+numberFunctionTwoArguments
+process where number(process_name, 16) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":16}
+;
+
+numberFunctionFoldedComparison
+process where serial_event_id == number("-32.5");
+{"term":{"serial_event_id":{"value":-32.5,
+;
+
+numberFunctionFoldedHexComparison
+process where serial_event_id == number("0x32", 16);
+{"term":{"serial_event_id":{"value":50,
+;
+
 
 wildcardFunctionSingleArgument
 process where wildcard(process_path, "*\\red_ttp\\wininit.*")

@@ -54,7 +54,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
+                null, targetField,
             "classification_model",
             ClassificationConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());
@@ -83,7 +83,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -113,7 +113,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -154,7 +154,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -184,7 +184,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "regression_model",
             regressionConfigUpdate,
             Collections.emptyMap());
@@ -207,7 +207,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "regression_model",
             regressionConfigUpdate,
             Collections.emptyMap());
@@ -239,7 +239,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             Collections.emptyMap());
@@ -268,7 +268,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
@@ -304,7 +304,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
@@ -332,7 +332,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
+                null, targetField,
             "regression_model",
             RegressionConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());
@@ -375,7 +375,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml",
+                null, "ml",
             "regression_model",
             RegressionConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());

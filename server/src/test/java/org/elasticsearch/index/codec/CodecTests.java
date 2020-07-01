@@ -19,16 +19,11 @@
 
 package org.elasticsearch.index.codec;
 
-import static org.hamcrest.Matchers.instanceOf;
-
-import java.io.IOException;
-import java.util.Collections;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene84.Lucene84Codec;
+import org.apache.lucene.codecs.lucene86.Lucene86Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -47,14 +42,19 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.instanceOf;
+
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene84Codec.class));
-        assertThat(codecService.codec("Lucene84"), instanceOf(Lucene84Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene86Codec.class));
+        assertThat(codecService.codec("Lucene86"), instanceOf(Lucene86Codec.class));
     }
 
     public void testDefault() throws Exception {

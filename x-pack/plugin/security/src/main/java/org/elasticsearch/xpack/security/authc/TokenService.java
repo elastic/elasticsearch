@@ -1567,12 +1567,12 @@ public final class TokenService {
 
     private boolean isEnabled() {
         return enabled && licenseState.isSecurityEnabled() &&
-            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE);
+            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE);
     }
 
     private void ensureEnabled() {
         if (licenseState.isSecurityEnabled() == false ||
-            licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE) == false) {
+            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE) == false) {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {

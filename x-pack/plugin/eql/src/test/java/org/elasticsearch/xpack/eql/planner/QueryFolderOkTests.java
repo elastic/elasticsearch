@@ -11,15 +11,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
@@ -36,7 +37,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return readSpec("/queryfolder_tests.txt");
+        return QueriesUtils.readSpec("/queryfolder_tests.txt");
     }
 
     public static Iterable<Object[]> readSpec(String url) throws Exception {
@@ -68,18 +69,14 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
                         throw new IllegalArgumentException("Duplicate test name '" + line + "' at line " + lineNumber
                                 + " (previously seen at line " + previousName + ")");
                     }
-                }
-
-                else if (query == null) {
+                } else if (query == null) {
                     sb.append(line);
                     if (line.endsWith(";")) {
                         sb.setLength(sb.length() - 1);
                         query = sb.toString();
                         sb.setLength(0);
                     }
-                }
-
-                else {
+                } else {
                     boolean done = false;
                     if (line.endsWith(";")) {
                         line = line.substring(0, line.length() - 1);
@@ -89,7 +86,6 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
                     if (line.equals("null") == false) {
                         expectations.add(line);
                     }
-
                     if (done) {
                         // Add and zero out for the next spec
                         addSpec(arr, name, query, expectations.isEmpty() ? null : expectations.toArray());
@@ -114,11 +110,17 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
     }
 
     public void test() {
+        String testName = name.toLowerCase(Locale.ROOT);
+        // skip tests that do not make sense from case sensitivity point of view
+        boolean isCaseSensitiveValidTest = testName.endsWith("sensitive") == false
+            || testName.endsWith("-casesensitive") && configuration.isCaseSensitive()
+            || testName.endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
+        Assume.assumeTrue(isCaseSensitiveValidTest);
+
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(27, eqe.output().size());
-        assertEquals(KEYWORD, eqe.output().get(0).dataType());
+        assertEquals(1, eqe.output().size());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 

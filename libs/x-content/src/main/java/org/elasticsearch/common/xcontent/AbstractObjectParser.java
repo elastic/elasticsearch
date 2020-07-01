@@ -240,6 +240,24 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareFieldArray(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT_ARRAY);
     }
 
+    /**
+     * like {@link #declareObjectArray(BiConsumer, ContextParser, ParseField)}, but can also handle single null values,
+     * in which case the consumer isn't called
+     */
+    public <
+        T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field
+    ) {
+        declareField(
+            (value, list) -> { if (list != null) consumer.accept(value, list); },
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, () -> objectParser.parse(p, c)),
+            field,
+            ValueType.OBJECT_ARRAY_OR_NULL
+        );
+    }
+
     public void declareStringArray(BiConsumer<Value, List<String>> consumer, ParseField field) {
         declareFieldArray(consumer, (p, c) -> p.text(), field, ValueType.STRING_ARRAY);
     }

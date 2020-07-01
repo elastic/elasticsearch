@@ -47,7 +47,12 @@ to `4kb`
 
 
 |`http.compression` |Support for compression when possible (with
-Accept-Encoding). Defaults to `true`.
+Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults
+to `true`.
+
+Disabling compression for HTTPS mitigates potential security risks, such as a
+https://en.wikipedia.org/wiki/BREACH[BREACH attack]. To compress HTTPS traffic,
+you must explicitly set `http.compression` to `true`.
 
 |`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
 and 9 (maximum compression). Defaults to `3`.

@@ -23,16 +23,19 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
@@ -182,8 +185,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         public CountingMockRepository(final RepositoryMetadata metadata,
                                       final Environment environment,
-                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
-            super(metadata, environment, namedXContentRegistry, clusterService);
+                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                                      RecoverySettings recoverySettings) {
+            super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
         }
 
         @Override
@@ -193,9 +197,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         }
 
         @Override
-        public IndexMetadata getSnapshotIndexMetadata(SnapshotId snapshotId, IndexId indexId) throws IOException {
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId,
+                                                      IndexId indexId) throws IOException {
             indicesMetadata.computeIfAbsent(key(snapshotId.getName(), indexId.getName()), (s) -> new AtomicInteger(0)).incrementAndGet();
-            return super.getSnapshotIndexMetadata(snapshotId, indexId);
+            return super.getSnapshotIndexMetaData(PlainActionFuture.get(this::getRepositoryData), snapshotId, indexId);
         }
     }
 
@@ -206,9 +211,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService) {
+                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
             return Collections.singletonMap(TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService));
+                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
         }
     }
 }

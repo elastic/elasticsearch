@@ -19,24 +19,23 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -63,7 +62,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -615,101 +613,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }
 
-    public void testDataStreamsResolvability() {
-        String dataStreamName = "logs-foobar";
-        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
-        request.setTimestampFieldName("ts");
-        client().admin().indices().createDataStream(request).actionGet();
-
-        verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
-                .setSource("{}", XContentType.JSON)
-                .setOpType(DocWriteRequest.OpType.CREATE),
-            false);
-        verifyResolvability(dataStreamName, refreshBuilder(dataStreamName), false);
-        verifyResolvability(dataStreamName, search(dataStreamName), false, 1);
-        verifyResolvability(dataStreamName, msearch(null, dataStreamName), false);
-        verifyResolvability(dataStreamName, clearCache(dataStreamName), false);
-        verifyResolvability(dataStreamName, _flush(dataStreamName),false);
-        verifyResolvability(dataStreamName, segments(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
-        verifyResolvability(dataStreamName, forceMerge(dataStreamName), false);
-        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
-        verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
-        verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
-        verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
-        verifyResolvability(dataStreamName, getSettings(dataStreamName), true);
-        verifyResolvability(dataStreamName, health(dataStreamName), false);
-
-        request = new CreateDataStreamAction.Request("logs-barbaz");
-        request.setTimestampFieldName("ts");
-        client().admin().indices().createDataStream(request).actionGet();
-        verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
-                .setSource("{}", XContentType.JSON)
-                .setOpType(DocWriteRequest.OpType.CREATE),
-            false);
-
-        String wildcardExpression = "logs*";
-        verifyResolvability(wildcardExpression, refreshBuilder(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, search(wildcardExpression), false, 2);
-        verifyResolvability(wildcardExpression, msearch(null, wildcardExpression), false);
-        verifyResolvability(wildcardExpression, clearCache(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, _flush(wildcardExpression),false);
-        verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, forceMerge(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, health(wildcardExpression), false);
-    }
-
-    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
-        verifyResolvability(dataStream, requestBuilder, fail, 0);
-    }
-
-    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
-        if (fail) {
-            String expectedErrorMessage = "The provided expression [" + dataStream +
-                "] matches a data stream, specify the corresponding concrete indices instead.";
-            if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
-            } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
-                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
-                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
-            } else {
-                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
-                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
-            }
-        } else {
-            if (requestBuilder instanceof SearchRequestBuilder) {
-                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
-                assertHitCount(searchRequestBuilder.get(), expectedCount);
-            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
-            } else {
-                requestBuilder.get();
-            }
-        }
-    }
-
-    private static SearchRequestBuilder search(String... indices) {
+    static SearchRequestBuilder search(String... indices) {
         return client().prepareSearch(indices).setQuery(matchAllQuery());
     }
 
-    private static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
+    static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         if (options != null) {
             multiSearchRequestBuilder.setIndicesOptions(options);
@@ -717,48 +625,56 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
     }
 
-    private static ClearIndicesCacheRequestBuilder clearCache(String... indices) {
+    static ClearIndicesCacheRequestBuilder clearCache(String... indices) {
         return client().admin().indices().prepareClearCache(indices);
     }
 
-    private static FlushRequestBuilder _flush(String... indices) {
+    static FlushRequestBuilder _flush(String... indices) {
         return client().admin().indices().prepareFlush(indices);
     }
 
-    private static IndicesSegmentsRequestBuilder segments(String... indices) {
+    static IndicesSegmentsRequestBuilder segments(String... indices) {
         return client().admin().indices().prepareSegments(indices);
     }
 
-    private static IndicesStatsRequestBuilder indicesStats(String... indices) {
+    static IndicesStatsRequestBuilder indicesStats(String... indices) {
         return client().admin().indices().prepareStats(indices);
     }
 
-    private static ForceMergeRequestBuilder forceMerge(String... indices) {
+    static ForceMergeRequestBuilder forceMerge(String... indices) {
         return client().admin().indices().prepareForceMerge(indices);
     }
 
-    private static RefreshRequestBuilder refreshBuilder(String... indices) {
+    static RefreshRequestBuilder refreshBuilder(String... indices) {
         return client().admin().indices().prepareRefresh(indices);
     }
 
-    private static ValidateQueryRequestBuilder validateQuery(String... indices) {
+    static ValidateQueryRequestBuilder validateQuery(String... indices) {
         return client().admin().indices().prepareValidateQuery(indices);
     }
 
-    private static GetAliasesRequestBuilder getAliases(String... indices) {
+    static GetAliasesRequestBuilder getAliases(String... indices) {
         return client().admin().indices().prepareGetAliases("dummy").addIndices(indices);
     }
 
-    private static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
+    static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
         return client().admin().indices().prepareGetFieldMappings(indices);
     }
 
-    private static GetMappingsRequestBuilder getMapping(String... indices) {
+    static GetMappingsRequestBuilder getMapping(String... indices) {
         return client().admin().indices().prepareGetMappings(indices);
     }
 
-    private static GetSettingsRequestBuilder getSettings(String... indices) {
+    static PutMappingRequestBuilder putMapping(String source, String... indices) {
+        return client().admin().indices().preparePutMapping(indices).setSource(source, XContentType.JSON);
+    }
+
+    static GetSettingsRequestBuilder getSettings(String... indices) {
         return client().admin().indices().prepareGetSettings(indices);
+    }
+
+    static UpdateSettingsRequestBuilder updateSettings(Settings.Builder settings, String... indices) {
+        return client().admin().indices().prepareUpdateSettings(indices).setSettings(settings);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
@@ -772,7 +688,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndices(indices);
     }
 
-    private static ClusterHealthRequestBuilder health(String... indices) {
+    static ClusterHealthRequestBuilder health(String... indices) {
         return client().admin().cluster().prepareHealth(indices);
     }
 

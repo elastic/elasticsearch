@@ -65,7 +65,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             // yet and sends a mapping update to the master node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.
             assertThat(e.getMessage(),
-                    Matchers.containsString("mapper [foo] of different type, current_type [long], merged_type [text]"));
+                    Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }
     }
 

@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
@@ -22,7 +23,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,19 +44,20 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -73,11 +74,10 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final HistogramFieldType FIELD_TYPE = new HistogramFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }
@@ -86,11 +86,11 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder<Builder, HistogramFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -109,25 +109,16 @@ public class HistogramFieldMapper extends FieldMapper {
             return HistogramFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
-        public HistogramFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                          MappedFieldType defaultFieldType, Settings indexSettings,
-                                          MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
-            setupFieldType(context);
-            return new HistogramFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, copyTo);
-        }
-
         @Override
         public HistogramFieldMapper build(BuilderContext context) {
-            return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
+            return new HistogramFieldMapper(name, fieldType, new HistogramFieldType(buildFullName(context), hasDocValues, meta),
                 multiFieldsBuilder.build(this, context), ignoreMalformed(context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name,
-                                                                   Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             TypeParsers.parseMeta(builder, name, node);
@@ -146,16 +137,15 @@ public class HistogramFieldMapper extends FieldMapper {
 
     protected Explicit<Boolean> ignoreMalformed;
 
-    public HistogramFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    public HistogramFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
@@ -173,7 +163,8 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class HistogramFieldType extends MappedFieldType {
 
-        public HistogramFieldType() {
+        public HistogramFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
+            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         HistogramFieldType(HistogramFieldType ref) {
@@ -199,7 +190,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                                CircuitBreakerService breakerService, MapperService mapperService) {
 
-                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
+                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                         @Override
                         public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -274,11 +265,6 @@ public class HistogramFieldMapper extends FieldMapper {
                     };
                 }
             };
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override
@@ -418,6 +404,11 @@ public class HistogramFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
         }
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
     }
 
     /** re-usable {@link HistogramValue} implementation */

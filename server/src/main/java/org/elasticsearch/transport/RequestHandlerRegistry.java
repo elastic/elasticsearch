@@ -21,6 +21,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -58,14 +61,18 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
-        boolean success = false;
+        Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
-            success = true;
-        } finally {
-            if (success == false) {
-                taskManager.unregister(task);
+            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+                unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
+            handler.messageReceived(request, taskTransportChannel, task);
+            unregisterTask = null;
+        } finally {
+            Releasables.close(unregisterTask);
         }
     }
 

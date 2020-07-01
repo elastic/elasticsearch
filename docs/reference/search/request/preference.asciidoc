@@ -3,7 +3,7 @@
 
 Controls a `preference` of the shard copies on which to execute the search.  By
 default, Elasticsearch selects from the available shard copies in an
-unspecified order, taking the <<allocation-awareness,allocation awareness>> and
+unspecified order, taking the <<shard-allocation-awareness,allocation awareness>> and
 <<search-adaptive-replica,adaptive replica selection>> configuration into
 account. However, it may sometimes be desirable to try and route certain
 searches to certain sets of shard copies.

@@ -40,8 +40,8 @@ public final class JoinProcessor extends AbstractProcessor {
     private final String separator;
     private final String targetField;
 
-    JoinProcessor(String tag, String field, String separator, String targetField) {
-        super(tag);
+    JoinProcessor(String tag, String description, String field, String separator, String targetField) {
+        super(tag, description);
         this.field = field;
         this.separator = separator;
         this.targetField = targetField;
@@ -80,11 +80,11 @@ public final class JoinProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
         @Override
         public JoinProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
-            return new JoinProcessor(processorTag, field, separator, targetField);
+            return new JoinProcessor(processorTag, description, field, separator, targetField);
         }
     }
 }

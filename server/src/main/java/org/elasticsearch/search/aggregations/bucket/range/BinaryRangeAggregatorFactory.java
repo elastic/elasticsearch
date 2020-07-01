@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -62,18 +61,17 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext, Aggregator parent,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             IpRangeAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof IpRangeAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected IpRangeAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
+        return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
                 ranges, keyed, searchContext, parent, metadata);
     }
 

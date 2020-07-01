@@ -36,7 +36,7 @@ For more information, see
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-get-calendar-request-body]]
 ==== {api-request-body-title}
@@ -55,7 +55,7 @@ properties:
 
 `calendar_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `job_ids`::
 (array) An array of {anomaly-job} identifiers. For example:

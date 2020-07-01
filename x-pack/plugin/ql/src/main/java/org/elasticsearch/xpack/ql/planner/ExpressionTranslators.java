@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
@@ -118,19 +120,17 @@ public final class ExpressionTranslators {
 
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
+                if (e instanceof Like) {
+                    LikePattern p = ((Like) e).pattern();
+                    q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
+                }
+
+                if (e instanceof RLike) {
+                    String pattern = ((RLike) e).pattern().asJavaRegex();
+                    q = new RegexQuery(e.source(), targetFieldName, pattern);
+                }
             } else {
-                throw new QlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.sourceText(),
-                        Expressions.name(e.field()));
-            }
-
-            if (e instanceof Like) {
-                LikePattern p = ((Like) e).pattern();
-                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
-            }
-
-            if (e instanceof RLike) {
-                String pattern = ((RLike) e).pattern().asJavaRegex();
-                q = new RegexQuery(e.source(), targetFieldName, pattern);
+                q = new ScriptQuery(e.source(), e.asScript());
             }
 
             return wrapIfNested(q, e.field());
@@ -216,7 +216,7 @@ public final class ExpressionTranslators {
 
         public static void checkBinaryComparison(BinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
-                         "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                         "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                          bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
                          Expressions.name(bc.right()), bc.symbol());
         }
@@ -374,7 +374,24 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
+            Query q = doKnownTranslate(f, handler);
+            if (q != null) {
+                return q;
+            }
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+        }
+
+        public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
+            if (f instanceof StartsWith) {
+                StartsWith sw = (StartsWith) f;
+                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
+                    String pattern = (String) sw.pattern().fold();
+
+                    return new PrefixQuery(f.source(), targetFieldName, pattern);
+                }
+            }
+            return null;
         }
     }
 

@@ -128,3 +128,18 @@ removed in 8.0.
 Discontinue use of the `use_field_mapping` request body parameter. Requests
 containing this parameter will return an error.
 ====
+
+
+.The search API's `from` request body and url parameter cannot be negative.
+[%collapsible]
+====
+*Details* +
+Search request used to accept `-1` as a `from` in the search body and the url,
+treating it as the default value of 0. Other negative values got rejected with
+an error already. We now also reject `-1` as an invalid value.
+
+*Impact* +
+Change any use of `-1` as `from` parameter in request body or url parameters by either
+setting it to `0` or omitting it entirely. Requests containing negative values will
+return an error.
+====

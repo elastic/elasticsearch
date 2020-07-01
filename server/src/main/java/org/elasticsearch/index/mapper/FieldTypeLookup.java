@@ -19,16 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -36,47 +35,23 @@ import java.util.Set;
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
-    final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
-    private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
+    private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+    private final Map<String, String> aliasToConcreteName = new HashMap<>();
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
-
     FieldTypeLookup() {
-        fullNameToFieldType = new CopyOnWriteHashMap<>();
-        aliasToConcreteName = new CopyOnWriteHashMap<>();
-        dynamicKeyLookup = new DynamicKeyFieldTypeLookup();
+        this(Collections.emptyList(), Collections.emptyList());
     }
 
-    private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
-                            CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                            DynamicKeyFieldTypeLookup dynamicKeyLookup) {
-        this.fullNameToFieldType = fullNameToFieldType;
-        this.aliasToConcreteName = aliasToConcreteName;
-        this.dynamicKeyLookup = dynamicKeyLookup;
-    }
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers,
+                    Collection<FieldAliasMapper> fieldAliasMappers) {
 
-    /**
-     * Return a new instance that contains the union of this instance and the field types
-     * from the provided mappers. If a field already exists, its field type will be updated
-     * to use the new type from the given field mapper. Similarly if an alias already
-     * exists, it will be updated to reference the field type from the new mapper.
-     */
-    public FieldTypeLookup copyAndAddAll(Collection<FieldMapper> fieldMappers,
-                                         Collection<FieldAliasMapper> fieldAliasMappers) {
-
-        CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
-        CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
-            MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
-
-            if (Objects.equals(fieldType, fullNameFieldType) == false) {
-                fullName = fullName.copyAndPut(fieldType.name(), fieldType);
-            }
-
+            fullNameToFieldType.put(fieldType.name(), fieldType);
             if (fieldMapper instanceof DynamicKeyFieldMapper) {
                 dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
             }
@@ -85,15 +60,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
-
-            String existingPath = aliases.get(aliasName);
-            if (Objects.equals(path, existingPath) == false) {
-                aliases = aliases.copyAndPut(aliasName, path);
-            }
+            aliasToConcreteName.put(aliasName, path);
         }
 
-        DynamicKeyFieldTypeLookup newDynamicKeyLookup = this.dynamicKeyLookup.copyAndAddAll(dynamicKeyMappers, aliases);
-        return new FieldTypeLookup(fullName, aliases, newDynamicKeyLookup);
+        this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
     }
 
     /**

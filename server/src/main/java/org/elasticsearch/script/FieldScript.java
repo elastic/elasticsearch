@@ -19,12 +19,12 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,21 +38,22 @@ public abstract class FieldScript {
 
     public static final String[] PARAMETERS = {};
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("field-script_doc",
+                deprecationLogger.deprecate("field-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an field-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
             "_doc", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("field-script__doc",
+                deprecationLogger.deprecate("field-script__doc",
                         "Accessing variable [doc] via [params._doc] from within an field-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
-            });
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

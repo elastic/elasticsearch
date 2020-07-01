@@ -45,10 +45,13 @@ public class EqlRequestParserTests extends ESTestCase {
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-
         assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
             EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"case_sensitive\" : \"whatever\"}", "failed to parse field [case_sensitive]",
+            EqlSearchRequest::fromXContent);
 
+        boolean setIsCaseSensitive = randomBoolean();
+        boolean isCaseSensitive = randomBoolean();
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_category_field\" : \"etf\","
@@ -56,6 +59,7 @@ public class EqlRequestParserTests extends ESTestCase {
             + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
             + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
+            + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
             + "}", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
@@ -69,6 +73,7 @@ public class EqlRequestParserTests extends ESTestCase {
         assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
         assertEquals(101, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
+        assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)

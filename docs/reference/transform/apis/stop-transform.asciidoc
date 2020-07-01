@@ -48,14 +48,14 @@ All {transforms} can be stopped by using `_all` or `*` as the
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[stop-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::
   (Optional, boolean) Set to `true` to stop a failed {transform} or to 

@@ -23,7 +23,7 @@ than 10 completion contexts will return an error.
 ====
 
 
-.Mapping API endpoints containing document types have been removed.
+.Mapping API endpoints containing mapping types have been removed.
 [%collapsible]
 ====
 *Details* +

@@ -42,7 +42,7 @@ credentials are used instead.
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [role="child_attributes"]
 [[ml-update-datafeed-request-body]]
@@ -52,27 +52,27 @@ The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
 
 `delayed_data_check_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
 (Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 
 `max_empty_searches`::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
 +
 --
 The special value `-1` unsets this setting.
@@ -80,7 +80,7 @@ The special value `-1` unsets this setting.
 
 `query`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
 +
 --
 WARNING: If you change the query, the analyzed data is also changed. Therefore,
@@ -94,19 +94,19 @@ the results of the other job.
 
 `query_delay`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
 
 `script_fields`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
 (Optional, unsigned integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 `indices_options`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices-options]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}

@@ -106,6 +106,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         store.execute((Operation<Void>) fileContext -> {
             Path blob = new Path(path, blobName);

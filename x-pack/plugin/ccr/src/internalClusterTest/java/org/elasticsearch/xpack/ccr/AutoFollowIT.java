@@ -559,7 +559,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     private void assertLongBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         try {
-            assertBusy(codeBlock, 60L, TimeUnit.SECONDS);
+            assertBusy(codeBlock, 120L, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             AutoFollowStats autoFollowStats = null;
             try {

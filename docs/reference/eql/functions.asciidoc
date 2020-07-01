@@ -1,10 +1,12 @@
+[role="xpack"]
+[testenv="basic"]
 [[eql-function-ref]]
 == EQL function reference
 ++++
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 {es} supports the following EQL functions:
 
@@ -19,6 +21,7 @@ experimental::[]
 * <<eql-fn-match>>
 * <<eql-fn-modulo>>
 * <<eql-fn-multiply>>
+* <<eql-fn-number>>
 * <<eql-fn-startswith>>
 * <<eql-fn-string>>
 * <<eql-fn-stringcontains>>
@@ -89,14 +92,14 @@ source string.
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")   // returns "cmd"
-between(file.path, "workspace\\\\", ".exe")  // returns ""
-
+between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "workspace\\\\", ".exe")               // returns ""
 
 // Greedy matching defaults to false.
-between(file.path, "\\\\", "\\\\", false)  // returns "Windows"
+between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
+
 // Sets greedy matching to true
-between(file.path, "\\\\", "\\\\", true)  // returns "Windows\\System32"
+between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
 // Case sensitivity defaults to false.
 between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
@@ -105,11 +108,11 @@ between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
 between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
 
 // empty source string
-between("", "system32\\\\", ".exe")          // returns ""
-between("", "", "")                          // returns ""
+between("", "system32\\\\", ".exe")                       // returns ""
+between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                   // returns null
+between(null, "system32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*
@@ -134,8 +137,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<left>`::
@@ -152,8 +153,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<right>`::
@@ -170,8 +169,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<greedy_matching>`::
@@ -415,10 +412,6 @@ endsWith(file.name, ".dll")               // returns false
 endsWith("regsvr32.exe", file.extension)  // returns true
 endsWith("ntdll.dll", file.name)          // returns false
 
-// file.name = [ "ntdll.dll", "regsvr32.exe" ]
-endsWith(file.name, ".dll")               // returns true
-endsWith(file.name, ".exe")               // returns false
-
 // null handling
 endsWith("regsvr32.exe", null)            // returns null
 endsWith("", null)                        // returns null
@@ -447,8 +440,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::
@@ -620,8 +611,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 *Returns:* integer or `null`
@@ -806,6 +795,102 @@ If using a field as the argument, this parameter supports only
 ====
 
 [discrete]
+[[eql-fn-number]]
+=== `number`
+
+Converts a string to the corresponding integer or float.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+number("1337")              // returns 1337
+number("42.5")              // returns 42.5
+number("deadbeef", 16)      // returns 3735928559
+
+// integer literals beginning with "0x" are auto-detected as hexadecimal
+number("0xdeadbeef")        // returns 3735928559
+number("0xdeadbeef", 16)    // returns 3735928559
+
+// "+" and "-" are supported
+number("+1337")             // returns 1337
+number("-1337")             // returns -1337
+
+// surrounding whitespace is ignored
+number("  1337  ")          // returns 1337
+
+// process.pid = "1337"
+number(process.pid)         // returns 1337
+
+// null handling
+number(null)                // returns null
+number(null, 16)            // returns null
+
+// strings beginning with "0x" are treated as hexadecimal (base 16),
+// even if the <base_num> is explicitly null.
+number("0xdeadbeef", null) // returns 3735928559
+
+// otherwise, strings are treated as decimal (base 10)
+// if the <base_num> is explicitly null.
+number("1337", null)        // returns 1337
+----
+
+*Syntax*
+[source,txt]
+----
+number(<string>[, <base_num>])
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String to convert to an integer or float. If this value is a string, it must be
+one of the following:
+
+* A string representation of an integer (e.g., `"42"`)
+* A string representation of a float (e.g., `"9.5"`)
+* If the `<base_num>` parameter is specified, a string containing an integer
+  literal in the base notation (e.g., `"0xDECAFBAD"` in hexadecimal or base
+  `16`)
+
+Strings that begin with `0x` are auto-detected as hexadecimal and use a default
+`<base_num>` of `16`.
+
+`-` and `+` are supported with no space between. Surrounding whitespace is
+ignored. Empty strings (`""`) are not supported.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+If this argument is `null`, the function returns `null`.
+--
+
+`<base_num>`::
++
+--
+(Optional, integer or `null`)
+Radix or base used to convert the string. If the `<string>` begins with `0x`,
+this parameter defaults to `16` (hexadecimal). Otherwise, it defaults to base
+`10`.
+
+If this argument is explicitly `null`, the default value is used.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* integer or float or `null`
+====
+
+[discrete]
 [[eql-fn-startswith]]
 === `startsWith`
 
@@ -827,10 +912,6 @@ startsWith(process.name, "explorer")    // returns false
 // process.name = "regsvr32"
 startsWith("regsvr32.exe", process.name) // returns true
 startsWith("explorer.exe", process.name) // returns false
-
-// process.name = [ "explorer.exe", "regsvr32.exe" ]
-startsWith(process.name, "explorer")    // returns true
-startsWith(process.name, "regsvr32")    // returns false
 
 // null handling
 startsWith("regsvr32.exe", null)        // returns null
@@ -860,8 +941,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::

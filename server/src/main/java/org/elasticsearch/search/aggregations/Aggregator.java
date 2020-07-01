@@ -26,20 +26,22 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.BiConsumer;
 
 /**
  * An Aggregator.
+ * <p>
+ * Be <strong>careful</strong> when adding methods to this class. If possible
+ * make sure they have sensible default implementations.
  */
-// IMPORTANT: DO NOT add methods to this class unless strictly required.
-// On the other hand, if you can remove methods from it, you are highly welcome!
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
@@ -59,19 +61,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @throws java.io.IOException      When parsing fails
          */
         AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
-    }
-
-    /**
-     * Returns whether one of the parents is a {@link BucketsAggregator}.
-     */
-    public static boolean descendsFromBucketAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent instanceof BucketsAggregator) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
     }
 
     /**
@@ -175,6 +164,19 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Build an empty aggregation.
      */
     public abstract InternalAggregation buildEmptyAggregation();
+
+    /**
+     * Collect debug information to add to the profiling results. This will
+     * only be called if the aggregation is being profiled.
+     * <p>
+     * Well behaved implementations will always call the superclass
+     * implementation just in case it has something interesting. They will
+     * also only add objects which can be serialized with
+     * {@link StreamOutput#writeGenericValue(Object)} and
+     * {@link XContentBuilder#value(Object)}. And they'll have an integration
+     * test. 
+     */
+    public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {

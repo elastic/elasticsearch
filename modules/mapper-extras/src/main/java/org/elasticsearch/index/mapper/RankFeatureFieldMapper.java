@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField}.
@@ -46,46 +45,40 @@ public class RankFeatureFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "rank_feature";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RankFeatureFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, RankFeatureFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
+
+        private boolean positiveScoreImpact = true;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
-        @Override
-        public RankFeatureFieldType fieldType() {
-            return (RankFeatureFieldType) super.fieldType();
-        }
-
         public Builder positiveScoreImpact(boolean v) {
-            fieldType().setPositiveScoreImpact(v);
+            this.positiveScoreImpact = v;
             return builder;
         }
 
         @Override
         public RankFeatureFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new RankFeatureFieldMapper(
-                    name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new RankFeatureFieldMapper(name, fieldType, new RankFeatureFieldType(buildFullName(context), meta, positiveScoreImpact),
+                multiFieldsBuilder.build(this, context), copyTo, positiveScoreImpact);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -102,11 +95,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     public static final class RankFeatureFieldType extends MappedFieldType {
 
-        private boolean positiveScoreImpact = true;
+        private final boolean positiveScoreImpact;
 
-        public RankFeatureFieldType() {
+        public RankFeatureFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
+            super(name, true, false, TextSearchInfo.NONE, meta);
+            this.positiveScoreImpact = positiveScoreImpact;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected RankFeatureFieldType(RankFeatureFieldType ref) {
@@ -119,41 +113,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            RankFeatureFieldType other = (RankFeatureFieldType) o;
-            return Objects.equals(positiveScoreImpact, other.positiveScoreImpact);
-        }
-
-        @Override
-        public int hashCode() {
-            int h = super.hashCode();
-            h = 31 * h + Objects.hashCode(positiveScoreImpact);
-            return h;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (positiveScoreImpact != ((RankFeatureFieldType) other).positiveScoreImpact()) {
-                conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
-            }
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
 
         public boolean positiveScoreImpact() {
             return positiveScoreImpact;
-        }
-
-        public void setPositiveScoreImpact(boolean positiveScoreImpact) {
-            checkIfFrozen();
-            this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
@@ -172,10 +137,13 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
     }
 
-    private RankFeatureFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    private final boolean positiveScoreImpact;
+
+    private RankFeatureFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                   MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
+        this.positiveScoreImpact = positiveScoreImpact;
     }
 
     @Override
@@ -210,7 +178,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
                 name() + "] in the same document");
         }
 
-        if (fieldType().positiveScoreImpact() == false) {
+        if (positiveScoreImpact == false) {
             value = 1 / value;
         }
 
@@ -226,8 +194,20 @@ public class RankFeatureFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().positiveScoreImpact() == false) {
-            builder.field("positive_score_impact", fieldType().positiveScoreImpact());
+        if (includeDefaults || positiveScoreImpact == false) {
+            builder.field("positive_score_impact", positiveScoreImpact);
+        }
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        if (positiveScoreImpact != ((RankFeatureFieldMapper)other).positiveScoreImpact) {
+            conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
         }
     }
 }

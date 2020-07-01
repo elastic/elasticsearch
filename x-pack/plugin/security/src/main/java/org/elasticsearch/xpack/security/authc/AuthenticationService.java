@@ -49,14 +49,11 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -669,8 +666,7 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(
-                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -702,33 +698,6 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
-        }
-
-        private User maybeConsolidateRolesForUser(User user) {
-            if (User.isInternal(user)) {
-                return user;
-            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
-                if (user.isRunAs()) {
-                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
-                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
-                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
-                }
-                return userWithMergedRoles;
-            } else {
-                return user;
-            }
-        }
-
-        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
-            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
-            if (otherRoles != null) {
-                Collections.addAll(roles, otherRoles);
-            }
-            return roles.toArray(new String[0]);
         }
     }
 

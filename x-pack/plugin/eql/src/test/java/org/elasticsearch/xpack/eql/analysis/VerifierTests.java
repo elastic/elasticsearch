@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
@@ -35,7 +36,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier());
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -86,10 +87,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
     }
 
-    public void testPipesUnsupported() {
-        assertEquals("1:20: Pipes are not supported", errorParsing("process where true | head 6"));
-    }
-
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
                 errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +
@@ -113,12 +110,6 @@ public class VerifierTests extends ESTestCase {
     public void testFunctionParsingUnknown() {
         assertEquals("1:15: Unknown function [safe]",
                 error("network where safe(process_name)"));
-    }
-
-    // Test the known EQL functions that are not supported
-    public void testFunctionVerificationUnknown() {
-        assertEquals("1:34: Unknown function [number]",
-                error("process where serial_event_id == number('5')"));
     }
 
     // Test unsupported array indexes
@@ -322,13 +313,13 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
                         "(field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_name == 'bar'"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.end_date == ''"));
-        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " + 
+        assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
                 error(idxr, "foo where multi_field_nested.start_date == 'bar'"));
     }

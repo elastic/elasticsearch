@@ -31,8 +31,8 @@ tasks.withType(CheckForbiddenApis).configureEach {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
-  compile "com.ibm.icu:icu4j:${versions.icu4j}"
+  api "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 
 restResources {
@@ -41,7 +41,6 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-

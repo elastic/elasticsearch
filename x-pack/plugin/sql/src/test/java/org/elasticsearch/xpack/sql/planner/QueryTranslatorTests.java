@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
@@ -55,6 +56,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryStringFunction;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -252,7 +257,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
+        assertEquals("Line 1:43: Comparisons against fields are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
     public void testDateRange() {
@@ -575,24 +580,34 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("some.string.typical", qsq.field());
     }
 
-    public void testLikeConstructsNotSupported() {
+    public void testLikeWithScalars() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) like '%a%'", ex.getMessage());
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=^.*a.*$}]", sc.script().params().toString());
     }
 
-    public void testRLikeConstructsNotSupported() {
+    public void testRLikeWithScalars() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LTRIM(keyword) RLIKE '.*a.*'", ex.getMessage());
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=.*a.*}]", sc.script().params().toString());
     }
 
     public void testDifferentLikeAndNotLikePatterns() {
@@ -662,12 +677,118 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue("
-                + "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(" +
-                     "doc,params.v3),params.v4),params.v5,params.v6])",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils." +
+                "docValue(doc,params.v3),params.v4)) ? params.v5 : params.v6",
                 scriptTemplate.toString());
         assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
                 scriptTemplate.params().toString());
+    }
+
+    public void testStartsWithUsesPrefixQuery() {
+        LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') OR STARTS_WITH(keyword, 'y')");
+        
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+
+        QueryTranslation translation = translate(condition);
+        assertTrue(translation.query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) translation.query;
+        
+        assertFalse(bq.isAnd());
+        assertTrue(bq.left() instanceof PrefixQuery);
+        assertTrue(bq.right() instanceof PrefixQuery);
+
+        PrefixQuery pqr = (PrefixQuery) bq.right();
+        assertEquals("keyword", pqr.field());
+        assertEquals("y", pqr.query());
+        
+        PrefixQuery pql = (PrefixQuery) bq.left();
+        assertEquals("keyword", pql.field());
+        assertEquals("x", pql.query());
+    }
+
+    public void testStartsWithUsesPrefixQueryAndScript() {
+        LogicalPlan p = plan("SELECT keyword FROM test WHERE STARTS_WITH(keyword, 'x') AND STARTS_WITH(keyword, 'xy') "
+            + "AND STARTS_WITH(LCASE(keyword), 'xyz')");
+        
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+
+        QueryTranslation translation = translate(condition);
+        assertTrue(translation.query instanceof BoolQuery);
+        BoolQuery bq = (BoolQuery) translation.query;
+        
+        assertTrue(bq.isAnd());
+        assertTrue(bq.left() instanceof BoolQuery);
+        assertTrue(bq.right() instanceof ScriptQuery);
+
+        BoolQuery bbq = (BoolQuery) bq.left();
+        assertTrue(bbq.isAnd());
+        PrefixQuery pqr = (PrefixQuery) bbq.right();
+        assertEquals("keyword", pqr.field());
+        assertEquals("xy", pqr.query());
+        
+        PrefixQuery pql = (PrefixQuery) bbq.left();
+        assertEquals("keyword", pql.field());
+        assertEquals("x", pql.query());
+
+        ScriptQuery sq = (ScriptQuery) bq.right();
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith("
+                + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
+                + "params.v1, params.v2))",
+            sq.script().toString());
+        assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_WhereClause_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed FROM test WHERE " + trimFunctionName + "(keyword) = 'foo'");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
+                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=foo}]", sc.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_GroupBy_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed, count(*) FROM test GROUP BY " +
+            trimFunctionName + "(keyword)");
+
+        assertEquals(Aggregate.class, p.getClass());
+        Aggregate agg = (Aggregate) p;
+        assertEquals(1, agg.groupings().size());
+        assertEquals(2, agg.aggregates().size());
+        assertEquals(trimFunction, agg.groupings().get(0).getClass());
+        assertEquals(trimFunction, ((Alias) agg.aggregates().get(0)).child().getClass());
+        assertEquals(Count.class,((Alias) agg.aggregates().get(1)).child().getClass());
+
+        UnaryStringFunction trim = (UnaryStringFunction) agg.groupings().get(0);
+        assertEquals(1, trim.children().size());
+
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(agg.groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils." + trimFunctionName.toLowerCase(Locale.ROOT) +
+                "(InternalQlScriptUtils.docValue(doc,params.v0))",
+            scriptTemplate.toString());
+        assertEquals("[{v=keyword}]", scriptTemplate.params().toString());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {
@@ -791,8 +912,8 @@ public class QueryTranslatorTests extends ESTestCase {
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
                 "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
-                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
-                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+                "[InternalSqlScriptUtils.asDateTime(params.a0)]),InternalSqlScriptUtils.asDateTime(params.v0)))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
@@ -1122,9 +1243,9 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(" + ""
-                + "doc,params.v0),params.v1),params.v2,InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v3)," +
-                "params.v4),params.v5,params.v6])",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(" +
+                "doc,params.v3),params.v4)) ? params.v5 : params.v6",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}, {v=foo}, {v=int}, {v=20}, {v=bar}, {v=default}]", scriptTemplate.params().toString());
     }
@@ -1137,8 +1258,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt("  +
-                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                "params.v1)) ? params.v2 : params.v3",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=20}, {v=foo}, {v=bar}]", scriptTemplate.params().toString());
     }
@@ -2002,5 +2123,40 @@ public class QueryTranslatorTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDatetimeField() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(date) FROM test HAVING MAX(date) > CAST('2020-05-03T12:34:56.000Z' AS DATETIME)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":{\"bucket_selector\":"
+            + "{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
+            + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\","
+            + "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-05-03T12:34:56.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDateField_AndExtendedStats() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MIN(CAST(date AS DATE)), MAX(CAST(date AS DATE)) FROM test HAVING "
+            + "MIN(CAST(date AS DATE)) > CAST('2020-05-03T12:34:56.000Z' AS DATE)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.cast("
+            + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\",\"lang\":\"painless\",\"params\":"
+            + "{\"v0\":\"date\",\"v1\":\"DATE\"}}}},\"" + havingName + "\":{\"bucket_selector\":{\"buckets_path\":"
+            + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
+            + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
+            + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
     }
 }

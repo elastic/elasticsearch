@@ -49,7 +49,11 @@ include::settings/audit-settings.asciidoc[]
 
 include::modules/indices/circuit_breaker.asciidoc[]
 
+include::modules/cluster.asciidoc[]
+
 include::settings/ccr-settings.asciidoc[]
+
+include::modules/discovery/discovery-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
@@ -106,6 +110,8 @@ include::setup/bootstrap-checks-xes.asciidoc[]
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::modules/discovery.asciidoc[]
 
 include::setup/add-nodes.asciidoc[]
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -29,15 +30,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -47,19 +47,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -78,6 +77,14 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+        public static final FieldType FIELD_TYPE = new FieldType();
+        static {
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        }
     }
 
     public enum Resolution {
@@ -171,22 +178,18 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private Boolean ignoreMalformed;
         private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
         private Locale locale;
         private Resolution resolution = Resolution.MILLISECONDS;
+        String nullValue;
 
         public Builder(String name) {
-            super(name, new DateFieldType(), new DateFieldType());
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
             locale = Locale.ROOT;
-        }
-
-        @Override
-        public DateFieldType fieldType() {
-            return (DateFieldType)fieldType;
         }
 
         public Builder ignoreMalformed(boolean ignoreMalformed) {
@@ -206,6 +209,11 @@ public final class DateFieldMapper extends FieldMapper {
 
         public Builder locale(Locale locale) {
             this.locale = locale;
+            return this;
+        }
+
+        public Builder nullValue(String nullValue) {
+            this.nullValue = nullValue;
             return this;
         }
 
@@ -231,25 +239,18 @@ public final class DateFieldMapper extends FieldMapper {
             return format.explicit();
         }
 
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
+        protected DateFieldType setupFieldType(BuilderContext context) {
             String pattern = this.format.value();
-            DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter;
-
-            boolean hasPatternChanged = Strings.hasLength(pattern) && Objects.equals(pattern, dateTimeFormatter.pattern()) == false;
-            if (hasPatternChanged || Objects.equals(builder.locale, dateTimeFormatter.locale()) == false) {
-                fieldType().setDateTimeFormatter(DateFormatter.forPattern(pattern).withLocale(locale));
-            }
-
-            fieldType().setResolution(resolution);
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+            return new DateFieldType(buildFullName(context), indexed, hasDocValues, dateTimeFormatter, resolution, meta);
         }
 
         @Override
         public DateFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            DateFieldType ft = setupFieldType(context);
+            Long nullTimestamp = nullValue == null ? null : ft.dateTimeFormatter.parseMillis(nullValue);
+            return new DateFieldMapper(name, fieldType, ft, ignoreMalformed(context), nullTimestamp, nullValue,
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -262,7 +263,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.withResolution(resolution);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -294,23 +295,27 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     public static final class DateFieldType extends MappedFieldType {
-        protected DateFormatter dateTimeFormatter;
-        protected DateMathParser dateMathParser;
-        protected Resolution resolution;
+        protected final DateFormatter dateTimeFormatter;
+        protected final DateMathParser dateMathParser;
+        protected final Resolution resolution;
 
-        public DateFieldType() {
-            super();
-            setTokenized(false);
-            setHasDocValues(true);
-            setOmitNorms(true);
-            setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
-            setResolution(Resolution.MILLISECONDS);
+        public DateFieldType(String name, boolean isSearchable, boolean hasDocValues,
+                             DateFormatter dateTimeFormatter, Resolution resolution, Map<String, String> meta) {
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.dateTimeFormatter = dateTimeFormatter;
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.resolution = resolution;
+        }
+
+        public DateFieldType(String name) {
+            this(name, true, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
         }
 
         DateFieldType(DateFieldType other) {
             super(other);
-            setDateTimeFormatter(other.dateTimeFormatter);
-            setResolution(other.resolution);
+            this.dateTimeFormatter = other.dateTimeFormatter;
+            this.dateMathParser = other.dateMathParser;
+            this.resolution = other.resolution;
         }
 
         @Override
@@ -337,21 +342,6 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.type();
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            DateFieldType other = (DateFieldType) fieldType;
-            if (Objects.equals(dateTimeFormatter.pattern(), other.dateTimeFormatter.pattern()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [format] values");
-            }
-            if (Objects.equals(dateTimeFormatter.locale(), other.dateTimeFormatter.locale()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [locale] values");
-            }
-            if (Objects.equals(resolution.type(), other.resolution.type()) == false) {
-                conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
-            }
-        }
-
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
@@ -360,23 +350,12 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution;
         }
 
-        void setDateTimeFormatter(DateFormatter formatter) {
-            checkIfFrozen();
-            this.dateTimeFormatter = formatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
-        }
-
-        void setResolution(Resolution resolution) {
-            checkIfFrozen();
-            this.resolution = resolution;
-        }
-
         protected DateMathParser dateMathParser() {
             return dateMathParser;
         }
 
         public long parse(String value) {
-            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
 
         @Override
@@ -430,11 +409,17 @@ public final class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
+
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                }
             }
+
             if (nowUsed[0]) {
                 query = new DateRangeIncludingNowQuery(query);
             }
@@ -488,30 +473,6 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
 
-            return isFieldWithinRange(reader, fromInclusive, toInclusive);
-        }
-
-        /**
-         * Return whether all values of the given {@link IndexReader} are within the range,
-         * outside the range or cross the range. Unlike {@link #isFieldWithinQuery} this
-         * accepts values that are out of the range of the {@link #resolution} of this field.
-         * @param fromInclusive start date, inclusive
-         * @param toInclusive end date, inclusive
-         */
-        public Relation isFieldWithinRange(IndexReader reader, Instant fromInclusive, Instant toInclusive)
-                throws IOException {
-            return isFieldWithinRange(reader,
-                    resolution.convert(resolution.clampToValidRange(fromInclusive)),
-                    resolution.convert(resolution.clampToValidRange(toInclusive)));
-        }
-
-        /**
-         * Return whether all values of the given {@link IndexReader} are within the range,
-         * outside the range or cross the range.
-         * @param fromInclusive start date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
-         * @param toInclusive end date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
-         */
-        private Relation isFieldWithinRange(IndexReader reader, long fromInclusive, long toInclusive) throws IOException {
             if (PointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
@@ -532,12 +493,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(resolution.numericType());
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.DATE;
+            return new SortedNumericIndexFieldData.Builder(resolution.numericType());
         }
 
         @Override
@@ -565,17 +521,21 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private Explicit<Boolean> ignoreMalformed;
+    private final Long nullValue;
+    private final String nullValueAsString;
 
     private DateFieldMapper(
             String simpleName,
-            MappedFieldType fieldType,
-            MappedFieldType defaultFieldType,
+            FieldType fieldType,
+            MappedFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
-            Settings indexSettings,
+            Long nullValue, String nullValueAsString,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
+        this.nullValue = nullValue;
+        this.nullValueAsString = nullValueAsString;
     }
 
     @Override
@@ -585,7 +545,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType.typeName();
+        return fieldType().resolution.type();
     }
 
     @Override
@@ -607,45 +567,52 @@ public final class DateFieldMapper extends FieldMapper {
             dateAsString = context.parser().textOrNull();
         }
 
-        if (dateAsString == null) {
-            dateAsString = fieldType().nullValueAsString();
-        }
-
-        if (dateAsString == null) {
-            return;
-        }
-
         long timestamp;
-        try {
-            timestamp = fieldType().parse(dateAsString);
-        } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
-            if (ignoreMalformed.value()) {
-                context.addIgnoredField(fieldType.name());
+        if (dateAsString == null) {
+            if (nullValue == null) {
                 return;
-            } else {
-                throw e;
+            }
+            timestamp = nullValue;
+        } else {
+            try {
+                timestamp = fieldType().parse(dateAsString);
+            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException e) {
+                if (ignoreMalformed.value()) {
+                    context.addIgnoredField(mappedFieldType.name());
+                    return;
+                } else {
+                    throw e;
+                }
             }
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE) {
+        if (mappedFieldType.isSearchable()) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+        } else if (fieldType.stored() || mappedFieldType.isSearchable()) {
             createFieldNamesField(context);
         }
-        if (fieldType().stored()) {
+        if (fieldType.stored()) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        final DateFieldMapper d = (DateFieldMapper) other;
+        if (Objects.equals(fieldType().dateTimeFormatter.pattern(), d.fieldType().dateTimeFormatter.pattern()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [format] values");
+        }
+        if (Objects.equals(fieldType().dateTimeFormatter.locale(), d.fieldType().dateTimeFormatter.locale()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [locale] values");
+        }
+        if (Objects.equals(fieldType().resolution.type(), d.fieldType().resolution.type()) == false) {
+            conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
+        }
+        if (d.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = d.ignoreMalformed;
         }
     }
 
@@ -657,8 +624,8 @@ public final class DateFieldMapper extends FieldMapper {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
 
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValueAsString());
+        if (nullValue != null) {
+            builder.field("null_value", nullValueAsString);
         }
 
         if (includeDefaults

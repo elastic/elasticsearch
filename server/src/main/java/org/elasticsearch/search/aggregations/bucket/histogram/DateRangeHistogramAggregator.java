@@ -25,7 +25,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -37,13 +36,16 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -66,13 +68,23 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
 
-    private final LongHash bucketOrds;
+    private final LongKeyedBucketOrds bucketOrds;
 
-    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
-                                 BucketOrder order, boolean keyed,
-                                 long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
-                                 DocValueFormat formatter, SearchContext aggregationContext,
-                                 Aggregator parent, Map<String, Object> metadata) throws IOException {
+    DateRangeHistogramAggregator(
+        String name,
+        AggregatorFactories factories,
+        Rounding rounding,
+        Rounding.Prepared preparedRounding,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        @Nullable ExtendedBounds extendedBounds,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata
+    ) throws IOException {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
@@ -82,14 +94,15 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
-        this.valuesSource = (ValuesSource.Range) valuesSource;
-        this.formatter = formatter;
+        // TODO: Stop using null here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
+        this.formatter = valuesSourceConfig.format();
         if (this.valuesSource.rangeType() != RangeType.DATE) {
             throw new IllegalArgumentException("Expected date range type but found range type [" + this.valuesSource.rangeType().name
                 + "]");
         }
 
-        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
     @Override
@@ -101,21 +114,19 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        final RangeType rangeType = valuesSource.rangeType();
+        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assert bucket == 0;
+            public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
                     // values, so it isn't clear what we'd be iterating over.
-                    final int valuesCount = values.docValueCount();
+                    int valuesCount = values.docValueCount();
                     assert valuesCount == 1 : "Value count for ranges should always be 1";
                     long previousKey = Long.MIN_VALUE;
 
@@ -124,7 +135,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
                         long previousFrom = Long.MIN_VALUE;
                         for (RangeFieldMapper.Range range : ranges) {
-                            final Long from = (Long) range.getFrom();
+                            Long from = (Long) range.getFrom();
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
@@ -136,7 +147,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                     continue;
                                 }
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
-                                long bucketOrd = bucketOrds.add(key);
+                                long bucketOrd = bucketOrds.add(owningBucketOrd, key);
                                 if (bucketOrd < 0) { // already seen
                                     bucketOrd = -1 - bucketOrd;
                                     collectExistingBucket(sub, doc, bucketOrd);
@@ -160,7 +171,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
             (bucketValue, docCount, subAggregationResults) ->
                 new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults),
-            buckets -> {
+            (owningBucketOrd, buckets) -> {
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
@@ -186,5 +197,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
     }
 }

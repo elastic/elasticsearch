@@ -327,6 +327,45 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         }
     }
 
+    public void testUsageWithOrphanedTask() throws Exception {
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        Settings.Builder settings = Settings.builder().put(commonSettings);
+        settings.put("xpack.ml.enabled", true);
+
+        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
+        // NB: we have JobStats but no Job for "opened2"
+        GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
+        Job closed1 = buildJob("closed1", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar"), buildMinDetector("foobar")));
+        GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
+        givenJobs(Arrays.asList(opened1, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
+
+        var usageAction = newUsageAction(settings.build());
+        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        XPackFeatureSet.Usage usage = future.get().getUsage();
+
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+        }
+
+        // The orphaned job should be excluded from the usage info
+        assertThat(source.getValue("jobs._all.count"), equalTo(2));
+        assertThat(source.getValue("jobs._all.detectors.min"), equalTo(1.0));
+        assertThat(source.getValue("jobs._all.detectors.max"), equalTo(3.0));
+        assertThat(source.getValue("jobs._all.detectors.total"), equalTo(4.0));
+        assertThat(source.getValue("jobs._all.detectors.avg"), equalTo(2.0));
+        assertThat(source.getValue("jobs._all.model_size.min"), equalTo(100.0));
+        assertThat(source.getValue("jobs._all.model_size.max"), equalTo(300.0));
+        assertThat(source.getValue("jobs._all.model_size.total"), equalTo(400.0));
+        assertThat(source.getValue("jobs._all.model_size.avg"), equalTo(200.0));
+        assertThat(source.getValue("jobs._all.created_by.a_cool_module"), equalTo(1));
+        assertThat(source.getValue("jobs._all.created_by.unknown"), equalTo(1));
+    }
+
     public void testUsageDisabledML() throws Exception {
         when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);

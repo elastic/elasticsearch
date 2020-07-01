@@ -32,7 +32,7 @@ the `custom_rules` property of detector configuration objects.
 
 `<filter_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-put-filter-request-body]]
 ==== {api-request-body-title}

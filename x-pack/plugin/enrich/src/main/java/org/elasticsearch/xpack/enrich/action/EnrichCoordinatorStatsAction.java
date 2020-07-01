@@ -36,7 +36,7 @@ import java.util.List;
 public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorStatsAction.Response> {
 
     public static final EnrichCoordinatorStatsAction INSTANCE = new EnrichCoordinatorStatsAction();
-    public static final String NAME = "cluster:admin/xpack/enrich/coordinator_stats";
+    public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
         super(NAME, Response::new);

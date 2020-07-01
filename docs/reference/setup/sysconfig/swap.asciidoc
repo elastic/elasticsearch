@@ -88,12 +88,6 @@ follows:
 
 RPM and Debian::
 
-  Set `MAX_LOCKED_MEMORY` to `unlimited` in the
-  <<sysconfig,system configuration file>> (or see below for systems using
-  `systemd`).
-
-Systems using `systemd`::
-
   Set `LimitMEMLOCK` to `infinity` in the <<systemd,systemd configuration>>.
 
 Another possible reason why `mlockall` can fail is that

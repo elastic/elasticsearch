@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -39,12 +38,10 @@ class MapperMergeValidator {
      * @param objectMappers The newly added object mappers.
      * @param fieldMappers The newly added field mappers.
      * @param fieldAliasMappers The newly added field alias mappers.
-     * @param fieldTypes Any existing field and field alias mappers, collected into a lookup structure.
      */
     public static void validateNewMappers(Collection<ObjectMapper> objectMappers,
                                           Collection<FieldMapper> fieldMappers,
-                                          Collection<FieldAliasMapper> fieldAliasMappers,
-                                          FieldTypeLookup fieldTypes) {
+                                          Collection<FieldAliasMapper> fieldAliasMappers) {
         Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             String fullPath = objectMapper.fullPath();
@@ -61,8 +58,6 @@ class MapperMergeValidator {
             } else if (fieldNames.add(name) == false) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
             }
-
-            validateFieldMapper(fieldMapper, fieldTypes);
         }
 
         Set<String> fieldAliasNames = new HashSet<>();
@@ -77,24 +72,6 @@ class MapperMergeValidator {
             }
 
             validateFieldAliasMapper(name, fieldAliasMapper.path(), fieldNames, fieldAliasNames);
-        }
-    }
-
-    /**
-     * Checks that the new field mapper does not conflict with existing mappings.
-     */
-    private static void validateFieldMapper(FieldMapper fieldMapper,
-                                            FieldTypeLookup fieldTypes) {
-        MappedFieldType newFieldType = fieldMapper.fieldType();
-        MappedFieldType existingFieldType = fieldTypes.get(newFieldType.name());
-
-        if (existingFieldType != null && Objects.equals(newFieldType, existingFieldType) == false) {
-            List<String> conflicts = new ArrayList<>();
-            existingFieldType.checkCompatibility(newFieldType, conflicts);
-            if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + newFieldType.name() +
-                    "] conflicts with existing mapping:\n" + conflicts.toString());
-            }
         }
     }
 

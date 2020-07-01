@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Delete Index Template V2 API
+=== Delete Composable Index Template API
 
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Delete Index Template V2 API allows you to delete an index template.
+The Delete Composable Index Template API allows you to delete an index template.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

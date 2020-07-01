@@ -35,10 +35,10 @@ import java.util.function.IntConsumer;
  * An aggregation service that creates instances of {@link MultiBucketConsumer}.
  * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
  * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
- * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 10000.
+ * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65535.
  */
 public class MultiBucketConsumerService {
-    public static final int DEFAULT_MAX_BUCKETS = 10000;
+    public static final int DEFAULT_MAX_BUCKETS = 65535;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
         Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
@@ -102,6 +102,7 @@ public class MultiBucketConsumerService {
 
         // aggregations execute in a single thread so no atomic here
         private int count;
+        private int callCount = 0;
 
         public MultiBucketConsumer(int limit, CircuitBreaker breaker) {
             this.limit = limit;
@@ -110,15 +111,17 @@ public class MultiBucketConsumerService {
 
         @Override
         public void accept(int value) {
-            count += value;
-            if (count > limit) {
-                throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
-                    + "] but was [" + count + "]. This limit can be set by changing the [" +
-                    MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+            if (value != 0) {
+                count += value;
+                if (count > limit) {
+                    throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
+                        + "] but was [" + count + "]. This limit can be set by changing the [" +
+                        MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+                }
             }
-
-            // check parent circuit breaker every 1024 buckets
-            if (value > 0 && (count & 0x3FF) == 0) {
+            // check parent circuit breaker every 1024 calls
+            callCount++;
+            if ((callCount & 0x3FF) == 0) {
                 breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
             }
         }

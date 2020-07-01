@@ -36,9 +36,13 @@ public class GeoShapeField extends SourceField {
     @Override
     public Object[] value(SearchHit hit) {
         Object[] value = super.value(hit);
-        if (value.length != 1) {
+        if (value.length == 0) {
+            return value;
+        }
+        if (value.length > 1) {
             throw new IllegalStateException("Unexpected values for a geo_shape field: " + Arrays.toString(value));
         }
+
         if (value[0] instanceof String) {
             value[0] = handleString((String) value[0]);
         } else if (value[0] instanceof Map<?, ?>) {

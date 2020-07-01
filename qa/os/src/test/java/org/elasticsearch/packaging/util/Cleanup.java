@@ -27,11 +27,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
+import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 
 public class Cleanup {
 
@@ -83,17 +82,11 @@ public class Cleanup {
         // when we run es as a role user on windows, add the equivalent here
 
         // delete files that may still exist
-        lsGlob(getTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
         filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
-
-        // disable elasticsearch service
-        // todo add this for windows when adding tests for service intallation
-        if (Platforms.LINUX && isSystemd()) {
-            sh.run("systemctl unmask systemd-sysctl.service");
-        }
     }
 
     private static void purgePackagesLinux() {

@@ -96,8 +96,23 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         int numAutoFollowPatterns = randomIntBetween(0, 32);
         Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = new HashMap<>(numAutoFollowPatterns);
         for (int i = 0; i < numAutoFollowPatterns; i++) {
-            AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern("remote_cluser",
-                Collections.singletonList("logs" + i + "*"), null, true, null, null, null, null, null, null, null, null, null, null);
+            AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern(
+                "remote_cluser",
+                Collections.singletonList("logs" + i + "*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             patterns.put("pattern" + i, pattern);
         }
         metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));

@@ -27,9 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,8 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DocumentMapperTests extends ESSingleNodeTestCase {
 
-    public void test1Merge() throws Exception {
-
+    public void testAddFields() throws Exception {
         String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("name").field("type", "text").endObject()
                 .endObject().endObject().endObject());
@@ -56,14 +57,15 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject());
         DocumentMapper stage2 = parser.parse("person", new CompressedXContent(stage2Mapping));
 
-        DocumentMapper merged = stage1.merge(stage2.mapping());
+        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
+        DocumentMapper merged = stage1.merge(stage2.mapping(), reason);
         // stage1 mapping should not have been modified
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         assertThat(merged.mappers().getMapper("age"), notNullValue());
         assertThat(merged.mappers().getMapper("obj1.prop1"), notNullValue());
-    }
+}
 
     public void testMergeObjectDynamic() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -76,7 +78,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         DocumentMapper withDynamicMapper = parser.parse("type1", new CompressedXContent(withDynamicMapping));
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        DocumentMapper merged = mapper.merge(withDynamicMapper.mapping());
+        DocumentMapper merged = mapper.merge(withDynamicMapper.mapping(), MergeReason.MAPPING_UPDATE);
         assertThat(merged.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
 
@@ -90,19 +92,20 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 .startObject("obj").field("type", "nested").endObject()
                 .endObject().endObject().endObject());
         DocumentMapper nestedMapper = parser.parse("type1", new CompressedXContent(nestedMapping));
+        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         try {
-            objectMapper.merge(nestedMapper.mapping());
+            objectMapper.merge(nestedMapper.mapping(), reason);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("object mapping [obj] can't be changed from non-nested to nested"));
+            assertThat(e.getMessage(), containsString("cannot change object mapping from non-nested to nested"));
         }
 
         try {
-            nestedMapper.merge(objectMapper.mapping());
+            nestedMapper.merge(objectMapper.mapping(), reason);
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("object mapping [obj] can't be changed from nested to non-nested"));
+            assertThat(e.getMessage(), containsString("cannot change object mapping from nested to non-nested"));
         }
     }
 
@@ -116,7 +119,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping1).mapperService();
 
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
@@ -126,8 +129,8 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
         .endObject().endObject());
 
-        mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE);
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("keyword"));
+        mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("keyword"));
     }
 
     public void testChangeSearchAnalyzerToDefault() throws Exception {
@@ -140,7 +143,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping1).mapperService();
 
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
@@ -149,13 +152,14 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
         .endObject().endObject());
 
-        mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE);
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("standard"));
+        mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("standard"));
     }
 
     public void testConcurrentMergeTest() throws Throwable {
         final MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
+        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
+        mapperService.merge("test", new CompressedXContent("{\"test\":{}}"), reason);
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
         DocumentFieldMappers dfm = documentMapper.mappers();
@@ -184,7 +188,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                         Mapping update = doc.dynamicMappingsUpdate();
                         assert update != null;
                         lastIntroducedFieldName.set(fieldName);
-                        mapperService.merge("test", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE);
+                        mapperService.merge("test", new CompressedXContent(update.toString()), MergeReason.MAPPING_UPDATE);
                     }
                 } catch (Exception e) {
                     error.set(e);
@@ -220,6 +224,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDoNotRepeatOriginalMapping() throws IOException {
+        MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
         CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("_source")
@@ -227,7 +232,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject()));
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("type", mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", mapping, reason);
 
         CompressedXContent update = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -237,10 +242,30 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject()));
-        DocumentMapper mapper = mapperService.merge("type", update, MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapper = mapperService.merge("type", update, reason);
 
         assertNotNull(mapper.mappers().getMapper("foo"));
         assertFalse(mapper.sourceMapper().enabled());
+    }
+
+    public void testMergeMetadataFieldsForIndexTemplates() throws IOException {
+        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_source")
+                        .field("enabled", false)
+                    .endObject()
+                .endObject().endObject()));
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", mapping, MergeReason.INDEX_TEMPLATE);
+
+        CompressedXContent update = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("_source")
+                        .field("enabled", true)
+                    .endObject()
+                .endObject().endObject()));
+        DocumentMapper mapper = mapperService.merge("type", update, MergeReason.INDEX_TEMPLATE);
+        assertTrue(mapper.sourceMapper().enabled());
     }
 
     public void testMergeMeta() throws IOException {
@@ -270,7 +295,8 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 .endObject());
         DocumentMapper updatedMapper = parser.parse("test", new CompressedXContent(updateMapping));
 
-        assertThat(initMapper.merge(updatedMapper.mapping()).meta().get("foo"), equalTo("bar"));
+        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
+        assertThat(mergedMapper.meta().get("foo"), equalTo("bar"));
 
         updateMapping = Strings
             .toString(XContentFactory.jsonBuilder()
@@ -283,6 +309,51 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
                 .endObject());
         updatedMapper = parser.parse("test", new CompressedXContent(updateMapping));
 
-        assertThat(initMapper.merge(updatedMapper.mapping()).meta().get("foo"), equalTo("new_bar"));
+        mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.MAPPING_UPDATE);
+        assertThat(mergedMapper.meta().get("foo"), equalTo("new_bar"));
+    }
+
+    public void testMergeMetaForIndexTemplate() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_meta")
+                    .field("field", "value")
+                    .startObject("object")
+                        .field("field1", "value1")
+                        .field("field2", "value2")
+                    .endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper initMapper = parser.parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(initMapping));
+
+        Map<String, Object> expected = Map.of("field", "value",
+            "object", Map.of("field1", "value1", "field2", "value2"));
+        assertThat(initMapper.meta(), equalTo(expected));
+
+        String updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("name").field("type", "text").endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper updatedMapper = parser.parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(updateMapping));
+        DocumentMapper mergedMapper = initMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
+        assertThat(mergedMapper.meta(), equalTo(expected));
+
+        updateMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_meta")
+                    .field("field", "value")
+                    .startObject("object")
+                        .field("field2", "new_value")
+                        .field("field3", "value3")
+                    .endObject()
+                .endObject()
+            .endObject());
+        updatedMapper = parser.parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(updateMapping));
+        mergedMapper = mergedMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
+
+        expected = Map.of("field", "value",
+            "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
+        assertThat(mergedMapper.meta(), equalTo(expected));
     }
 }

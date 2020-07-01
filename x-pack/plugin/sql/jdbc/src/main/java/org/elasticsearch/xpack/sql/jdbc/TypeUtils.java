@@ -60,7 +60,7 @@ final class TypeUtils {
         aMap.put(GregorianCalendar.class, EsType.DATETIME);
         aMap.put(java.util.Date.class, EsType.DATETIME);
         aMap.put(java.sql.Date.class, EsType.DATETIME);
-        aMap.put(java.sql.Time.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
         aMap.put(LocalDateTime.class, EsType.DATETIME);
         CLASS_TO_TYPE = Collections.unmodifiableMap(aMap);
 

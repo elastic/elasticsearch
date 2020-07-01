@@ -12,8 +12,8 @@ restResources {
 }
 
 dependencies {
-  testCompile project(path: xpackModule('eql'), configuration: 'runtime')
-  testCompile project(path: xpackModule('eql:qa:common'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('eql:qa:common'))
 }
 
 testClusters.integTest {

@@ -19,33 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.junit.Before;
+import java.util.Collections;
+import java.util.Map;
 
-public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
+public class RankFeatureFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new RankFeatureFieldMapper.RankFeatureFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("positive_score_impact", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                RankFeatureFieldMapper.RankFeatureFieldType tft = (RankFeatureFieldMapper.RankFeatureFieldType)ft;
-                tft.setPositiveScoreImpact(tft.positiveScoreImpact() == false);
-            }
-            @Override
-            public void normalizeOther(MappedFieldType other) {
-                super.normalizeOther(other);
-                ((RankFeatureFieldMapper.RankFeatureFieldType) other).setPositiveScoreImpact(true);
-            }
-        });
+    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new RankFeatureFieldMapper.RankFeatureFieldType(name, meta, true);
     }
 
     public void testIsAggregatable() {
-        MappedFieldType fieldType = createDefaultFieldType();
+        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true);
         assertFalse(fieldType.isAggregatable());
     }
 }

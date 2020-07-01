@@ -447,11 +447,11 @@ DELETE /_ilm/policy/logs_policy
 [[change-static-index-setting-for-a-data-stream]]
 === Change a static index settings for a data stream
 
-<<index-modules-settings,Static index settings>> are only set when a backing
+<<index-modules-settings,Static index settings>> can only be set when a backing
 index is created. You cannot update static index settings using the
 <<indices-update-settings,update index settings API>>.
 
-To apply a new static setting to only future backing indices, update the index
+To apply a new static setting to future backing indices, update the index
 template used by the data stream. The setting is automatically applied to any
 backing index created after the update.
 
@@ -561,7 +561,7 @@ DELETE /_ilm/policy/logs_policy
 If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
 stream>> to immediately apply the setting to the data stream’s write index. This
 affects any new data added to the stream after the rollover. However, it does
-not affect the data stream's backing indices or their existing data.
+not affect the data stream's existing backing indices or existing data.
 
 To apply static setting changes to existing backing indices, you must create a
 new data stream and reindex your data into it. See

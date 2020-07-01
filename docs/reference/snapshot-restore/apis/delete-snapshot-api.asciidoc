@@ -54,7 +54,7 @@ Name of the repository to delete a snapshot from.
 
 `<snapshot>`::
 (Required, string)
-Name of the snapshot to delete. This name must be unique in the snapshot repository.
+Comma-separated list of snapshot names to delete. Also accepts wildcards (`*`).
 
 [[delete-snapshot-api-example]]
 ==== {api-example-title}

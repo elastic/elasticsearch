@@ -498,7 +498,8 @@ public class MetadataIndexTemplateService {
                 (finalIndexTemplate.composedOf().size() > 0 ? "with component templates " + finalIndexTemplate.composedOf() + " " : "") +
                 "is invalid", e);
         }
-        logger.info("{} index template [{}]", existing == null ? "adding" : "updating", name);
+        logger.info("{} index template [{}] for index patterns {}", existing == null ? "adding" : "updating", name,
+            template.indexPatterns());
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();

@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -249,5 +252,32 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    }
+
+    public void testFieldTypes() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").addMapping(MapperService.SINGLE_MAPPING_NAME,
+            "{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}", XContentType.JSON).get();
+        client().admin().indices().prepareCreate("test2")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME,
+                "{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
+                "\"eggplant\":{\"type\":\"integer\"}}}}}", XContentType.JSON).get();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (IndexFeatureStats stat : stats) {
+            if (stat.getName().equals("integer")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            } else if (stat.getName().equals("keyword")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+            } else if (stat.getName().equals("object")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            }
+        }
     }
 }

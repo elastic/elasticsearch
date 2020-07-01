@@ -13,6 +13,7 @@ Lists dangling indices.
 --------------------------------------------------
 GET /_dangling
 --------------------------------------------------
+// TEST[skip:TBD]
 
 [[dangling-indices-list-api-desc]]
 ==== {api-description-title}

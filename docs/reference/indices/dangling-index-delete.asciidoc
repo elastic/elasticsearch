@@ -11,11 +11,9 @@ Deletes a dangling index.
 
 [source,console]
 --------------------------------------------------
-DELETE /_dangling/<index-uuid>
-{
-  "accept_data_loss": true
-}
+DELETE /_dangling/<index-uuid>?accept_data_loss=true
 --------------------------------------------------
+// TEST[skip:Difficult to set up]
 
 [[dangling-index-delete-api-desc]]
 ==== {api-description-title}
@@ -35,10 +33,10 @@ index by its UUID, which you can find using the
 UUID of the index to delete. You can find this using the
 <<dangling-indices-list,dangling indices list API>>.
 
-[[dangling-index-delete-request-body]]
-==== {api-request-body-title}
+[[dangling-index-delete-api-query-params]]
+==== {api-query-parms-title}
 
 `accept_data_loss`::
-(Required, boolean)
-This field must be set to `true` in order to carry out the import, since it
-will no longer be possible to recover the data from the dangling index.
+(Optional, boolean)
+This field must be set to `true` in order to carry out the import, since it will
+no longer be possible to recover the data from the dangling index.

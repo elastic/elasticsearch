@@ -321,7 +321,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             }
         });
 
-        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<>() {
+        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 final ShardStats[] stats = indicesStatsResponse.getShards();

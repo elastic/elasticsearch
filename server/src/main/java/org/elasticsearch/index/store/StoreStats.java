@@ -37,7 +37,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final Version RESERVED_BYTES_VERSION = Version.V_8_0_0;
+    public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
 
     private long sizeInBytes;
     private long reservedSize;

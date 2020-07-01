@@ -42,16 +42,13 @@ public class RSquaredMetric implements EvaluationMetric {
 
     public static final String NAME = "r_squared";
 
-    private static final ObjectParser<RSquaredMetric, Void> PARSER =
-        new ObjectParser<>("r_squared", true, RSquaredMetric::new);
+    private static final ObjectParser<RSquaredMetric, Void> PARSER = new ObjectParser<>(NAME, true, RSquaredMetric::new);
 
     public static RSquaredMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RSquaredMetric() {
-
-    }
+    public RSquaredMetric() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

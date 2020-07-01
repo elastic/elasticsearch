@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -91,13 +90,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         jobId = in.readString();
         timestamp = in.readOptionalInstant();
         peakUsageBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status = Status.readFromStream(in);
-            memoryReestimateBytes = in.readOptionalVLong();
-        } else {
-            status = Status.OK;
-            memoryReestimateBytes = null;
-        }
+        status = Status.readFromStream(in);
+        memoryReestimateBytes = in.readOptionalVLong();
     }
 
     public Status getStatus() {
@@ -109,10 +103,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         out.writeString(jobId);
         out.writeOptionalInstant(timestamp);
         out.writeVLong(peakUsageBytes);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            status.writeTo(out);
-            out.writeOptionalVLong(memoryReestimateBytes);
-        }
+        status.writeTo(out);
+        out.writeOptionalVLong(memoryReestimateBytes);
     }
 
     @Override

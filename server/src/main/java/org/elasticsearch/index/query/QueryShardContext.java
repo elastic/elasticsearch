@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -77,8 +76,7 @@ import java.util.function.Predicate;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(QueryShardContext.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(QueryShardContext.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
         "in queries and aggregations is deprecated, prefer to use a field instead.";
 

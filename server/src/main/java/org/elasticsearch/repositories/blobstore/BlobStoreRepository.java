@@ -115,7 +115,6 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -968,14 +967,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void finalizeSnapshot(final SnapshotId snapshotId,
                                  final ShardGenerations shardGenerations,
-                                 final long startTime,
-                                 final String failure,
-                                 final int totalShards,
-                                 final List<SnapshotShardFailure> shardFailures,
                                  final long repositoryStateId,
-                                 final boolean includeGlobalState,
                                  final Metadata clusterMetadata,
-                                 final Map<String, Object> userMetadata,
+                                 Supplier<SnapshotInfo> buildSnapshotInfo,
                                  Version repositoryMetaVersion,
                                  Function<ClusterState, ClusterState> stateTransformer,
                                  final ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
@@ -1056,11 +1050,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 ));
             }
             executor.execute(ActionRunnable.supply(allMetaListener, () -> {
-                final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
-                    indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-                    new ArrayList<>(clusterMetadata.dataStreams().keySet()),
-                    startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
-                    includeGlobalState, userMetadata);
+                final SnapshotInfo snapshotInfo = buildSnapshotInfo.get();
                 snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
                 return snapshotInfo;
             }));

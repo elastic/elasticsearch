@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -175,11 +176,15 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
+            final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
             PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
                 repository.finalizeSnapshot(snapshot.getSnapshotId(),
-                    ShardGenerations.builder().put(indexId, 0, shardGen).build(),
-                    0L, null, 1, Collections.emptyList(), -1L, false,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
+                    shardGenerations,
+                    RepositoryData.EMPTY_REPO_GEN,
+                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                    () -> new SnapshotInfo(snapshot.getSnapshotId(), shardGenerations.indices().stream()
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L, 6,
+                        Collections.emptyList(), true, Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), f));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));

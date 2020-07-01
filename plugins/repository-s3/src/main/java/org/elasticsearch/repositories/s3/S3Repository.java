@@ -45,17 +45,15 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -240,16 +238,15 @@ class S3Repository extends BlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
-                                 List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 Metadata clusterMetadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                 Supplier<SnapshotInfo> buildSnapshotInfo, Version repositoryMetaVersion,
                                  Function<ClusterState, ClusterState> stateTransformer,
                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
-        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateTransformer, listener);
+        super.finalizeSnapshot(snapshotId, shardGenerations, repositoryStateId, clusterMetadata, buildSnapshotInfo, repositoryMetaVersion,
+            stateTransformer, listener);
     }
 
     @Override

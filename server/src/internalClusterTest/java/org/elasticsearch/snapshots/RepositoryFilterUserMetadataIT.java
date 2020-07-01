@@ -43,9 +43,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -89,15 +89,13 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     private final String initialMetaValue = metadata.settings().get(MASTER_SETTING_VALUE);
 
                     @Override
-                    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                                 boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId,
+                                                 Metadata clusterMetadata, Supplier<SnapshotInfo> buildSnapshotInfo,
+                                                 Version repositoryMetaVersion,
+                                                 Function<ClusterState, ClusterState> stateTransformer,
                                                  ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
-                        assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures,
-                            repositoryStateId, includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, stateTransformer,
-                                listener);
+                        super.finalizeSnapshot(snapshotId, shardGenerations, repositoryStateId, clusterMetadata, buildSnapshotInfo,
+                            repositoryMetaVersion, stateTransformer, listener);
                     }
 
                     @Override

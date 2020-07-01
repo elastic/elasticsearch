@@ -77,6 +77,7 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
@@ -219,11 +220,17 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future);
                 future.actionGet();
                 final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
+                final ShardGenerations shardGenerations =
+                    ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build();
                 repository.finalizeSnapshot(snapshotId,
-                    ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build(),
-                    indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
-                    ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(), true,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
+                    shardGenerations,
+                    ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
+                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                    () -> new SnapshotInfo(snapshotId,
+                        shardGenerations.indices().stream()
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L,
+                        shardGenerations.totalShards(),
+                        Collections.emptyList(), true, Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });

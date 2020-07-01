@@ -158,21 +158,27 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
             PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
                 // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
-                repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
-                    -1L, false, Metadata.EMPTY_METADATA, Collections.emptyMap(), Version.CURRENT, Function.identity(), f));
+                repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, RepositoryData.EMPTY_REPO_GEN, Metadata.EMPTY_METADATA,
+                    () -> new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
+                        0L, null, 1L, 5, Collections.emptyList(), true, Collections.emptyMap()),
+                    Version.CURRENT, Function.identity(), f));
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
             final AssertionError assertionError = expectThrows(AssertionError.class,
                 () -> PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
-                    repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 6, Collections.emptyList(),
-                        0, false, Metadata.EMPTY_METADATA, Collections.emptyMap(), Version.CURRENT, Function.identity(), f)));
+                    repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
+                        () -> new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
+                            0L, null, 1L, 6, Collections.emptyList(), true, Collections.emptyMap()),
+                        Version.CURRENT, Function.identity(), f)));
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
 
             // We try to write yet another snap- blob for "foo" in the next generation.
             // It passes cleanly because the content of the blob except for the timestamps.
             PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
-                repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
-                    0, false, Metadata.EMPTY_METADATA, Collections.emptyMap(), Version.CURRENT, Function.identity(), f));
+                repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
+                    () ->new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
+                        0L, null, 2L, 5, Collections.emptyList(), true, Collections.emptyMap()),
+                    Version.CURRENT, Function.identity(), f));
         }
     }
 

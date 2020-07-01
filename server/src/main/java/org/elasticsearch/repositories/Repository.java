@@ -38,14 +38,13 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * An interface for interacting with a repository in snapshot and restore.
@@ -123,24 +122,18 @@ public interface Repository extends LifecycleComponent {
      *
      * @param snapshotId            snapshot id
      * @param shardGenerations      updated shard generations
-     * @param startTime             start time of the snapshot
-     * @param failure               global failure reason or null
-     * @param totalShards           total number of shards
-     * @param shardFailures         list of shard failures
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
-     * @param includeGlobalState    include cluster global state
      * @param clusterMetadata       cluster metadata
-     * @param userMetadata          user metadata
+     * @param buildSnapshotInfo     supplier of the {@link SnapshotInfo} instance to write for this snapshot
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
      *                              completion of the snapshot
      */
-    void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                          boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
-                          Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+    void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                          Supplier<SnapshotInfo> buildSnapshotInfo, Version repositoryMetaVersion,
+                          Function<ClusterState, ClusterState> stateTransformer,
                           ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
 
     /**

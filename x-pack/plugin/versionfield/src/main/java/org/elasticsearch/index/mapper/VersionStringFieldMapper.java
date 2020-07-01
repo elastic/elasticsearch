@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
@@ -28,9 +27,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.xpack.versionfield.VersionEncoder;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
 
 import java.io.IOException;
@@ -204,14 +203,20 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             failIfNotIndexed();
-            BytesRef encoded = indexedValueForSearch(value);
-            if (encoded.bytes[encoded.length - 1] == VersionEncoder.NO_PRERELESE_SEPARATOR_BYTE) {
-                encoded.length = encoded.length - 1;
+            return wildcardQuery(value + "*", method, context);
+        }
+
+        @Override
+        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
             }
-            PrefixQuery query = new PrefixQuery(new Term(name(), encoded));
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
+            failIfNotIndexed();
+
+            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value));
+            QueryParsers.setRewriteMethod(query, method);
             return query;
         }
 

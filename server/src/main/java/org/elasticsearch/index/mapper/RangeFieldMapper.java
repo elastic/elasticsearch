@@ -506,12 +506,12 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
-    static class BinaryRangesDocValuesField extends CustomDocValuesField {
+    public static class BinaryRangesDocValuesField extends CustomDocValuesField {
 
         private final Set<Range> ranges;
         private final RangeType rangeType;
 
-        BinaryRangesDocValuesField(String name, Range range, RangeType rangeType) {
+        public BinaryRangesDocValuesField(String name, Range range, RangeType rangeType) {
             super(name);
             this.rangeType = rangeType;
             ranges = new HashSet<>();

@@ -49,7 +49,7 @@ public class VersionRangeType implements RangeType {
     }
 
     public Field getRangeField(String name, RangeFieldMapper.Range r) {
-        return new Binary16RangeField(name, (BytesRef) r.from, (BytesRef) r.to);
+        return new Binary16RangeField(name, (BytesRef) r.getFrom(), (BytesRef) r.getTo());
     }
 
     @Override
@@ -80,22 +80,22 @@ public class VersionRangeType implements RangeType {
     public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
         int length = 0;
         for (RangeFieldMapper.Range range : ranges) {
-            length += ((BytesRef) range.from).length;
-            length += ((BytesRef) range.to).length;
+            length += ((BytesRef) range.getFrom()).length;
+            length += ((BytesRef) range.getTo()).length;
         }
         final byte[] encoded = new byte[15 + length];
         ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
         out.writeVInt(ranges.size());
         for (RangeFieldMapper.Range range : ranges) {
-            BytesRef fromValue = (BytesRef) range.from;
+            BytesRef fromValue = (BytesRef) range.getFrom();
             byte[] encodedFromValue = fromValue.bytes;
-            int fromLength = ((BytesRef) range.from).length;
+            int fromLength = ((BytesRef) range.getFrom()).length;
             out.writeByte((byte) fromLength);
             out.writeBytes(encodedFromValue, 0, fromLength);
 
-            BytesRef toValue = (BytesRef) range.to;
+            BytesRef toValue = (BytesRef) range.getTo();
             byte[] encodedToValue = toValue.bytes;
-            int toLength = ((BytesRef) range.to).length;
+            int toLength = ((BytesRef) range.getTo()).length;
             out.writeByte((byte) toLength);
             out.writeBytes(encodedToValue, 0, toLength);
         }

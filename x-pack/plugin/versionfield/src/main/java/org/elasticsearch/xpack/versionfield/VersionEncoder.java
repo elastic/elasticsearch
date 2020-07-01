@@ -42,13 +42,13 @@ import java.util.regex.Pattern;
  */
 public class VersionEncoder {
 
-    private static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
+    public static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
     static final char PRERELESE_SEPARATOR = '-';
-    private static final byte PRERELESE_SEPARATOR_BYTE = (byte) 0x02;
+    public static final byte PRERELESE_SEPARATOR_BYTE = (byte) 0x02;
     public static final byte NO_PRERELESE_SEPARATOR_BYTE = (byte) 0x03;
     private static final String DOT_SEPARATOR_REGEX = "\\.";
     private static final char DOT_SEPARATOR = '.';
-    private static final byte DOT_SEPARATOR_BYTE = (byte) 0x04;
+    public static final byte DOT_SEPARATOR_BYTE = (byte) '.';
     private static final char BUILD_SEPARATOR = '+';
     private static final byte BUILD_SEPARATOR_BYTE = (byte) BUILD_SEPARATOR;
 
@@ -177,11 +177,15 @@ public class VersionEncoder {
      *
      */
     public static BytesRef encodeVersion(String versionString, SortMode mode) {
-        // System.out.println("encoding: " + versionString);
+        return encodeVersion(versionString, mode, true);
+    }
+
+    public static BytesRef encodeVersion(String versionString, SortMode mode, boolean validate) {
+         System.out.println("encoding: " + versionString);
         // extract "build" suffix starting with "+"
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
-        if (legalVersionString(versionParts) == false) {
+        if (validate && legalVersionString(versionParts) == false) {
             throw new IllegalArgumentException("Illegal version string: " + versionString);
         }
 
@@ -192,6 +196,7 @@ public class VersionEncoder {
         // encode whether version has pre-release parts
         if (versionParts.preRelease != null) {
             encodedVersion.append(PRERELESE_SEPARATOR_BYTE);  // versions with pre-release part sort before ones without
+            encodedVersion.append((byte) PRERELESE_SEPARATOR);
             String[] preReleaseParts = versionParts.preRelease.substring(1).split(DOT_SEPARATOR_REGEX);
             boolean first = true;
             for (String preReleasePart : preReleaseParts) {
@@ -218,7 +223,7 @@ public class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedVersion.append(new BytesRef(versionParts.buildSuffix));
         }
-        // System.out.println("encoded: " + encodedVersion.get());
+        System.out.println("encoded: " + encodedVersion.get());
         return encodedVersion.get();
     }
 
@@ -227,7 +232,7 @@ public class VersionEncoder {
         return start > 0 ? input.substring(start) : null;
     }
 
-    private static void prefixDigitGroupsWithLength(String input, BytesRefBuilder result) {
+    public static void prefixDigitGroupsWithLength(String input, BytesRefBuilder result) {
         int pos = 0;
         while (pos < input.length()) {
             if (Character.isDigit(input.charAt(pos))) {
@@ -285,7 +290,7 @@ public class VersionEncoder {
             } else if (inputByte == DOT_SEPARATOR_BYTE) {
                 result[resultPos] = DOT_SEPARATOR;
                 resultPos++;
-            } else if (inputByte == PRERELESE_SEPARATOR_BYTE) {
+            } else if (inputByte == PRERELESE_SEPARATOR) {
                 result[resultPos] = PRERELESE_SEPARATOR;
                 resultPos++;
             } else if (inputByte == BUILD_SEPARATOR_BYTE) {

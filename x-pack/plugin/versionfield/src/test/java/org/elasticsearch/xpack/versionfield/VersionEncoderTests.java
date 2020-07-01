@@ -28,6 +28,7 @@ public class VersionEncoderTests extends ESTestCase {
         assertTrue(encSemver("2.0.0").compareTo(encSemver("2.1.0")) < 0);
         assertTrue(encSemver("2.1.0").compareTo(encSemver("2.1.1")) < 0);
         assertTrue(encSemver("2.1.1").compareTo(encSemver("2.1.1.0")) < 0);
+        assertTrue(encSemver("2.0.0").compareTo(encSemver("11.0.0")) < 0);
         assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0")) < 0);
         assertTrue(encSemver("1.0.0-a").compareTo(encSemver("1.0.0-b")) < 0);
         assertTrue(encSemver("1.0.0-1.0.0").compareTo(encSemver("1.0.0-2.0")) < 0);
@@ -41,6 +42,7 @@ public class VersionEncoderTests extends ESTestCase {
         assertTrue(encSemver("1.0.0-rc.1").compareTo(encSemver("1.0.0")) < 0);
         assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0.0-pre127")) < 0);
         assertTrue(encSemver("2.0.0-pre127").compareTo(encSemver("2.0.0-pre128")) < 0);
+        assertTrue(encSemver("2.0.0-pre128").compareTo(encSemver("2.0.0-pre128-somethingelse")) < 0);
         assertTrue(encSemver("2.0.0-pre20201231z110026").compareTo(encSemver("2.0.0-pre227")) < 0);
         // some rare ones that fail strict validation
         // assertTrue(encSemver("12.el2").compareTo(encSemver("12.el11")) < 0);

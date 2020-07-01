@@ -56,6 +56,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
@@ -342,4 +343,23 @@ public class TransportBulkActionTests extends ESTestCase {
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
     }
 
+    public void testProhibitCustomRoutingOnDataStream() throws Exception {
+        String dataStreamName = "logs-foobar";
+        ClusterState clusterState = createDataStream(dataStreamName);
+        Metadata metadata = clusterState.metadata();
+
+        // custom routing requests against the data stream are prohibited
+        DocWriteRequest<?> writeRequestAgainstDataStream = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX)
+            .routing("custom");
+        IllegalArgumentException exception =
+            expectThrows(IllegalArgumentException.class, () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata));
+        assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
+            "backing indices directly or remove the custom routing."));
+
+        // test custom routing is allowed when the index request targets the backing index
+        DocWriteRequest<?> writeRequestAgainstIndex =
+            new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(DocWriteRequest.OpType.INDEX)
+            .routing("custom");
+        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+    }
 }

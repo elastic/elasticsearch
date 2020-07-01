@@ -159,9 +159,7 @@ public class DocumentMapper implements ToXContentFragment {
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
         this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
                 newFieldAliasMappers,
-                indexAnalyzers.getDefaultIndexAnalyzer(),
-                indexAnalyzers.getDefaultSearchAnalyzer(),
-                indexAnalyzers.getDefaultSearchQuoteAnalyzer());
+                indexAnalyzers.getDefaultIndexAnalyzer());
 
         Map<String, ObjectMapper> builder = new HashMap<>();
         for (ObjectMapper objectMapper : newObjectMappers) {

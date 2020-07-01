@@ -212,9 +212,9 @@ public class WildcardFieldMapper extends FieldMapper {
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
         public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true, new TextSearchInfo(fieldType, null), meta);
+            super(name, true, true,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected WildcardFieldType(WildcardFieldType ref) {

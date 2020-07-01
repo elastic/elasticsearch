@@ -107,7 +107,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (MetricAggregatorSupplier) (name, valuesSourceConfig, aggregationContext, parent, metadata)
                 -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
                     return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
@@ -118,7 +118,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
         builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new GeoHashGridTiler();
@@ -138,7 +138,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, SearchPlug
         builder.register(GeoTileGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
                                          aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new GeoTileGridTiler();

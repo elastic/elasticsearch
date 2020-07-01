@@ -71,7 +71,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
     }
 
     public void testNumInferenceProcessors() throws Exception {

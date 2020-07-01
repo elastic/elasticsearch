@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -500,21 +501,17 @@ public class AggregatorFactories {
             Builder newBuilder = new Builder();
 
             for (AggregationBuilder builder : aggregationBuilders) {
-                AggregationBuilder result = AggregationBuilder.rewriteAggregation(builder, context);
-                if (result != builder) {
-                    changed = true;
-                }
+                AggregationBuilder result = Rewriteable.rewrite(builder, context);
                 newBuilder.addAggregator(result);
+                changed |= result != builder;
+            }
+            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+                PipelineAggregationBuilder result = Rewriteable.rewrite(builder, context);
+                newBuilder.addPipelineAggregator(result);
+                changed |= result != builder;
             }
 
-            if (changed) {
-                for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
-                    newBuilder.addPipelineAggregator(builder);
-                }
-                return newBuilder;
-            } else {
-                return this;
-            }
+            return changed ? newBuilder : this;
         }
 
         /**

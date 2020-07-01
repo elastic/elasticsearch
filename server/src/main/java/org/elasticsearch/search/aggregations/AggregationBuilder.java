@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
@@ -37,7 +38,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -129,21 +130,6 @@ public abstract class AggregationBuilder
      */
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
-    }
-
-    /**
-     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the aggregation until it doesn't change anymore.
-     * @throws IOException if an {@link IOException} occurs
-     */
-    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
-        AggregationBuilder builder = original;
-        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
-            builder = rewrittenBuilder;
-        }
-        return builder;
     }
 
     /**

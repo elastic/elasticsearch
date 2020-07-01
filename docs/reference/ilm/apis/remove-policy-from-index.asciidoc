@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-remove-policy]]
-=== Remove lifecycle policy API
+=== Remove policy from index API
 ++++
-<titleabbrev>Remove lifecycle policy</titleabbrev>
+<titleabbrev>Remove policy</titleabbrev>
 ++++
 
 Removes assigned lifecycle policies from an index or a data stream's backing

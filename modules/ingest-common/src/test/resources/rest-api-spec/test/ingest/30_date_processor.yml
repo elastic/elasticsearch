@@ -186,6 +186,9 @@ teardown:
 
 ---
 "Test week based date parsing":
+  - skip:
+      reason:  "Week based calculations require JDK9"
+      features: "spi_on_classpath_jdk9"
   - do:
       indices.create:
         index: test
@@ -249,6 +252,9 @@ teardown:
 
 ---
 "Test week based date parsing with locale":
+  - skip:
+      reason:  "Week based calculations require JDK9"
+      features: "spi_on_classpath_jdk9"
   #locale is used when parsing as well on a pipeline. As per US locale, start of the 33rd week 2020 is on 09August2020 (sunday)
   - do:
       indices.create:

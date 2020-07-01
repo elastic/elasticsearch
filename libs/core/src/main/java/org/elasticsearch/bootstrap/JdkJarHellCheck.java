@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.bootstrap;
+
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -57,6 +59,7 @@ public class JdkJarHellCheck {
         return Collections.unmodifiableSet(detected);
     }
 
+    @SuppressForbidden(reason = "command line tool")
     public static void main(String[] argv) throws IOException {
         JdkJarHellCheck checker = new JdkJarHellCheck();
         for (String location : argv) {

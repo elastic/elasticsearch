@@ -336,7 +336,8 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Result lastCommand
         ) {
             this.isAvailable = isAvailable;
-            this.isComposeAvailable = isComposeAvailable;
+            // TODO: This is temporary, and should be removed when https://github.com/elastic/elasticsearch/issues/58795 is resolved
+            this.isComposeAvailable = false; // isComposeAvailable;
             this.isVersionHighEnough = isVersionHighEnough;
             this.path = path;
             this.version = version;

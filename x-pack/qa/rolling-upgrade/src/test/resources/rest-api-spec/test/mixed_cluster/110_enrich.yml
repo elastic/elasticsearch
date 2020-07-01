@@ -7,14 +7,7 @@
 
   - do:
       node_selector:
-        version: " - 7.99.99"
-      enrich.stats: {}
-
-  - length: { coordinator_stats: 3 }
-
-  - do:
-      node_selector:
-        version: "8.0.0 - "
+        version: "7.9.0 - "
       enrich.stats: {}
 
   - length: { coordinator_stats: 3 }

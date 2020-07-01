@@ -7,6 +7,7 @@ the following:
 * <<add-documents-to-a-data-stream>>
 * <<search-a-data-stream>>
 * <<manually-roll-over-a-data-stream>>
+* <<open-closed-backing-indices>>
 * <<reindex-with-a-data-stream>>
 * <<update-delete-docs-in-a-data-stream>>
 * <<update-delete-docs-in-a-backing-index>>
@@ -236,13 +237,90 @@ rollover request for the `logs` data stream.
 [source,console]
 ----
 POST /logs/_rollover/
-{
-  "conditions": {
-    "max_docs":   "1"
-  }
-}
 ----
 // TEST[continued]
+====
+
+[discrete]
+[[open-closed-backing-indices]]
+=== Open closed backing indices
+
+You may <<indices-close,close>> one or more of a data stream's backing indices
+as part of its {ilm-init} lifecycle or another workflow. A closed backing index
+cannot be searched, even for searches targeting its data stream. You also can't
+<<update-delete-docs-in-a-data-stream,update or delete documents>> in a closed
+index.
+
+You can re-open individual backing indices by sending an
+<<indices-open-close,open request>> directly to the index.
+
+You also can conveniently re-open all closed backing indices for a data stream
+by sending an open request directly to the stream.
+
+.*Example*
+[%collapsible]
+====
+////
+[source,console]
+----
+POST /logs/_rollover/
+
+POST /.ds-logs-000001,.ds-logs-000002/_close/
+----
+// TEST[continued]
+////
+
+The following <<cat-indices,cat indices>> API request retrieves the status for
+the `logs` data stream's backing indices.
+
+[source,console]
+----
+GET /_cat/indices/logs?v&s=index&h=index,status
+----
+// TEST[continued]
+
+The API returns the following response. The response indicates the `logs` data
+stream contains two closed backing indices: `.ds-logs-000001` and
+`.ds-logs-000002`.
+
+[source,txt]
+----
+index           status
+.ds-logs-000001 close
+.ds-logs-000002 close
+.ds-logs-000003 open
+----
+// TESTRESPONSE[non_json]
+
+The following <<indices-open-close,open API>> request re-opens any closed
+backing indices for the `logs` data stream, including `.ds-logs-000001` and
+`.ds-logs-000002`.
+
+[source,console]
+----
+POST /logs/_open/
+----
+// TEST[continued]
+
+You can resubmit the original cat indices API request to verify the
+`.ds-logs-000001` and `.ds-logs-000002` backing indices were re-opened.
+
+[source,console]
+----
+GET /_cat/indices/logs?v&s=index&h=index,status
+----
+// TEST[continued]
+
+The API returns the following response.
+
+[source,txt]
+----
+index           status
+.ds-logs-000001 open
+.ds-logs-000002 open
+.ds-logs-000003 open
+----
+// TESTRESPONSE[non_json]
 ====
 
 [discrete]
@@ -502,8 +580,8 @@ information for any documents matching the search.
   "took": 20,
   "timed_out": false,
   "_shards": {
-    "total": 2,
-    "successful": 2,
+    "total": 3,
+    "successful": 3,
     "skipped": 0,
     "failed": 0
   },
@@ -515,7 +593,7 @@ information for any documents matching the search.
     "max_score": 0.2876821,
     "hits": [
       {
-        "_index": ".ds-logs-000002",                <1>
+        "_index": ".ds-logs-000003",                <1>
         "_type": "_doc",
         "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
         "_seq_no": 8,                               <3>
@@ -552,7 +630,7 @@ document. To prevent an accidental overwrite, this request must include valid
 ====
 The following index API request updates an existing document in the `logs` data
 stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000002` backing index.
+`.ds-logs-000003` backing index.
 
 The request also includes the current sequence number and primary term in the
 respective `if_seq_no` and `if_primary_term` query parameters. The request body
@@ -560,7 +638,7 @@ contains a new JSON source for the document.
 
 [source,console]
 ----
-PUT /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=8&if_primary_term=1
+PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=8&if_primary_term=1
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -580,11 +658,11 @@ requests do not require a sequence number or primary term.
 ====
 The following index API request deletes an existing document in the `logs` data
 stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000002` backing index.
+`.ds-logs-000003` backing index.
 
 [source,console]
 ----
-DELETE /.ds-logs-000002/_doc/bfspvnIBr7VVZlfp2lqX
+DELETE /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
 // TEST[continued]
 ====
@@ -618,14 +696,14 @@ The following bulk API request uses an `index` action to update an existing
 document in the `logs` data stream.
 
 The `index` action targets document ID `bfspvnIBr7VVZlfp2lqX` in the
-`.ds-logs-000002` backing index. The action also includes the current sequence
+`.ds-logs-000003` backing index. The action also includes the current sequence
 number and primary term in the respective `if_seq_no` and `if_primary_term`
 parameters.
 
 [source,console]
 ----
 PUT /_bulk?refresh
-{ "index": { "_index": ".ds-logs-000002", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 8, "if_primary_term": 1 } }
+{ "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 8, "if_primary_term": 1 } }
 { "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
 // TEST[continued]

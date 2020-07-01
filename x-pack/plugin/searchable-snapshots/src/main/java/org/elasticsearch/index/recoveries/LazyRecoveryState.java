@@ -90,6 +90,11 @@ public final class LazyRecoveryState extends RecoveryState {
             // before the shard is initialized)
             File file = fileDetails.computeIfAbsent(name, File::fileWithUnknownLength);
 
+            // TODO we have to take into account cache evictions too
+            if (file.unknownLength() == false && file.recovered() + bytes > file.length()) {
+                bytes = file.length() - file.recovered();
+            }
+
             file.addRecoveredBytes(bytes);
         }
 

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -657,10 +655,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public void addRecoveredBytes(long bytes) {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
+            assert length == UNKNOWN_LENGTH || recovered + bytes <= length : "can't recover more than [" + length +"] bytes";
             recovered += bytes;
-            if (length != UNKNOWN_LENGTH) {
-                assert recovered <= length : this;
-            }
         }
 
         public void setLength(long length) {
@@ -777,7 +773,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
-        protected static final Logger logger = LogManager.getLogger(Index.class);
 
         private final RecoveryFileDetails fileDetails;
 
@@ -988,7 +983,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 return -1L;
             }
             long total = 0L;
-            logger.info("Bytes still to recover {}", fileDetails.values());
             for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
                     total += file.length() - file.recovered();

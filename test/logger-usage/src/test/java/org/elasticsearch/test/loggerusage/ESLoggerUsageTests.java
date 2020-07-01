@@ -29,7 +29,6 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -132,7 +131,6 @@ public class ESLoggerUsageTests extends ESTestCase {
             .with("field2", "value2"));
     }
 
-
     public void checkFailArraySizeForSubclasses(Object... arr) {
         logger.debug(new ESLogMessage("message {}", arr));
     }
@@ -142,12 +140,13 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailForTooManyArgumentsWithChain() {
-        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
-                                                   .argAndField("too-many-arg", "xxx"));
+        logger.debug(new ESLogMessage("message {}")
+            .argAndField("x-opaque-id", "some-value")
+            .argAndField("too-many-arg", "xxx"));
     }
 
     public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
+        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
     }
 
     public void checkNumberOfArguments1() {
@@ -172,11 +171,11 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkNumberOfArguments3() {
-        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, new String("last arg"));
+        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, "last arg");
     }
 
     public void checkFailNumberOfArguments3() {
-        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
+        logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, "last arg");
     }
 
     public void checkNumberOfArgumentsParameterizedMessage1() {
@@ -263,7 +262,6 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkDeprecationLogger() {
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
-        deprecationLogger.deprecate("key","message {}", 123);
+        deprecationLogger.deprecate("key", "message {}", 123);
     }
-
 }

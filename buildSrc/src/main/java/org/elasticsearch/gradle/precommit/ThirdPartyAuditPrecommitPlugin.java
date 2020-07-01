@@ -58,6 +58,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         audit.configure(t -> {
             t.dependsOn(resourcesTask);
+            t.setJavaHome(BuildParams.getRuntimeJavaHome().toString());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
         });

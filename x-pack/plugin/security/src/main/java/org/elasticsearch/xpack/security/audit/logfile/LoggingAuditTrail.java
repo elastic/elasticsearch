@@ -110,6 +110,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
     public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
+    public static final String AUTHENTICATION_TYPE_FIELD_NAME = "authentication.type";
     public static final String REALM_FIELD_NAME = "realm";
     public static final String URL_PATH_FIELD_NAME = "url.path";
     public static final String URL_QUERY_FIELD_NAME = "url.query";
@@ -246,7 +247,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                     .withRestUriAndMethod(request)
                     .withRequestId(requestId)
-                    .withSubject(authentication)
+                    .withAuthentication(authentication)
                     .withRestOrigin(request)
                     .withRequestBody(request)
                     .withOpaqueId(threadContext)
@@ -272,7 +273,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withSubject(authentication)
+                        .withAuthentication(authentication)
                         .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -464,7 +465,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, msg.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withSubject(authentication)
+                        .withAuthentication(authentication)
                         .withRestOrTransportOrigin(msg, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
@@ -495,7 +496,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, requestName)
                         .withRequestId(requestId)
-                        .withSubject(authentication)
+                        .withAuthentication(authentication)
                         .with(INDICES_FIELD_NAME, indices)
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -528,7 +529,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ACTION_FIELD_NAME, action)
                         .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
-                        .withSubject(authentication)
+                        .withAuthentication(authentication)
                         .withRestOrTransportOrigin(transportRequest, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .with(authorizationInfo.asMap())
@@ -595,7 +596,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
                         .withRequestId(requestId)
                         .withRestOrTransportOrigin(transportRequest, threadContext)
-                        .withSubject(authentication)
+                        .withAuthentication(authentication)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
@@ -809,8 +810,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withSubject(Authentication authentication) {
+        LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
+            logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY))
                         .with(API_KEY_NAME_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY))

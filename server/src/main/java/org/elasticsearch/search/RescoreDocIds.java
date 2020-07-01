@@ -27,6 +27,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Since {@link org.elasticsearch.search.internal.SearchContext} no longer hold the states of search, the top K results
+ * (i.e., documents that will be rescored by query rescorers) need to be serialized/ deserialized between search phases.
+ * A {@link RescoreDocIds} encapsulates the top K results for each rescorer by its ordinal index.
+ */
 public final class RescoreDocIds implements Writeable {
     public static final RescoreDocIds EMPTY = new RescoreDocIds(Map.of());
 
@@ -40,12 +45,12 @@ public final class RescoreDocIds implements Writeable {
         docIds = in.readMap(StreamInput::readVInt, i -> i.readSet(StreamInput::readVInt));
     }
 
-    public Set<Integer> getId(int index) {
-        return docIds.get(index);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(docIds, StreamOutput::writeVInt, (o, v) -> o.writeCollection(v, StreamOutput::writeVInt));
+    }
+
+    public Set<Integer> getId(int index) {
+        return docIds.get(index);
     }
 }

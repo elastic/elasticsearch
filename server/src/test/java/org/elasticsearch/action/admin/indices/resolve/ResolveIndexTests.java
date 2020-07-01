@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Transpo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -68,7 +69,7 @@ public class ResolveIndexTests extends ESTestCase {
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
-    private IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(new IndexNameExpressionResolver());
 
     public void testResolveStarWithDefaultOptions() {
         String[] names = new String[] {"*"};

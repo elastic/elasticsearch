@@ -67,7 +67,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsNoDataStream() throws Exception {
-        DataStreamsStatsResponse stats = getDataStreamsStats();
+        DataStreamStatsAction.Response stats = getDataStreamsStats();
         assertEquals(0, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(0, stats.getStreams());
@@ -79,7 +79,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     public void testStatsEmptyDataStream() throws Exception {
         String dataStreamName = createDataStream();
 
-        DataStreamsStatsResponse stats = getDataStreamsStats();
+        DataStreamStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -96,7 +96,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
 
-        DataStreamsStatsResponse stats = getDataStreamsStats();
+        DataStreamStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -115,7 +115,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         long timestamp = createDocument(dataStreamName);
 
-        DataStreamsStatsResponse stats = getDataStreamsStats();
+        DataStreamStatsAction.Response stats = getDataStreamsStats();
         assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -143,14 +143,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             }
         }
 
-        DataStreamsStatsResponse stats = getDataStreamsStats();
+        DataStreamStatsAction.Response stats = getDataStreamsStats();
         assertEquals(createdDataStreams.size(), stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(createdDataStreams.size(), stats.getStreams());
         assertEquals(createdDataStreams.size(), stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
         assertEquals(createdDataStreams.size(), stats.getDataStreamStats().length);
-        for (DataStreamStats dataStreamStats : stats.getDataStreamStats()) {
+        for (DataStreamStatsAction.DataStreamStats dataStreamStats : stats.getDataStreamStats()) {
             long expectedMaxTS = maxTimestamps.get(dataStreamStats.getDataStreamName());
             assertEquals(1, dataStreamStats.getBackingIndices());
             assertEquals(expectedMaxTS, dataStreamStats.getMaxTimestamp());
@@ -183,8 +183,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         return timestamp;
     }
 
-    private DataStreamsStatsResponse getDataStreamsStats() throws Exception {
-        return client().execute(DataStreamStatsAction.INSTANCE, new DataStreamsStatsRequest()).get();
+    private DataStreamStatsAction.Response getDataStreamsStats() throws Exception {
+        return client().execute(DataStreamStatsAction.INSTANCE, new DataStreamStatsAction.Request()).get();
     }
 
     private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {

@@ -23,6 +23,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.PseudoHuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -104,6 +105,10 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 MeanSquaredLogarithmicErrorMetric::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class,
+                new ParseField(registeredMetricName(Regression.NAME, PseudoHuberMetric.NAME)),
+                PseudoHuberMetric::fromXContent),
+            new NamedXContentRegistry.Entry(
+                EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, RSquaredMetric.NAME)),
                 RSquaredMetric::fromXContent),
             // Evaluation metrics results
@@ -149,6 +154,10 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME)),
                 MeanSquaredLogarithmicErrorMetric.Result::fromXContent),
+            new NamedXContentRegistry.Entry(
+                EvaluationMetric.Result.class,
+                new ParseField(registeredMetricName(Regression.NAME, PseudoHuberMetric.NAME)),
+                PseudoHuberMetric.Result::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Regression.NAME, RSquaredMetric.NAME)),

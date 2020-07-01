@@ -210,7 +210,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         List<String> chunks = chunkStringWithSize(config.getCompressedDefinition(), config.getCompressedDefinition().length()/3);
 
-        List<TrainedModelDefinitionDoc.Builder> docBuilders = IntStream.range(0, chunks.size() - 1)
+        List<TrainedModelDefinitionDoc.Builder> docBuilders = IntStream.range(0, chunks.size())
             .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
                 .setDocNum(i)
                 .setCompressedString(chunks.get(i))

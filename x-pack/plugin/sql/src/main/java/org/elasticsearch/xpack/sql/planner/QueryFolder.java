@@ -95,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.WEEK_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.YEAR_INTERVAL;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
@@ -341,6 +342,17 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
                                     } else if (field instanceof Function) {
                                         key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
+                                    }
+                                }
+                                // interval of exactly 1 week
+                                else if (value instanceof IntervalDayTime
+                                        && ((IntervalDayTime) value).interval().equals(Duration.ofDays(7))) {
+                                    // When the histogram is `INTERVAL '1' WEEK` the interval used in
+                                    // the ES date_histogram will be a calendar_interval with value "1w"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), WEEK_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), WEEK_INTERVAL, h.zoneId());
                                     }
                                 }
                                 // interval of exactly 1 day

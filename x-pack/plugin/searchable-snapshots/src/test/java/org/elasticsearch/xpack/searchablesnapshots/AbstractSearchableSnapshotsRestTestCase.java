@@ -203,8 +203,10 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 
-            final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            assertBusy(() -> {
+                final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            });
         });
     }
 
@@ -419,6 +421,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
      */
     @FunctionalInterface
     interface SearchableSnapshotsTestCaseBody {
-        void runTest(String indexName, int numDocs) throws IOException;
+        void runTest(String indexName, int numDocs) throws Exception;
     }
 }

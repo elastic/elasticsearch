@@ -89,7 +89,7 @@ public class PseudoHuberMetric implements EvaluationMetric {
         return Objects.hash(delta);
     }
 
-    public static class Result implements EvaluationMetric.Result  {
+    public static class Result implements EvaluationMetric.Result {
 
         public static final ParseField VALUE = new ParseField("value");
         private final double value;
@@ -99,7 +99,7 @@ public class PseudoHuberMetric implements EvaluationMetric {
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("pseudo_huber_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);
@@ -131,7 +131,7 @@ public class PseudoHuberMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(that.value, this.value);
+            return this.value == that.value;
         }
 
         @Override

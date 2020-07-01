@@ -22,13 +22,13 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import static org.elasticsearch.painless.symbol.WriteScope.Variable;
 
 public class CallSubDefNode extends ArgumentsNode {
 
@@ -50,7 +50,7 @@ public class CallSubDefNode extends ArgumentsNode {
      * Writes an invokedynamic instruction for a call with an unknown receiver type.
      */
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         // its possible to have unknown functional interfaces
@@ -68,7 +68,7 @@ public class CallSubDefNode extends ArgumentsNode {
 
         for (int i = 0; i < getArgumentNodes().size(); ++i) {
             ExpressionNode argumentNode = getArgumentNodes().get(i);
-            argumentNode.write(classWriter, methodWriter, scopeTable);
+            argumentNode.write(classWriter, methodWriter, writeScope);
 
             typeParameters.add(argumentNode.getExpressionType());
 
@@ -88,7 +88,7 @@ public class CallSubDefNode extends ArgumentsNode {
                 capturedCount += defInterfaceReferenceNode.getCaptures().size();
 
                 for (String capturedName : defInterfaceReferenceNode.getCaptures()) {
-                    Variable capturedVariable = scopeTable.getVariable(capturedName);
+                    Variable capturedVariable = writeScope.getVariable(capturedName);
                     typeParameters.add(capturedVariable.getType());
                 }
             }

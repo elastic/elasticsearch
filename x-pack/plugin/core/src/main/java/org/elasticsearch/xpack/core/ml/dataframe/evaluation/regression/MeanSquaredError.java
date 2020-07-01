@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -40,7 +42,9 @@ public class MeanSquaredError implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("mean_squared_error");
 
-    private static final String PAINLESS_TEMPLATE = "def diff = doc[''{0}''].value - doc[''{1}''].value;return diff * diff;";
+    private static final String PAINLESS_TEMPLATE =
+        "def diff = doc[''{0}''].value - doc[''{1}''].value;" +
+        "return diff * diff;";
     private static final String AGG_NAME = "regression_" + NAME.getPreferredName();
 
     private static String buildScript(Object...args) {
@@ -48,7 +52,7 @@ public class MeanSquaredError implements EvaluationMetric {
     }
 
     private static final ObjectParser<MeanSquaredError, Void> PARSER =
-        new ObjectParser<>("mean_squared_error", true, MeanSquaredError::new);
+        new ObjectParser<>(NAME.getPreferredName(), true, MeanSquaredError::new);
 
     public static MeanSquaredError fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -70,11 +74,11 @@ public class MeanSquaredError implements EvaluationMetric {
                                                                                   String actualField,
                                                                                   String predictedField) {
         if (result != null) {
-            return Tuple.tuple(List.of(), List.of());
+            return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         return Tuple.tuple(
-            List.of(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
-            List.of());
+            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
+            Collections.emptyList());
     }
 
     @Override
@@ -95,7 +99,6 @@ public class MeanSquaredError implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
     }
 
     @Override
@@ -120,15 +123,15 @@ public class MeanSquaredError implements EvaluationMetric {
 
     public static class Result implements EvaluationMetricResult {
 
-        private static final String ERROR = "error";
-        private final double error;
+        private static final String VALUE = "value";
+        private final double value;
 
-        public Result(double error) {
-            this.error = error;
+        public Result(double value) {
+            this.value = value;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.error = in.readDouble();
+            this.value = in.readDouble();
         }
 
         @Override
@@ -141,15 +144,19 @@ public class MeanSquaredError implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
+        public double getValue() {
+            return value;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(error);
+            out.writeDouble(value);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ERROR, error);
+            builder.field(VALUE, value);
             builder.endObject();
             return builder;
         }
@@ -159,12 +166,12 @@ public class MeanSquaredError implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result other = (Result)o;
-            return error == other.error;
+            return value == other.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(error);
+            return Double.hashCode(value);
         }
     }
 }

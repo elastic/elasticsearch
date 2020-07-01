@@ -1470,8 +1470,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, true).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
+            // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
+            Settings settings = Settings.builder().put(block, true).build();
+            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        } else {
+            client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
+        }
     }
 
     /** Sets or unsets the cluster read_only mode **/

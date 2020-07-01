@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -45,15 +47,17 @@ public class RSquared implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("r_squared");
 
-    private static final String PAINLESS_TEMPLATE = "def diff = doc[''{0}''].value - doc[''{1}''].value;return diff * diff;";
+    private static final String PAINLESS_TEMPLATE =
+        "def diff = doc[''{0}''].value - doc[''{1}''].value;" +
+        "return diff * diff;";
     private static final String SS_RES = "residual_sum_of_squares";
 
-    private static String buildScript(Object... args) {
+    private static String buildScript(Object...args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
     private static final ObjectParser<RSquared, Void> PARSER =
-        new ObjectParser<>("r_squared", true, RSquared::new);
+        new ObjectParser<>(NAME.getPreferredName(), true, RSquared::new);
 
     public static RSquared fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -75,13 +79,13 @@ public class RSquared implements EvaluationMetric {
                                                                                   String actualField,
                                                                                   String predictedField) {
         if (result != null) {
-            return Tuple.tuple(List.of(), List.of());
+            return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         return Tuple.tuple(
-            List.of(
+            Arrays.asList(
                 AggregationBuilders.sum(SS_RES).script(new Script(buildScript(actualField, predictedField))),
                 AggregationBuilders.extendedStats(ExtendedStatsAggregationBuilder.NAME + "_actual").field(actualField)),
-            List.of());
+            Collections.emptyList());
     }
 
     @Override
@@ -110,7 +114,6 @@ public class RSquared implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
     }
 
     @Override
@@ -156,6 +159,10 @@ public class RSquared implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
+        public double getValue() {
+            return value;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(value);
@@ -179,7 +186,7 @@ public class RSquared implements EvaluationMetric {
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(value);
+            return Double.hashCode(value);
         }
     }
 }

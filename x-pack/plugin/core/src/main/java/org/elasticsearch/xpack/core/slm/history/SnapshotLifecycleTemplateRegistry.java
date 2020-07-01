@@ -69,7 +69,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getTemplateConfigs() {
+    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
@@ -90,7 +90,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getTemplateConfigs().stream()
+        boolean allTemplatesPresent = getLegacyTemplateConfigs().stream()
             .map(IndexTemplateConfig::getTemplateName)
             .allMatch(name -> state.metadata().getTemplates().containsKey(name));
 

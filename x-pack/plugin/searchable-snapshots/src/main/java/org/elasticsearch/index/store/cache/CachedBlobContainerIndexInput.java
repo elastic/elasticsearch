@@ -279,6 +279,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
     private static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
+        assert assertSearchableSnapshotsThread();
         return fc.write(byteBuffer, start);
     }
 

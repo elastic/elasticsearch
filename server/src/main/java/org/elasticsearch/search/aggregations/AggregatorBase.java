@@ -109,12 +109,16 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Returns a converter for point values if early termination is applicable to
-     * the context or <code>null</code> otherwise.
+     * Returns a converter for point values if it's safe to use the indexed data instead of
+     * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
+     * top level, and the underlying field is indexed, and the index is sorted in the right order.
+     *
+     * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
+     * be used in this case.
      *
      * @param config The config for the values source metric.
      */
-    public Function<byte[], Number> getPointReaderOrNull(ValuesSourceConfig config) {
+    public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
         if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
             return null;
         }

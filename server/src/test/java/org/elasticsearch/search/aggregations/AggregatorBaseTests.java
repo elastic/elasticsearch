@@ -91,7 +91,7 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
     private Function<byte[], Number> pointReaderShim(SearchContext context, Aggregator parent, ValuesSourceConfig config)
         throws IOException {
         BogusAggregator aggregator = new BogusAggregator(context, parent);
-        return aggregator.getPointReaderOrNull(config);
+        return aggregator.pointReaderIfAvailable(config);
     }
 
     private Aggregator mockAggregator() {

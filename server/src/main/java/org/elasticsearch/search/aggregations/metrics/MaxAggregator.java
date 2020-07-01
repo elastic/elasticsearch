@@ -66,7 +66,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.formatter = config.format();
-        this.pointConverter = getPointReaderOrNull(config);
+        this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {

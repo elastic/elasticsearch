@@ -77,22 +77,31 @@ public class DateFormatTests extends ESTestCase {
         assertThat(nextYear, is(jodaDateTime.withZone(DateTimeZone.UTC).getYear()));
     }
 
-//    public void testParseWeekBased() {
-//        String format = randomFrom("YYYY-ww");
-//        ZoneId timezone = ZoneId.of("Europe/Amsterdam");
-//        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
-//        ZonedDateTime dateTime = javaFunction.apply("2020-33");
-//        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,10,0,0,0,0,timezone)));
-//    }
-//
-//    public void testParseWeekBasedWithLocale() {
-//        String format = randomFrom("YYYY-ww");
-//        ZoneId timezone = ZoneId.of("Europe/Amsterdam");
-//        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.US);
-//        ZonedDateTime dateTime = javaFunction.apply("2020-33");
-//        //33rd week of 2020 starts on 9th August 2020 as per US locale
-//        assertThat(dateTime, equalTo(ZonedDateTime.of(2020,8,9,0,0,0,0,timezone)));
-//    }
+    public void testParseWeekBased() {
+        String format = randomFrom("YYYY-ww","8YYYY-ww");
+        ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
+
+        Function<String, DateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        DateTime dateTime = javaFunction.apply("2020-33");
+        assertThat(dateTime, equalTo(new DateTime(2020,8,9,0,0,0,0,timezone)));
+    }
+
+    public void testParseWeekBasedWithLocale() {
+        String format = randomFrom("YYYY-ww","8YYYY-ww");
+        ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
+
+        Function<String, DateTime> javaFunctionUS = DateFormat.Java.getFunction(format, timezone, Locale.US);
+        DateTime dateTime = javaFunctionUS.apply("2020-33");
+        //33rd week of 2020 starts on 9th August 2020 as per US locale
+        assertThat(dateTime, equalTo(new DateTime(2020,8,9,0,0,0,0,timezone)));
+
+        Function<String, DateTime> javaFunctionUK = DateFormat.Java.getFunction(format, timezone, Locale.UK);
+        dateTime = javaFunctionUK.apply("2020-33");
+        //33rd week of 2020 starts on 10th August 2020 as per UK locale
+        assertThat(dateTime, equalTo(new DateTime(2020,8,10,0,0,0,0,timezone)));
+    }
 
     public void testParseUnixMs() {
         assertThat(DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null).apply("1000500").getMillis(), equalTo(1000500L));

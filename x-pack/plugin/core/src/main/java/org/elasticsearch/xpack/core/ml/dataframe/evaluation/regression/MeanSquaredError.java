@@ -52,7 +52,7 @@ public class MeanSquaredError implements EvaluationMetric {
     }
 
     private static final ObjectParser<MeanSquaredError, Void> PARSER =
-        new ObjectParser<>("mean_squared_error", true, MeanSquaredError::new);
+        new ObjectParser<>(NAME.getPreferredName(), true, MeanSquaredError::new);
 
     public static MeanSquaredError fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -99,7 +99,6 @@ public class MeanSquaredError implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
     }
 
     @Override
@@ -124,15 +123,15 @@ public class MeanSquaredError implements EvaluationMetric {
 
     public static class Result implements EvaluationMetricResult {
 
-        private static final String ERROR = "error";
-        private final double error;
+        private static final String VALUE = "value";
+        private final double value;
 
-        public Result(double error) {
-            this.error = error;
+        public Result(double value) {
+            this.value = value;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.error = in.readDouble();
+            this.value = in.readDouble();
         }
 
         @Override
@@ -145,19 +144,19 @@ public class MeanSquaredError implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
-        public double getError() {
-            return error;
+        public double getValue() {
+            return value;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(error);
+            out.writeDouble(value);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ERROR, error);
+            builder.field(VALUE, value);
             builder.endObject();
             return builder;
         }
@@ -167,12 +166,12 @@ public class MeanSquaredError implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result other = (Result)o;
-            return error == other.error;
+            return value == other.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(error);
+            return Double.hashCode(value);
         }
     }
 }

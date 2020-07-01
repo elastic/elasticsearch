@@ -85,7 +85,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredError.Result mseResult = (MeanSquaredError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredError.NAME.getPreferredName()));
-        assertThat(mseResult.getError(), equalTo(1000000.0));
+        assertThat(mseResult.getValue(), equalTo(1000000.0));
     }
 
     public void testEvaluate_MeanSquaredLogarithmicError() {
@@ -102,7 +102,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredLogarithmicError.Result msleResult = (MeanSquaredLogarithmicError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicError.NAME.getPreferredName()));
-        assertThat(msleResult.getError(), closeTo(Math.pow(Math.log(1000 + 1), 2), 10E-6));
+        assertThat(msleResult.getValue(), closeTo(Math.pow(Math.log(1000 + 1), 2), 10E-6));
     }
 
     public void testEvaluate_PseudoHuber() {

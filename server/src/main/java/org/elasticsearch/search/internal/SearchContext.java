@@ -99,6 +99,13 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract boolean isCancelled();
 
+    public long queryStartTime;
+    public void setQueryStartTime() {
+        queryStartTime = System.currentTimeMillis();
+    }
+    public long getQueryStartTime() {
+        return queryStartTime;
+    }
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) { // prevent double closing

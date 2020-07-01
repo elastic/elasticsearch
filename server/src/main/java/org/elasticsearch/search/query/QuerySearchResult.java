@@ -70,6 +70,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
+    private long queryWaitTime;
+    private long queryExecTime;
 
     private final boolean isNull;
 
@@ -94,6 +96,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
         isNull = false;
+    }
+    public long getQueryWaitTime() {
+        return queryWaitTime;
+    }
+    public long getQueryExecTime() {
+        return queryExecTime;
+    }
+    public void setQueryWaitTime(long queryWaitTime) {
+        this.queryWaitTime = queryWaitTime;
+    }
+    public void setQueryExecTime(long queryExecTime) {
+        this.queryExecTime = queryExecTime;
     }
 
     private QuerySearchResult(boolean isNull) {

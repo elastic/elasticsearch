@@ -121,6 +121,9 @@ final class SearchResponseMerger {
         int successfulShards = 0;
         //the current reduce phase counts as one
         int numReducePhases = 1;
+        long totalWaitTime = 0;
+        long totalExecTime = 0;
+        int totalNumTask = 0;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
@@ -136,6 +139,9 @@ final class SearchResponseMerger {
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();
             numReducePhases += searchResponse.getNumReducePhases();
+            totalWaitTime += searchResponse.getWaitTime();
+            totalExecTime += searchResponse.getExecTime();
+            totalNumTask += searchResponse.getNumTask();
 
             Collections.addAll(failures, searchResponse.getShardFailures());
 
@@ -203,7 +209,7 @@ final class SearchResponseMerger {
         InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
             topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
-        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
+        return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters,totalWaitTime,totalExecTime,totalNumTask);
     }
 
     private static final Comparator<ShardSearchFailure> FAILURES_COMPARATOR = new Comparator<ShardSearchFailure>() {

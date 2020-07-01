@@ -43,6 +43,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -67,11 +68,15 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
+    private static final long TIMEOUT = 10;
     private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
+    private  long numTask;
+    private long totalExecTime;
+    private long totalWaitTime;
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
@@ -163,7 +168,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY, clusters));
+                ShardSearchFailure.EMPTY_ARRAY, clusters,totalWaitTime,totalExecTime,numTask));
             return;
         }
         executePhase(this);
@@ -200,6 +205,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
                 performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                numTask++;
+            }
+            List<SearchPhaseResult> resultArrayList = null;
+            long start = System.currentTimeMillis();
+            while(numTask >= 1) {
+                resultArrayList = (List<SearchPhaseResult>) results.getAtomicArray().asList();
+                if((resultArrayList != null && resultArrayList.size() == numTask) || ((resultArrayList == null || resultArrayList.isEmpty()) && (System.currentTimeMillis() - start) / 1000 > TIMEOUT)) {
+                    break;
+                }
+            }
+
+            if(resultArrayList != null) {
+                for (SearchPhaseResult it : resultArrayList) {
+                    QuerySearchResult queryResult = it.queryResult();
+                    totalExecTime += queryResult.getQueryExecTime();
+                    totalWaitTime += queryResult.getQueryWaitTime();
+                }
             }
         }
     }
@@ -531,7 +553,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                        String scrollId,
                                                        ShardSearchFailure[] failures) {
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), failures, clusters);
+            skippedOps.get(), buildTookInMillis(), failures, clusters,totalWaitTime,totalExecTime,numTask);
     }
 
     @Override

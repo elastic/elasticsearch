@@ -132,6 +132,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        long start = System.currentTimeMillis();
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
@@ -161,6 +162,8 @@ public class QueryPhase implements SearchPhase {
                 .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
+        searchContext.queryResult().setQueryWaitTime(start-searchContext.getQueryStartTime());
+        searchContext.queryResult().setQueryExecTime(System.currentTimeMillis()-start);
     }
 
     /**

@@ -4,30 +4,32 @@
 <titleabbrev>Resolve index</titleabbrev>
 ++++
 
-Provides an endpoint that resolves the specified name(s) and/or wildcard
-expression(s) to indices, aliases, and data streams. Multiple expressions
-and remote clusters are supported.
+Resolves the specified name(s) and/or wildcard expression(s) to indices, index
+aliases, and data streams. Multiple expressions and remote clusters are
+supported.
 
 
 [source,console]
 ----
-GET /_resolve/index/f*,remoteCluster1:bar*
+GET /_resolve/index/twitter*
 ----
 
 [[resolve-index-api-request]]
 ==== {api-request-title}
 
-`GET /_resolve/index/<names>`
+`GET /_resolve/index/<name>`
 
 
 [[resolve-index-api-path-params]]
 ==== {api-path-parms-title}
 
-`<names>`::
+`<name>`::
 +
 --
 (Required, string) Comma-separated name(s) or wildcard expression(s) of the
-indices, aliases, and data streams to resolve.
+indices, index aliases, and data streams to resolve. Resources on
+<<modules-remote-clusters,remote clusters>> can be specified using the
+`<cluster>:<name>` syntax.
 --
 
 [[resolve-index-api-query-params]]
@@ -45,7 +47,7 @@ Defaults to `open`.
 
 [source,console]
 --------------------------------------------------
-GET /_resolve/index/f*
+GET /_resolve/index/f*,remoteCluster1:bar*
 --------------------------------------------------
 // TEST[continued]
 // TEST[skip_shard_failures]

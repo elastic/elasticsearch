@@ -49,6 +49,10 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+            TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
+            //even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
+//            return DateFormatters.from(accessor, Locale.ROOT, timezone)
+//                .withZoneSameInstant(timezone);
             return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
         }
     },
@@ -101,7 +105,10 @@ enum DateFormat {
                     TemporalAccessor accessor = formatter.parse(text);
                     // if there is no year, we fall back to the current one and
                     // fill the rest of the date up with the parsed date
-                    if (accessor.isSupported(ChronoField.YEAR) == false) {
+                    if (accessor.isSupported(ChronoField.YEAR) == false
+                        && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
+                        && accessor.isSupported(WeekFields.of(locale).weekOfWeekBasedYear()) == false) {
+
                         ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                         for (ChronoField field : FIELDS) {
                             if (accessor.isSupported(field)) {
@@ -112,7 +119,7 @@ enum DateFormat {
                         accessor = newTime.withZoneSameLocal(DateUtils.dateTimeZoneToZoneId(timezone));
                     }
 
-                    long millis = DateFormatters.from(accessor).toInstant().toEpochMilli();
+                    long millis = DateFormatters.from(accessor, locale).toInstant().toEpochMilli();
                     return new DateTime(millis, timezone);
                 };
             } else {

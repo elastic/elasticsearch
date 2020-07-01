@@ -137,8 +137,10 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
@@ -557,6 +559,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class,
                 TransportGetFieldMappingsIndexAction.class);
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
+        actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);

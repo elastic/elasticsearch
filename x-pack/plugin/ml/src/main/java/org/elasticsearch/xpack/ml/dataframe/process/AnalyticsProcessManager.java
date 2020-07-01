@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -68,6 +69,7 @@ public class AnalyticsProcessManager {
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final DataFrameAnalyticsAuditor auditor;
     private final TrainedModelProvider trainedModelProvider;
+    private final ModelLoadingService modelLoadingService;
     private final ResultsPersisterService resultsPersisterService;
     private final int numAllocatedProcessors;
 
@@ -76,6 +78,7 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
+                                   ModelLoadingService modelLoadingService,
                                    ResultsPersisterService resultsPersisterService,
                                    int numAllocatedProcessors) {
         this(
@@ -85,6 +88,7 @@ public class AnalyticsProcessManager {
             analyticsProcessFactory,
             auditor,
             trainedModelProvider,
+            modelLoadingService,
             resultsPersisterService,
             numAllocatedProcessors);
     }
@@ -96,6 +100,7 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
+                                   ModelLoadingService modelLoadingService,
                                    ResultsPersisterService resultsPersisterService,
                                    int numAllocatedProcessors) {
         this.client = Objects.requireNonNull(client);
@@ -104,6 +109,7 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
         this.auditor = Objects.requireNonNull(auditor);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
+        this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.numAllocatedProcessors = numAllocatedProcessors;
     }
@@ -326,10 +332,10 @@ public class AnalyticsProcessManager {
             new AnalysisFieldInfo(processContext.dataExtractor.get().getExtractedFields()));
         if (inferenceConfig != null) {
             refreshDest(parentTaskClient, processContext.config);
-            InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, trainedModelProvider, resultsPersisterService,
+            InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, modelLoadingService, resultsPersisterService,
                 task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker(),
                 task.getStatsHolder().getDataCountsTracker());
-            inferenceRunner.run(processContext.resultProcessor.get().getLatestModelConfig(), inferenceConfig);
+            inferenceRunner.run(processContext.resultProcessor.get().getLatestModelId());
         }
     }
 

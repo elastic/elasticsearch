@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.search.SearchHit;
@@ -25,7 +26,8 @@ import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
@@ -44,7 +46,7 @@ public class InferenceRunner {
     private static final int RESULTS_BATCH_SIZE = 1000;
 
     private final Client client;
-    private final TrainedModelProvider modelProvider;
+    private final ModelLoadingService modelLoadingService;
     private final ResultsPersisterService resultsPersisterService;
     private final TaskId parentTaskId;
     private final DataFrameAnalyticsConfig config;
@@ -52,11 +54,11 @@ public class InferenceRunner {
     private final DataCountsTracker dataCountsTracker;
     private volatile boolean isCancelled;
 
-    public InferenceRunner(Client client, TrainedModelProvider modelProvider, ResultsPersisterService resultsPersisterService,
+    public InferenceRunner(Client client, ModelLoadingService modelLoadingService, ResultsPersisterService resultsPersisterService,
                            TaskId parentTaskId, DataFrameAnalyticsConfig config, ProgressTracker progressTracker,
                            DataCountsTracker dataCountsTracker) {
         this.client = Objects.requireNonNull(client);
-        this.modelProvider = Objects.requireNonNull(modelProvider);
+        this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.config = Objects.requireNonNull(config);
@@ -68,26 +70,27 @@ public class InferenceRunner {
         isCancelled = true;
     }
 
-    public void run(TrainedModelConfig trainedModelConfig, InferenceConfig inferenceConfig) {
+    public void run(String modelId) {
         if (isCancelled) {
             return;
         }
 
-        LOGGER.info("[{}] Running inference on model [{}]", config.getId(), trainedModelConfig.getModelId());
+        LOGGER.info("[{}] Running inference on model [{}]", config.getId(), modelId);
 
         try {
-            InferenceDefinition inferenceDefinition = modelProvider.inflateModelForInference(trainedModelConfig);
+            PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
+            modelLoadingService.getModelForSearch(modelId, localModelPlainActionFuture);
+            LocalModel localModel = localModelPlainActionFuture.actionGet();
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
-            inferTestDocs(trainedModelConfig, inferenceConfig, inferenceDefinition, testDocsIterator);
+            inferTestDocs(localModel, testDocsIterator);
             LOGGER.info("[{}] Inference finished", config.getId());
-        } catch (IOException e) {
+        } catch (Exception e) {
 
         }
     }
 
     // Visible for testing
-    void inferTestDocs(TrainedModelConfig trainedModelConfig, InferenceConfig inferenceConfig, InferenceDefinition model,
-                       TestDocsIterator testDocsIterator) {
+    void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator) {
         long totalDocCount = 0;
         long processedDocCount = 0;
         BulkRequest bulkRequest = new BulkRequest();
@@ -105,7 +108,7 @@ public class InferenceRunner {
 
             for (SearchHit doc : batch) {
                 dataCountsTracker.incrementTestDocsCount();
-                InferenceResults inferenceResults = model.infer(prepareForInference(trainedModelConfig, doc), inferenceConfig);
+                InferenceResults inferenceResults = model.internalInfer(new HashMap<>(doc.getSourceAsMap()));
                 bulkRequest.add(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
                 processedDocCount++;
@@ -122,12 +125,6 @@ public class InferenceRunner {
             executeBulkRequest(bulkRequest);
         }
         progressTracker.updateInferenceProgress(100);
-    }
-
-    private Map<String, Object> prepareForInference(TrainedModelConfig trainedModelConfig, SearchHit hit) {
-        Map<String, Object> features = new HashMap<>(hit.getSourceAsMap());
-        Model.mapFieldsIfNecessary(features, trainedModelConfig.getDefaultFieldMap());
-        return MapHelper.dotCollapse(features, trainedModelConfig.getInput().getFieldNames());
     }
 
     private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {

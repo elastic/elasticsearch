@@ -78,7 +78,16 @@ public class LocalModel {
             persistenceQuotient = 10_000;
         }
     }
-    
+
+    public InferenceResults internalInfer(Map<String, Object> fields) {
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
+        if (flattenedFields.isEmpty()) {
+            new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
+        }
+        return trainedModelDefinition.infer(flattenedFields, inferenceConfig);
+    }
+
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(

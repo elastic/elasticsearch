@@ -91,7 +91,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public TimeValue getRetention() {
         // we only care about their value if they are allowed to set it
-        if (licenseState.isAllowed(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) && globalRetention != null) {
             return globalRetention;
         }
         else {
@@ -109,7 +109,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.isAllowed(Feature.MONITORING_UPDATE_RETENTION) == false) {
+        if (licenseState.checkFeature(Feature.MONITORING_UPDATE_RETENTION) == false) {
             logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
         }
 
@@ -166,7 +166,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.isAllowed(Feature.MONITORING) == false) {
+            if (licenseState.checkFeature(Feature.MONITORING) == false) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
             }

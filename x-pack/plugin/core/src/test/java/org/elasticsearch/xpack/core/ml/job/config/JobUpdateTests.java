@@ -301,13 +301,12 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testMergeWithJob_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             Job job = JobTests.createRandomizedJob();
-            JobUpdate update = createRandom(job.getId(), job);
-            while (update.isNoop(job)) {
+            JobUpdate update;
+            do {
                 update = createRandom(job.getId(), job);
-            }
+            } while (update.isNoop(job));
 
             Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
-
             assertThat(job, not(equalTo(updatedJob)));
         }
     }

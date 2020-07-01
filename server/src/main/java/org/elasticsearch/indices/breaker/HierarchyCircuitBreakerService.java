@@ -403,7 +403,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
-            // mimick JDK calculation
+            // mimick JDK calculation based on JDK 14 source:
+            // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
+            // notice that newer JDKs will have a slight variant only considering max-heap:
+            // https://hg.openjdk.java.net/jdk/jdk/file/e7d0ec2d06e8/src/hotspot/share/gc/g1/heapRegion.cpp#l67
+            // based on this JDK "bug":
+            // https://bugs.openjdk.java.net/browse/JDK-8241670
             long averageHeapSize =
                 (jvmInfo.getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
             long regionSize = Long.highestOneBit(averageHeapSize / 2048);

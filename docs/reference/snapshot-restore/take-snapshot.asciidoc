@@ -52,7 +52,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
 // TEST[skip:cannot complete subsequent snapshot]
 
 The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
-supports <<multi-index,multi index syntax>>, although the options which control the behavior of multi index syntax
+supports <<multi-index,multi-target syntax>>, although the options which control the behavior of multi index syntax
 must be supplied in the body of the request, rather than as request parameters. The snapshot request also supports the
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exist to be ignored during snapshot
 creation. By default, when `ignore_unavailable` option is not set and an index is missing the snapshot request will fail.

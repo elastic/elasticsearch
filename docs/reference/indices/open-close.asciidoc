@@ -84,8 +84,8 @@ index creation applies to the `_open` and `_close` index actions as well.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices, and
-index aliases used to limit the request.
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
 +
 To target all data streams and indices, use `_all` or `*`.
 +

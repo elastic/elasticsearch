@@ -57,7 +57,7 @@ public final class LazyRecoveryState extends RecoveryState {
 
         @Override
         public int size() {
-            if (hasAnyUnknownLengthFile()) {
+            if (containsAnyFileWithUnknownLength()) {
                 return 0;
             }
             return fileDetails.size();
@@ -65,7 +65,7 @@ public final class LazyRecoveryState extends RecoveryState {
 
         @Override
         public boolean isEmpty() {
-            return hasAnyUnknownLengthFile() || fileDetails.isEmpty();
+            return containsAnyFileWithUnknownLength() || fileDetails.isEmpty();
         }
 
         @Override
@@ -113,14 +113,14 @@ public final class LazyRecoveryState extends RecoveryState {
             // In order to avoid confusing results, we just return
             // an empty list until we know that there aren't more
             // files with unknown length.
-            if (hasAnyUnknownLengthFile()) {
+            if (containsAnyFileWithUnknownLength()) {
                 return Collections.emptyList();
             }
 
             return fileDetails.values();
         }
 
-        private boolean hasAnyUnknownLengthFile() {
+        private boolean containsAnyFileWithUnknownLength() {
             return filesWithUnknownLength > 0;
         }
     }

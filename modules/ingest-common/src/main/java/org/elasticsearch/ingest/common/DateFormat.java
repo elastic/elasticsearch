@@ -49,7 +49,8 @@ import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) { return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
+        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+            return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
         }
     },
     Unix {

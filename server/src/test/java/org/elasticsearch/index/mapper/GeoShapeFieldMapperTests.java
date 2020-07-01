@@ -337,7 +337,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("shape");
+        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
         assertThat(fields.length, equalTo(2));
     }
 

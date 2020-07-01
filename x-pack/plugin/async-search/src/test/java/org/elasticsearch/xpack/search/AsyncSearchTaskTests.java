@@ -205,10 +205,12 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AsyncSearchResponse asyncSearchResponse = response.get();
         assertNull(asyncSearchResponse.getSearchResponse());
         Exception failure = asyncSearchResponse.getFailure();
-        assertThat(failure, instanceOf(IllegalArgumentException.class));
-        IllegalArgumentException iae = (IllegalArgumentException)failure;
-        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]", iae.getMessage());
-        assertEquals("boom", failure.getSuppressed()[0].getMessage());
+        assertThat(failure, instanceOf(CircuitBreakingException.class));
+        assertEquals("boom", failure.getMessage());
+        assertEquals(1, failure.getSuppressed().length);
+        assertThat(failure.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
+        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() +
+            "]", failure.getSuppressed()[0].getMessage());
     }
 
     public void testWaitForCompletion() throws InterruptedException {

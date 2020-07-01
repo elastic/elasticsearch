@@ -244,7 +244,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                                 listener.onResponse(resp);
                             }
                         },
-                        listener::onFailure
+                        failure -> {
+                            if (hasRun.compareAndSet(false, true)) {
+                                // completion occurred before timeout
+                                cancellable.cancel();
+                                listener.onFailure(failure);
+                            }
+                        }
                     ));
             }
         }
@@ -289,17 +295,17 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     private void executeCompletionListeners() {
+        CompletionListeners completionListenersCopy;
         synchronized (this) {
             if (hasCompleted) {
                 return;
             }
             hasCompleted = true;
+            completionListenersCopy = completionListeners.copy();
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
-        getResponse(completionListeners);
-        //TODO is clearing the map necessary? we will only execute the listeners once anyways
-        //completionListeners.clear();
+        getResponse(completionListenersCopy);
     }
 
     /**
@@ -430,7 +436,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     private static class CompletionListeners implements ActionListener<AsyncSearchResponse> {
-        private final Map<Long, ActionListener<AsyncSearchResponse>> listeners = new HashMap<>();
+        private final Map<Long, ActionListener<AsyncSearchResponse>> listeners;
+
+        CompletionListeners() {
+            this.listeners = new HashMap<>();
+        }
+
+        CompletionListeners(Map<Long, ActionListener<AsyncSearchResponse>> listeners) {
+            this.listeners = listeners;
+        }
 
         void register(long id, ActionListener<AsyncSearchResponse> listener) {
             this.listeners.put(id, listener);
@@ -438,6 +452,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         void unregister(long id) {
             this.listeners.remove(id);
+        }
+
+        CompletionListeners copy() {
+            return new CompletionListeners(new HashMap<>(this.listeners));
         }
 
         @Override

@@ -248,22 +248,19 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptContext<?> ctx = randomFrom(contexts.values());
         scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
+        assertEquals(1L, scriptService.stats().getByContext(ctx.name).getCompilations());
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
-        Settings.Builder builder = Settings.builder();
-        builder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
-        builder.put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m");
-        buildScriptService(builder.build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
+        ScriptContext<?> context = randomFrom(contexts.values());
+        buildScriptService(Settings.builder()
+            .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context.name).getKey(), 1)
+            .build()
+        );
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), context);
+        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), context);
         assertEquals(2L, scriptService.stats().getCompilations());
-        assertEquals(2L, scriptService.cacheStats().getGeneralStats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
-        assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCacheEvictions());
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_CACHE_SIZE_SETTING,
-            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     public void testContextCacheStats() throws IOException {
@@ -304,15 +301,14 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
 
         // Context specific
-        ScriptCacheStats stats = scriptService.cacheStats();
-        assertEquals(2L, stats.getContextStats().get(contextA.name).getCompilations());
-        assertEquals(1L, stats.getContextStats().get(contextA.name).getCacheEvictions());
-        assertEquals(1L, stats.getContextStats().get(contextA.name).getCompilationLimitTriggered());
+        ScriptStats stats = scriptService.stats();
+        assertEquals(2L, stats.getByContext(contextA.name).getCompilations());
+        assertEquals(1L, stats.getByContext(contextA.name).getCacheEvictions());
+        assertEquals(1L, stats.getByContext(contextA.name).getCompilationLimitTriggered());
 
-        assertEquals(3L, stats.getContextStats().get(contextB.name).getCompilations());
-        assertEquals(1L, stats.getContextStats().get(contextB.name).getCacheEvictions());
-        assertEquals(2L, stats.getContextStats().get(contextB.name).getCompilationLimitTriggered());
-        assertNull(scriptService.cacheStats().getGeneralStats());
+        assertEquals(3L, stats.getByContext(contextB.name).getCompilations());
+        assertEquals(1L, stats.getByContext(contextB.name).getCacheEvictions());
+        assertEquals(2L, stats.getByContext(contextB.name).getCompilationLimitTriggered());
 
         // Summed up
         assertEquals(5L, scriptService.stats().getCompilations());

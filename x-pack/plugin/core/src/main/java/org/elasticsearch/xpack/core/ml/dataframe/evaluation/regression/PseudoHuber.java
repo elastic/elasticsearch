@@ -29,16 +29,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
- * Calculates the mean squared error between two known numerical fields.
+ * Calculates the pseudo Huber loss function.
  *
- * equation: mse = 1/n * Σ(y - y´)^2
+ * equation: pseudohuber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
+ * where: a = y - y´
+ *        δ - parameter that controls the steepness
  */
 public class PseudoHuber implements EvaluationMetric {
 
@@ -48,8 +49,8 @@ public class PseudoHuber implements EvaluationMetric {
     private static final double DEFAULT_DELTA = 1.0;
 
     private static final String PAINLESS_TEMPLATE =
-        "def delta2 = Math.pow({2}, 2);" +
         "def a = doc[''{0}''].value - doc[''{1}''].value;" +
+        "def delta2 = {2};" +
         "return delta2 * (Math.sqrt(1.0 + Math.pow(a, 2) / delta2) - 1.0);";
     private static final String AGG_NAME = "regression_" + NAME.getPreferredName();
 
@@ -92,7 +93,7 @@ public class PseudoHuber implements EvaluationMetric {
             return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         return Tuple.tuple(
-            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField, delta)))),
+            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField, delta * delta)))),
             Collections.emptyList());
     }
 
@@ -188,7 +189,7 @@ public class PseudoHuber implements EvaluationMetric {
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(value);
+            return Double.hashCode(value);
         }
     }
 }

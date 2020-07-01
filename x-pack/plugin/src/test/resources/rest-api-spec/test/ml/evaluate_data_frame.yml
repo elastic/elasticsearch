@@ -881,12 +881,12 @@ setup:
               "regression": {
                 "actual_field": "regression_field_act",
                 "predicted_field": "regression_field_pred",
-                "metrics": { "pseudo_huber": {} }
+                "metrics": { "pseudo_huber": { "delta": 2.0 } }
               }
             }
           }
 
-  - match: { regression.pseudo_huber.value: 1.9205280586939963 }
+  - match: { regression.pseudo_huber.value: 3.5088110471730145 }
   - is_false: regression.mean_squared_logarithmic_error.value
   - is_false: regression.mean_squared_error.value
   - is_false: regression.r_squared.value

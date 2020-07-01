@@ -32,10 +32,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Calculates the mean squared error between two known numerical fields.
+ * Calculates the pseudo Huber loss function.
  *
- * equation: msle = 1/n * Σ(log(y + offset) - log(y´ + offset))^2
- * where offset is used to make sure the argument to log function is always positive
+ * equation: pseudohuber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
+ * where: a = y - y´
+ *        δ - parameter that controls the steepness
  */
 public class PseudoHuberMetric implements EvaluationMetric {
 
@@ -135,7 +136,7 @@ public class PseudoHuberMetric implements EvaluationMetric {
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return Double.hashCode(value);
         }
     }
 }

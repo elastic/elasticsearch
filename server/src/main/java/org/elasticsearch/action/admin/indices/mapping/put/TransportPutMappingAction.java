@@ -87,7 +87,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         String[] indices;
         if (request.getConcreteIndex() == null) {
-            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
+            indices = indexNameExpressionResolver.concreteIndexNames(state, request, true);
         } else {
             indices = new String[] {request.getConcreteIndex().getName()};
         }
@@ -99,36 +99,43 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = request.getConcreteIndex() == null ?
-                indexNameExpressionResolver.concreteIndices(state, request)
+                indexNameExpressionResolver.concreteIndices(state, request, true)
                 : new Index[] {request.getConcreteIndex()};
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
-                .indices(concreteIndices)
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-
-            metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-
-                @Override
-                public void onResponse(ClusterStateUpdateResponse response) {
-                    listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                        Arrays.asList(concreteIndices)), t);
-                    listener.onFailure(t);
-                }
-            });
+            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
                 Arrays.asList(request.indices())), ex);
             throw ex;
         }
+    }
+
+    static void performMappingUpdate(Index[] concreteIndices,
+                                     PutMappingRequest request,
+                                     ActionListener<AcknowledgedResponse> listener,
+                                     MetadataMappingService metadataMappingService) {
+        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
+            .indices(concreteIndices)
+            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+
+        metadataMappingService.putMapping(updateRequest, new ActionListener<>() {
+
+            @Override
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+            }
+
+            @Override
+            public void onFailure(Exception t) {
+                logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                    Arrays.asList(concreteIndices)), t);
+                listener.onFailure(t);
+            }
+        });
     }
 
 }

@@ -40,7 +40,9 @@ public class MeanSquaredError implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("mean_squared_error");
 
-    private static final String PAINLESS_TEMPLATE = "def diff = doc[''{0}''].value - doc[''{1}''].value;return diff * diff;";
+    private static final String PAINLESS_TEMPLATE =
+        "def diff = doc[''{0}''].value - doc[''{1}''].value;" +
+        "return diff * diff;";
     private static final String AGG_NAME = "regression_" + NAME.getPreferredName();
 
     private static String buildScript(Object...args) {
@@ -139,6 +141,10 @@ public class MeanSquaredError implements EvaluationMetric {
         @Override
         public String getMetricName() {
             return NAME.getPreferredName();
+        }
+
+        public double getError() {
+            return error;
         }
 
         @Override

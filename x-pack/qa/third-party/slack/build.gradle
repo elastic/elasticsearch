@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
-  testImplementation project(path: xpackModule('watcher'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('watcher'))
 }
 
 restResources {

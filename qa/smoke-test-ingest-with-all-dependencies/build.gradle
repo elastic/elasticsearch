@@ -23,11 +23,11 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: ':modules:ingest-common', configuration: 'runtime')
-  testImplementation project(path: ':modules:ingest-geoip', configuration: 'runtime')
-  testImplementation project(path: ':modules:lang-mustache', configuration: 'runtime')
-  testImplementation project(path: ':modules:lang-painless', configuration: 'runtime')
-  testImplementation project(path: ':modules:reindex', configuration: 'runtime')
+  testImplementation project(':modules:ingest-common')
+  testImplementation project(':modules:ingest-geoip')
+  testImplementation project(':modules:lang-mustache')
+  testImplementation project(':modules:lang-painless')
+  testImplementation project(':modules:reindex')
 }
 
 testingConventions {

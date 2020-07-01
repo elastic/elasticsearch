@@ -24,7 +24,7 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-nori:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-nori:${versions.lucene}"
 }
 
 restResources {

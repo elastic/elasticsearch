@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1349")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
@@ -396,6 +399,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testWithDatastream() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         initialize("regression_with_datastream");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, true);

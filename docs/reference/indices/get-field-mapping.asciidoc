@@ -4,9 +4,11 @@
 <titleabbrev>Get field mapping</titleabbrev>
 ++++
 
-Retrieves <<mapping,mapping definitions>> for one or more fields. This is useful
-if you don't need the <<indices-get-mapping,complete mapping>> of an index or
-your index contains a large number of fields.
+Retrieves <<mapping,mapping definitions>> for one or more fields. For data
+streams, the API retrieves field mappings for the stream's backing indices.
+
+This API is useful if you don't need a <<indices-get-mapping,complete mapping>>
+or if an index mapping contains a large number of fields.
 
 [source,console]
 ----
@@ -20,13 +22,18 @@ GET /twitter/_mapping/field/user
 
 `GET /_mapping/field/<field>`
 
-`GET /<index>/_mapping/field/<field>`
+`GET /<target>/_mapping/field/<field>`
 
 
 [[get-field-mapping-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
++
+To target all indices in a cluster, omit this parameter or use `_all` or `*`.
 
 `<field>`::
 (Optional, string) Comma-separated list or wildcard expression of fields used to
@@ -110,7 +117,7 @@ The API returns the following response:
 [[get-field-mapping-api-specific-fields-ex]]
 ===== Specifying fields
 
-The get mapping api allows you to specify a comma-separated list of fields.
+The get mapping API allows you to specify a comma-separated list of fields.
 
 For instance to select the `id` of the `author` field, you must use its full name `author.id`.
 
@@ -193,22 +200,45 @@ returns:
 --------------------------------------------------
 
 [[get-field-mapping-api-multi-index-ex]]
-===== Multiple indices and fields
+===== Multiple targets and fields
 
-The get field mapping API can be used to get the mapping of multiple fields from more than one index
-with a single call. General usage of the API follows the
-following syntax: `host:port/<index>/_mapping/field/<field>` where
-`<index>` and `<field>` can stand for comma-separated list of names or wild cards. To
-get mappings for all indices you can use `_all` for `<index>`. The
-following are some examples:
+The get field mapping API can be used to get mappings for multiple fields from
+multiple data streams or indices with a single request.
+
+The `<target>` and `<field>` request path parameters both support
+comma-separated lists and wildcard expressions.
+
+You can omit the `<target>` parameter or use a value of `*` or `_all` to target
+all data streams and indices in a cluster.
+
+Similarly, you can omit the `<field>` parameter or use a value of `*` to
+retrieve mappings for all fields in the targeted data streams or indices.
+However, the `<field>` parameter does not support the `_all` value.
+
+For example, the following request retrieves mappings for the `message` field in
+any data stream or index named `twitter` or `kimchy`.
 
 [source,console]
---------------------------------------------------
+----
 GET /twitter,kimchy/_mapping/field/message
-
-GET /_all/_mapping/field/message,user.id
-
-GET /_all/_mapping/field/*.id
---------------------------------------------------
+----
 // TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\nPUT book\n/]
+// TEST[s/^/PUT kimchy\n/]
+
+The following request retrieves mappings for the `message` and `user.id` fields
+in any data stream or index in the cluster.
+
+[source,console]
+----
+GET /_all/_mapping/field/message
+----
+// TEST[setup:twitter]
+
+The following request retrieves mappings for fields with an `id` property in any
+data stream or index in the cluster.
+
+[source,console]
+----
+GET /_all/_mapping/field/*.id
+----
+// TEST[setup:twitter]

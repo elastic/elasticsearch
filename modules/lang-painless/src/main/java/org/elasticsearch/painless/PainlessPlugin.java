@@ -63,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
 /**
@@ -129,14 +128,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public void reloadSPI(ClassLoader loader) {
-        for (PainlessExtension extension : ServiceLoader.load(PainlessExtension.class, loader)) {
-            for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : extension.getContextWhitelists().entrySet()) {
+    public void loadExtensions(ExtensionLoader loader) {
+        loader.loadExtensions(PainlessExtension.class).stream()
+            .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
+            .forEach(entry -> {
                 List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
                     c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
                 existing.addAll(entry.getValue());
-            }
-        }
+            });
     }
 
     @Override

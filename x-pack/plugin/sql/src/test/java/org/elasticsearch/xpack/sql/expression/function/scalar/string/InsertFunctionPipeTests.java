@@ -52,7 +52,7 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
         InsertFunctionPipe newB = new InsertFunctionPipe(
                 b1.source(),
                 newExpression,
-                b1.src(),
+                b1.input(),
                 b1.start(),
                 b1.length(),
                 b1.replacement());
@@ -63,7 +63,7 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
         newB = new InsertFunctionPipe(
                 newLoc,
                 b2.expression(),
-                b2.src(),
+                b2.input(),
                 b2.start(),
                 b2.length(),
                 b2.replacement());
@@ -74,23 +74,23 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
     @Override
     public void testReplaceChildren() {
         InsertFunctionPipe b = randomInstance();
-        Pipe newSource = pipe(((Expression) randomValueOtherThan(b.source(), () -> randomStringLiteral())));
-        Pipe newStart = pipe(((Expression) randomValueOtherThan(b.start(), () -> randomIntLiteral())));
-        Pipe newLength = pipe(((Expression) randomValueOtherThan(b.length(), () -> randomIntLiteral())));
-        Pipe newR = pipe(((Expression) randomValueOtherThan(b.replacement(), () -> randomStringLiteral())));
+        Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
+        Pipe newStart = randomValueOtherThan(b.start(), () -> pipe(randomIntLiteral()));
+        Pipe newLength = randomValueOtherThan(b.length(), () -> pipe(randomIntLiteral()));
+        Pipe newR = randomValueOtherThan(b.replacement(), () -> pipe(randomStringLiteral()));
         InsertFunctionPipe newB =
-                new InsertFunctionPipe(b.source(), b.expression(), b.src(), b.start(), b.length(), b.replacement());
+                new InsertFunctionPipe(b.source(), b.expression(), b.input(), b.start(), b.length(), b.replacement());
         InsertFunctionPipe transformed = null;
         
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 5; i++) {
             for(BitSet comb : new Combinations(4, i)) {
                 transformed = (InsertFunctionPipe) newB.replaceChildren(
-                        comb.get(0) ? newSource : b.src(),
+                        comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newStart : b.start(),
                         comb.get(2) ? newLength : b.length(),
                         comb.get(3) ? newR : b.replacement());
-                assertEquals(transformed.src(), comb.get(0) ? newSource : b.src());
+                assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.start(), comb.get(1) ? newStart : b.start());
                 assertEquals(transformed.length(), comb.get(2) ? newLength : b.length());
                 assertEquals(transformed.replacement(), comb.get(3) ? newR : b.replacement());
@@ -109,14 +109,10 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
                 randoms.add(f -> new InsertFunctionPipe(
                         f.source(),
                         f.expression(),
-                        comb.get(0) ? pipe(((Expression) randomValueOtherThan(f.source(),
-                                () -> randomStringLiteral()))) : f.src(),
-                        comb.get(1) ? pipe(((Expression) randomValueOtherThan(f.start(),
-                                () -> randomIntLiteral()))) : f.start(),
-                        comb.get(2) ? pipe(((Expression) randomValueOtherThan(f.length(),
-                                () -> randomIntLiteral()))): f.length(),
-                        comb.get(3) ? pipe(((Expression) randomValueOtherThan(f.replacement(),
-                                () -> randomStringLiteral()))) : f.replacement()));
+                        comb.get(0) ? randomValueOtherThan(f.input(), () -> pipe(randomStringLiteral())) : f.input(),
+                        comb.get(1) ? randomValueOtherThan(f.start(), () -> pipe(randomIntLiteral())) : f.start(),
+                        comb.get(2) ? randomValueOtherThan(f.length(), () -> pipe(randomIntLiteral())): f.length(),
+                        comb.get(3) ? randomValueOtherThan(f.replacement(), () -> pipe(randomStringLiteral())) : f.replacement()));
             }
         }
 
@@ -127,7 +123,7 @@ public class InsertFunctionPipeTests extends AbstractNodeTestCase<InsertFunction
     protected InsertFunctionPipe copy(InsertFunctionPipe instance) {
         return new InsertFunctionPipe(instance.source(),
                 instance.expression(),
-                instance.src(),
+                instance.input(),
                 instance.start(),
                 instance.length(),
                 instance.replacement());

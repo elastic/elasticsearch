@@ -11,8 +11,8 @@ restResources {
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('enrich'), configuration: 'runtime')
-  testImplementation project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('enrich'))
+  testImplementation project(path: xpackModule('enrich:qa:common'))
 }
 
 testClusters.integTest {

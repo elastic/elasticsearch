@@ -36,7 +36,7 @@ task 'remote-cluster'(type: RestIntegTestTask) {
 
 testClusters.'remote-cluster' {
   numberOfNodes = 2
-  setting 'node.remote_cluster_client', 'false'
+  setting 'node.roles', '[data,ingest,master]'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
@@ -51,7 +51,6 @@ testClusters.mixedClusterTest {
   setting 'cluster.remote.my_remote_cluster.seeds',
     { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
   setting 'cluster.remote.connections_per_cluster', '1'
-  setting 'node.remote_cluster_client', 'true'
 }
 
 

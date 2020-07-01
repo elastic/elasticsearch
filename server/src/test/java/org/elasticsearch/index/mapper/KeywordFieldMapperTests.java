@@ -25,6 +25,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -117,6 +120,10 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         addModifier("index_options", false, (a, b) -> {
             a.indexOptions(IndexOptions.DOCS);
             b.indexOptions(IndexOptions.DOCS_AND_FREQS);
+        });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
+            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
         });
     }
 

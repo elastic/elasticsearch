@@ -635,7 +635,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             builder.field(Fields._SCORE, score);
         }
+
         for (DocumentField field : metaFields.values()) {
+            // ignore empty metadata fields
+            if (field.getValues().size() == 0) {
+                continue;
+            }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
@@ -647,10 +652,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (source != null) {
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
-        if (!documentFields.isEmpty()) {
+        if (documentFields.isEmpty() == false &&
+                // ignore fields all together if they are all empty
+                documentFields.values().stream()
+                    .anyMatch(df -> df.getValues().size() > 0)) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
-                field.toXContent(builder, params);
+                if (field.getValues().size() > 0) {
+                    field.toXContent(builder, params);
+                }
             }
             builder.endObject();
         }

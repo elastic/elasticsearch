@@ -53,7 +53,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
             supersetDf = in.readVLong();
             term = in.readLong();
             score = in.readDouble();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override

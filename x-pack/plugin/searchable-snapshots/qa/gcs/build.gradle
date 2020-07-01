@@ -108,7 +108,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.gcs.bucket', gcsBucket
-    systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests"
+    systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
   }
 }
 

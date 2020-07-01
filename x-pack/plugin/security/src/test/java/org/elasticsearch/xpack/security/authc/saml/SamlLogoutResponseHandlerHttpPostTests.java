@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -16,7 +17,6 @@ import org.opensaml.saml.saml2.core.LogoutResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;

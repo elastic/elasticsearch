@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutReque
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -63,7 +64,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/saml/complete_logout"));
+        return Collections.singletonList(new Route(POST, "/_security/saml/complete_logout"));
     }
 
     @Override
@@ -75,7 +76,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
                 Strings.cleanTruncate(samlCompleteLogoutRequest.getContent(), 128),
                 samlCompleteLogoutRequest.getValidRequestIds());
             return channel -> client.execute(SamlCompleteLogoutAction.INSTANCE, samlCompleteLogoutRequest,
-                new RestBuilderListener<>(channel) {
+                new RestBuilderListener<SamlCompleteLogoutResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlCompleteLogoutResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject().endObject();

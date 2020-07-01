@@ -96,6 +96,9 @@ to a different node in the same cluster.
 Recovery stage.
 Returned values include:
 
+`LAZY_RECOVERY`::
+The shard will be recovered lazily as searchs hit the shard.
+
 `DONE`::
 Complete.
 

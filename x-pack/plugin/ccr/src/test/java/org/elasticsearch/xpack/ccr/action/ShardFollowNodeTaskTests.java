@@ -616,15 +616,15 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(1)[0], equalTo(10L));
         assertThat(shardChangesRequests.get(1)[1], equalTo(10L));
 
-        task.innerHandleReadResponse(0L, 9L, generateShardChangesResponse(0L, 5L, 0L, 0L, 1L, 99L));
+        task.innerHandleReadResponse(0L, 9L, generateShardChangesResponse(0L, 5L, 0L, 0L, 99L));
         assertThat(pendingBulkShardRequests, hasSize(1));
         assertThat("continue the partial request", shardChangesRequests, hasSize(3));
         assertThat(shardChangesRequests.get(2)[0], equalTo(6L));
         assertThat(shardChangesRequests.get(2)[1], equalTo(4L));
         assertThat(pendingBulkShardRequests, hasSize(1));
-        task.innerHandleReadResponse(10, 19L, generateShardChangesResponse(10L, 17L, 0L, 0L, 1L, 99L));
+        task.innerHandleReadResponse(10, 19L, generateShardChangesResponse(10L, 17L, 0L, 0L, 99L));
         assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
-        task.innerHandleReadResponse(6L, 9L, generateShardChangesResponse(6L, 8L, 0L, 0L, 1L, 99L));
+        task.innerHandleReadResponse(6L, 9L, generateShardChangesResponse(6L, 8L, 0L, 0L, 99L));
         assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
         pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
         assertThat(pendingBulkShardRequests, hasSize(1));
@@ -635,12 +635,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(4)[0], equalTo(18L));
         assertThat(shardChangesRequests.get(4)[1], equalTo(2L));
 
-        task.innerHandleReadResponse(18L, 19L, generateShardChangesResponse(18L, 19L, 0L, 0L, 1L, 99L));
+        task.innerHandleReadResponse(18L, 19L, generateShardChangesResponse(18L, 19L, 0L, 0L, 99L));
         assertThat("start new range as the buffer has empty slots", shardChangesRequests, hasSize(6));
         assertThat(shardChangesRequests.get(5)[0], equalTo(20L));
         assertThat(shardChangesRequests.get(5)[1], equalTo(10L));
 
-        task.innerHandleReadResponse(9L, 9L, generateShardChangesResponse(9L, 9L, 0L, 0L, 1L, 99L));
+        task.innerHandleReadResponse(9L, 9L, generateShardChangesResponse(9L, 9L, 0L, 0L, 99L));
         assertThat("do not start new range as the buffer is full", shardChangesRequests, hasSize(6));
         pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
         assertThat("start new range as the buffer is empty after sending", shardChangesRequests, hasSize(7));

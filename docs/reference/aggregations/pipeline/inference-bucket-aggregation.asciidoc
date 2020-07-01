@@ -6,6 +6,7 @@
 A parent pipeline aggregation which loads a pre-trained model and performs inference on the
 collated result field from the parent bucket aggregation.
 
+[[inference-bucket-agg-syntax]]
 ==== Syntax
 
 A `inference` aggregation looks like this in isolation:
@@ -71,5 +72,4 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 `prediction_field_type`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
-
 

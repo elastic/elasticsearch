@@ -147,25 +147,34 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         Mapper mapper = lookup.getMapper(path);
         if (mapper == null) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] points to a non existing field");
+            throw new IllegalArgumentException("the configured timestamp field [" + path + "] does not exist");
         }
 
         if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false &&
             DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is of type [" +
+            throw new IllegalArgumentException("the configured timestamp field [" + path + "] is of type [" +
                 mapper.typeName() + "], but [" + DateFieldMapper.CONTENT_TYPE + "," + DateFieldMapper.DATE_NANOS_CONTENT_TYPE +
                 "] is expected");
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         if (dateFieldMapper.fieldType().isSearchable() == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] is not indexed");
+            throw new IllegalArgumentException("the configured timestamp field [" + path + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException("timestamp meta field's field_name [" + path + "] doesn't have doc values");
+            throw new IllegalArgumentException("the configured timestamp field [" + path + "] doesn't have doc values");
+        }
+        if (dateFieldMapper.getNullValue() != null) {
+            throw new IllegalArgumentException("the configured timestamp field [" + path +
+                "] has disallowed [null_value] attribute specified");
+        }
+        if (dateFieldMapper.getIgnoreMalformed().explicit()) {
+            throw new IllegalArgumentException("the configured timestamp field [" + path +
+                "] has disallowed [ignore_malformed] attribute specified");
         }
 
-        // Validate whether disallowed mapping attributes have been specified on the field this meta field refers to:
+        // Catch all validation that validates whether disallowed mapping attributes have been specified
+        // on the field this meta field refers to:
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             dateFieldMapper.doXContentBody(builder, false, EMPTY_PARAMS);
@@ -179,7 +188,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             configuredSettings.remove("format");
             // All other configured attributes are not allowed:
             if (configuredSettings.isEmpty() == false) {
-                throw new IllegalArgumentException("the timestamp field has disallowed attributes: " + configuredSettings.keySet());
+                throw new IllegalArgumentException("the configured timestamp field [@timestamp] has disallowed attributes: " +
+                    configuredSettings.keySet());
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

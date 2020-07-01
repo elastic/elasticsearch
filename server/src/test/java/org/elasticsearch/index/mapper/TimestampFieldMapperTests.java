@@ -75,7 +75,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), equalTo("timestamp meta field's field_name [non-existing-field] points to a non existing field"));
+        assertThat(e.getMessage(), equalTo("the configured timestamp field [non-existing-field] does not exist"));
     }
 
     public void testValidateInvalidFieldType() throws IOException {
@@ -87,7 +87,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(),
-            equalTo("timestamp meta field's field_name [@timestamp] is of type [keyword], but [date,date_nanos] is expected"));
+            equalTo("the configured timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected"));
     }
 
     public void testValidateNotIndexed() throws IOException {
@@ -98,7 +98,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), equalTo("timestamp meta field's field_name [@timestamp] is not indexed"));
+        assertThat(e.getMessage(), equalTo("the configured timestamp field [@timestamp] is not indexed"));
     }
 
     public void testValidateNotDocValues() throws IOException {
@@ -109,20 +109,46 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), equalTo("timestamp meta field's field_name [@timestamp] doesn't have doc values"));
+        assertThat(e.getMessage(), equalTo("the configured timestamp field [@timestamp] doesn't have doc values"));
     }
 
-    public void testValidateNotDisallowedAttribute() throws IOException {
+    public void testValidateNullValue() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_timestamp").field("path", "@timestamp").endObject()
-            .startObject("properties").startObject("@timestamp").field("type", "date").field("ignore_malformed", "true")
-                .field("null_value", "2020-12-12").endObject().endObject()
+            .startObject("properties").startObject("@timestamp").field("type", "date")
+            .field("null_value", "2020-12-12").endObject().endObject()
             .endObject().endObject());
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(),
-            equalTo("the timestamp field has disallowed attributes: [null_value, ignore_malformed]"));
+            equalTo("the configured timestamp field [@timestamp] has disallowed [null_value] attribute specified"));
+    }
+
+    public void testValidateIgnoreMalformed() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("properties").startObject("@timestamp").field("type", "date").field("ignore_malformed", "true")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(),
+            equalTo("the configured timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified"));
+    }
+
+    public void testValidateNotDisallowedAttribute() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("properties").startObject("@timestamp").field("type", "date").field("store", "true")
+                .endObject().endObject()
+            .endObject().endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createIndex("test").mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(),
+            equalTo("the configured timestamp field [@timestamp] has disallowed attributes: [store]"));
     }
 
     public void testCannotUpdateTimestampField() throws IOException {

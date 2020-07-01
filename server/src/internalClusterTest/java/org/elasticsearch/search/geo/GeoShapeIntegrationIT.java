@@ -136,34 +136,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
-    /**
-     * Test that geo_shape field can parse input as an array of values.
-     */
-    public void testArrayOfGeoShapeParsing() throws Exception {
-        // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape").get());
-        ensureGreen();
-
-        // test self crossing ccw poly not crossing dateline
-        String arrayOfPoints = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-            .startArray("shape")
-                .startObject()
-                    .field("type", "Point")
-                    .startArray("coordinates").value(176.0).value(15.0).endArray()
-                .endObject()
-                .startObject()
-                    .field("type", "Point")
-                    .startArray("coordinates").value(76.0).value(-15.0).endArray()
-                .endObject()
-            .endArray()
-            .endObject()
-        );
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(arrayOfPoints, XContentType.JSON));
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-    }
-
     public void testMappingUpdate() throws Exception {
         // create index
         assertAcked(client().admin().indices().prepareCreate("test")

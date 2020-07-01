@@ -115,8 +115,8 @@
   - match: { dry_run: false }
 
   - do:
-      indices.refresh:
-        index: simple-data-stream1
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.shard_stores:

@@ -70,6 +70,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
 
     public void testLastStageForLazyRecoveriesIsLazyRecovery() {
         LazyRecoveryState recoveryState = createLazyRecoveryState();
+        recoveryState.getIndex().setFileDetailsComplete();
 
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -82,6 +83,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
 
     public void testTimerStillRunsAfterReachingLazyRecoveryStage() {
         LazyRecoveryState recoveryState = createLazyRecoveryState();
+        recoveryState.getIndex().setFileDetailsComplete();
 
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);

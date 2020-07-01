@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-public class LazyRecoveryState extends RecoveryState {
+public final class LazyRecoveryState extends RecoveryState {
 
     public LazyRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         super(shardRouting, targetNode, sourceNode);

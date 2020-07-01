@@ -4,8 +4,7 @@
 <titleabbrev>Delete snapshot</titleabbrev>
 ++++
 
-Deletes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
-indices.
+Deletes a <<snapshot-restore,snapshot>>.
 
 ////
 [source,console]

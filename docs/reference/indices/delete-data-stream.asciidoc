@@ -56,5 +56,5 @@ DELETE /_index_template/template
 
 `<data-stream>`::
 (Required, string)
-Comma-separated list of names or wildcard expressions of data streams to
-delete.
+Comma-separated list of data streams to delete.
+Wildcard (`*`) expressions are supported.

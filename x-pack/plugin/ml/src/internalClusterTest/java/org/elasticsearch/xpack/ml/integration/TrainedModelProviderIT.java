@@ -227,7 +227,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             try(XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(),
                 new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")))) {
                 AtomicReference<IndexResponse> putDocHolder = new AtomicReference<>();
-                blockingCall(listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+                blockingCall(listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME, MapperService.SINGLE_MAPPING_NAME)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                         .setSource(xContentBuilder)
                         .setId(TrainedModelDefinitionDoc.docId(modelId, 0))

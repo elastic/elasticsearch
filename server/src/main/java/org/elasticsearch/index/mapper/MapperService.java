@@ -373,7 +373,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-            fullPathObjectMappers, newFieldTypes);
+            fullPathObjectMappers, newFieldTypes, metadataMappers, newMapper);
 
         ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
@@ -390,12 +390,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             checkDepthLimit(fullPathObjectMappers.keySet());
         }
         checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
-
-        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
-            if (metadataFieldMapper instanceof TimestampFieldMapper) {
-                ((TimestampFieldMapper) metadataFieldMapper).validate(newMapper.mappers());
-            }
-        }
 
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;

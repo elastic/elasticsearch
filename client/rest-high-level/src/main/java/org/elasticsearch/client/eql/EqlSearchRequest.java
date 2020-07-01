@@ -41,6 +41,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
     private String implicitJoinKeyField = "agent.id";
+    private boolean isCaseSensitive = true;
+
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
@@ -56,6 +58,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
+    static final String KEY_CASE_SENSITIVE = "case_sensitive";
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
@@ -87,6 +90,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         if (searchAfterBuilder != null) {
             builder.array(KEY_SEARCH_AFTER, searchAfterBuilder.getSortValues());
         }
+
+        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive());
 
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
@@ -150,6 +155,15 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     public String implicitJoinKeyField() {
         return this.implicitJoinKeyField;
+    }
+
+    public boolean isCaseSensitive() {
+        return this.isCaseSensitive;
+    }
+
+    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
+        this.isCaseSensitive = isCaseSensitive;
+        return this;
     }
 
     public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
@@ -242,6 +256,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(keepOnCompletion, that.keepOnCompletion);
@@ -255,11 +270,12 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             filter,
             fetchSize,
             timestampField,
-                tiebreakerField,
+            tiebreakerField,
             eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
             query,
+            isCaseSensitive,
             waitForCompletionTimeout,
             keepAlive,
             keepOnCompletion);

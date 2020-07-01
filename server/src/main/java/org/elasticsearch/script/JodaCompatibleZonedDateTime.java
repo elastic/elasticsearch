@@ -477,13 +477,13 @@ public class JodaCompatibleZonedDateTime
     @Deprecated
     public int getWeekOfWeekyear() {
         logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear());
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
         logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS.weekBasedYear());
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
     }
 
     @Deprecated

@@ -1024,7 +1024,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::clear-privileges-cache-execute-listener
             ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app");
-            ActionListener<ClearPrivilegesCacheResponse> listener = new ActionListener<>() {
+            ActionListener<ClearPrivilegesCacheResponse> listener = new ActionListener<ClearPrivilegesCacheResponse>() {
                 @Override
                 public void onResponse(ClearPrivilegesCacheResponse clearPrivilegesCacheResponse) {
                     // <1>

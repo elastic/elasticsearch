@@ -39,7 +39,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -312,7 +311,6 @@ public final class DateFieldMapper extends FieldMapper {
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER); // allows match queries on date fields
         }
 
         public DateFieldType(String name) {

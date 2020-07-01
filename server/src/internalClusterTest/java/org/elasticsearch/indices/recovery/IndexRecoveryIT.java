@@ -1847,7 +1847,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("foo", "bar"))
             .collect(Collectors.toList());
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQ
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
@@ -288,6 +289,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
+    public static String dateFormat(Object dateTime, String pattern) {
+        return (String) DateFormatProcessor.process(asDateTime(dateTime), pattern);
+    }
+
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
         return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
@@ -295,7 +300,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Object timeParse(String dateField, String pattern, String tzId) {
         return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
-    
+
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }

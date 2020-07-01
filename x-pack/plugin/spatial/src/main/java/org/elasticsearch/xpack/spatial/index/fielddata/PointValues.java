@@ -13,7 +13,7 @@ import java.io.IOException;
 /**
  * Per-document XY point values.
  */
-abstract class PointValues {
+public abstract class PointValues {
 
     /**
      * Advance this instance to the given document id

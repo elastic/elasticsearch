@@ -58,7 +58,7 @@ public abstract class MultiPointValues {
     public abstract boolean advanceExact(int doc) throws IOException;
 
     /**
-     * Return the number of geo points the current document has.
+     * Return the number of points the current document has.
      */
     public abstract int docValueCount();
 

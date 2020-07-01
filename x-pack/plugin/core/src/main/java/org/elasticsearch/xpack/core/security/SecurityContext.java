@@ -166,7 +166,7 @@ public class SecurityContext {
         Map<String, Object> metadata = authentication.getMetadata();
         if (authentication.getAuthenticationType() == AuthenticationType.API_KEY
             && authentication.getVersion().onOrAfter(Version.V_7_9_0)
-            && version.before(Version.V_7_9_0)) {
+            && streamVersion.before(Version.V_7_9_0)) {
             metadata = new HashMap<>(metadata);
             metadata.put(
                 API_KEY_ROLE_DESCRIPTORS_KEY,

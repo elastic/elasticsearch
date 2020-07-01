@@ -109,7 +109,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 HOUSES_DATA_INDEX,
-                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new PseudoHuber((Double) null))));
+                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, Collections.singletonList(new PseudoHuber((Double) null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

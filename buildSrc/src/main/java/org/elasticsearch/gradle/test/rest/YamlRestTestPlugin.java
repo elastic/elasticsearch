@@ -81,9 +81,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
             project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
         });
-        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> {
-            copyRestTestTask.sourceSetName = SOURCE_SET_NAME;
-        });
+        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> { copyRestTestTask.sourceSetName = SOURCE_SET_NAME; });
 
         // make the new test run after unit tests
         yamlRestTestTask.mustRunAfter(project.getTasks().named("test"));

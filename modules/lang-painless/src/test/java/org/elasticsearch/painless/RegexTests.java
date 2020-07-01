@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.singletonMap;
 
 public class RegexTests extends ScriptTestCase {
+
     @Override
     protected Settings scriptEngineSettings() {
         // Enable regexes just for this test. They are disabled by default.

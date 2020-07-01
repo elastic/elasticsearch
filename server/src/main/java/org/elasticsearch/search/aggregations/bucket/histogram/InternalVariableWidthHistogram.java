@@ -105,7 +105,7 @@ public class InternalVariableWidthHistogram
             centroid = in.readDouble();
             docCount = in.readVLong();
             bounds = new BucketBounds(in);
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -207,7 +207,7 @@ public class InternalVariableWidthHistogram
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            this(new InternalAggregations(in));
+            this(InternalAggregations.readFrom(in));
         }
 
         public void writeTo(StreamOutput out) throws IOException {

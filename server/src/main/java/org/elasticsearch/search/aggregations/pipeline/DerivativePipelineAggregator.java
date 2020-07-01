@@ -73,7 +73,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, metadata()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 newBuckets.add(newBucket);
             } else {
                 newBuckets.add(bucket);

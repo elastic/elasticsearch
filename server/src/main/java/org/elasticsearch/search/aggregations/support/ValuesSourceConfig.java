@@ -22,9 +22,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
@@ -375,6 +373,14 @@ public class ValuesSourceConfig {
         return valuesSource.hasGlobalOrdinals();
     }
 
+    /**
+     * This method is used when an aggregation can optimize by using the indexed data instead of the doc values.  We check to see if the
+     * indexed data will match the values source output (meaning there isn't a script or a missing value, since both could modify the
+     * value at read time).  If the settings allow for it, we then ask the {@link ValuesSourceType} to build the actual point reader
+     * based on the field type.  This allows for a point of extensibility in plugins.
+     *
+     * @return null if we cannot apply the optimization, otherwise the point reader function.
+     */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
         if (fieldContext() != null && script() == null && missing() == null) {
@@ -382,14 +388,7 @@ public class ValuesSourceConfig {
             if (fieldType == null || fieldType.isSearchable() == false) {
                 return null;
             }
-            Function<byte[], Number> converter = null;
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
-            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-                converter = dft.resolution()::parsePointAsMillis;
-            }
-            return converter;
+            return valuesSourceType.getPointReader(fieldType);
         }
         return null;
 

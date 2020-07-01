@@ -19,10 +19,12 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -84,6 +86,15 @@ public interface ValuesSourceType {
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                 LongSupplier nowSupplier);
+
+    /**
+     * Attempts to return a reader function for the indexed data of this field.  Some aggregations are able to use this as an optimization
+     * instead of relying on doc values, when the index sort order matches that of the aggregation.
+     *
+     * @param fieldType The field type we want to get a reader for
+     * @return null if we can't get a reader (e.g. because the field is the wrong type), otherwise a point reader function.
+     */
+    default Function<byte[], Number> getPointReader(MappedFieldType fieldType) { return null; }
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a

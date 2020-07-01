@@ -51,7 +51,7 @@ In the context of aggregations some options can overridden for each of the 2 typ
 
 [discrete]
 [[inference-agg-regression-opt]]
-===== Configuration options for {regression-cap} Models
+===== Configuration options for {regression} models
 
 `num_top_feature_importance_values`::
 (Optional, integer)

@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,13 +32,13 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
     private final Map<String, String> bucketPathMap;
     private final InferenceConfigUpdate configUpdate;
-    private final Model model;
+    private final LocalModel model;
 
     public InferencePipelineAggregator(String name, Map<String,
                                        String> bucketPathMap,
                                        Map<String, Object> metaData,
                                        InferenceConfigUpdate configUpdate,
-                                       Model model) {
+                                       LocalModel model) {
         super(name, bucketPathMap.values().toArray(new String[] {}), metaData);
         this.bucketPathMap = bucketPathMap;
         this.configUpdate = configUpdate;

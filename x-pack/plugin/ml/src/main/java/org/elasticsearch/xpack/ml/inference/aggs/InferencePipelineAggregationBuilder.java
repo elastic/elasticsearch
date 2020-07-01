@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
@@ -131,10 +131,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) {
 
-        SetOnce<Model> model = new SetOnce<>();
+        SetOnce<LocalModel> model = new SetOnce<>();
         SetOnce<Exception> error = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Model> listener = new LatchedActionListener<>(
+        ActionListener<LocalModel> listener = new LatchedActionListener<>(
             ActionListener.wrap(model::set, error::set), latch);
 
         modelLoadingService.get().getModelForSearch(modelId, listener);

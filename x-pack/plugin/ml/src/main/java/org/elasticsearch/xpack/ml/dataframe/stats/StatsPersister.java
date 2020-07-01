@@ -43,6 +43,7 @@ public class StatsPersister {
         }
 
         try {
+            LOGGER.info("[{}] is persisting stats", jobId);
             resultsPersisterService.indexWithRetry(jobId,
                 MlStatsIndex.writeAlias(),
                 result,

@@ -182,6 +182,7 @@ public class TrainedModelStatsService {
         if (stopped) {
             return;
         }
+        logger.info("persisting stats");
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,
@@ -206,6 +207,7 @@ public class TrainedModelStatsService {
 
     private void createStatsIndexIfNecessary() {
         PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        logger.info("attempting to create stats index");
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
         listener.actionGet();
         listener = new PlainActionFuture<>();

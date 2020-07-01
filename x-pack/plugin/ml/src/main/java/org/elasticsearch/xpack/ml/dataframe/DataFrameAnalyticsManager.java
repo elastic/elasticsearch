@@ -140,6 +140,7 @@ public class DataFrameAnalyticsManager {
             , listener::onFailure
         );
 
+        LOGGER.info("attempting to create stats index");
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, createIndexListener);
     }
 

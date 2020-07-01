@@ -20,16 +20,34 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
+    public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
+        Setting.memorySizeSetting("indices.write.limit", "10%", Setting.Property.NodeScope, Setting.Property.Dynamic);
+
     private final AtomicLong writeBytes = new AtomicLong(0);
     private final AtomicLong replicaWriteBytes = new AtomicLong(0);
+    private volatile long writeLimits;
+
+    public WriteMemoryLimits(Settings settings, ClusterSettings clusterSettings) {
+        this.writeLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+        clusterSettings.addSettingsUpdateConsumer(MAX_INDEXING_BYTES, value -> writeLimits = value.getBytes());
+    }
 
     public Releasable markWriteOperationStarted(long bytes) {
-        writeBytes.addAndGet(bytes);
+        long currentBytes = writeBytes.addAndGet(bytes);
+        if (currentBytes > writeLimits) {
+            writeBytes.getAndAdd(-bytes);
+            throw new EsRejectedExecutionException();
+        }
         return () -> writeBytes.getAndAdd(-bytes);
     }
 

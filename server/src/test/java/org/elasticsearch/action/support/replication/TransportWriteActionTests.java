@@ -367,7 +367,7 @@ public class TransportWriteActionTests extends ESTestCase {
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false,
-                new WriteMemoryLimits());
+                new WriteMemoryLimits(Settings.EMPTY, TransportWriteActionTests.this.clusterService.getClusterSettings()));
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -377,7 +377,7 @@ public class TransportWriteActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
                     new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false,
-                    new WriteMemoryLimits());
+                    new WriteMemoryLimits(settings, clusterService.getClusterSettings()));
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

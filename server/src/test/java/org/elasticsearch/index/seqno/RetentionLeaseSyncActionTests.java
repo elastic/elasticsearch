@@ -106,7 +106,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new WriteMemoryLimits(Settings.EMPTY, clusterService.getClusterSettings()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -143,7 +143,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new WriteMemoryLimits(Settings.EMPTY, clusterService.getClusterSettings()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -182,7 +182,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new WriteMemoryLimits(Settings.EMPTY, clusterService.getClusterSettings()));
 
         assertNull(action.indexBlockLevel());
     }

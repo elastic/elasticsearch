@@ -233,7 +233,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    new WriteMemoryLimits(),
+                    new WriteMemoryLimits(Settings.EMPTY, clusterService.getClusterSettings()),
                     relativeTimeProvider);
         }
 

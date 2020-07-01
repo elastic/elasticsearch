@@ -153,7 +153,13 @@ To update the analyzer for a data stream's write index and future backing
 indices, update the analyzer in the <<create-a-data-stream-template,index
 template used by the stream>>. Then <<manually-roll-over-a-data-stream,roll over
 the data stream>> to apply the new analyzer to the stream’s write index and
-future backing indices.
+future backing indices. This affects searches and any new data added to the
+stream after the rollover. However, it does not affect the data stream's backing
+indices or their existing data.
+
+To change the analyzer for existing backing indices, you must create a
+new data stream and reindex your data into it. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
 ====
 
 For example,

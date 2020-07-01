@@ -223,9 +223,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             return builder;
         }
 
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.startObject(simpleName());
-        doXContentBody(builder, includeDefaults, params);
         builder.field("path", path);
         return builder.endObject();
     }

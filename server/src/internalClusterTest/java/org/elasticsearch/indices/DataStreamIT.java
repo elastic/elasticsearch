@@ -622,13 +622,15 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndex2));
         assertTrue(rolloverResponse.isRolledOver());
 
-        Map<?, ?> expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date")));
+        Map<?, ?> expectedMapping =
+            Map.of("properties", Map.of("@timestamp", Map.of("type", "date")), "_timestamp", Map.of("path", "@timestamp"));
         GetMappingsResponse getMappingsResponse = getMapping("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
 
-        expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")));
+        expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
+            "_timestamp", Map.of("path", "@timestamp"));
         putMapping("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", "logs-foobar").get();
         // The mappings of all backing indices should be updated:
         getMappingsResponse = getMapping("logs-foobar").get();
@@ -667,7 +669,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
-        IndexRequest indexRequest = new IndexRequest(dataStream).source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE);
+        IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            .opType(DocWriteRequest.OpType.CREATE);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
 
@@ -701,7 +704,8 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", "@timestamp", List.of("logs-foo*"));
 
         // Index doc that triggers creation of a data stream
-        IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE);
+        IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            .opType(DocWriteRequest.OpType.CREATE);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
 

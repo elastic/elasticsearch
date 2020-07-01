@@ -35,8 +35,8 @@ query string parameter>> or <<search-request-body,request body>>.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices,
-and index aliases used to limit the request.
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
 +
 To search all data streams and indices in a cluster, omit this parameter or use
 `_all` or `*`.

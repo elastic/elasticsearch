@@ -34,7 +34,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +47,6 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             context.parsedQuery() == null) {
             return;
         }
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, (a, b) -> Integer.compare(a.docId(), b.docId()));
         @SuppressWarnings("unchecked")
         List<String>[] matchedQueries = new List[hits.length];
         for (int i = 0; i < matchedQueries.length; ++i) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -41,7 +40,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 

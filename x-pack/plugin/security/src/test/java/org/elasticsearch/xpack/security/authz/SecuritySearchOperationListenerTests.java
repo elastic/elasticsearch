@@ -117,7 +117,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
-            when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+            when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
@@ -213,7 +213,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         TransportRequest request = Empty.INSTANCE;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 

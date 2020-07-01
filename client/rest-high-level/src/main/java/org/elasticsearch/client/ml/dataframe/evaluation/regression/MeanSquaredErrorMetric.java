@@ -40,16 +40,13 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
 
     public static final String NAME = "mean_squared_error";
 
-    private static final ObjectParser<MeanSquaredErrorMetric, Void> PARSER =
-        new ObjectParser<>("mean_squared_error", true, MeanSquaredErrorMetric::new);
+    private static final ObjectParser<MeanSquaredErrorMetric, Void> PARSER = new ObjectParser<>(NAME, true, MeanSquaredErrorMetric::new);
 
     public static MeanSquaredErrorMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public MeanSquaredErrorMetric() {
-
-    }
+    public MeanSquaredErrorMetric() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

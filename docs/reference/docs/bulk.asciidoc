@@ -114,7 +114,7 @@ JavaScript::
     See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 .NET::
-    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#_multiple_documents_with_bulkallobservable_helper[`BulkAllObservable`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
 [float]
 [[bulk-curl]]

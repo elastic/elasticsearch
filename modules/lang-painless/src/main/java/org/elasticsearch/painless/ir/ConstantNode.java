@@ -21,7 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class ConstantNode extends ExpressionNode {
 
@@ -40,7 +40,7 @@ public class ConstantNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         if      (constant instanceof String)    methodWriter.push((String)constant);
         else if (constant instanceof Double)    methodWriter.push((double)constant);
         else if (constant instanceof Float)     methodWriter.push((float)constant);

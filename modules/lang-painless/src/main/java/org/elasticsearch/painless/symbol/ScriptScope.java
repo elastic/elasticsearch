@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Stores information for use across the entirety of compilation.
  */
-public class ScriptScope {
+public class ScriptScope extends Decorator {
 
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
@@ -48,7 +48,10 @@ public class ScriptScope {
     protected Map<String, Object> staticConstants = new HashMap<>();
 
     public ScriptScope(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
-                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource) {
+                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource, int nodeCount) {
+
+        super(nodeCount);
+
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);

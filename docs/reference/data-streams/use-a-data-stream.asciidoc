@@ -70,8 +70,8 @@ POST /logs/_doc/
 ====
 
 IMPORTANT: You cannot add new documents to a data stream using the index API's
-`PUT /<target>/_doc/<_id>` request format. Use the `PUT /<target>/_create/<_id>`
-format instead.
+`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
+`PUT /<target>/_create/<_id>` format instead.
 --
 
 * A <<docs-bulk,bulk API>> request using the `create` action. Specify the data

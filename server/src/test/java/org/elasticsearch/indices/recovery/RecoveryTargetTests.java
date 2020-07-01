@@ -200,6 +200,7 @@ public class RecoveryTargetTests extends ESTestCase {
 
         Collections.shuffle(Arrays.asList(files), random());
         final RecoveryState.Index index = new RecoveryState.Index();
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
         if (randomBoolean()) {
             // initialize with some data and then reset
@@ -214,11 +215,13 @@ public class RecoveryTargetTests extends ESTestCase {
                 }
             }
             if (randomBoolean()) {
+                index.setFileDetailsComplete();
+            }
+            if (randomBoolean()) {
                 index.stop();
             }
             index.reset();
         }
-
 
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
@@ -242,7 +245,10 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(0L));
         assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
         assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
+        index.setFileDetailsComplete();
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes));
 
         long bytesToRecover = totalFileBytes - totalReusedBytes;
         boolean completeRecovery = bytesToRecover == 0 || randomBoolean();
@@ -322,6 +328,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
         assertThat(index.targetThrottling().nanos(), equalTo(targetThrottling));
         assertThat(index.sourceThrottling().nanos(), equalTo(sourceThrottling));
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes - recoveredBytes));
         if (index.totalRecoverFiles() == 0) {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
@@ -351,6 +358,9 @@ public class RecoveryTargetTests extends ESTestCase {
             RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
                 shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
             for (Stage stage : stages) {
+                if (stage == Stage.FINALIZE) {
+                    state.getIndex().setFileDetailsComplete();
+                }
                 state.setStage(stage);
             }
             fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
@@ -369,6 +379,9 @@ public class RecoveryTargetTests extends ESTestCase {
             shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
         for (Stage stage : list) {
             state.setStage(stage);
+            if (stage == Stage.INDEX) {
+                state.getIndex().setFileDetailsComplete();
+            }
         }
 
         assertThat(state.getStage(), equalTo(Stage.DONE));

@@ -308,6 +308,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(instanceOf(ResourceNotFoundException.class)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58814")
     public void testUpdate_UpdateCannotBeAppliedWhenTaskIsRunning() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);

@@ -23,6 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -187,6 +188,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         ensureGreen("test");
 
         for (APIBlock otherBlock : APIBlock.values()) {
+            if (otherBlock == APIBlock.READ_ONLY_ALLOW_DELETE) {
+                continue;
+            }
 
             for (APIBlock block : Arrays.asList(APIBlock.READ, APIBlock.WRITE)) {
                 try {
@@ -226,20 +230,20 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     public void testAddBlockToMissingIndex() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices()
-            .prepareAddBlock(randomFrom(APIBlock.values()),"test").get());
+            .prepareAddBlock(randomAddableBlock(), "test").get());
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
     public void testAddBlockToOneMissingIndex() {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-            () -> client().admin().indices().prepareAddBlock(randomFrom(APIBlock.values()),"test1", "test2").get());
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test1", "test2").get());
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
     public void testCloseOneMissingIndexIgnoreMissing() throws Exception {
         createIndex("test1");
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
         try {
             assertBusy(() -> assertAcked(client().admin().indices().prepareAddBlock(block, "test1", "test2")
                 .setIndicesOptions(lenientExpandOpen())));
@@ -251,13 +255,20 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     public void testAddBlockNoIndex() {
         final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareAddBlock(randomFrom(APIBlock.values())).get());
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock()).get());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testAddBlockNullIndex() {
         expectThrows(NullPointerException.class,
-            () -> client().admin().indices().prepareAddBlock(randomFrom(APIBlock.values()), (String[])null));
+            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), (String[])null));
+    }
+
+    public void testCannotAddReadOnlyAllowDeleteBlock() {
+        createIndex("test1");
+        final AddIndexBlockRequestBuilder request = client().admin().indices().prepareAddBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1");
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, request::get);
+        assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
     }
 
     public void testAddIndexBlock() throws Exception {
@@ -268,7 +279,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
             .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
 
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
         try {
             assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
@@ -288,7 +299,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(1, 10))
                 .mapToObj(i -> client().prepareIndex(indexName, "zzz").setId(String.valueOf(i)).setSource("num", i)).collect(toList()));
         }
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
         try {
             assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
@@ -310,7 +321,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
 
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
         try {
             assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
@@ -331,7 +342,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final CountDownLatch startClosing = new CountDownLatch(1);
         final Thread[] threads = new Thread[randomIntBetween(2, 5)];
 
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
 
         try {
             for (int i = 0; i < threads.length; i++) {
@@ -366,7 +377,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
 
         int nbDocs = 0;
 
@@ -411,7 +422,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        final APIBlock block = randomFrom(APIBlock.values());
+        final APIBlock block = randomAddableBlock();
 
         Consumer<Exception> exceptionConsumer = t -> {
             Throwable cause = ExceptionsHelper.unwrapCause(t);
@@ -488,5 +499,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     public static void disableIndexBlock(String index, APIBlock block) {
         disableIndexBlock(index, block.settingName());
+    }
+
+    /**
+     * The read-only-allow-delete block cannot be added via the add index block API; this method chooses randomly from the values that
+     * the add index block API does support.
+     */
+    private static APIBlock randomAddableBlock() {
+        return randomValueOtherThan(APIBlock.READ_ONLY_ALLOW_DELETE, () -> randomFrom(APIBlock.values()));
     }
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -73,6 +74,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     private final List<ShardRouting> allActiveShards;
 
+    private final EnumMap<ShardRoutingState, List<ShardRouting>> stateShards = new EnumMap<>(ShardRoutingState.class);
+
     IndexRoutingTable(Index index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
@@ -83,6 +86,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 if (shardRouting.active()) {
                     allActiveShards.add(shardRouting);
                 }
+                stateShards.computeIfAbsent(shardRouting.state(), k -> new ArrayList<>()).add(shardRouting);
             }
         }
         this.allActiveShards = Collections.unmodifiableList(allActiveShards);
@@ -258,11 +262,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
      * @return a {@link List} of shards that match one of the given {@link ShardRoutingState states}
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (IndexShardRoutingTable shardRoutingTable : this) {
-            shards.addAll(shardRoutingTable.shardsWithState(state));
-        }
-        return shards;
+        return stateShards.getOrDefault(state, Collections.emptyList());
     }
 
     /**

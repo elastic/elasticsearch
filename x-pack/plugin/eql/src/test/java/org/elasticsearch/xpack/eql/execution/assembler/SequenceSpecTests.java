@@ -203,7 +203,7 @@ public class SequenceSpecTests extends ESTestCase {
             if (ordinal != Integer.MAX_VALUE) {
                 r.searchSource().size(Integer.MAX_VALUE);
             }
-            Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? emptyMap() : events.get(ordinal);
+            Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
             l.onResponse(new TestPayload(evs));
         };
         

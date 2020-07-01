@@ -1046,6 +1046,44 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(createSlowFuture3);
     }
 
+    public void testMasterFailoverAndMultipleQueuedUpSnapshotsAcrossTwoRepos() throws Exception {
+        disableRepoConsistencyCheck("This test corrupts the repository on purpose");
+
+        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final String otherRepoName = "other-test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        createRepository(otherRepoName, "mock", randomRepoPath());
+        createIndexWithContent("index-one");
+        createNSnapshots(repoName, randomIntBetween(2, 5));
+        final int countOtherRepo = randomIntBetween(2, 5);
+        createNSnapshots(otherRepoName, countOtherRepo);
+
+        corruptIndexN(repoPath, getRepositoryData(repoName).getGenId());
+
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockMasterFromFinalizingSnapshotOnIndexFile(otherRepoName);
+
+        client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-blocked-1").setWaitForCompletion(false).get();
+        client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-blocked-2").setWaitForCompletion(false).get();
+        client().admin().cluster().prepareCreateSnapshot(otherRepoName, "snapshot-other-blocked-1").setWaitForCompletion(false).get();
+        client().admin().cluster().prepareCreateSnapshot(otherRepoName, "snapshot-other-blocked-2").setWaitForCompletion(false).get();
+
+        awaitNSnapshotsInProgress(4);
+        final String initialMaster = internalCluster().getMasterName();
+        waitForBlock(initialMaster, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(initialMaster, otherRepoName, TimeValue.timeValueSeconds(30L));
+
+        internalCluster().stopCurrentMasterNode();
+        ensureStableCluster(3, dataNode);
+        awaitNoMoreRunningOperations();
+
+        final RepositoryData repositoryData = getRepositoryData(otherRepoName);
+        assertThat(repositoryData.getSnapshotIds(), hasSize(countOtherRepo + 2));
+    }
+
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse =
             client().admin().cluster().prepareSnapshotStatus(otherBlockedRepoName).get();

@@ -2232,8 +2232,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             logger.trace("Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners", repository);
             synchronized (currentlyFinalizing) {
-                // TODO: only clear for the current repo
-                repositoryOperations.clear();
+                Tuple<SnapshotsInProgress.Entry, Metadata> finalization;
+                while ((finalization = repositoryOperations.pollFinalization(repository)) != null) {
+                    assert snapshotsToFail.contains(finalization.v1().snapshot()) :
+                        "[" + finalization.v1() + "] not found in snapshots to fail " + snapshotsToFail;
+                }
                 leaveRepoLoop(repository);
                 for (Snapshot snapshot : snapshotsToFail) {
                     failSnapshotCompletionListeners(snapshot, failure);

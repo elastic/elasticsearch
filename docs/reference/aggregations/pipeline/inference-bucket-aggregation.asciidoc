@@ -45,7 +45,7 @@ See <<buckets-path-syntax>> for more details | Required       | -
 |===
 
 
-==== Configuration options for Inference Models
+==== Configuration options for {infer} models
 The `inference_config` setting is optional and usaully isn't required as the pre-trained models come equipped with sensible defaults.
 In the context of aggregations some options can overridden for each of the 2 types of model.
 
@@ -72,4 +72,3 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 `prediction_field_type`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
-

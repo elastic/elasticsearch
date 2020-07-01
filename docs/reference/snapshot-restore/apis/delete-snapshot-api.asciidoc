@@ -7,11 +7,41 @@
 Deletes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
 indices.
 
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+----
+// TESTSETUP
+////
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices": [],
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "user123",
+    "taken_because": "backup"
+  }
+}
+// TESTSETUP
+////
+
 [source,console]
 -----------------------------------
 DELETE /_snapshot/my_repository/my_snapshot
 -----------------------------------
-// TEST[s/my_snapshot/my_snapshot?wait_for_completion=true/]
+// TEST[s/my_snapshot/my_snapshot]
 
 [[delete-snapshot-api-request]]
 ==== {api-request-title}

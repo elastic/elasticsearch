@@ -901,6 +901,17 @@ See <<release-highlights>>.
 
 See <<analysis-pathhierarchy-tokenizer-detailed-examples>>.
 
+[role="exclude",id="modules-tribe"]
+=== Tribe node
+
+Tribe node functionality has been removed in favor of {ccs}. See
+<<modules-cross-cluster-search>>.
+
+[role="exclude",id="release-highlights-7.0.0"]
+=== Release highlights
+
+See <<release-highlights>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search

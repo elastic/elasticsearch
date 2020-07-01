@@ -162,7 +162,7 @@ public class SecurityContext {
         }
     }
 
-    private Map<String, Object> rewriteMetadataIfNecessary(Version version, Authentication authentication) {
+    private Map<String, Object> rewriteMetadataIfNecessary(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
         if (authentication.getAuthenticationType() == AuthenticationType.API_KEY
             && authentication.getVersion().onOrAfter(Version.V_7_9_0)

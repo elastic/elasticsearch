@@ -321,7 +321,7 @@ public class CompositeRolesStore {
     private void getOrBuildRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
         final BytesReference roleDescriptorsBytes = apiKeyService.getRoleDescriptorsBytesForApiKey(authentication, limitedBy);
         final String roleDescriptorsHash = new String(Hasher.SHA256.hash(new SecureString(roleDescriptorsBytes.toString().toCharArray())));
-        final RoleKey roleKey = new RoleKey(Set.of(roleDescriptorsHash), limitedBy ? "limited_role_desc" : "role_desc");
+        final RoleKey roleKey = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();

@@ -1105,7 +1105,6 @@ public abstract class TransportReplicationAction<
         private final boolean sentFromLocalReroute;
 
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
-            // sendFromLocalReroute
             targetAllocationID = in.readString();
             primaryTerm  = in.readVLong();
             sentFromLocalReroute = false;

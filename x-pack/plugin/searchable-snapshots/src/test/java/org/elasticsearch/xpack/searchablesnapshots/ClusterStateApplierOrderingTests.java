@@ -18,15 +18,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.ALLOCATION_FAILED;
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -34,25 +35,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 2)
 public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsIntegTestCase {
 
     public void testRepositoriesServiceClusterStateApplierIsCalledBeforeIndicesClusterStateService() throws Exception {
-        final String fsRepoName = randomAlphaOfLength(10);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        // The scenario is easily reproducible with a 2 node (data and master) cluster
-        internalCluster().setBootstrapMasterNodeIndex(1);
-        internalCluster().startNodes(2);
-        ensureStableCluster(2);
+        final String fsRepoName = "fsrepo";
+        final String indexName = "test-index";
+        final String restoredIndexName = "restored-index";
 
         final Path repo = randomRepoPath();
         assertAcked(
             client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
         );
 
+        // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
+        // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
 
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
@@ -64,7 +61,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
 
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
+            .prepareCreateSnapshot(fsRepoName, "snapshot")
             .setWaitForCompletion(true)
             .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
@@ -90,26 +87,34 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-
         ensureGreen(restoredIndexName);
 
         // In order to reproduce this issue we need to force a full cluster restart so the new elected master
         // sends the entire ClusterState in one message, including assigned shards and repositories.
-        internalCluster().fullRestart();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                // make sure state is not recovered until a third node joins
+                return Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 3).build();
+            }
+        });
 
         List<UnassignedInfo.Reason> unassignedReasons = new ArrayList<>();
         internalCluster().clusterService().addListener(event -> {
             if (event.routingTableChanged()) {
                 for (RoutingNode routingNode : event.state().getRoutingNodes()) {
                     for (ShardRouting shardRouting : routingNode) {
-                        if (shardRouting.unassignedInfo() != null) unassignedReasons.add(shardRouting.unassignedInfo().getReason());
+                        if (shardRouting.unassignedInfo() != null) {
+                            unassignedReasons.add(shardRouting.unassignedInfo().getReason());
+                        }
                     }
                 }
             }
         });
 
-        ensureGreen(restoredIndexName);
+        internalCluster().ensureAtLeastNumDataNodes(3);
 
+        ensureGreen(restoredIndexName);
         assertThat("Unexpected shard allocation failure", unassignedReasons.stream().noneMatch(r -> r == ALLOCATION_FAILED), is(true));
     }
 }

@@ -119,7 +119,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping1).mapperService();
 
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
@@ -130,7 +130,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject());
 
         mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("keyword"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("keyword"));
     }
 
     public void testChangeSearchAnalyzerToDefault() throws Exception {
@@ -143,7 +143,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject();
         MapperService mapperService = createIndex("test", Settings.EMPTY, "type", mapping1).mapperService();
 
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
@@ -153,7 +153,7 @@ public class DocumentMapperTests extends ESSingleNodeTestCase {
         .endObject().endObject());
 
         mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
-        assertThat(mapperService.fieldType("field").searchAnalyzer().name(), equalTo("standard"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("standard"));
     }
 
     public void testConcurrentMergeTest() throws Throwable {

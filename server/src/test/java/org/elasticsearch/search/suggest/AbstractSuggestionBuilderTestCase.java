@@ -38,9 +38,10 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -161,19 +162,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     indexSettings);
             MapperService mapperService = mock(MapperService.class);
             ScriptService scriptService = mock(ScriptService.class);
-            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
             boolean fieldTypeSearchAnalyzerSet = randomBoolean();
-            if (fieldTypeSearchAnalyzerSet) {
-                NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
-                if (Mockito.mockingDetails(fieldType).isMock()) {
-                    when(fieldType.searchAnalyzer()).thenReturn(searchAnalyzer);
-                } else {
-                    fieldType.setSearchAnalyzer(searchAnalyzer);
-                }
-            } else {
-                when(mapperService.searchAnalyzer())
-                        .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
-            }
+            MappedFieldType fieldType = mockFieldType(suggestionBuilder.field(), fieldTypeSearchAnalyzerSet);
+            when(mapperService.searchAnalyzer())
+                .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
             when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             when(mapperService.getNamedAnalyzer(any(String.class))).then(
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
@@ -213,9 +205,13 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
 
-    protected MappedFieldType mockFieldType(String fieldName) {
+    protected MappedFieldType mockFieldType(String fieldName, boolean analyzerSet) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn(fieldName);
+        NamedAnalyzer searchAnalyzer = analyzerSet ?
+            new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()) : null;
+        TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
+        when(fieldType.getTextSearchInfo()).thenReturn(tsi);
         return fieldType;
     }
 

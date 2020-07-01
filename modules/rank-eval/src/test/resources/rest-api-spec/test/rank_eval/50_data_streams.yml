@@ -76,14 +76,14 @@
             "id": "amsterdam_query",
             "request": { "query": { "match" : {"text" : "amsterdam" }}},
             "ratings": [
-            {"_index": "foo", "_id": "doc1", "rating": 0},
-            {"_index": "foo", "_id": "doc2", "rating": 1},
-            {"_index": "foo", "_id": "doc3", "rating": 1}]
+            {"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 0},
+            {"_index": ".ds-logs-foobar-000001", "_id": "doc2", "rating": 1},
+            {"_index": ".ds-logs-foobar-000002", "_id": "doc3", "rating": 1}]
           },
           {
             "id" : "berlin_query",
             "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
-            "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            "ratings": [{"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 1}]
           }
           ],
           "metric" : { "precision": { "ignore_unlabeled" : true }}

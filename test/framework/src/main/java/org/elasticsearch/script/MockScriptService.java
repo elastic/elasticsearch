@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
@@ -53,7 +51,8 @@ public class MockScriptService extends ScriptService {
             }
 
             @Override
-            public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context, Map<String, String> params) {
+            public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context,
+                                                     Map<String, String> params) {
                 return context.factoryClazz.cast(compile.apply(code));
             }
 

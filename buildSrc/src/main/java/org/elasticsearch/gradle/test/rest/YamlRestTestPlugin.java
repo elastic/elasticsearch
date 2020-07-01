@@ -61,12 +61,9 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
         // create task - note can not use .register due to the work in RestIntegTestTask's constructor :(
         // see: https://github.com/elastic/elasticsearch/issues/47804
-        RestIntegTestTask yamlRestTestTask = project.getTasks()
-            .create(
-                SOURCE_SET_NAME,
-                RestIntegTestTask.class
-                //the dependency on copyRestApiSpecsTask is added in RestResourcePlugin to avoid propagating the eagerness of create :(
-            );
+        RestIntegTestTask yamlRestTestTask = project.getTasks().create(SOURCE_SET_NAME, RestIntegTestTask.class
+        // the dependency on copyRestApiSpecsTask is added in RestResourcePlugin to avoid propagating the eagerness of create :(
+        );
         yamlRestTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlRestTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
 
@@ -75,7 +72,10 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             project.getDependencies().add(yamlTestSourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
         } else {
             project.getDependencies()
-                .add(SOURCE_SET_NAME + "Compile", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
+                .add(
+                    yamlTestSourceSet.getImplementationConfigurationName(),
+                    "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch()
+                );
         }
 
         // make the new test run after unit tests
@@ -87,16 +87,15 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         runner.setClasspath(yamlTestSourceSet.getRuntimeClasspath());
 
         // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-        boolean isModule = project.getPath().startsWith(":modules:");
-        Zip bundle = (Zip) project.getTasks().findByName("bundlePlugin");
-        if (bundle != null) {
+        project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+            Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
             yamlRestTestTask.dependsOn(bundle);
-            if (isModule) {
+            if (project.getPath().startsWith(":modules:")) {
                 runner.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
             } else {
                 runner.getClusters().forEach(c -> c.plugin(project.getObjects().fileProperty().value(bundle.getArchiveFile())));
             }
-        }
+        });
 
         // es-plugins may declare dependencies on additional modules, add those to the test cluster too.
         project.afterEvaluate(p -> {

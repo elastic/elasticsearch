@@ -153,8 +153,11 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
-        project.getPlugins().withType(YamlRestTestPlugin.class,
-            plugin -> project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME).configure(t -> t.dependsOn(copyRestYamlSpecTask)));
+        project.getPlugins()
+            .withType(
+                YamlRestTestPlugin.class,
+                plugin -> project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME).configure(t -> t.dependsOn(copyRestYamlSpecTask))
+            );
 
         // after evaluate since the application of a plugin can change the source set name
         project.afterEvaluate(p -> {

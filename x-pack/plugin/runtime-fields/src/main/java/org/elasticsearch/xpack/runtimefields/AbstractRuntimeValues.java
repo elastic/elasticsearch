@@ -107,7 +107,7 @@ public abstract class AbstractRuntimeValues<SV extends AbstractRuntimeValues<SV>
 
         protected abstract void sort();
 
-        public abstract class AbstractRuntimeQuery extends Query {
+        protected abstract class AbstractRuntimeQuery extends Query {
             protected final String fieldName;
 
             protected AbstractRuntimeQuery(String fieldName) {

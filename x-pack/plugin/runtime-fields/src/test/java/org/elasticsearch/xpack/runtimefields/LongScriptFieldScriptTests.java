@@ -10,6 +10,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -112,23 +114,30 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         assertThat(c.collect(timesTen.rangeQuery("foo", 99, 101), timesTen), equalTo(List.of(100L, 200L)));
     }
 
-    /*
-     *  TODO this should work but it doesn't because the BulkScorer scores a whole bunch at a time.
     public void testInsideBoolTermQuery() throws IOException {
+        /*
+         * Its required that bool queries that contain more our runtime
+         * fields queries be wrapped in ForceNoBulkScoringQuery. Exactly what
+         * queries in the tree need to be wrapped and when isn't super clear
+         * but it is safest to wrap the whole query tree when there are *any*
+         * of these queries in it. We might be able to skip some of them
+         * eventually, when we're more comfortable with this.
+         */
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
         assertThat(
             c.collect(
-                new BooleanQuery.Builder().add(timesTen.termQuery("foo", 1), Occur.SHOULD)
-                    .add(timesTen.termQuery("foo", 10), Occur.SHOULD)
-                    .add(timesTen.termQuery("foo", 100), Occur.SHOULD)
-                    .build(),
+                new ForceNoBulkScoringQuery(
+                    new BooleanQuery.Builder().add(timesTen.termQuery("foo", 1), Occur.SHOULD)
+                        .add(timesTen.termQuery("foo", 10), Occur.SHOULD)
+                        .add(timesTen.termQuery("foo", 100), Occur.SHOULD)
+                        .build()
+                ),
                 timesTen
             ),
             equalTo(List.of(10L, 20L, 100L, 200L))
         );
     }
-    */
 
     private TestCase randomLongs() throws IOException {
         return testCase(iw -> {

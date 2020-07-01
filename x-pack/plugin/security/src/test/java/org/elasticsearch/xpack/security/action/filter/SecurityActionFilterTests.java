@@ -67,7 +67,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_STATS_AND_HEALTH)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);

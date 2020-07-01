@@ -49,7 +49,6 @@ Defaults to `open`.
 --------------------------------------------------
 GET /_resolve/index/f*,remoteCluster1:bar*
 --------------------------------------------------
-// TEST[continued]
 // TEST[skip_shard_failures]
 
 The API returns the following response:

@@ -25,7 +25,6 @@ PUT /_snapshot/my_repository
 -----------------------------------
 DELETE /_snapshot/my_repository/my_snapshot
 -----------------------------------
-// TEST[s/my_snapshot/my_snapshot]
 
 [[delete-snapshot-api-request]]
 ==== {api-request-title}

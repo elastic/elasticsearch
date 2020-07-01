@@ -59,7 +59,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num
 
 [discrete]
 [[inference-agg-classification-opt]]
-===== Configuration options for {classification-cap} Models
+===== Configuration options for {classification} models
 
 `num_top_classes`::
 (Optional, integer)

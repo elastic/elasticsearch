@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
-import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;

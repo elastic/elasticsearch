@@ -13,9 +13,9 @@ import org.elasticsearch.indices.recovery.RecoveryFileDetails;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class LazyRecoveryState extends RecoveryState {
 
@@ -43,8 +43,6 @@ public final class LazyRecoveryState extends RecoveryState {
     private static class LazyRecoveryFileDetails implements RecoveryFileDetails {
         private final Map<String, File> fileDetails = new HashMap<>();
 
-        private int filesWithUnknownLength;
-
         @Override
         public File get(String name) {
             File file = fileDetails.get(name);
@@ -57,30 +55,25 @@ public final class LazyRecoveryState extends RecoveryState {
 
         @Override
         public int size() {
-            if (containsAnyFileWithUnknownLength()) {
-                return 0;
-            }
-            return fileDetails.size();
+            return values().size();
         }
 
         @Override
         public boolean isEmpty() {
-            return containsAnyFileWithUnknownLength() || fileDetails.isEmpty();
+            return values().isEmpty();
         }
 
         @Override
         public void clear() {
             fileDetails.clear();
-            filesWithUnknownLength = 0;
         }
 
         @Override
         public File addFileDetails(String name, File file) {
             File existing = fileDetails.get(name);
 
-            if (existing != null) {
+            if (existing != null && existing.unknownLength()) {
                 existing.setLength(file.length());
-                filesWithUnknownLength--;
                 return null;
             }
 
@@ -94,13 +87,8 @@ public final class LazyRecoveryState extends RecoveryState {
             // During a searchable snapshot shard recovery it's possible that
             // this class has to track files that we don't know its length beforehand
             // (i.e. when the cache that backs the directory starts pre-warming
-            // its cache before the shard is initialized)
-            File file = fileDetails.get(name);
-            if (file == null) {
-                file = File.fileWithUnknownLength(name);
-                fileDetails.put(name, file);
-                filesWithUnknownLength++;
-            }
+            // before the shard is initialized)
+            File file = fileDetails.computeIfAbsent(name, File::fileWithUnknownLength);
 
             file.addRecoveredBytes(bytes);
         }
@@ -111,17 +99,8 @@ public final class LazyRecoveryState extends RecoveryState {
             // starts tracking files before we know their length
             // (i.e. during searchable snapshots cache pre-warming).
             // In order to avoid confusing results, we just return
-            // an empty list until we know that there aren't more
-            // files with unknown length.
-            if (containsAnyFileWithUnknownLength()) {
-                return Collections.emptyList();
-            }
-
-            return fileDetails.values();
-        }
-
-        private boolean containsAnyFileWithUnknownLength() {
-            return filesWithUnknownLength > 0;
+            // a list with the files with a known length
+            return fileDetails.values().stream().filter(f -> f.unknownLength() == false).collect(Collectors.toList());
         }
     }
 }

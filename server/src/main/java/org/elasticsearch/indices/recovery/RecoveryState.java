@@ -748,7 +748,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public void addRecoveredBytesToFile(String name, long bytes) {
-            File file = get(name);
+            File file = fileDetails.get(name);
             file.addRecoveredBytes(bytes);
         }
 
@@ -757,11 +757,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public int size() {
-            return values().size();
+            return fileDetails.size();
         }
 
         public boolean isEmpty() {
-            return values().isEmpty();
+            return fileDetails.isEmpty();
         }
 
         public void clear() {
@@ -812,7 +812,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
                 // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
                 // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
-                fileDetailsComplete = recoveryFileDetails.isEmpty() == false;
+                fileDetailsComplete = fileDetails.isEmpty() == false;
             }
             sourceThrottlingInNanos = in.readLong();
             targetThrottleTimeInNanos = in.readLong();

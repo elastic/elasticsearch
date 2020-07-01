@@ -61,9 +61,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
 
         // create task - note can not use .register due to the work in RestIntegTestTask's constructor :(
         // see: https://github.com/elastic/elasticsearch/issues/47804
-        RestIntegTestTask yamlRestTestTask = project.getTasks().create(SOURCE_SET_NAME, RestIntegTestTask.class
-        // the dependency on copyRestApiSpecsTask is added in RestResourcePlugin to avoid propagating the eagerness of create :(
-        );
+        RestIntegTestTask yamlRestTestTask = project.getTasks().create(SOURCE_SET_NAME, RestIntegTestTask.class);
         yamlRestTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlRestTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
 
@@ -77,6 +75,15 @@ public class YamlRestTestPlugin implements Plugin<Project> {
                     "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch()
                 );
         }
+
+        // setup the copy for the rest resources
+        project.getTasks().withType(CopyRestApiTask.class, copyRestApiTask -> {
+            copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
+            project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
+        });
+        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> {
+            copyRestTestTask.sourceSetName = SOURCE_SET_NAME;
+        });
 
         // make the new test run after unit tests
         yamlRestTestTask.mustRunAfter(project.getTasks().named("test"));

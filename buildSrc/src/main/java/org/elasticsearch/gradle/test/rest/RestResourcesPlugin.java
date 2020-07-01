@@ -25,8 +25,10 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,9 +93,6 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
-        AtomicReference<String> sourceSetName = new AtomicReference<>(SourceSet.TEST_SOURCE_SET_NAME);
-        project.getPlugins().withType(YamlRestTestPlugin.class, plugin -> sourceSetName.set(YamlRestTestPlugin.SOURCE_SET_NAME));
-
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
@@ -104,7 +103,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = testConfig;
-                task.sourceSetName = sourceSetName.get();
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -135,7 +134,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
-                task.sourceSetName = sourceSetName.get();
+                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
@@ -153,16 +152,12 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
-        project.getPlugins()
-            .withType(
-                YamlRestTestPlugin.class,
-                plugin -> project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME).configure(t -> t.dependsOn(copyRestYamlSpecTask))
-            );
-
-        // after evaluate since the application of a plugin can change the source set name
         project.afterEvaluate(p -> {
-            SourceSet sourceSet = GradleUtils.getJavaSourceSets(project).findByName(sourceSetName.get());
-            project.getTasks().named(sourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if (testSourceSet != null) {
+                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+            }
         });
     }
 }

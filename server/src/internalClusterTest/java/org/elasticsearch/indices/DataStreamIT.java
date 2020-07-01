@@ -662,6 +662,57 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("0"));
     }
 
+    public void testIndexDocsWithCustomRoutingTargetingDataStreamIsNotAllowed() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp", List.of("logs-foo*"));
+
+        // Index doc that triggers creation of a data stream
+        String dataStream = "logs-foobar";
+        IndexRequest indexRequest = new IndexRequest(dataStream).source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE);
+        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+
+        // Index doc with custom routing that targets the data stream
+        IndexRequest indexRequestWithRouting =
+            new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.CREATE)
+                .routing("custom");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequestWithRouting).actionGet());
+        assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
+            "backing indices directly or remove the custom routing."));
+
+        // Bulk indexing with custom routing targeting the data stream is also prohibited
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 10; i++) {
+            bulkRequest.add(new IndexRequest(dataStream)
+                .opType(DocWriteRequest.OpType.CREATE)
+                .routing("bulk-request-routing")
+                .source("{}", XContentType.JSON));
+        }
+
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        for (BulkItemResponse responseItem : bulkResponse.getItems()) {
+            assertThat(responseItem.getFailure(), notNullValue());
+            assertThat(responseItem.getFailureMessage(), is("java.lang.IllegalArgumentException: index request targeting data stream " +
+                "[logs-foobar] specifies a custom routing. target the backing indices directly or remove the custom routing."));
+        }
+    }
+
+    public void testIndexDocsWithCustomRoutingTargetingBackingIndex() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp", List.of("logs-foo*"));
+
+        // Index doc that triggers creation of a data stream
+        IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE);
+        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+
+        // Index doc with custom routing that targets the backing index
+        IndexRequest indexRequestWithRouting = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-foobar", 1L))
+            .source("@timestamp", System.currentTimeMillis()).opType(DocWriteRequest.OpType.INDEX).routing("custom")
+            .id(indexResponse.getId()).setIfPrimaryTerm(indexResponse.getPrimaryTerm()).setIfSeqNo(indexResponse.getSeqNo());
+        IndexResponse response = client().index(indexRequestWithRouting).actionGet();
+        assertThat(response.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+    }
+
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {
         assertBackingIndex(backingIndex, timestampFieldPathInMapping, Map.of("type", "date"));
     }

@@ -100,7 +100,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void setupMocks() {
         this.licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
@@ -169,7 +169,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         mockKeyDocument(service, id, key, new User(randomAlphaOfLength(6), randomAlphaOfLength(12)));
 
-        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
         final AuthenticationResult auth = tryAuthenticate(service, id, key);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(auth.getUser(), nullValue());

@@ -49,10 +49,11 @@ teardown:
         index: test
         body:
           mappings:
-            properties:
-              date_source_field:
-                type: date
-                format: YYYY-ww
+            test:
+              properties:
+                date_source_field:
+                  type: date
+                  format: 8YYYY-ww
 
   - do:
       ingest.put_pipeline:
@@ -65,7 +66,7 @@ teardown:
                 "date" : {
                   "field" : "date_source_field",
                   "target_field" : "date_target_field",
-                  "formats" : ["YYYY-ww"]
+                  "formats" : ["8YYYY-ww"]
                 }
               }
             ]
@@ -87,13 +88,15 @@ teardown:
           }
   - length: { docs: 1 }
   - match: { docs.0.doc._source.date_source_field: "2020-33" }
-  - match: { docs.0.doc._source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  #we don't have a support for changing calendar data provider in 6.8. Hence it is using Sunday,1 (java default)
+  - match: { docs.0.doc._source.date_target_field: "2020-08-09T00:00:00.000Z" }
   - length: { docs.0.doc._ingest: 1 }
   - is_true: docs.0.doc._ingest.timestamp
 
   - do:
       index:
         index: test
+        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {date_source_field: "2020-33"}
@@ -101,9 +104,11 @@ teardown:
   - do:
       get:
         index: test
+        type: test
         id: 1
   - match: { _source.date_source_field: "2020-33" }
-  - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
+#we don't have a support for changing calendar data provider in 6.8. Hence it is using Sunday,1 (java default)
+  - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }
 
 ---
 "Test week based date parsing with locale":
@@ -113,11 +118,12 @@ teardown:
         index: test
         body:
           mappings:
-            properties:
-              date_source_field:
-                type: date
-                format: YYYY-ww
-                locale: en-US
+            test:
+              properties:
+                date_source_field:
+                  type: date
+                  format: 8YYYY-ww
+                  locale: en-US
 
   - do:
       ingest.put_pipeline:
@@ -130,7 +136,7 @@ teardown:
                 "date" : {
                   "field" : "date_source_field",
                   "target_field" : "date_target_field",
-                  "formats" : ["YYYY-ww"],
+                  "formats" : ["8YYYY-ww"],
                   "locale" : "en-US"
                 }
               }
@@ -160,6 +166,7 @@ teardown:
   - do:
       index:
         index: test
+        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {date_source_field: "2020-33"}
@@ -167,6 +174,7 @@ teardown:
   - do:
       get:
         index: test
+        type: test
         id: 1
   - match: { _source.date_source_field: "2020-33" }
   - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }

@@ -22,7 +22,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -1675,7 +1674,7 @@ public class DateFormatters {
         } else if (isLocalTimeSet) {
             return of(getLocalDate(accessor, locale), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR) || accessor.isSupported(ChronoField.YEAR_OF_ERA)) {
-            return of(getLocaldate(accessor), localTime, zoneId);
+            return of(getLocalDate(accessor, locale), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
@@ -1723,6 +1722,16 @@ public class DateFormatters {
         }
 
         return LOCALDATE_EPOCH;
+    }
+
+    private static int getYear(TemporalAccessor accessor) {
+        if(accessor.isSupported(ChronoField.YEAR)){
+            return accessor.get(ChronoField.YEAR);
+        }
+        if(accessor.isSupported(ChronoField.YEAR_OF_ERA)){
+            return accessor.get(ChronoField.YEAR_OF_ERA);
+        }
+        return 1970;
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")

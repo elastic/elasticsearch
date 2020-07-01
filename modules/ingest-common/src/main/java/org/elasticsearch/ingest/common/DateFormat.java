@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +50,7 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
+//            TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
             //even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
 //            return DateFormatters.from(accessor, Locale.ROOT, timezone)
 //                .withZoneSameInstant(timezone);

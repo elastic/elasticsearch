@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
@@ -16,6 +19,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -46,9 +51,15 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.BoundsAggregationBuilder;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.BoundsAggregatorSupplier;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalBounds;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.ParsedBounds;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.PointBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.PointValuesSourceType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,19 +99,35 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     }
 
     @Override
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(
+            new AggregationSpec(
+                BoundsAggregationBuilder.NAME,
+                BoundsAggregationBuilder::new,
+                BoundsAggregationBuilder.PARSER)
+        );
+    }
+
+    @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return List.of(
             this::registerGeoShapeCentroidAggregator,
             this::registerGeoShapeGridAggregators,
             SpatialPlugin::registerGeoShapeBoundsAggregator,
             SpatialPlugin::registerValueCountAggregator,
-            SpatialPlugin::registerCardinalityAggregator
+            SpatialPlugin::registerCardinalityAggregator,
+            SpatialPlugin::registerPointBoundsAggregator
         );
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
+    }
+
+    private static void registerPointBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(BoundsAggregationBuilder.NAME, PointValuesSourceType.instance(),
+            (BoundsAggregatorSupplier) PointBoundsAggregator::new);
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
@@ -170,5 +197,20 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (CardinalityAggregatorSupplier) CardinalityAggregator::new);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(BoundsAggregationBuilder.class, BoundsAggregationBuilder.NAME, BoundsAggregationBuilder::new),
+            new NamedWriteableRegistry.Entry(InternalAggregation.class, BoundsAggregationBuilder.NAME, InternalBounds::new)
+        );
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return singletonList(
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(BoundsAggregationBuilder.NAME),
+                (parser, context) -> ParsedBounds.fromXContent(parser, (String)context)));
     }
 }

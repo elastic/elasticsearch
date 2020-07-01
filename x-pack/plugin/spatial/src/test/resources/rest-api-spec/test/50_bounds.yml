@@ -1,0 +1,60 @@
+---
+"Test bounds aggregation on empty point field":
+
+  - do:
+      indices.create:
+        index: coordinates
+        body:
+          mappings:
+            properties:
+              coordinate:
+                type: point
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: coordinates
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              bounds:
+                field: coordinate
+  - match: {hits.total:      0   }
+  - match: { aggregations.my_agg: {} }
+
+---
+"Test bounds aggregation on point field":
+  - do:
+      indices.create:
+        index: coordinates
+        body:
+          mappings:
+            properties:
+              coordinate:
+                type: point
+
+  - do:
+      index:
+        index:  coordinates
+        id:     point_with_doc_values
+        body:   { coordinate: "POINT(34.25 -21)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: coordinates
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              bounds:
+                field: coordinate
+  - match: {hits.total:      1    }
+  - match: { aggregations.my_agg.bounds.top_left.x: 34.25 }
+  - match: { aggregations.my_agg.bounds.top_left.y: -21 }
+  - match: { aggregations.my_agg.bounds.bottom_right.x: 34.25 }
+  - match: { aggregations.my_agg.bounds.bottom_right.y: -21 }

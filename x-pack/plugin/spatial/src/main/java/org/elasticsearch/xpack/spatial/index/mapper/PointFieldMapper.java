@@ -12,10 +12,12 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractPointDVIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
@@ -131,7 +133,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
             super(name, indexed, hasDocValues, meta);
         }
 
-         PointFieldType(PointFieldType ref) {
+        PointFieldType(PointFieldType ref) {
             super(ref);
         }
 
@@ -143,6 +145,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         @Override
         public MappedFieldType clone() {
             return new PointFieldType(this);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new AbstractPointDVIndexFieldData.Builder();
         }
     }
 

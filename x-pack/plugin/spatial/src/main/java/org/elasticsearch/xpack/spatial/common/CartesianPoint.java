@@ -53,6 +53,16 @@ public class CartesianPoint implements ToXContentFragment {
         return this;
     }
 
+    public CartesianPoint resetX(float x) {
+        this.x = x;
+        return this;
+    }
+
+    public CartesianPoint resetY(float y) {
+        this.y = y;
+        return this;
+    }
+
     public CartesianPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
@@ -294,5 +304,15 @@ public class CartesianPoint implements ToXContentFragment {
                 zValue);
         }
         return zValue;
+    }
+
+    public static double cartesianDistance(final CartesianPoint p1, final CartesianPoint p2) {
+        return cartesianDistance(p1.getX(), p1.getY(), p2.getX(), p2.getY());
+    }
+
+    public static double cartesianDistance(final double x1, final double y1, final double x2, final double y2) {
+        double deltaX = x1 - x2;
+        double deltaY = y1 - y2;
+        return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     }
 }

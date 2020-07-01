@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -32,7 +33,11 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
     }
     
     public static StringContainsFunctionPipe randomStringContainsFunctionPipe() {
-        return (StringContainsFunctionPipe) (new StringContains(randomSource(), randomStringLiteral(), randomStringLiteral()).makePipe());
+        return (StringContainsFunctionPipe) (new StringContains(randomSource(),
+                                    randomStringLiteral(),
+                                    randomStringLiteral(),
+                                    EqlTestUtils.randomConfiguration())
+            .makePipe());
     }
 
     @Override
@@ -45,7 +50,8 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 b1.source(),
                 newExpression,
                 b1.string(),
-                b1.substring());
+                b1.substring(),
+                b1.isCaseSensitive());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
         
         StringContainsFunctionPipe b2 = randomInstance();
@@ -54,7 +60,8 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 newLoc,
                 b2.expression(),
                 b2.string(),
-                b2.substring());
+                b2.substring(),
+                b2.isCaseSensitive());
         assertEquals(newB,
                 b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
@@ -64,8 +71,9 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
         StringContainsFunctionPipe b = randomInstance();
         Pipe newString = pipe(((Expression) randomValueOtherThan(b.string(), () -> randomStringLiteral())));
         Pipe newSubstring = pipe(((Expression) randomValueOtherThan(b.substring(), () -> randomStringLiteral())));
+        boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
         StringContainsFunctionPipe newB =
-                new StringContainsFunctionPipe(b.source(), b.expression(), b.string(), b.substring());
+                new StringContainsFunctionPipe(b.source(), b.expression(), b.string(), b.substring(), newCaseSensitive);
         
         StringContainsFunctionPipe transformed = newB.replaceChildren(newString, b.substring());
         assertEquals(transformed.string(), newString);
@@ -92,15 +100,18 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
         randoms.add(f -> new StringContainsFunctionPipe(f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.string(), () -> randomStringLiteral()))),
-                f.substring()));
+                f.substring(),
+                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
         randoms.add(f -> new StringContainsFunctionPipe(f.source(),
                 f.expression(),
                 f.string(),
-                pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral())))));
+                pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral()))),
+                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
         randoms.add(f -> new StringContainsFunctionPipe(f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.string(), () -> randomStringLiteral()))),
-                pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral())))));
+                pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral()))),
+                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
         
         return randomFrom(randoms).apply(instance);
     }
@@ -110,6 +121,7 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
         return new StringContainsFunctionPipe(instance.source(),
                 instance.expression(),
                 instance.string(),
-                instance.substring());
+                instance.substring(),
+                instance.isCaseSensitive());
     }
 }

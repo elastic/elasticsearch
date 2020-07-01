@@ -28,5 +28,5 @@ test.enabled = false
 
 dependencies {
   // Just for the constants....
-  compile "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
 }

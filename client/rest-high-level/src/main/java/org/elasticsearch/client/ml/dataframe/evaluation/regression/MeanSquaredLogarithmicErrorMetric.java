@@ -22,7 +22,6 @@ import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -67,7 +66,7 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (offset != null) {
             builder.field(OFFSET.getPreferredName(), offset);
@@ -89,7 +88,7 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
         return Objects.hash(offset);
     }
 
-    public static class Result implements EvaluationMetric.Result  {
+    public static class Result implements EvaluationMetric.Result {
 
         public static final ParseField VALUE = new ParseField("value");
         private final double value;
@@ -99,7 +98,7 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("mean_squared_logarithmic_error_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);

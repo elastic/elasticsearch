@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -50,7 +52,7 @@ public class MeanSquaredError implements EvaluationMetric {
     }
 
     private static final ObjectParser<MeanSquaredError, Void> PARSER =
-        new ObjectParser<>("mean_squared_error", true, MeanSquaredError::new);
+        new ObjectParser<>(NAME.getPreferredName(), true, MeanSquaredError::new);
 
     public static MeanSquaredError fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -72,11 +74,11 @@ public class MeanSquaredError implements EvaluationMetric {
                                                                                   String actualField,
                                                                                   String predictedField) {
         if (result != null) {
-            return Tuple.tuple(List.of(), List.of());
+            return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
         return Tuple.tuple(
-            List.of(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
-            List.of());
+            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField)))),
+            Collections.emptyList());
     }
 
     @Override
@@ -97,7 +99,6 @@ public class MeanSquaredError implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
     }
 
     @Override

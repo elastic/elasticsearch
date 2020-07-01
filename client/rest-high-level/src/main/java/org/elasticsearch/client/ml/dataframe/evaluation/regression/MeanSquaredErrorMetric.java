@@ -48,6 +48,11 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
     public MeanSquaredErrorMetric() {}
 
     @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.endObject();
@@ -67,11 +72,6 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
         return Objects.hashCode(NAME);
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
     public static class Result implements EvaluationMetric.Result {
 
         public static final ParseField VALUE = new ParseField("value");
@@ -82,7 +82,7 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("mean_squared_error_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);

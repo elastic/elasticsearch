@@ -658,7 +658,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 // run newly ready deletes
                 for (SnapshotDeletionsInProgress.Entry entry : deletionsToExecute) {
-                    if (currentlyFinalizing.add(entry.repository())) {
+                    if (tryEnterRepoLoop(entry.repository())) {
                         deleteSnapshotsFromRepository(entry, newState.nodes().getMinNodeVersion());
                     }
                 }
@@ -790,30 +790,49 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
         final boolean newFinalization = endingSnapshots.add(entry.snapshot());
         final String repoName = entry.repository();
-        synchronized (currentlyFinalizing) {
-            if (currentlyFinalizing.add(repoName)) {
-                if (repositoryData == null) {
-                    repositoriesService.repository(repoName).getRepositoryData(new ActionListener<>() {
-                        @Override
-                        public void onResponse(RepositoryData repositoryData) {
-                            finalizeSnapshotEntry(entry, metadata, repositoryData);
-                        }
+        if (tryEnterRepoLoop(repoName)) {
+            if (repositoryData == null) {
+                repositoriesService.repository(repoName).getRepositoryData(new ActionListener<>() {
+                    @Override
+                    public void onResponse(RepositoryData repositoryData) {
+                        finalizeSnapshotEntry(entry, metadata, repositoryData);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            clusterService.submitStateUpdateTask("fail repo tasks for [" + repoName + "]",
-                                    new FailPendingRepoTasksTask(repoName, e));
-                        }
-                    });
-                } else {
-                    finalizeSnapshotEntry(entry, metadata, repositoryData);
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        clusterService.submitStateUpdateTask("fail repo tasks for [" + repoName + "]",
+                            new FailPendingRepoTasksTask(repoName, e));
+                    }
+                });
             } else {
-                if (newFinalization) {
-                    repositoryOperations.addFinalization(entry, metadata);
-                }
+                finalizeSnapshotEntry(entry, metadata, repositoryData);
+            }
+        } else {
+            if (newFinalization) {
+                repositoryOperations.addFinalization(entry, metadata);
             }
         }
+    }
+
+    /**
+     * Try starting to run a snapshot finalization or snapshot delete for the given repository. If this method returns
+     * {@code true} then snapshot finalizations and deletions for the repo may be executed. Once no more operations are
+     * ready for the repository {@link #leaveRepoLoop(String)} should be invoked so that a subsequent state change that
+     * causes another operation to become ready can execute.
+     *
+     * @return true if a finalization or snapshot delete may be started at this point
+     */
+    private boolean tryEnterRepoLoop(String repository) {
+        return currentlyFinalizing.add(repository);
+    }
+
+    /**
+     * Stop polling for ready snapshot finalizations or deletes in state {@link SnapshotDeletionsInProgress.State#STARTED} to execute
+     * for the given repository.
+     */
+    private void leaveRepoLoop(String repository) {
+        final boolean removed = currentlyFinalizing.remove(repository);
+        assert removed;
     }
 
     private void finalizeSnapshotEntry(SnapshotsInProgress.Entry entry, Metadata metadata, RepositoryData repositoryData) {
@@ -898,20 +917,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *                       snapshot create operations remain to execute
      */
     private void runNextQueuedOperation(RepositoryData repositoryData, String repository, boolean attemptDelete) {
-        synchronized (currentlyFinalizing) {
-            assert currentlyFinalizing.contains(repository);
-            final Tuple<SnapshotsInProgress.Entry, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
-            if (nextFinalization == null) {
-                if (attemptDelete) {
-                    runReadyDeletions(repositoryData, repository);
-                } else {
-                    final boolean removed = currentlyFinalizing.remove(repository);
-                    assert removed;
-                }
+        assert currentlyFinalizing.contains(repository);
+        final Tuple<SnapshotsInProgress.Entry, Metadata> nextFinalization = repositoryOperations.pollFinalization(repository);
+        if (nextFinalization == null) {
+            if (attemptDelete) {
+                runReadyDeletions(repositoryData, repository);
             } else {
-                logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
-                finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
+                leaveRepoLoop(repository);
             }
+        } else {
+            logger.trace("Moving on to finalizing next snapshot [{}]", nextFinalization);
+            finalizeSnapshotEntry(nextFinalization.v1(), nextFinalization.v2(), repositoryData);
         }
     }
 
@@ -1386,7 +1402,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return;
                 }
                 if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
-                    if (currentlyFinalizing.add(repoName)) {
+                    if (tryEnterRepoLoop(repoName)) {
                         deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
                     } else {
                         logger.trace("Delete [{}] could not execute directly and was queued", newDelete);
@@ -1683,16 +1699,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             handleListeners(deleteListeners);
             if (newFinalizations.isEmpty()) {
                 if (readyDeletions.isEmpty()) {
-                    final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
-                    assert removed;
+                    leaveRepoLoop(deleteEntry.repository());
                 } else {
                     for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
                         deleteSnapshotsFromRepository(readyDeletion, repositoryData, newState.nodes().getMinNodeVersion());
                     }
                 }
             } else {
-                final boolean removed = currentlyFinalizing.remove(deleteEntry.repository());
-                assert removed;
+                leaveRepoLoop(deleteEntry.repository());
                 assert readyDeletions.stream().noneMatch(entry -> entry.repository().equals(deleteEntry.repository()))
                         : "New finalizations " + newFinalizations + " added even though deletes " + readyDeletions + " are ready";
                 for (SnapshotsInProgress.Entry entry : newFinalizations) {
@@ -1996,20 +2010,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public boolean assertAllListenersResolved() {
         final DiscoveryNode localNode = clusterService.localNode();
-        synchronized (endingSnapshots) {
-            assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
-                    + " on [" + localNode + "]";
-            assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
-                    + " on [" + localNode + "]";
-        }
-        synchronized (currentlyFinalizing) {
-            assert currentlyFinalizing.isEmpty() : "Found leaked finalizations " + currentlyFinalizing
-                    + " on [" + localNode + "]";
-            assert snapshotDeletionListeners.isEmpty() : "Found leaked snapshot delete listeners " + snapshotDeletionListeners
-                    + " on [" + localNode + "]";
-            assert repositoryOperations.isEmpty() : "Found leaked snapshots to finalize " + repositoryOperations
-                    + " on [" + localNode + "]";
-        }
+        assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
+            + " on [" + localNode + "]";
+        assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
+            + " on [" + localNode + "]";
+        assert currentlyFinalizing.isEmpty() : "Found leaked finalizations " + currentlyFinalizing
+            + " on [" + localNode + "]";
+        assert snapshotDeletionListeners.isEmpty() : "Found leaked snapshot delete listeners " + snapshotDeletionListeners
+            + " on [" + localNode + "]";
+        assert repositoryOperations.isEmpty() : "Found leaked snapshots to finalize " + repositoryOperations
+            + " on [" + localNode + "]";
         return true;
     }
 
@@ -2222,8 +2232,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             logger.trace("Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners", repository);
             synchronized (currentlyFinalizing) {
+                // TODO: only clear for the current repo
                 repositoryOperations.clear();
-                currentlyFinalizing.remove(repository);
+                leaveRepoLoop(repository);
                 for (Snapshot snapshot : snapshotsToFail) {
                     failSnapshotCompletionListeners(snapshot, failure);
                 }

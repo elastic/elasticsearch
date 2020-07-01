@@ -107,7 +107,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    private final DoubleCheckStrategy doubleCheckStrategy;
+    private final OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings,
@@ -116,7 +116,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
-                                   DoubleCheckStrategy doubleCheckStrategy) {
+                                   OverLimitStrategy overLimitStrategy) {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
         childCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
@@ -181,7 +181,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
 
-        this.doubleCheckStrategy = doubleCheckStrategy;
+        this.overLimitStrategy = overLimitStrategy;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -344,7 +344,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     MemoryUsage doubleCheckMemoryUsed(MemoryUsage memoryUsed) {
         if (this.trackRealMemoryUsage) {
-            return doubleCheckStrategy.doubleCheck(memoryUsed);
+            return overLimitStrategy.overLimit(memoryUsed);
         } else {
             return memoryUsed;
         }
@@ -361,22 +361,22 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 breakerSettings.getName());
     }
 
-    private static DoubleCheckStrategy createDoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
-                                                                 LongSupplier timeSupplier, long minimumInterval) {
+    private static OverLimitStrategy createDoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
+                                                               LongSupplier timeSupplier, long minimumInterval) {
         if (jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled", "true"))) {
-            return new G1DoubleCheckStrategy(jvmInfo, currentMemoryUsageSupplier, timeSupplier, minimumInterval);
+            return new G1OverLimitStrategy(jvmInfo, currentMemoryUsageSupplier, timeSupplier, minimumInterval);
         } else {
             return memoryUsed -> memoryUsed;
         }
     }
 
-    interface DoubleCheckStrategy {
-        MemoryUsage doubleCheck(MemoryUsage memoryUsed);
+    interface OverLimitStrategy {
+        MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
-    static class G1DoubleCheckStrategy implements DoubleCheckStrategy {
+    static class G1OverLimitStrategy implements OverLimitStrategy {
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
         private final LongSupplier timeSupplier;
@@ -387,8 +387,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         private long blackHole;
         private final Object lock = new Object();
 
-        G1DoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
-                                     LongSupplier timeSupplier, long minimumInterval) {
+        G1OverLimitStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
+                            LongSupplier timeSupplier, long minimumInterval) {
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
             this.timeSupplier = timeSupplier;
@@ -421,12 +421,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         @Override
-        public MemoryUsage doubleCheck(MemoryUsage memoryUsed) {
+        public MemoryUsage overLimit(MemoryUsage memoryUsed) {
             long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             boolean leader;
             synchronized (lock) {
                 leader = timeSupplier.getAsLong() >= lastCheckTime + minimumInterval;
-                doubleCheckingRealMemoryUsed(leader);
+                overLimitTriggered(leader);
                 if (leader) {
                     logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                     long localBlackHole = 0;
@@ -468,7 +468,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
         }
 
-        void doubleCheckingRealMemoryUsed(boolean leader) {
+        void overLimitTriggered(boolean leader) {
             // for tests to override.
         }
     }

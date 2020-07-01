@@ -284,12 +284,12 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     /**
-     * "Integration test" checking that we ask the G1 double check before parent breaking.
+     * "Integration test" checking that we ask the G1 over limit check before parent breaking.
      * Given that it depends on GC, the main assertion that we do not get a circuit breaking exception in the threads towards
      * the end of the test is not enabled. The following tests checks this in more unit test style.
      */
     public void testParentTriggersG1GCBeforeBreaking() throws InterruptedException, TimeoutException, BrokenBarrierException {
-        assumeTrue("Only G1GC can utilize the double check hack", JvmInfo.jvmInfo().useG1GC().equals("true"));
+        assumeTrue("Only G1GC can utilize the over limit check", JvmInfo.jvmInfo().useG1GC().equals("true"));
         long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
         assumeTrue("Must have region size", g1RegionSize > 0);
 
@@ -298,21 +298,21 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
 
         AtomicInteger leaderTriggerCount = new AtomicInteger();
-        AtomicReference<Consumer<Boolean>> onDoubleCheck = new AtomicReference<>(leader -> {});
+        AtomicReference<Consumer<Boolean>> onOverLimit = new AtomicReference<>(leader -> {});
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
         long interval = randomLongBetween(1, 1000);
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new HierarchyCircuitBreakerService.G1DoubleCheckStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage,
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage,
                 time::get, interval) {
 
                 @Override
-                void doubleCheckingRealMemoryUsed(boolean leader) {
+                void overLimitTriggered(boolean leader) {
                     if (leader) {
                         leaderTriggerCount.incrementAndGet();
                     }
-                    onDoubleCheck.get().accept(leader);
+                    onOverLimit.get().accept(leader);
                 }
             });
 
@@ -333,7 +333,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
 
         time.addAndGet(randomLongBetween(interval, interval + 10));
-        onDoubleCheck.set(leader -> {
+        onOverLimit.set(leader -> {
             if (leader) {
                 data.clear();
             }
@@ -370,7 +370,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(leaderTriggerCount.get(), equalTo(2));
     }
 
-    public void testParentDoesDoubleCheck() {
+    public void testParentDoesOverLimitCheck() {
         long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
 
         Settings clusterSettings = Settings.builder()
@@ -378,12 +378,12 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%")
             .build();
         boolean saveTheDay = randomBoolean();
-        AtomicBoolean doubleChecked = new AtomicBoolean();
+        AtomicBoolean overLimitTriggered = new AtomicBoolean();
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             memoryUsed -> {
-                assertTrue(doubleChecked.compareAndSet(false, true));
+                assertTrue(overLimitTriggered.compareAndSet(false, true));
                 if (saveTheDay) {
                     return new HierarchyCircuitBreakerService.MemoryUsage(memoryUsed.baseUsage / 2,
                         memoryUsed.totalUsage - (memoryUsed.baseUsage / 2), memoryUsed.transientChildUsage,
@@ -397,7 +397,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         int allocationCount = (int) (JvmInfo.jvmInfo().getConfiguredMaxHeapSize() / allocationSize) + 1;
         List<byte[]> data = new ArrayList<>();
         try {
-            for (int i = 0 ; i < allocationCount && doubleChecked.get() == false; ++i) {
+            for (int i = 0 ; i < allocationCount && overLimitTriggered.get() == false; ++i) {
                 data.add(new byte[allocationSize]);
                 service.checkParentLimit(0, "test");
             }
@@ -410,25 +410,25 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     public void testFallbackG1RegionSize() {
-        assumeTrue("Only G1GC can utilize the double check hack", JvmInfo.jvmInfo().useG1GC().equals("true"));
+        assumeTrue("Only G1GC can utilize the over limit check", JvmInfo.jvmInfo().useG1GC().equals("true"));
         assumeTrue("Must have region size", JvmInfo.jvmInfo().getG1RegionSize() > 0);
 
-        assertThat(HierarchyCircuitBreakerService.G1DoubleCheckStrategy.fallbackRegionSize(JvmInfo.jvmInfo()),
+        assertThat(HierarchyCircuitBreakerService.G1OverLimitStrategy.fallbackRegionSize(JvmInfo.jvmInfo()),
             equalTo(JvmInfo.jvmInfo().getG1RegionSize()));
     }
 
-    public void testG1DoubleCheckStrategy() {
+    public void testG1OverLimitStrategy() {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
         AtomicLong memoryUsage = new AtomicLong();
-        HierarchyCircuitBreakerService.G1DoubleCheckStrategy strategy =
-            new HierarchyCircuitBreakerService.G1DoubleCheckStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
             time::get, interval) {
 
             @Override
-            void doubleCheckingRealMemoryUsed(boolean leader) {
+            void overLimitTriggered(boolean leader) {
                 if (leader) {
                     leaderTriggerCount.incrementAndGet();
                 } else {
@@ -441,11 +441,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             randomLongBetween(0, 50),
             randomLongBetween(0, 50));
 
-        assertThat(strategy.doubleCheck(input), sameInstance(input));
+        assertThat(strategy.overLimit(input), sameInstance(input));
         assertThat(leaderTriggerCount.get(), equalTo(1));
 
         memoryUsage.set(99);
-        HierarchyCircuitBreakerService.MemoryUsage output = strategy.doubleCheck(input);
+        HierarchyCircuitBreakerService.MemoryUsage output = strategy.overLimit(input);
         assertThat(output, not(sameInstance(input)));
         assertThat(output.baseUsage, equalTo(memoryUsage.get()));
         assertThat(output.totalUsage, equalTo(99 + input.totalUsage - 100));
@@ -454,7 +454,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(nonLeaderTriggerCount.get(), equalTo(1));
 
         time.addAndGet(randomLongBetween(interval, interval * 2));
-        output = strategy.doubleCheck(input);
+        output = strategy.overLimit(input);
         assertThat(output, not(sameInstance(input)));
         assertThat(output.baseUsage, equalTo(memoryUsage.get()));
         assertThat(output.totalUsage, equalTo(99 + input.totalUsage - 100));
@@ -463,17 +463,17 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(leaderTriggerCount.get(), equalTo(2));
     }
 
-    public void testG1DoubleCheckStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
+    public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
         AtomicLong memoryUsage = new AtomicLong();
-        HierarchyCircuitBreakerService.G1DoubleCheckStrategy strategy =
-            new HierarchyCircuitBreakerService.G1DoubleCheckStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
                 time::get, interval) {
 
                 @Override
-                void doubleCheckingRealMemoryUsed(boolean leader) {
+                void overLimitTriggered(boolean leader) {
                     if (leader) {
                         leaderTriggerCount.incrementAndGet();
                     }
@@ -494,7 +494,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     HierarchyCircuitBreakerService.MemoryUsage input =
                         new HierarchyCircuitBreakerService.MemoryUsage(randomLongBetween(0, 100), randomLongBetween(0, 100),
                             randomLongBetween(0, 100), randomLongBetween(0, 100));
-                    HierarchyCircuitBreakerService.MemoryUsage output = strategy.doubleCheck(input);
+                    HierarchyCircuitBreakerService.MemoryUsage output = strategy.overLimit(input);
                     assertThat(output.totalUsage, equalTo(output.baseUsage + input.totalUsage - input.baseUsage));
                     assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
                     assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));

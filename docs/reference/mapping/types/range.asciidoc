@@ -185,7 +185,7 @@ https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR]
 PUT range_index/_mapping
 {
   "properties": {
-    "ip_whitelist": {
+    "ip_allowlist": {
       "type": "ip_range"
     }
   }
@@ -193,7 +193,7 @@ PUT range_index/_mapping
 
 PUT range_index/_doc/2
 {
-  "ip_whitelist" : "192.168.0.0/16"
+  "ip_allowlist" : "192.168.0.0/16"
 }
 --------------------------------------------------
 

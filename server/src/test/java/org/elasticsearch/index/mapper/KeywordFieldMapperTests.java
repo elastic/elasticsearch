@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +39,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -49,6 +53,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -62,6 +67,11 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
     @Override
     protected KeywordFieldMapper.Builder newBuilder() {
         return new KeywordFieldMapper.Builder("keyword");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer");
     }
 
     /**
@@ -86,21 +96,36 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         return pluginList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
     }
 
+    @Override
+    protected Settings getIndexMapperSettings() {
+        return mapperSettings;
+    }
+
+    private static final Settings mapperSettings = Settings.builder()
+        .put("index.analysis.normalizer.my_lowercase.type", "custom")
+        .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
+        .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
+        .putList("index.analysis.normalizer.my_other_lowercase.filter", "lowercase").build();
+
     IndexService indexService;
     DocumentMapperParser parser;
 
     @Before
     public void setup() {
-        indexService = createIndex("test", Settings.builder()
-                .put("index.analysis.normalizer.my_lowercase.type", "custom")
-                .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase")
-                .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
-                .putList("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
+        indexService = createIndex("test", mapperSettings);
         parser = indexService.mapperService().documentMapperParser();
         addModifier("normalizer", false, (a, b) -> {
             a.normalizer(indexService.getIndexAnalyzers(), "my_lowercase");
         });
         addBooleanModifier("split_queries_on_whitespace", true, KeywordFieldMapper.Builder::splitQueriesOnWhitespace);
+        addModifier("index_options", false, (a, b) -> {
+            a.indexOptions(IndexOptions.DOCS);
+            b.indexOptions(IndexOptions.DOCS_AND_FREQS);
+        });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
+            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
+        });
     }
 
     public void testDefaults() throws Exception {
@@ -534,13 +559,15 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         MappedFieldType fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello World"});
+        Analyzer a = ft.getTextSearchInfo().getSearchAnalyzer();
+        assertTokenStreamContents(a.tokenStream("", "Hello World"), new String[] {"Hello World"});
 
         fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello", "world"});
+        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"hello", "world"});
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
@@ -561,13 +588,15 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         fieldType = indexService.mapperService().fieldType("field");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"Hello", "World"});
 
         fieldType = indexService.mapperService().fieldType("field_with_normalizer");
         assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
-        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello world"});
+        assertThat(ft.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"hello world"});
     }
 
     public void testMeta() throws Exception {

@@ -46,9 +46,9 @@ public final class GrokProcessor extends AbstractProcessor {
     private final boolean traceMatch;
     private final boolean ignoreMissing;
 
-    GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
+    GrokProcessor(String tag, String description, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
                   boolean traceMatch, boolean ignoreMissing, MatcherWatchdog matcherWatchdog) {
-        super(tag);
+        super(tag, description);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
@@ -148,7 +148,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
         @Override
         public GrokProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    Map<String, Object> config) throws Exception {
+                                    String description, Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
@@ -164,7 +164,7 @@ public final class GrokProcessor extends AbstractProcessor {
             }
 
             try {
-                return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing,
+                return new GrokProcessor(processorTag, description, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing,
                     matcherWatchdog);
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "patterns",

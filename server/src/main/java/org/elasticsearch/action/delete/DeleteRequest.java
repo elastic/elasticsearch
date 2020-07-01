@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -53,6 +54,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DeleteRequest.class);
+
     private static final ShardId NO_SHARD_ID = null;
 
     private String id;
@@ -64,7 +67,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public DeleteRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
@@ -232,6 +239,16 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -246,5 +263,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String toString() {
         return "delete {[" + index + "][" + id + "]}";
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id);
     }
 }

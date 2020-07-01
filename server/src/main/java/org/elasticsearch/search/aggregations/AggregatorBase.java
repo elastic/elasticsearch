@@ -260,7 +260,7 @@ public abstract class AggregatorBase extends Aggregator {
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 
     @Override

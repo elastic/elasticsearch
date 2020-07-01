@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -96,11 +97,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDateFieldMillisecondResolution() throws IOException {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
-            .withResolution(DateFieldMapper.Resolution.MILLISECONDS);
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
 
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
         long milli2 = ZonedDateTime.of(2016, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -120,12 +117,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
-            .withResolution(DateFieldMapper.Resolution.NANOSECONDS);
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -146,12 +141,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void  testMissingDateWithDateField() throws IOException {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
-            .withResolution(DateFieldMapper.Resolution.NANOSECONDS);
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -181,8 +174,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("1979-01-01T00:00:00");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -197,8 +190,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing(0L);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -217,8 +210,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("2020-02-13T10:11:12");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -232,15 +225,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .field("not_a_number")
             .addRange(-2d, 5d);
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setName("not_a_number");
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
             }, range -> fail("Should have thrown exception"), fieldType));
-        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [range]", e.getMessage());
+        assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }
 
     public void testBadMissingField() {
@@ -249,8 +240,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -265,8 +256,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(-2d, 5d)
             .missing("bogus");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -307,8 +298,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(NUMBER_FIELD_NAME);
         aggregationBuilder.addRange(0d, 5d);
@@ -319,8 +310,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,
                           Query query,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));

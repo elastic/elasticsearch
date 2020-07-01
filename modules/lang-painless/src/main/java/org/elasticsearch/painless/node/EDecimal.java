@@ -20,10 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -45,21 +47,22 @@ public class EDecimal extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        return analyze(input, false);
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        return analyze(semanticScope, false);
     }
 
-    Output analyze(Input input, boolean negate) {
-        if (input.write) {
+    Output analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
         }
 
         Output output = new Output();
+        Class<?> valueType;
         Object constant;
 
         String decimal = negate ? "-" + this.decimal : this.decimal;
@@ -67,7 +70,7 @@ public class EDecimal extends AExpression {
         if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
                 constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
-                output.actual = float.class;
+                valueType = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
@@ -78,15 +81,17 @@ public class EDecimal extends AExpression {
             }
             try {
                 constant = Double.parseDouble(toParse);
-                output.actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
 
+        semanticScope.putDecoration(this, new ValueType(valueType));
+
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(output.actual);
+        constantNode.setExpressionType(valueType);
         constantNode.setConstant(constant);
 
         output.expressionNode = constantNode;

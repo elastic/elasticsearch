@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -480,22 +481,15 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType numberFieldType(NumberType numberType, String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(numberType);
-        type.setName(name);
-        return type;
+        return new NumberFieldMapper.NumberFieldType(name, numberType);
     }
 
     private MappedFieldType textFieldType(String name) {
-        TextFieldMapper.TextFieldType type = new TextFieldMapper.TextFieldType();
-        type.setName(name);
-        return type;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     private MappedFieldType geoPointFieldType(String name) {
-        GeoPointFieldMapper.GeoPointFieldType type = new GeoPointFieldMapper.GeoPointFieldType();
-        type.setName(name);
-        type.setHasDocValues(true);
-        return type;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     private IndexableField doubleField(String name, double value) {
@@ -511,7 +505,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private IndexableField textField(String name, String value) {
-        return new Field(name, value, textFieldType(name));
+        return new TextField(name, value, Field.Store.NO);
     }
 
     private IndexableField geoPointField(String name, double lat, double lon) {

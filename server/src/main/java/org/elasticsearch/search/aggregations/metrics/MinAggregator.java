@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -179,7 +178,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
         if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
+            if (fieldType == null || fieldType.isSearchable() == false) {
                 return null;
             }
             Function<byte[], Number> converter = null;

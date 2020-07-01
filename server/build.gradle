@@ -76,56 +76,56 @@ if (!isEclipse) {
 
 dependencies {
 
-  compile project(':libs:elasticsearch-core')
-  compile project(':libs:elasticsearch-secure-sm')
-  compile project(':libs:elasticsearch-x-content')
-  compile project(":libs:elasticsearch-geo")
+  api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-secure-sm')
+  api project(':libs:elasticsearch-x-content')
+  api project(":libs:elasticsearch-geo")
 
   compileOnly project(':libs:elasticsearch-plugin-classloader')
   testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
-  compile "org.apache.lucene:lucene-core:${versions.lucene}"
-  compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
-  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  compile "org.apache.lucene:lucene-grouping:${versions.lucene}"
-  compile "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  compile "org.apache.lucene:lucene-join:${versions.lucene}"
-  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
-  compile "org.apache.lucene:lucene-misc:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
-  compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
-  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  api "org.apache.lucene:lucene-join:${versions.lucene}"
+  api "org.apache.lucene:lucene-memory:${versions.lucene}"
+  api "org.apache.lucene:lucene-misc:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
+  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  compile project(":libs:elasticsearch-cli")
-  compile 'com.carrotsearch:hppc:0.8.1'
+  api project(":libs:elasticsearch-cli")
+  api 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
-  compile "joda-time:joda-time:${versions.joda}"
+  api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  compile 'com.tdunning:t-digest:3.2'
+  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
-  compile 'org.hdrhistogram:HdrHistogram:2.1.9'
+  api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // lucene spatial
-  compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  compile "org.locationtech.jts:jts-core:${versions.jts}", optional
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
+  api "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
   // repackaged jna with native bits linked against all elastic supported platforms
-  compile "org.elasticsearch:jna:${versions.jna}"
+  api "org.elasticsearch:jna:${versions.jna}"
 
 
-  compile "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-  compile "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+  api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   if (!isEclipse) {
     java12Compile sourceSets.main.output
@@ -326,9 +326,9 @@ thirdPartyAudit.ignoreMissingClasses(
 
 thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
-  dependencies = project.configurations.runtime.fileCollection {
+  dependencies = project.configurations.runtimeClasspath.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
       // keep the following org.elasticsearch jars in
       (it.name == 'jna' ||

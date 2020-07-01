@@ -228,9 +228,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
+        final MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
 
         final SumAggregationBuilder builder = sum("_name")
             .field(fieldType.name());
@@ -314,8 +313,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testMissing() throws IOException {
         final MappedFieldType aggField = defaultFieldType();
-        final MappedFieldType irrelevantField = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        irrelevantField.setName("irrelevant_field");
+        final MappedFieldType irrelevantField
+            = new NumberFieldMapper.NumberFieldType("irrelevant_field", NumberType.LONG);
 
         final int numDocs = randomIntBetween(10, 100);
         final long missingValue = randomLongBetween(1, 1000);
@@ -435,9 +434,6 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType defaultFieldType(NumberType numberType) {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(numberType);
-        fieldType.setName(FIELD_NAME);
-        fieldType.setHasDocValues(true);
-        return fieldType;
+        return new NumberFieldMapper.NumberFieldType(FIELD_NAME, numberType);
     }
 }

@@ -145,7 +145,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
             (bucketValue, docCount, subAggregationResults) -> {
                 return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            }, buckets -> {
+            }, (owningBucketOrd, buckets) -> {
                 // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 

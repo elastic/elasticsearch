@@ -328,7 +328,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageWithOrphanedTask() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 

@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -72,6 +73,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesSortedNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
@@ -85,6 +87,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, milli1)));
@@ -99,11 +102,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     }
 
         public void  testMissingDateStringWithDateField() throws IOException {
-            DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
-                .withResolution(DateFieldMapper.Resolution.MILLISECONDS);
-            DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-            fieldType.setHasDocValues(true);
-            fieldType.setName(DATE_FIELD_NAME);
+            DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME);
 
             DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("date_range")
                 .field(DATE_FIELD_NAME)
@@ -128,8 +127,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .field(NUMBER_FIELD_NAME)
             .addRange("2015-11-13", "2015-11-14");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -143,8 +142,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             .field(NUMBER_FIELD_NAME)
             .addRange(0, 5);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName(NUMBER_FIELD_NAME);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -163,8 +162,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .addRange("2015-11-13", "2015-11-14")
                 .missing("1979-01-01T00:00:00");
 
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-            fieldType.setName(NUMBER_FIELD_NAME);
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
             expectThrows(NumberFormatException.class,
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -179,8 +178,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .addRange("2015-11-13", "2015-11-14")
                 .missing(1447438575000L); // 2015-11-13 6:16:15
 
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-            fieldType.setName(NUMBER_FIELD_NAME);
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
             testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -199,8 +198,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .addRange("2015-11-13", "2015-11-14")
                 .missing("2015-11-13T10:11:12");
 
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-            fieldType.setName(NUMBER_FIELD_NAME);
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
                 testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                     iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
@@ -218,15 +217,13 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .field("not_a_number")
                 .addRange("2015-11-13", "2015-11-14");
 
-            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-            fieldType.setName("not_a_number");
-            fieldType.setHasDocValues(true);
+            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                     iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
                 }, range -> fail("Should have thrown exception"), fieldType));
-            assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [date_range]",
+            assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]",
                 e.getMessage());
         }
 
@@ -236,8 +233,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
                 .missing("bogus");
 
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-            fieldType.setName(NUMBER_FIELD_NAME);
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
             expectThrows(NumberFormatException.class,
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -252,8 +249,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 .addRange("2020-01-01T00:00:00", "2020-01-02T00:00:00")
                 .missing("bogus");
 
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-            fieldType.setName(NUMBER_FIELD_NAME);
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
             expectThrows(ElasticsearchParseException.class,
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -274,11 +271,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
                           DateFieldMapper.Resolution resolution) throws IOException {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(DATE_FIELD_NAME)
-            .withResolution(resolution);
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setHasDocValues(true);
-        fieldType.setName(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
         DateRangeAggregationBuilder aggregationBuilder = new DateRangeAggregationBuilder("test_range_agg");
         aggregationBuilder.field(DATE_FIELD_NAME);
         aggregationBuilder.addRange("2015-01-01", "2015-12-31");

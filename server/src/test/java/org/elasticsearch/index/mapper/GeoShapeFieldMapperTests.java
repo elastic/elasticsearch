@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
@@ -40,6 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store");
+    }
 
     @Override
     protected GeoShapeFieldMapper.Builder newBuilder() {
@@ -74,7 +80,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType.hasDocValues(), equalTo(false));
+        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
     /**
@@ -245,10 +251,6 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping),
             MapperService.MergeReason.MAPPING_UPDATE);
-        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("shape").field("type", "geo_shape")
-            .field("orientation", "cw").endObject().endObject().endObject().endObject());
-        mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         // verify nothing changed
         Mapper fieldMapper = docMapper.mappers().getMapper("shape");
@@ -258,7 +260,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldM
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
 
         // change mapping; orientation
-        stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("shape").field("type", "geo_shape")
             .field("orientation", "cw").endObject().endObject().endObject().endObject());
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);

@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-nori:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-nori:${versions.lucene}"
 }
 
 restResources {
@@ -31,7 +31,6 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search'
   }
 }
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-

@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -263,6 +265,14 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public List<String> getProgressPhases() {
         return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        return RegressionConfig.builder()
+            .setResultsField(predictionFieldName)
+            .setNumTopFeatureImportanceValues(getBoostedTreeParams().getNumTopFeatureImportanceValues())
+            .build();
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

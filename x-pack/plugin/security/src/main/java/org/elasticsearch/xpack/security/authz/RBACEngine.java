@@ -32,7 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -266,7 +267,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (isAsyncSearchRelatedAction(action)) {
+            } else if (isAsyncRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // we check if the user has any indices permission when submitting an async-search request in order to be
                     // able to fail the request early. Fine grained index-level permissions are handled by the search action
@@ -587,9 +588,10 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
-    private static boolean isAsyncSearchRelatedAction(String action) {
+    private static boolean isAsyncRelatedAction(String action) {
         return action.equals(SubmitAsyncSearchAction.NAME) ||
             action.equals(GetAsyncSearchAction.NAME) ||
-            action.equals(DeleteAsyncSearchAction.NAME);
+            action.equals(DeleteAsyncResultAction.NAME) ||
+            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 }

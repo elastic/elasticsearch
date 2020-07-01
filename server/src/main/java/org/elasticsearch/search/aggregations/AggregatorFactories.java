@@ -24,8 +24,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -48,6 +51,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -127,7 +131,13 @@ public class AggregatorFactories {
                                     + aggregationName + "]: [" + aggBuilder.getType() + "] and [" + fieldName + "]");
                         }
 
-                        aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
+                        try {
+                            aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
+                        } catch (NamedObjectNotFoundException ex) {
+                            String message = String.format(Locale.ROOT, "Unknown aggregation type [%s]%s", fieldName,
+                                SuggestingErrorOnUnknown.suggest(fieldName, ex.getCandidates()));
+                            throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
+                        }
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["

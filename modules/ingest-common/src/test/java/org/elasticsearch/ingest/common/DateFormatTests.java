@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -70,6 +71,9 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseWeekBased() {
+        assumeFalse("won't work in jdk8 " +
+                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8")));
         String format = randomFrom("YYYY-ww");
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
@@ -78,6 +82,9 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseWeekBasedWithLocale() {
+        assumeFalse("won't work in jdk8 " +
+                "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8")));
         String format = randomFrom("YYYY-ww");
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.US);

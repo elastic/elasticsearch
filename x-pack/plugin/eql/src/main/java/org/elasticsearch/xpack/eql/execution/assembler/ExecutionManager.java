@@ -56,7 +56,6 @@ public class ExecutionManager {
         String timestampName = Expressions.name(timestamp);
         String tiebreakerName = Expressions.isPresent(tiebreaker) ? Expressions.name(tiebreaker) : null;
 
-        Criterion<QueryRequest> base = null;
         // secondary criteria
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
         

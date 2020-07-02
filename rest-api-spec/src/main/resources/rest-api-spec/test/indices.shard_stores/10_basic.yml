@@ -116,12 +116,13 @@
 
   - do:
       cluster.health:
-        wait_for_status: yellow
+        wait_for_status: green
         index: simple-data-stream1
 
   - do:
       indices.shard_stores:
         index: simple-data-stream1
+        status: "green"
 
   - match: { indices.\.ds-simple-data-stream1-000001.shards.0.stores.0.allocation: "primary" }
   - match: { indices.\.ds-simple-data-stream1-000002.shards.0.stores.0.allocation: "primary" }

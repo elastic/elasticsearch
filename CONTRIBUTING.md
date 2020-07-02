@@ -625,7 +625,7 @@ properly. Quality is rather subjective so it is hard to describe exactly how to
 avoid this, but there are some basic steps you can take to reduce the chances
 of rejection. Follow the guidelines listed above when preparing your changes.
 You should add tests that correspond with your changes, and your PR should pass
-the full test suite too. It makes it much easier to review if your code is
+affected test suites too. It makes it much easier to review if your code is
 formatted correctly and does not include unnecessary extra changes.
 
 We sometimes reject contributions if we find ourselves performing many review

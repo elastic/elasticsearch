@@ -644,7 +644,7 @@ complete your contribution, but please let us know that you have stopped
 working on it. We will try to send you a reminder if we haven't heard from you
 in a while, but may end up closing your PR if you do not respond for too long.
 
-
+If your contribution is rejected we will close the pull request with a comment explaining why it was rejected. If you feel we have misunderstood your intended change or otherwise feel that the contribution should be reconsidered please add a comment explaining why and we will happily reconsider.
 Contributing as part of a class
 -------------------------------
 In general Elasticsearch is happy to accept contributions that were created as

@@ -61,10 +61,6 @@ dependencies {
   testImplementation(project(':x-pack:plugin:eql'))
 }
 
-processTestResources {
-  from(project(':client:rest-high-level').file('src/test/resources'))
-}
-
 tasks.named('forbiddenApisMain').configure {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified

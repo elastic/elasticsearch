@@ -151,21 +151,21 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         return searchRequest;
     }
 
-    private void onFatalFailure(AsyncSearchTask task, Exception exc, boolean shouldCancel, String cancelReason,
+    private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, String cancelReason,
                                 ActionListener<AsyncSearchResponse> listener){
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
                     task.addCompletionListener(finalResponse -> taskManager.unregister(task));
                 } finally {
-                    listener.onFailure(exc);
+                    listener.onFailure(error);
                 }
             }, cancelReason);
         } else {
             try {
                 task.addCompletionListener(finalResponse -> taskManager.unregister(task));
             } finally {
-                listener.onFailure(exc);
+                listener.onFailure(error);
             }
         }
     }

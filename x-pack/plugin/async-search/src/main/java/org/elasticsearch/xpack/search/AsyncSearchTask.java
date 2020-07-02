@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -194,8 +196,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     /**
-     * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
-     * listener when the task is finished.
+     * Creates a listener that listens for an {@link AsyncSearchResponse} and executes the
+     * consumer when the task is finished.
      */
     public void addCompletionListener(Consumer<AsyncSearchResponse> listener) {
         boolean executeImmediately = false;
@@ -299,8 +301,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
         // we don't need to restore the response headers, they should be included in the current
         // context since we are called by the search action listener.
+        AsyncSearchResponse finalResponse = getResponse();
         for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
-            consumer.accept(getResponse());
+            consumer.accept(finalResponse);
         }
 
     }
@@ -328,8 +331,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         try {
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
         } catch(Exception e) {
-            ElasticsearchException exception = new ElasticsearchException("Async search: error while reducing partial results", e);
-            asyncSearchResponse = mutableSearchResponse.buildErrorResponse(this, expirationTimeMillis, exception);
+            ElasticsearchException exception = new ElasticsearchStatusException("Async search: error while reducing partial results",
+                ExceptionsHelper.status(e), e);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
        }
        return asyncSearchResponse;
     }
@@ -423,7 +427,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            searchResponse.get().updateWithFailure(new ElasticsearchException("error while executing search", exc));
+            searchResponse.get().updateWithFailure(new ElasticsearchStatusException("error while executing search",
+                ExceptionsHelper.status(exc), exc));
             executeInitListeners();
             executeCompletionListeners();
         }

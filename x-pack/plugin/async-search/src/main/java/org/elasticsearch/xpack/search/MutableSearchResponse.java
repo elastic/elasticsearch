@@ -52,7 +52,6 @@ class MutableSearchResponse {
      * The response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
      * is called, and instead return this.
-     * @see #findOrBuildResponse(AsyncSearchTask)
      */
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
@@ -144,29 +143,12 @@ class MutableSearchResponse {
         shardFailures.set(shardIndex, failure);
     }
 
-    private SearchResponse findOrBuildResponse(AsyncSearchTask task) {
-        if (finalResponse != null) {
-            // We have a final response, use it.
-            return finalResponse;
-        }
-        if (clusters == null) {
-            // An error occurred before we got the shard list
-            return null;
-        }
-        /*
-         * Build the response, reducing aggs if we haven't already and
-         * storing the result of the reduction so we won't have to reduce
-         * the same aggregation results a second time if nothing has changed.
-         * This does cost memory because we have a reference to the finally
-         * reduced aggs sitting around which can't be GCed until we get an update.
-         */
-        InternalAggregations reducedAggs = reducedAggsSource.get();
-        reducedAggsSource = () -> reducedAggs;
+    private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
         InternalSearchResponse internal = new InternalSearchResponse(
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
-        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - task.getStartTimeNanos()).getMillis();
+        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
-                tookInMillis, buildShardFailures(), clusters);
+            tookInMillis, buildShardFailures(), clusters);
     }
 
     /**
@@ -181,23 +163,37 @@ class MutableSearchResponse {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), findOrBuildResponse(task),
+        SearchResponse searchResponse;
+        if (finalResponse != null) {
+            // We have a final response, use it.
+            searchResponse = finalResponse;
+        } else if (clusters == null) {
+            // An error occurred before we got the shard list
+            searchResponse = null;
+        } else {
+            /*
+             * Build the response, reducing aggs if we haven't already and
+             * storing the result of the reduction so we won't have to reduce
+             * the same aggregation results a second time if nothing has changed.
+             * This does cost memory because we have a reference to the finally
+             * reduced aggs sitting around which can't be GCed until we get an update.
+             */
+            InternalAggregations reducedAggs = reducedAggsSource.get();
+            reducedAggsSource = () -> reducedAggs;
+            searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
+        }
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
             failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 
-    synchronized AsyncSearchResponse buildErrorResponse(AsyncSearchTask task,
-                                                        long expirationTime,
-                                                        ElasticsearchException exception) {
-        ElasticsearchException error;
-        if (this.failure == null) {
-            error = exception;
-        } else {
-            error = this.failure;
-            error.addSuppressed(exception);
+    synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task,
+                                                           long expirationTime,
+                                                           ElasticsearchException reduceException) {
+        if (this.failure != null) {
+            reduceException.addSuppressed(this.failure);
         }
-        //TODO add some search response here rather than null
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), null,
-            error, isPartial, frozen == false, task.getStartTime(), expirationTime);
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), buildResponse(task.getStartTimeNanos(), null),
+            reduceException, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 
     private void failIfFrozen() {

@@ -261,7 +261,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
         Exception exc = response.getFailure();
-        assertThat(exc.getMessage(), containsString("no such index"));
+        assertThat(exc.getMessage(), containsString("error while executing search"));
+        assertThat(exc.getCause().getMessage(), containsString("no such index"));
     }
 
     public void testCancellation() throws Exception {

@@ -82,13 +82,6 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
                     if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
-                        cancelTaskIfNeeded(searchTask, searchResponse.isRunning(), searchResponse.getFailure().getMessage(),
-                            request.isKeepOnCompletion() ? () -> {} : () -> submitListener.onResponse(searchResponse.clone(null)));
-                        if (request.isKeepOnCompletion() == false) {
-                            return;
-                        }
-                        //TODO test behaviour when reduce fails and keep on completion is set to true
-
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
@@ -115,13 +108,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                                     @Override
                                     public void onFailure(Exception exc) {
-                                        cancelTaskIfNeeded(searchTask, searchResponse.isRunning(),
-                                            "fatal failure: unable to store initial response", () -> submitListener.onFailure(exc));
+                                        onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                            "fatal failure: unable to store initial response", submitListener);
                                     }
                                 });
                         } catch (Exception exc) {
-                            cancelTaskIfNeeded(searchTask, searchResponse.isRunning(),
-                                "fatal failure: generic error", () -> submitListener.onFailure(exc));
+                            onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                "fatal failure: generic error", submitListener);
                         }
                     } else {
                         // the task completed within the timeout so the response is sent back to the user
@@ -135,8 +128,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     //this will only ever be called when there's an issue scheduling the thread will invoke
                     //the completion listener once the wait for completion timeout expires
-                    cancelTaskIfNeeded(searchTask, true,
-                        "fatal failure: addCompletionListener", () -> submitListener.onFailure(exc));
+                    onFatalFailure(searchTask, exc, true,
+                        "fatal failure: addCompletionListener", submitListener);
                 }
             }, request.getWaitForCompletionTimeout());
     }
@@ -158,20 +151,21 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         return searchRequest;
     }
 
-    private void cancelTaskIfNeeded(AsyncSearchTask task, boolean shouldCancel, String cancelReason, Runnable nextAction) {
+    private void onFatalFailure(AsyncSearchTask task, Exception exc, boolean shouldCancel, String cancelReason,
+                                ActionListener<AsyncSearchResponse> listener){
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
                     task.addCompletionListener(finalResponse -> taskManager.unregister(task));
                 } finally {
-                    nextAction.run();
+                    listener.onFailure(exc);
                 }
             }, cancelReason);
         } else {
             try {
                 task.addCompletionListener(finalResponse -> taskManager.unregister(task));
             } finally {
-                nextAction.run();
+                listener.onFailure(exc);
             }
         }
     }

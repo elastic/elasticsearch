@@ -27,8 +27,8 @@ automatically applied to any backing indices created after the update.
 The following <<indices-templates,put index template API>> makes several
 changes to the `logs_data_stream` template:
 
-* It changes the `@timestamp` field mapping from the `date` field datatype to
-  the `date_nanos` datatype.
+* It changes the `@timestamp` field mapping from the `date` field data type to
+  the `date_nanos` data type.
 * It adds new `sort.field` and `sort.order` index settings.
 
 ////
@@ -111,7 +111,7 @@ PUT /_index_template/logs_data_stream
 ----
 // TEST[continued]
 
-<1>  Changes the `@timestamp` field mapping to the `date_nanos` datatype.
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` data type.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
 ====
@@ -213,8 +213,8 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 
 * The `index_patterns` wildcard pattern matches any index or data stream
   starting with `new_logs`.
-* The `@timestamp` field mapping uses the `date_nanos` field datatype rather
-  than the `date` datatype.
+* The `@timestamp` field mapping uses the `date_nanos` field data type rather
+  than the `date` data type.
 * The template includes `sort.field` and `sort.order` index settings, which were
   not in the original `logs_data_stream` template.
 
@@ -244,7 +244,7 @@ PUT /_index_template/new_logs_data_stream
 ----
 // TEST[continued]
 
-<1>  Changes the `@timestamp` field mapping to the `date_nanos` field datatype.
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` field data type.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
 ====

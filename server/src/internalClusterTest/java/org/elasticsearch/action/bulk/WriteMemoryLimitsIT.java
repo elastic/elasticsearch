@@ -172,7 +172,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
             final long secondBulkShardRequestSize = request.ramBytesUsed();
 
-            assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getCoordinatingBytes());
+            assertBusy(() -> assertEquals(bulkRequestSize + secondBulkRequestSize, replicaWriteLimits.getCoordinatingBytes()));
             assertBusy(() -> assertThat(replicaWriteLimits.getReplicaBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 

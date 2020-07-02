@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -27,18 +28,28 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     private final String resultsField;
 
     public RegressionInferenceResults(double value, InferenceConfig config) {
-        this(value, (RegressionConfig) config, Collections.emptyList());
+        this(value, config, Collections.emptyList());
     }
 
     public RegressionInferenceResults(double value, InferenceConfig config, List<FeatureImportance> featureImportance) {
-        this(value, (RegressionConfig)config, featureImportance);
+        this(value, ((RegressionConfig)config).getResultsField(),
+            ((RegressionConfig)config).getNumTopFeatureImportanceValues(), featureImportance);
     }
 
-    private RegressionInferenceResults(double value, RegressionConfig regressionConfig, List<FeatureImportance> featureImportance) {
+    public RegressionInferenceResults(double value, String resultsField) {
+        this(value, resultsField, 0, Collections.emptyList());
+    }
+
+    public RegressionInferenceResults(double value, String resultsField,
+                                      List<FeatureImportance> featureImportance) {
+        this(value, resultsField, featureImportance.size(), featureImportance);
+    }
+
+    public RegressionInferenceResults(double value, String resultsField, int topNFeatures,
+                                       List<FeatureImportance> featureImportance) {
         super(value,
-            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
-                regressionConfig.getNumTopFeatureImportanceValues()));
-        this.resultsField = regressionConfig.getResultsField();
+            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance, topNFeatures));
+        this.resultsField = resultsField;
     }
 
     public RegressionInferenceResults(StreamInput in) throws IOException {
@@ -68,6 +79,11 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
+    public Object predictedValue() {
+        return super.value();
+    }
+
+    @Override
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
@@ -79,14 +95,22 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, value());
         if (getFeatureImportance().isEmpty() == false) {
-            map.put("feature_importance", getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
+            map.put(FEATURE_IMPORTANCE, getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
         }
         return map;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(resultsField, value());
+        if (getFeatureImportance().size() > 0) {
+            builder.field(FEATURE_IMPORTANCE, getFeatureImportance());
+        }
+        return builder;
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
-
 }

@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
@@ -123,6 +124,22 @@ public class LocalModel {
             statsAccumulator.incFailure();
             listener.onFailure(e);
         }
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfigUpdate update) throws Exception {
+        AtomicReference<InferenceResults> result = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<InferenceResults> listener = ActionListener.wrap(
+            result::set,
+            exception::set
+        );
+
+        infer(fields, update, listener);
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        return result.get();
     }
 
     /**

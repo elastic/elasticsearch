@@ -121,19 +121,15 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }
 
-    private void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
+    static void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
-        docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
             docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
         } else {
-            try {
-                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
-                fail();
-            } catch (IllegalArgumentException e) {
-                for (String conflict : conflicts) {
-                    assertThat(e.getMessage(), containsString(conflict));
-                }
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
+            for (String conflict : conflicts) {
+                assertThat(e.getMessage(), containsString(conflict));
             }
         }
     }

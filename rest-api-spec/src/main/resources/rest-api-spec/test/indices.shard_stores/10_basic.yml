@@ -96,6 +96,9 @@
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              number_of_shards: "1"
+              number_of_replicas: "0"
           data_stream:
             timestamp_field: '@timestamp'
 
@@ -117,7 +120,6 @@
   - do:
       cluster.health:
         wait_for_status: green
-        index: simple-data-stream1
 
   - do:
       indices.shard_stores:

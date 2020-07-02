@@ -135,8 +135,8 @@ public abstract class AbstractRuntimeValues<SV extends AbstractRuntimeValues<SV>
 
                             @Override
                             public float matchCost() {
-                                // TODO we have no idea what this should be and no real way to get one
-                                return 1000f;
+                                // TODO we don't have a good way of estimating the complexity of the script so we just go with 9000
+                                return approximation().cost() * 9000f;
                             }
                         };
                         return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);

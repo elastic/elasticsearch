@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -1060,6 +1062,73 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(state.metadata().templatesV2().get("foo"));
 
         assertThat(metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template), equalTo(state));
+    }
+
+    public void testUnreferencedDataStreamsWhenAddingTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"), null, null,
+            100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata())
+                .put(new DataStream("logs-mysql-default",
+                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
+                    Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))))
+                .put(IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()))
+                .build())
+            .build();
+
+        // Test replacing it with a version without the data stream config
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"), null, null,
+                100L, null, null, null);
+            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs] with index patterns [logs-*-*], priority [100] and no data stream " +
+                "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"));
+
+        // Test adding a higher priority version that would cause problems
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-my*-*"), null, null,
+                105L, null, null, null);
+            service.addIndexTemplateV2(stateWithDS, false, "logs2", nonDSTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs2] with index patterns [logs-my*-*], priority [105] and no data stream " +
+                "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"));
+
+        // Change the pattern to one that doesn't match the data stream
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null, null,
+                100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs] with index patterns [logs-postgres-*], priority [100] would " +
+                "cause data streams [logs-mysql-default] to no longer match a data stream template"));
+
+        // Add an additional template that matches our data stream at a lower priority
+        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), null, null,
+            50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
+
+        // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream
+        ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null, null,
+            100L, null, null, null);
+        service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

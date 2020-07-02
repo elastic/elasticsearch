@@ -610,8 +610,8 @@ more beneficial changes instead.
 Please discuss your change in a Github issue before spending much time on its
 implementation. We sometimes have to reject contributions that duplicate other
 efforts, take the wrong approach to solving a problem, or solve a problem which
-does not need solving. An up-front discussion often saves a good deal of
-wasted time in these cases.
+does not need solving. An up-front discussion often saves a good deal of wasted
+time in these cases.
 
 We normally immediately reject isolated PRs that only perform simple
 refactorings or otherwise "tidy up" certain aspects of the code. We think the
@@ -644,7 +644,11 @@ complete your contribution, but please let us know that you have stopped
 working on it. We will try to send you a reminder if we haven't heard from you
 in a while, but may end up closing your PR if you do not respond for too long.
 
-If your contribution is rejected we will close the pull request with a comment explaining why it was rejected. If you feel we have misunderstood your intended change or otherwise feel that the contribution should be reconsidered please add a comment explaining why and we will happily reconsider.
+If your contribution is rejected we will close the pull request with a comment
+explaining why it was rejected. If you feel we have misunderstood your intended
+change or otherwise feel that the contribution should be reconsidered please
+add a comment explaining why and we will happily reconsider.
+
 Contributing as part of a class
 -------------------------------
 In general Elasticsearch is happy to accept contributions that were created as

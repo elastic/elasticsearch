@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,7 +41,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     /**
      * Set the index for this request

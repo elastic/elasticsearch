@@ -62,6 +62,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         }
 
         private boolean calcInterim = false;
+        private boolean waitForNormalization = true;
         private String start;
         private String end;
         private String advanceTime;
@@ -77,6 +78,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
+            waitForNormalization = in.readBoolean();
         }
 
         @Override
@@ -87,6 +89,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
+            out.writeBoolean(waitForNormalization);
         }
 
         public Request(String jobId) {
@@ -133,9 +136,22 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             this.skipTime = skipTime;
         }
 
+        public boolean isWaitForNormalization() {
+            return waitForNormalization;
+        }
+
+        /**
+         * Used internally. Datafeeds do not need to wait renormalization to complete before continuing.
+         *
+         * For large jobs, renormalization can take minutes, causing datafeeds to needlessly pause execution.
+         */
+        public void setWaitForNormalization(boolean waitForNormalization) {
+            this.waitForNormalization = waitForNormalization;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime, waitForNormalization);
         }
 
         @Override
@@ -149,6 +165,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) &&
                     calcInterim == other.calcInterim &&
+                    waitForNormalization == other.waitForNormalization &&
                     Objects.equals(start, other.start) &&
                     Objects.equals(end, other.end) &&
                     Objects.equals(advanceTime, other.advanceTime) &&

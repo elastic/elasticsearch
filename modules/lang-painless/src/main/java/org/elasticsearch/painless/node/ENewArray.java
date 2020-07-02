@@ -19,12 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,20 +65,20 @@ public class ENewArray extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
 
         Output output = new Output();
 
-        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        if (clazz == null) {
+        if (valueType == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
@@ -82,16 +86,15 @@ public class ENewArray extends AExpression {
         List<PainlessCast> argumentCasts = new ArrayList<>();
 
         for (AExpression expression : valueNodes) {
-            Input expressionInput = new Input();
-            expressionInput.expected = isInitializer ? clazz.getComponentType() : int.class;
-            expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, semanticScope, expressionInput);
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(isInitializer ? valueType.getComponentType() : int.class));
+            semanticScope.setCondition(expression, Internal.class);
+            Output expressionOutput = analyze(expression, classNode, semanticScope);
             argumentOutputs.add(expressionOutput);
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+            argumentCasts.add(expression.cast(semanticScope));
         }
 
-        output.actual = clazz;
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         NewArrayNode newArrayNode = new NewArrayNode();
 
@@ -100,9 +103,8 @@ public class ENewArray extends AExpression {
         }
 
         newArrayNode.setLocation(getLocation());
-        newArrayNode.setExpressionType(output.actual);
+        newArrayNode.setExpressionType(valueType);
         newArrayNode.setInitialize(isInitializer);
-
         output.expressionNode = newArrayNode;
 
         return output;

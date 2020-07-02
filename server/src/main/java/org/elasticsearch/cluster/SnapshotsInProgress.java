@@ -39,10 +39,8 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,8 +56,6 @@ import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(List.of());
-
-    private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
 
     public static final String TYPE = "snapshots";
 
@@ -95,7 +91,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
         private final List<String> dataStreams;
-        private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
         // see #useShardGenerations
@@ -114,14 +109,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.indices = indices;
             this.dataStreams = dataStreams;
             this.startTime = startTime;
-            if (shards == null) {
-                this.shards = ImmutableOpenMap.of();
-                this.waitingIndices = ImmutableOpenMap.of();
-            } else {
-                this.shards = shards;
-                this.waitingIndices = findWaitingIndices(shards);
-                assert assertShardsConsistent(state, indices, shards);
-            }
+            this.shards = shards;
+            assert assertShardsConsistent(state, indices, shards);
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
             this.userMetadata = userMetadata;
@@ -142,23 +131,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<String> dataStreams, long startTime, long repositoryStateId,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata, Version version) {
-            this(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
-                null, userMetadata, version);
-        }
-
-        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      Map<String, Object> userMetadata, Version version) {
             this(snapshot, includeGlobalState, partial, state, indices, Collections.emptyList(), startTime, repositoryStateId, shards,
                 null, userMetadata, version);
-        }
-
-        public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Version version, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.dataStreams, entry.startTime,
-                repositoryStateId, shards, failure, entry.userMetadata, version);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
@@ -194,10 +170,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public List<IndexId> indices() {
             return indices;
-        }
-
-        public ImmutableOpenMap<String, List<ShardId>> waitingIndices() {
-            return waitingIndices;
         }
 
         public boolean includeGlobalState() {
@@ -317,23 +289,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public boolean isFragment() {
             return false;
-        }
-
-        private ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
-            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
-                if (entry.value.state() == ShardState.WAITING) {
-                    waitingIndicesMap.computeIfAbsent(entry.key.getIndexName(), k -> new ArrayList<>()).add(entry.key);
-                }
-            }
-            if (waitingIndicesMap.isEmpty()) {
-                return ImmutableOpenMap.of();
-            }
-            ImmutableOpenMap.Builder<String, List<ShardId>> waitingIndicesBuilder = ImmutableOpenMap.builder();
-            for (Map.Entry<String, List<ShardId>> entry : waitingIndicesMap.entrySet()) {
-                waitingIndicesBuilder.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
-            }
-            return waitingIndicesBuilder.build();
         }
     }
 
@@ -529,14 +484,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             boolean includeGlobalState = in.readBoolean();
             boolean partial = in.readBoolean();
             State state = State.fromValue(in.readByte());
-            int indices = in.readVInt();
-            List<IndexId> indexBuilder = new ArrayList<>();
-            for (int j = 0; j < indices; j++) {
-                indexBuilder.add(new IndexId(in.readString(), in.readString()));
-            }
+            List<IndexId> indexBuilder = in.readList(IndexId::new);
             long startTime = in.readLong();
-            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
             int shards = in.readVInt();
+            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = new ShardId(in);
                 builder.put(shardId, new ShardSnapshotStatus(in));
@@ -545,15 +496,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version;
-            if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                version = Version.readVersion(in);
-            } else {
-                // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
-                // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
-                // generations.
-                version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
-            }
-
+            version = Version.readVersion(in);
             List<String> dataStreams;
             if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
                 dataStreams = in.readStringList();
@@ -598,11 +541,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeLong(entry.repositoryStateId);
             out.writeOptionalString(entry.failure);
             out.writeMap(entry.userMetadata);
-            if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                Version.writeVersion(entry.version, out);
-            } else {
-                out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
-            }
+            Version.writeVersion(entry.version, out);
             if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
                 out.writeStringCollection(entry.dataStreams);
             }

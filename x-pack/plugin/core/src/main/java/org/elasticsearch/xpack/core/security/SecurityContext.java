@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -170,10 +171,12 @@ public class SecurityContext {
             metadata = new HashMap<>(metadata);
             metadata.put(
                 API_KEY_ROLE_DESCRIPTORS_KEY,
-                XContentHelper.convertToMap((BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY), false).v2());
+                XContentHelper.convertToMap(
+                    (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY), false, XContentType.JSON).v2());
             metadata.put(
                 API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                XContentHelper.convertToMap((BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), false).v2());
+                XContentHelper.convertToMap(
+                    (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), false, XContentType.JSON).v2());
         }
         return metadata;
     }

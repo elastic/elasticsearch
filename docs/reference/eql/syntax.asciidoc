@@ -401,7 +401,7 @@ sequence with maxspan=30s
 [%collapsible]
 ====
 The following sequence query uses a `maxspan` value of `15m` (15 minutes).
-Events in a matching sequence must occur within one hour of the first event's
+Events in a matching sequence must occur within 15 minutes of the first event's
 timestamp.
 
 [source,eql]

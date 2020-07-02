@@ -181,7 +181,7 @@ public class TestTranslog {
                     fileChannel.write(bb);
                     logger.info("corruptFile: corrupting file {} at position {} turning 0x{} into 0x{}", fileToCorrupt, corruptPosition,
                         Integer.toHexString(oldValue & 0xff), Integer.toHexString(newValue & 0xff));
-                } while (fileToCorrupt.toString().endsWith(TRANSLOG_FILE_SUFFIX) && isTranslogHeaderVersionFlipped(fileToCorrupt, fileChannel));
+                } while (isTranslogHeaderVersionFlipped(fileToCorrupt, fileChannel));
 
             } else {
                 logger.info("corruptFile: truncating file {} from length {} to length {}", fileToCorrupt, fileSize, corruptPosition);
@@ -237,11 +237,14 @@ public class TestTranslog {
      * An old translog header does not have a checksum. If we flip the header version of an empty translog from 3 to 2,
      * then we won't detect that corruption, and the translog will be considered clean as before.
      */
-    static boolean isTranslogHeaderVersionFlipped(Path translogFile, FileChannel channel) throws IOException {
+    static boolean isTranslogHeaderVersionFlipped(Path corruptedFile, FileChannel channel) throws IOException {
+        if (corruptedFile.toString().endsWith(TRANSLOG_FILE_SUFFIX) == false) {
+            return false;
+        }
         channel.position(0);
         final InputStreamStreamInput in = new InputStreamStreamInput(Channels.newInputStream(channel), channel.size());
         try {
-            final int version = TranslogHeader.readHeaderVersion(translogFile, channel, in);
+            final int version = TranslogHeader.readHeaderVersion(corruptedFile, channel, in);
             return version == TranslogHeader.VERSION_CHECKPOINTS;
         } catch (IllegalStateException | TranslogCorruptedException e) {
             return false;

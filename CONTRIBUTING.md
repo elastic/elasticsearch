@@ -610,7 +610,7 @@ more beneficial changes instead.
 Please discuss your change in a Github issue before spending much time on its
 implementation. We sometimes have to reject contributions that duplicate other
 efforts, take the wrong approach to solving a problem, or solve a problem which
-does not need solving. An up-front discussion would have saved a good deal of
+does not need solving. An up-front discussion often saves a good deal of
 wasted time in these cases.
 
 We normally immediately reject isolated PRs that only perform simple

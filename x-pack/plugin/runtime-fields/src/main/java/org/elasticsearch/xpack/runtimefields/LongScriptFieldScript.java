@@ -11,8 +11,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +28,7 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
@@ -38,14 +37,8 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
 
     private final LongConsumer sync;
 
-    public LongScriptFieldScript(
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData,
-        LeafReaderContext ctx,
-        LongConsumer sync
-    ) {
-        super(params, source, fieldData, ctx);
+    public LongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, LongConsumer sync) {
+        super(params, searchLookup, ctx);
         this.sync = sync;
     }
 

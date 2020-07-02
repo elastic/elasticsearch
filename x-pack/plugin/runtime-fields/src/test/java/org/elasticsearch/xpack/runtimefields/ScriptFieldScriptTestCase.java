@@ -31,8 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ import static org.mockito.Mockito.when;
 public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScript, F, LF, R> extends ESTestCase {
     protected abstract ScriptContext<F> scriptContext();
 
-    protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+    protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SearchLookup searchLookup);
 
     protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
 
@@ -67,14 +66,13 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
         });
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
         Map<String, Object> params = new HashMap<>();
-        SourceLookup source = new SourceLookup();
         MapperService mapperService = mock(MapperService.class);
         for (MappedFieldType type : types) {
             when(mapperService.fieldType(type.name())).thenReturn(type);
         }
         Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
             .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
-        DocLookup fieldData = new DocLookup(mapperService, fieldDataLookup);
+        SearchLookup searchLookup = new SearchLookup(mapperService, fieldDataLookup);
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             F factory = AccessController.doPrivileged(
                 (PrivilegedAction<F>) () -> scriptService.compile(new Script(script), scriptContext())
@@ -84,7 +82,7 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                 indexBuilder.accept(indexWriter);
                 try (DirectoryReader reader = indexWriter.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    LF leafFactory = newLeafFactory(factory, params, source, fieldData);
+                    LF leafFactory = newLeafFactory(factory, params, searchLookup);
                     List<R> result = new ArrayList<>();
                     searcher.search(new MatchAllDocsQuery(), new Collector() {
                         @Override
@@ -97,10 +95,10 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
                             S compiled = newInstance(leafFactory, context, result);
                             return new LeafCollector() {
                                 @Override
-                                public void setScorer(Scorable scorer) throws IOException {}
+                                public void setScorer(Scorable scorer) {}
 
                                 @Override
-                                public void collect(int doc) throws IOException {
+                                public void collect(int doc) {
                                     compiled.setDocument(doc);
                                     compiled.execute();
                                 }

@@ -16,8 +16,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -107,10 +106,9 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     protected DoubleScriptFieldScript.LeafFactory newLeafFactory(
         DoubleScriptFieldScript.Factory factory,
         Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData
+        SearchLookup searchLookup
     ) {
-        return factory.newFactory(params, source, fieldData);
+        return factory.newFactory(params, searchLookup);
     }
 
     @Override

@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -208,7 +209,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
+        IFD indexFieldData = (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
+        //TODO this is a temporary hack to inject search lookup to the scripted fielddata
+        // implementations without changing MappedFieldType#fielddataBuilder signature, as that would cause daily merge conflicts
+        if (indexFieldData instanceof SearchLookupAware) {
+            ((SearchLookupAware) indexFieldData).setSearchLookup(lookup());
+        }
+        return indexFieldData;
     }
 
     public void addNamedQuery(String name, Query query) {

@@ -941,7 +941,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 result.topDocs(new TopDocsAndMaxScore(
                         new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
-                InternalAggregations aggs = new InternalAggregations(
+                InternalAggregations aggs = InternalAggregations.from(
                     Collections.singletonList(new InternalThrowing("test", (failedIndex == index), Collections.emptyMap())));
                 result.aggregations(aggs);
                 result.setShardIndex(index);

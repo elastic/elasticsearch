@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 /**
@@ -40,15 +42,28 @@ public class TextSearchInfo {
      *
      * Note that the results of {@link #isStored()} for this may not be accurate
      */
-    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null);
+    public static final TextSearchInfo SIMPLE_MATCH_ONLY
+        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+
+    /**
+     * Defines indexing information for fields that index as keywords, but split query input
+     * on whitespace to build disjunctions.
+     *
+     * Note that the results of {@link #isStored()} for this may not be accurate
+     */
+    public static final TextSearchInfo WHITESPACE_MATCH_ONLY
+        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
 
     /**
      * Specifies that this field does not support text searching of any kind
      */
-    public static final TextSearchInfo NONE = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null);
+    public static final TextSearchInfo NONE
+        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, null, null);
 
     private final FieldType luceneFieldType;
     private final SimilarityProvider similarity;
+    private final NamedAnalyzer searchAnalyzer;
+    private final NamedAnalyzer searchQuoteAnalyzer;
 
     /**
      * Create a new TextSearchInfo
@@ -57,13 +72,24 @@ public class TextSearchInfo {
      * @param similarity        defines which Similarity to use when searching.  If set to {@code null}
      *                          then the default Similarity will be used.
      */
-    public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity) {
+    public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity,
+                          NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer) {
         this.luceneFieldType = luceneFieldType;
         this.similarity = similarity;
+        this.searchAnalyzer = searchAnalyzer;
+        this.searchQuoteAnalyzer = searchQuoteAnalyzer;
     }
 
     public SimilarityProvider getSimilarity() {
         return similarity;
+    }
+
+    public NamedAnalyzer getSearchAnalyzer() {
+        return searchAnalyzer;
+    }
+
+    public NamedAnalyzer getSearchQuoteAnalyzer() {
+        return searchQuoteAnalyzer;
     }
 
     /**

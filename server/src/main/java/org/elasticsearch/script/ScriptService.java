@@ -443,7 +443,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return scriptMetadata.getStoredScripts();
     }
 
-    StoredScriptSource getScriptFromClusterState(String id) {
+    protected StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {

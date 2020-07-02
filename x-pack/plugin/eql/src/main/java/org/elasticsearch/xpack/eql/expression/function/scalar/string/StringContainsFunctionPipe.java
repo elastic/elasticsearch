@@ -19,11 +19,13 @@ import java.util.Objects;
 public class StringContainsFunctionPipe extends Pipe {
 
     private final Pipe string, substring;
+    private final boolean isCaseSensitive;
 
-    public StringContainsFunctionPipe(Source source, Expression expression, Pipe string, Pipe substring) {
+    public StringContainsFunctionPipe(Source source, Expression expression, Pipe string, Pipe substring, boolean isCaseSensitive) {
         super(source, expression, Arrays.asList(string, substring));
         this.string = string;
         this.substring = substring;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     @Override
@@ -55,7 +57,7 @@ public class StringContainsFunctionPipe extends Pipe {
     }
 
     protected StringContainsFunctionPipe replaceChildren(Pipe string, Pipe substring) {
-        return new StringContainsFunctionPipe(source(), expression(), string, substring);
+        return new StringContainsFunctionPipe(source(), expression(), string, substring, isCaseSensitive);
     }
 
     @Override
@@ -66,12 +68,12 @@ public class StringContainsFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<StringContainsFunctionPipe> info() {
-        return NodeInfo.create(this, StringContainsFunctionPipe::new, expression(), string, substring);
+        return NodeInfo.create(this, StringContainsFunctionPipe::new, expression(), string, substring, isCaseSensitive);
     }
 
     @Override
     public StringContainsFunctionProcessor asProcessor() {
-        return new StringContainsFunctionProcessor(string.asProcessor(), substring.asProcessor());
+        return new StringContainsFunctionProcessor(string.asProcessor(), substring.asProcessor(), isCaseSensitive);
     }
 
     public Pipe string() {
@@ -82,6 +84,9 @@ public class StringContainsFunctionPipe extends Pipe {
         return substring;
     }
 
+    protected boolean isCaseSensitive() {
+        return isCaseSensitive;
+    }
 
     @Override
     public int hashCode() {

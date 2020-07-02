@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.ingest.IngestDocument;
 
-public interface InferenceResults extends NamedWriteable {
+public interface InferenceResults extends NamedWriteable, ToXContentFragment {
 
     void writeResult(IngestDocument document, String parentResultField);
 
+    Object predictedValue();
 }

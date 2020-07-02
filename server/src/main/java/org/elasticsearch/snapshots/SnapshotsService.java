@@ -854,24 +854,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final String repository = snapshot.getRepository();
+            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
+                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                entry.dataStreams(),
+                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
+                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
+                entry.includeGlobalState(), entry.userMetadata());
             repositoriesService.repository(snapshot.getRepository()).finalizeSnapshot(
-                    snapshot.getSnapshotId(),
                     shardGenerations,
-                    entry.startTime(),
-                    failure,
-                    entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
-                    unmodifiableList(shardFailures),
-                    repositoryData.getGenId(),
-                    entry.includeGlobalState(),
+            repositoryData.getGenId(),
                     metadataForSnapshot(entry, metadata),
-                    entry.userMetadata(),
+                    snapshotInfo,
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
-                    ActionListener.wrap(result -> {
+                    ActionListener.wrap(newRepoData -> {
                         endingSnapshots.remove(snapshot);
-                        completeListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), result);
-                        logger.info("snapshot [{}] completed with state [{}]", snapshot, result.v2().state());
-                        runNextQueuedOperation(result.v1(), repository, true);
+                        completeListenersIgnoringException(
+                            snapshotCompletionListeners.remove(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                        runNextQueuedOperation(newRepoData, repository, true);
                     }, e -> handleFinalizationFailure(e, entry, repositoryData)));
         } catch (Exception e) {
             assert false : new AssertionError(e);

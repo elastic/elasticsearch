@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class InternalInferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -64,5 +65,10 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, Version version) {
+        return instance;
     }
 }

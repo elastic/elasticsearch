@@ -201,7 +201,7 @@ The `process.args_count` field is a <<number,`long`>> integer field containing a
 count of process arguments.
 
 A user might expect the following EQL query to only match events with a
-`process.args_count` value of `4`. 
+`process.args_count` value of `4`.
 
 [source,eql]
 ----
@@ -361,7 +361,7 @@ sequence
 .*Example*
 [%collapsible]
 ====
-The following EQL query matches this series of ordered events:
+The following EQL sequence query matches this series of ordered events:
 
 . Start with an event with:
 +
@@ -379,6 +379,43 @@ sequence
 ----
 ====
 
+[discrete]
+[[eql-with-maxspan-keywords]]
+==== `with maxspan` keywords
+
+You can use the `with maxspan` keywords to constrain a sequence to a specified
+timespan. All events in a matching sequence occur within this duration, starting
+at the first event's timestamp.
+
+The `maxspan` keyword accepts <<time-units,time value>> arguments.
+
+[source,eql]
+----
+sequence with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses a `maxspan` value of `1h` (one hour). Events
+in a matching sequence must occur within one hour of the first event's
+timestamp.
+
+[source,eql]
+----
+sequence with maxspan=1h
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+[discrete]
+[[eql-by-keyword]]
+==== `by` keyword
+
 You can use the `by` keyword with sequences to only match events that share the
 same field values. If a field value should be shared across all events, you
 can use `sequence by`.
@@ -394,7 +431,8 @@ sequence by field_foo
 .*Example*
 [%collapsible]
 ====
-The following sequence uses the `by` keyword to constrain matching events to:
+The following sequence query uses the `by` keyword to constrain matching events
+to:
 
 * Events with the same `user.name` value
 * `file` events with a `file.path` value equal to the following `process`
@@ -414,6 +452,34 @@ prior one.
 [source,eql]
 ----
 sequence by user.name
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+You can combine the `sequence by` and `with maxspan` keywords to constrain a 
+sequence by both field values and timespan.
+
+[source,eql]
+----
+sequence by field_foo with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses the `sequence by` keyword and `with maxspan`
+keywords to match only a sequence of events that:
+
+* Share the same `user.name` field value
+* Occur within `15m` (15 minutes) of the first matching event
+
+[source,eql]
+----
+sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----

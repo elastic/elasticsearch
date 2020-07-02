@@ -31,7 +31,7 @@ POST /_search <1>
         }
     },
     "search_context": {
-	    "id":  "46ToAwEHdHdpdHRlchZSa1dRZDFELVNLbTZkQVJudUtGMFFnAAAWNVAwS09JWTdTRUdibWE1ZC1id0tjQRRURnhPWjNFQmI3bmVOeVZReS1tRAAAAAAAAAAB", <2>
+	    "id":  "y_auAwMDaWR4BXV1aWQxAgEJY2x1c3Rlcl94Bm5vZGVfMQFhAAAAAAAAAAEDaWR5BXV1aWQyKgEJY2x1c3Rlcl95Bm5vZGVfMgFiAAAAAAAAAAwDaWR5BXV1aWQyKwAGbm9kZV8zAWMAAAAAAAAAKgEFdXVpZDIAAA==", <2>
 	    "keep_alive": "1m"  <3>
     }
 }
@@ -90,7 +90,7 @@ explicitly closed as soon as they are no longer used in search requests.
 ---------------------------------------
 DELETE /_search_context
 {
-    "id" : "46ToAwEHdHdpdHRlchZSa1dRZDFELVNLbTZkQVJudUtGMFFnAAAWNVAwS09JWTdTRUdibWE1ZC1id0tjQRRURnhPWjNFQmI3bmVOeVZReS1tRAAAAAAAAAAB"
+    "id" : "46ToAwMDaWR4BXV1aWQxAgEJY2x1c3Rlcl94Bm5vZGVfMQFhAAAAAAAAAAEDaWR5BXV1aWQyKgEJY2x1c3Rlcl95Bm5vZGVfMgFiAAAAAAAAAAwDaWR5BXV1aWQyKwAGbm9kZV8zAWMAAAAAAAAAKgIFdXVpZDIAAAV1dWlkMQAA"
 }
 ---------------------------------------
 // TEST[catch:missing]

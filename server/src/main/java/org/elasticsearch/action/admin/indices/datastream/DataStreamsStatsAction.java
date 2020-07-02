@@ -313,9 +313,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
-                    logger.info("shard[{}:{}] has max value {}", shardRouting.getIndexName(), shardRouting.getId(), maxTimestamp);
-                } else {
-                    logger.info("shard[{}:{}] has null max value", shardRouting.getIndexName(), shardRouting.getId());
                 }
             }
             return new DataStreamShardStats(
@@ -353,8 +350,6 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 // Aggregate data stream stats
                 AggregatedStats stats = dataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
-                logger.info("shard[{}:{}] max stamp [{}]", shardStat.getShardRouting().getIndexName(), shardStat.getShardRouting().getId(),
-                    shardStat.getMaxTimestamp());
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
                 stats.backingIndices.add(indexName);
             }

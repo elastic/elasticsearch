@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -112,23 +113,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
+    private final WriteMemoryLimits writeMemoryLimits;
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex) {
+                               AutoCreateIndex autoCreateIndex, WriteMemoryLimits writeMemoryLimits) {
         this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
+            indexNameExpressionResolver, autoCreateIndex, writeMemoryLimits, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.WRITE);
+                               AutoCreateIndex autoCreateIndex, WriteMemoryLimits writeMemoryLimits, LongSupplier relativeTimeProvider) {
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -139,6 +141,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.writeMemoryLimits = writeMemoryLimits;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -149,7 +152,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * @param docWriteRequest The request to find the {@link IndexRequest}
      * @return the found {@link IndexRequest} or {@code null} if one can not be found.
      */
-    public static IndexRequest getIndexWriteRequest(DocWriteRequest docWriteRequest) {
+    public static IndexRequest getIndexWriteRequest(DocWriteRequest<?> docWriteRequest) {
         IndexRequest indexRequest = null;
         if (docWriteRequest instanceof IndexRequest) {
             indexRequest = (IndexRequest) docWriteRequest;
@@ -162,6 +165,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        long indexingBytes = bulkRequest.ramBytesUsed();
+        final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
+        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            doInternalExecute(task, bulkRequest, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
+    }
+
+    protected void doInternalExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
@@ -749,7 +763,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
                             assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
-                            doExecute(task, bulkRequest, actionListener);
+                            doInternalExecute(task, bulkRequest, actionListener);
                         } else {
                             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                                 @Override
@@ -759,7 +773,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 protected void doRun() throws Exception {
-                                    doExecute(task, bulkRequest, actionListener);
+                                    doInternalExecute(task, bulkRequest, actionListener);
                                 }
 
                                 @Override

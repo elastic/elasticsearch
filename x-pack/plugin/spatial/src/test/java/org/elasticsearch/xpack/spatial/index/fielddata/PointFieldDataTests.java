@@ -13,8 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLeafPointFieldData;
 
 import java.util.List;

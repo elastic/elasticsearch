@@ -52,12 +52,12 @@ public class RSquared implements EvaluationMetric {
         "return diff * diff;";
     private static final String SS_RES = "residual_sum_of_squares";
 
-    private static String buildScript(Object... args) {
+    private static String buildScript(Object...args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
     private static final ObjectParser<RSquared, Void> PARSER =
-        new ObjectParser<>("r_squared", true, RSquared::new);
+        new ObjectParser<>(NAME.getPreferredName(), true, RSquared::new);
 
     public static RSquared fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -114,7 +114,6 @@ public class RSquared implements EvaluationMetric {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
     }
 
     @Override
@@ -187,7 +186,7 @@ public class RSquared implements EvaluationMetric {
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(value);
+            return Double.hashCode(value);
         }
     }
 }

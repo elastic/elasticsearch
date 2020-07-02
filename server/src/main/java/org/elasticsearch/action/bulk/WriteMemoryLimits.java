@@ -43,12 +43,26 @@ public class WriteMemoryLimits {
     }
 
     public Releasable markWriteOperationStarted(long bytes) {
-        long currentBytes = writeBytes.addAndGet(bytes);
-        if (currentBytes > writeLimits) {
-            writeBytes.getAndAdd(-bytes);
-            throw new EsRejectedExecutionException();
+        return markWriteOperationStarted(bytes, false);
+    }
+
+    public Releasable markWriteOperationStarted(long bytes, boolean forceExecution) {
+        long writeBytes = this.writeBytes.addAndGet(bytes);
+        long replicaWriteBytes = this.replicaWriteBytes.get();
+        long totalBytes = writeBytes + replicaWriteBytes;
+        long localWriteLimits = this.writeLimits;
+        if (forceExecution == false && totalBytes > localWriteLimits) {
+            long bytesWithoutOperation = writeBytes - bytes;
+            long totalBytesWithoutOperation = totalBytes - bytes;
+            this.writeBytes.getAndAdd(-bytes);
+            throw new EsRejectedExecutionException("rejected execution of write operation [" +
+                "write_bytes=" + bytesWithoutOperation + ", " +
+                "replica_write_bytes=" + replicaWriteBytes + ", " +
+                "total_write_bytes=" + totalBytesWithoutOperation + ", " +
+                "current_operation_bytes=" + bytes + ", " +
+                "max_write_bytes=" + localWriteLimits + "]", false);
         }
-        return () -> writeBytes.getAndAdd(-bytes);
+        return () -> this.writeBytes.getAndAdd(-bytes);
     }
 
     public long getWriteBytes() {

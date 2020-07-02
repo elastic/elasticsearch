@@ -80,7 +80,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
     }
 
     @Override
@@ -90,7 +90,7 @@ public abstract class TransportWriteAction<
         if (rerouteWasLocal) {
             return () -> {};
         } else {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
         }
     }
 

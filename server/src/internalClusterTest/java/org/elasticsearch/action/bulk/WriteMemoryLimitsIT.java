@@ -26,7 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -42,20 +45,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
     public static final String INDEX_NAME = "test";
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            // Need at least two threads because we are going to block one
-            .put("thread_pool.write.size", 2)
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -78,28 +73,13 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
         ensureGreen(INDEX_NAME);
 
-        IndicesStatsResponse response = client().admin().indices().prepareStats(INDEX_NAME).get();
-        String primaryId = Stream.of(response.getShards())
-            .map(ShardStats::getShardRouting)
-            .filter(ShardRouting::primary)
-            .findAny()
-            .get()
-            .currentNodeId();
-        String replicaId = Stream.of(response.getShards())
-            .map(ShardStats::getShardRouting)
-            .filter(sr -> sr.primary() == false)
-            .findAny()
-            .get()
-            .currentNodeId();
-        DiscoveryNodes nodes = client().admin().cluster().prepareState().get().getState().nodes();
-        String primaryName = nodes.get(primaryId).getName();
-        String replicaName = nodes.get(replicaId).getName();
-        String coordinatingOnlyNode = nodes.getCoordinatingOnlyNodes().iterator().next().value.getName();
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
         final CountDownLatch replicationSendPointReached = new CountDownLatch(1);
         final CountDownLatch latchBlockingReplicationSend = new CountDownLatch(1);
-        final CountDownLatch newActionsSendPointReached = new CountDownLatch(2);
-        final CountDownLatch latchBlockingReplication = new CountDownLatch(1);
 
         TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
         final MockTransportService primaryTransportService = (MockTransportService) primaryService;
@@ -117,6 +97,9 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
+
+        final ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
+        final Releasable replicaRelease = blockReplicas(replicaThreadPool);
 
         final BulkRequest bulkRequest = new BulkRequest();
         int totalRequestSize = 0;
@@ -146,25 +129,6 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(bulkRequestSize, coordinatingWriteLimits.getWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
 
-            ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
-            // Block the replica Write thread pool
-            replicaThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
-                try {
-                    newActionsSendPointReached.countDown();
-                    latchBlockingReplication.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            });
-            replicaThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
-                try {
-                    newActionsSendPointReached.countDown();
-                    latchBlockingReplication.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            });
-            newActionsSendPointReached.await();
             latchBlockingReplicationSend.countDown();
 
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
@@ -195,7 +159,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertBusy(() -> assertThat(replicaWriteLimits.getReplicaWriteBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 
-            latchBlockingReplication.countDown();
+            replicaRelease.close();
 
             successFuture.actionGet();
             secondFuture.actionGet();
@@ -210,16 +174,204 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             if (replicationSendPointReached.getCount() > 0) {
                 replicationSendPointReached.countDown();
             }
-            while (newActionsSendPointReached.getCount() > 0) {
-                newActionsSendPointReached.countDown();
-            }
+            replicaRelease.close();
             if (latchBlockingReplicationSend.getCount() > 0) {
                 latchBlockingReplicationSend.countDown();
             }
-            if (latchBlockingReplication.getCount() > 0) {
-                latchBlockingReplication.countDown();
-            }
+            replicaRelease.close();
             primaryTransportService.clearAllRules();
         }
+    }
+
+    public void testWriteCanBeRejectedAtCoordinatingLevel() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        int totalRequestSize = 0;
+        for (int i = 0; i < 80; ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            totalRequestSize += request.ramBytesUsed();
+            assertTrue(request.ramBytesUsed() > request.source().length());
+            bulkRequest.add(request);
+        }
+
+        final long bulkRequestSize = bulkRequest.ramBytesUsed();
+        final long bulkShardRequestSize = totalRequestSize;
+
+        final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+
+        try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
+            final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+
+            WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
+            WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
+            WriteMemoryLimits coordinatingWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, coordinatingOnlyNode);
+
+            assertBusy(() -> {
+                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+                assertEquals(0, replicaWriteLimits.getWriteBytes());
+                assertThat(replicaWriteLimits.getReplicaWriteBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(bulkRequestSize, coordinatingWriteLimits.getWriteBytes());
+                assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            });
+
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), bulkShardRequestSize + "B");
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            final BulkRequest rejectedBulkRequest = new BulkRequest();
+            rejectedBulkRequest.add(request);
+
+            expectThrows(EsRejectedExecutionException.class, () -> {
+                if (randomBoolean()) {
+                    client(coordinatingOnlyNode).bulk(rejectedBulkRequest).actionGet();
+                } else if (randomBoolean()) {
+                    client(primaryName).bulk(rejectedBulkRequest).actionGet();
+                } else {
+                    client(replicaName).bulk(rejectedBulkRequest).actionGet();
+                }
+            });
+
+            replicaRelease.close();
+
+            successFuture.actionGet();
+
+            assertEquals(0, primaryWriteLimits.getWriteBytes());
+            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, replicaWriteLimits.getWriteBytes());
+            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, coordinatingWriteLimits.getWriteBytes());
+            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+        } finally {
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        }
+    }
+
+    public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        int totalRequestSize = 0;
+        for (int i = 0; i < 80; ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            totalRequestSize += request.ramBytesUsed();
+            assertTrue(request.ramBytesUsed() > request.source().length());
+            bulkRequest.add(request);
+        }
+
+        final long bulkShardRequestSize = totalRequestSize;
+
+        final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+
+        try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
+            final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
+
+            WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
+            WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
+            WriteMemoryLimits coordinatingWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, coordinatingOnlyNode);
+
+            assertBusy(() -> {
+                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+                assertEquals(0, replicaWriteLimits.getWriteBytes());
+                assertThat(replicaWriteLimits.getReplicaWriteBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, coordinatingWriteLimits.getWriteBytes());
+                assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            });
+
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), bulkShardRequestSize + "B");
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            final BulkRequest rejectedBulkRequest = new BulkRequest();
+            rejectedBulkRequest.add(request);
+
+            BulkResponse responses = client(coordinatingOnlyNode).bulk(rejectedBulkRequest).actionGet();
+            assertTrue(responses.hasFailures());
+            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+
+            replicaRelease.close();
+
+            successFuture.actionGet();
+
+            assertEquals(0, primaryWriteLimits.getWriteBytes());
+            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, replicaWriteLimits.getWriteBytes());
+            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, coordinatingWriteLimits.getWriteBytes());
+            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+        } finally {
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        }
+    }
+
+    private String getCoordinatingOnlyNode() {
+        return client().admin().cluster().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().iterator().next()
+            .value.getName();
+    }
+
+    private Tuple<String, String> getPrimaryReplicaNodeNames() {
+        IndicesStatsResponse response = client().admin().indices().prepareStats(INDEX_NAME).get();
+        String primaryId = Stream.of(response.getShards())
+            .map(ShardStats::getShardRouting)
+            .filter(ShardRouting::primary)
+            .findAny()
+            .get()
+            .currentNodeId();
+        String replicaId = Stream.of(response.getShards())
+            .map(ShardStats::getShardRouting)
+            .filter(sr -> sr.primary() == false)
+            .findAny()
+            .get()
+            .currentNodeId();
+        DiscoveryNodes nodes = client().admin().cluster().prepareState().get().getState().nodes();
+        String primaryName = nodes.get(primaryId).getName();
+        String replicaName = nodes.get(replicaId).getName();
+        return new Tuple<>(primaryName, replicaName);
+    }
+
+    private Releasable blockReplicas(ThreadPool threadPool) {
+        final CountDownLatch blockReplication = new CountDownLatch(1);
+        final int threads = threadPool.info(ThreadPool.Names.WRITE).getMax();
+        final CountDownLatch pointReached = new CountDownLatch(threads);
+        for (int i = 0; i< threads; ++i) {
+            threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+                try {
+                    pointReached.countDown();
+                    blockReplication.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+        }
+
+        return () -> {
+            if (blockReplication.getCount() > 0) {
+                blockReplication.countDown();
+            }
+        };
     }
 }

@@ -645,9 +645,10 @@ working on it. We will try to send you a reminder if we haven't heard from you
 in a while, but may end up closing your PR if you do not respond for too long.
 
 If your contribution is rejected we will close the pull request with a comment
-explaining why it was rejected. If you feel we have misunderstood your intended
-change or otherwise feel that the contribution should be reconsidered please
-add a comment explaining why and we will happily reconsider.
+explaining why. This decision isn't always final: if you feel we have
+misunderstood your intended change or otherwise think that we should reconsider
+then please continue the conversation with a comment on the pull request and
+we'll do our best to address any further points you raise.
 
 Contributing as part of a class
 -------------------------------

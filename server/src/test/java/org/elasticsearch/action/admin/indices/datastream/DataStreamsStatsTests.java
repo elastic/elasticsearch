@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.stats;
+package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;

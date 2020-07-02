@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.stats;
+package org.elasticsearch.action.admin.indices.datastream;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;

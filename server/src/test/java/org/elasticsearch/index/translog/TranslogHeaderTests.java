@@ -36,6 +36,7 @@ import java.nio.file.StandardOpenOption;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -142,11 +143,7 @@ public class TranslogHeaderTests extends ESTestCase {
                 TranslogHeader.read(randomValueOtherThan(translogUUID, UUIDs::randomBase64UUID), translogFile, channel);
             }
         });
-        if (error instanceof IllegalStateException) {
-            assertThat(error.getMessage(), equalTo("pre-2.0 translog found [" + translogFile + "]"));
-        } else {
-            assertThat(error, instanceOf(TranslogCorruptedException.class));
-        }
+        assertThat(error, either(instanceOf(IllegalStateException.class)).or(instanceOf(TranslogCorruptedException.class)));
     }
 
     private <E extends Exception> void checkFailsToOpen(String file, Class<E> expectedErrorType, String expectedMessage) {

@@ -148,7 +148,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String id = randomAlphaOfLength(12);
         final String key = randomAlphaOfLength(16);
 
-        mockKeyDocument(service, id, key, new User("hulk", "superuser"));
+        final User user;
+        if (randomBoolean()) {
+            user = new User("hulk", new String[] { "superuser" }, new User("authenticated_user", new String[] { "other" }));
+        } else {
+            user = new User("hulk", new String[] { "superuser" });
+        }
+        mockKeyDocument(service, id, key, user);
 
         final AuthenticationResult auth = tryAuthenticate(service, id, key);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));
@@ -167,7 +173,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String id = randomAlphaOfLength(12);
         final String key = randomAlphaOfLength(16);
 
-        mockKeyDocument(service, id, key, new User(randomAlphaOfLength(6), randomAlphaOfLength(12)));
+        final User user;
+        if (randomBoolean()) {
+            user = new User(randomAlphaOfLength(6), new String[] { randomAlphaOfLength(12) }, new User("authenticated_user",
+                    new String[] { "other" }));
+        } else {
+            user = new User(randomAlphaOfLength(6), new String[] { randomAlphaOfLength(12) });
+        }
+        mockKeyDocument(service, id, key, user);
 
         when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
         final AuthenticationResult auth = tryAuthenticate(service, id, key);
@@ -198,7 +211,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String realKey = randomAlphaOfLength(16);
         final String wrongKey = "#" + realKey.substring(1);
 
-        mockKeyDocument(service, id, realKey, new User("hulk", "superuser"));
+        final User user;
+        if (randomBoolean()) {
+            user = new User("hulk", new String[] { "superuser" }, new User("authenticated_user", new String[] { "other" }));
+        } else {
+            user = new User("hulk", new String[] { "superuser" });
+        }
+        mockKeyDocument(service, id, realKey, user);
 
         final AuthenticationResult auth = tryAuthenticate(service, id, wrongKey);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
@@ -231,7 +250,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String id = randomAlphaOfLength(12);
         final String realKey = randomAlphaOfLength(16);
 
-        mockKeyDocument(service, id, realKey, new User("hulk", "superuser"));
+        final User user;
+        if (randomBoolean()) {
+            user = new User("hulk", new String[] { "superuser" }, new User("authenticated_user", new String[] { "other" }));
+        } else {
+            user = new User("hulk", new String[] { "superuser" });
+        }
+        mockKeyDocument(service, id, realKey, user);
 
         for (int i = 0; i < 3; i++) {
             final String wrongKey = "=" + randomAlphaOfLength(14) + "@";
@@ -253,8 +278,17 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     private void mockKeyDocument(ApiKeyService service, String id, String key, User user, boolean invalidated,
                                  Duration expiry) throws IOException {
-        final Authentication authentication = new Authentication(user, new RealmRef("realm1", "native",
-            "node01"), null, Version.CURRENT);
+        final Authentication authentication;
+        if (user.isRunAs()) {
+            authentication = new Authentication(user, new RealmRef("authRealm", "test", "foo"),
+                    new RealmRef("realm1", "native", "node01"), Version.CURRENT,
+                    randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
+                            AuthenticationType.ANONYMOUS), Collections.emptyMap());
+        } else {
+            authentication = new Authentication(user, new RealmRef("realm1", "native", "node01"), null,
+                    Version.CURRENT, randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
+                            AuthenticationType.ANONYMOUS), Collections.emptyMap());
+        }
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), null,
             Version.CURRENT);

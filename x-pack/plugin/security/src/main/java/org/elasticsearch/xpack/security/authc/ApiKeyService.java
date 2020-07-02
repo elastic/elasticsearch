@@ -228,12 +228,10 @@ public class ApiKeyService {
         }
     }
 
-    /**
-     * package protected for testing
-     */
-    XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
-                                        Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
-                                        Version version) throws IOException {
+    // public for test
+    public XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
+                                          Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
+                                          Version version) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -494,7 +492,8 @@ public class ApiKeyService {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
     }
 
-    private void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    // public for test
+    public void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
         if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
@@ -585,12 +584,12 @@ public class ApiKeyService {
         }
     }
 
-    // package private class for testing
-    static final class ApiKeyCredentials implements Closeable {
+    // public class for testing
+    public static final class ApiKeyCredentials implements Closeable {
         private final String id;
         private final SecureString key;
 
-        ApiKeyCredentials(String id, SecureString key) {
+        public ApiKeyCredentials(String id, SecureString key) {
             this.id = id;
             this.key = key;
         }

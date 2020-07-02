@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 
+/**
+ * Manages the creation of doc values and queries for {@code double} fields.
+ */
 public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRuntimeValues.SharedValues> {
     @FunctionalInterface
     public interface NewLeafLoader {

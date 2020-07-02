@@ -27,6 +27,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
+/**
+ * Manages the creation of doc values and queries for {@link String} fields.
+ */
 public final class StringRuntimeValues extends AbstractRuntimeValues<StringRuntimeValues.SharedValues> {
     @FunctionalInterface
     public interface NewLeafLoader {

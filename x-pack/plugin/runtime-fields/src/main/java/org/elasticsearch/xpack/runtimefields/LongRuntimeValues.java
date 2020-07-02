@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
+/**
+ * Manages the creation of doc values and queries for {@code long} fields.
+ */
 public final class LongRuntimeValues extends AbstractRuntimeValues<LongRuntimeValues.SharedValues> {
     @FunctionalInterface
     public interface NewLeafLoader {

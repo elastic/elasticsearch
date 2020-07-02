@@ -257,7 +257,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
                 ".ds-foo_logs-000002"));
 
-            // include all wildcard
+            // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("*"));
             assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
                 ".ds-foo_logs-000002"));
@@ -274,7 +274,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
                 ".ds-foo_logs-000002"));
 
-            // include all wildcard adds the data stream and the expanded hidden backing indices
+            // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("*"));
             assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
                 ".ds-foo_logs-000002"));

@@ -665,13 +665,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
         final String masterNode = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = new NetworkDisruption(
+        return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
                 Collections.singleton(masterNode),
                 Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
                     .collect(Collectors.toSet())), disruptionType);
-        internalCluster().setDisruptionScheme(networkDisruption);
-        return networkDisruption;
     }
 
     /**

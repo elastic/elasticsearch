@@ -7,6 +7,7 @@ import org.gradle.api.Task;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Exec;
+import org.gradle.api.tasks.Internal;
 import org.gradle.process.BaseExecSpec;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
@@ -65,6 +66,7 @@ public class LoggedExec extends Exec {
         }
     }
 
+    @Internal
     public void setSpoolOutput(boolean spoolOutput) {
         final OutputStream out;
         if (spoolOutput) {

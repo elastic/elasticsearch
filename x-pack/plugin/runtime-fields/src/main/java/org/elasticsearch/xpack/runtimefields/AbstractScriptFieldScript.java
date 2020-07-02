@@ -41,6 +41,9 @@ public abstract class AbstractScriptFieldScript {
         onSetDocId(docId);
     }
 
+    /**
+     * Optional hook for the script to take extra actions when moving to a document.
+     */
     protected void onSetDocId(int docId) {}
 
     /**

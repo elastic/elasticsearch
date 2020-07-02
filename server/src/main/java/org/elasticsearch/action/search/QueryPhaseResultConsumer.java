@@ -194,7 +194,7 @@ class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult
         if (hasAggs) {
             InternalAggregations result = InternalAggregations.topLevelReduce(aggsToConsume,
                 aggReduceContextBuilder.forPartialReduction());
-            newAggs = DelayableWriteable.referencing(result).asSerialized(InternalAggregations::new, namedWriteableRegistry);
+            newAggs = DelayableWriteable.referencing(result).asSerialized(InternalAggregations::readFrom, namedWriteableRegistry);
             long previousBufferSize = aggsCurrentBufferSize;
             aggsCurrentBufferSize = newAggs.ramBytesUsed();
             aggsMaxBufferSize = Math.max(aggsCurrentBufferSize, aggsMaxBufferSize);

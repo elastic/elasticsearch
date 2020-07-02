@@ -706,7 +706,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -769,7 +769,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -973,7 +973,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("mapping fields [field2] cannot be replaced during template composition"));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     /**
@@ -1037,7 +1037,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("mapping fields [field2] cannot be replaced during template composition"));
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
     }
 
     public void testPutExistingComponentTemplateIsNoop() throws Exception {

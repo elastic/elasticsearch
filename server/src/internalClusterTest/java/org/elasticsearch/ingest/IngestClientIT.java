@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,7 +63,7 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (nodeOrdinal % 2 == 0) {
-            return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
+            return Settings.builder().put(nonIngestNode()).put(super.nodeSettings(nodeOrdinal)).build();
         }
         return super.nodeSettings(nodeOrdinal);
     }

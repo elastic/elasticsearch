@@ -75,7 +75,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
         this.license = mock(XPackLicenseState.class);
         when(license.isSecurityEnabled()).thenReturn(true);
-        when(license.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(license.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {

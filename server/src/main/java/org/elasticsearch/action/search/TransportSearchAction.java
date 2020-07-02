@@ -642,9 +642,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private void cancelTask(SearchTask task, Exception exc) {
+        String errorMsg = exc.getMessage() != null ? exc.getMessage() : "";
         CancelTasksRequest req = new CancelTasksRequest()
             .setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
-            .setReason(exc.getMessage());
+            .setReason("Fatal failure during search: " + errorMsg);
         // force the origin to execute the cancellation as a system user
         new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }

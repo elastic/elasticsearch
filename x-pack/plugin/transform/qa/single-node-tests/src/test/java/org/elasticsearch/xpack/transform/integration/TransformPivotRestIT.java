@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -96,6 +97,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testSimpleDataStreamPivot() throws Exception {
+        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         String indexName = "reviews_data_stream";
         createReviewsIndex(indexName,  1000, "date", true);
         String transformId = "simple_data_stream_pivot";
@@ -121,6 +123,58 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
         client().performRequest(new Request("DELETE", "/_data_stream/" + indexName));
+    }
+
+    public void testSimpleBooleanPivot() throws Exception {
+        String transformId = "simple-boolean-pivot";
+        String sourceIndex = "boolean_value";
+        String transformIndex = "pivot_boolean_value";
+
+        Request doc1 = new Request("POST", sourceIndex + "/_doc");
+        doc1.setJsonEntity("{\"bool\": true, \"val\": 1.0}");
+        client().performRequest(doc1);
+        Request doc2 = new Request("POST", sourceIndex + "/_doc");
+        doc2.setJsonEntity("{\"bool\": true, \"val\": 0.0}");
+        client().performRequest(doc2);
+        Request doc3 = new Request("POST", sourceIndex + "/_doc");
+        doc3.setJsonEntity("{\"bool\": false, \"val\": 2.0}");
+        client().performRequest(doc3);
+        refreshIndex(sourceIndex);
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = ""
+            + "{"
+            + "\"source\":{\"index\": \"boolean_value\"},"
+            + "\"dest\" :{\"index\": \"pivot_boolean_value\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"bool\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"bool\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"val\""
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        assertOnePivotValue(transformIndex + "/_search?q=bool:true", 0.5);
+        assertOnePivotValue(transformIndex + "/_search?q=bool:false", 2.0);
+
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(2, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
     }
 
     public void testSimplePivotWithQuery() throws Exception {

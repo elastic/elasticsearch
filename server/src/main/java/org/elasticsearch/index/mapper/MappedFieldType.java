@@ -46,7 +46,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -66,9 +65,6 @@ public abstract class MappedFieldType {
     private final TextSearchInfo textSearchInfo;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
-    private NamedAnalyzer searchAnalyzer;
-    private NamedAnalyzer searchQuoteAnalyzer;
-    private SimilarityProvider similarity;
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
 
@@ -78,9 +74,6 @@ public abstract class MappedFieldType {
         this.isIndexed = ref.isIndexed;
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
-        this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
-        this.similarity = ref.similarity();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
         this.meta = ref.meta;
         this.textSearchInfo = ref.textSearchInfo;
@@ -122,23 +115,25 @@ public abstract class MappedFieldType {
             docValues == fieldType.docValues &&
             Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
-            Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
-            Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
-            Objects.equals(similarity, fieldType.similarity) &&
             Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), meta);
+        return Objects.hash(name, boost, docValues, indexAnalyzer,
+            eagerGlobalOrdinals, meta);
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
+    
+    /** Returns the field family type, as used in field capabilities */
+    public String familyTypeName() {
+        return typeName();
+    }
 
     public String name() {
         return name;
@@ -162,30 +157,6 @@ public abstract class MappedFieldType {
 
     public void setIndexAnalyzer(NamedAnalyzer analyzer) {
         this.indexAnalyzer = analyzer;
-    }
-
-    public NamedAnalyzer searchAnalyzer() {
-        return searchAnalyzer;
-    }
-
-    public void setSearchAnalyzer(NamedAnalyzer analyzer) {
-        this.searchAnalyzer = analyzer;
-    }
-
-    public NamedAnalyzer searchQuoteAnalyzer() {
-        return searchQuoteAnalyzer == null ? searchAnalyzer : searchQuoteAnalyzer;
-    }
-
-    public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
-        this.searchQuoteAnalyzer = analyzer;
-    }
-
-    public SimilarityProvider similarity() {
-        return similarity;
-    }
-
-    public void setSimilarity(SimilarityProvider similarity) {
-        this.similarity = similarity;
     }
 
     /** Given a value that comes from the stored fields API, convert it to the

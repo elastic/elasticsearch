@@ -404,9 +404,6 @@ Creates a new index for a rollover target when the existing index reaches a cert
 A rollover target can be either an <<indices-aliases, index alias>> or a <<data-streams, data stream>>.
 // end::rollover-def-short[]
 
-The new index is automatically configured according to any matching <<glossary-index-template,index templates>> or
-respectively, a <<indices-templates,composable index template>> if the rollover target is a
-<<data-streams, data stream>>.
 For example, if you're indexing log data, you might use rollover to create daily or weekly indices.
 See the {ref}/indices-rollover-index.html[rollover index API].
 // end::rollover-def[]

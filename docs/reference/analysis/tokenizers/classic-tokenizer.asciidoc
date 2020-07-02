@@ -1,5 +1,8 @@
 [[analysis-classic-tokenizer]]
-=== Classic Tokenizer
+=== Classic tokenizer
+++++
+<titleabbrev>Classic</titleabbrev>
+++++
 
 The `classic` tokenizer is a grammar based tokenizer that is good for English
 language documents. This tokenizer has heuristics for special treatment of

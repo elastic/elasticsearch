@@ -319,7 +319,7 @@ PUT /logs/_settings
 
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
-=== Change a static index settings for a data stream
+=== Change a static index setting for a data stream
 
 <<index-modules-settings,Static index settings>> can only be set when a backing
 index is created. You cannot update static index settings using the

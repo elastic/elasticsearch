@@ -62,7 +62,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.PseudoHuberMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -765,7 +765,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, PseudoHuberMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
         assertEquals(Integer.valueOf(12), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
@@ -782,7 +782,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
-                registeredMetricName(Regression.NAME, PseudoHuberMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
         assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));

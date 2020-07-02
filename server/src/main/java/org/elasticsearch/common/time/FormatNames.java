@@ -153,6 +153,7 @@ public enum FormatNames {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             deprecationLogger.deprecatedAndMaybeLog("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
+            new RuntimeException().printStackTrace();
         }
     }
 

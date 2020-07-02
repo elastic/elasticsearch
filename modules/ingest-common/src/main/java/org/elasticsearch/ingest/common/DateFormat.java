@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -101,7 +102,10 @@ enum DateFormat {
                     TemporalAccessor accessor = formatter.parse(text);
                     // if there is no year, we fall back to the current one and
                     // fill the rest of the date up with the parsed date
-                    if (accessor.isSupported(ChronoField.YEAR) == false) {
+                    if (accessor.isSupported(ChronoField.YEAR) == false
+                        && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
+                        && accessor.isSupported(WeekFields.of(locale).weekOfWeekBasedYear()) == false) {
+
                         ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                         for (ChronoField field : FIELDS) {
                             if (accessor.isSupported(field)) {
@@ -112,7 +116,7 @@ enum DateFormat {
                         accessor = newTime.withZoneSameLocal(DateUtils.dateTimeZoneToZoneId(timezone));
                     }
 
-                    long millis = DateFormatters.from(accessor).toInstant().toEpochMilli();
+                    long millis = DateFormatters.from(accessor, locale).toInstant().toEpochMilli();
                     return new DateTime(millis, timezone);
                 };
             } else {

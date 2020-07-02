@@ -1140,7 +1140,7 @@ class BuildPlugin implements Plugin<Project> {
                     revision = readFirstLine(refFile)
                 } else if (Files.exists(gitDir.resolve("packed-refs"))) {
                     // Check packed references for commit ID
-                    Pattern p = Pattern.compile("^([a-f1-9]{40}) " + refName + "\$")
+                    Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "\$")
                     Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"));
                     try {
                         revision = lines.map( { s -> p.matcher(s) })

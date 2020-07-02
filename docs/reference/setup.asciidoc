@@ -61,6 +61,8 @@ include::modules/http.asciidoc[]
 
 include::settings/ilm-settings.asciidoc[]
 
+include::modules/indices/index_management.asciidoc[]
+
 include::modules/indices/recovery.asciidoc[]
 
 include::modules/indices/indexing_buffer.asciidoc[]

@@ -19,7 +19,7 @@ import java.util.Map;
 
 public class HistoBackedHDRPercentilesAggregator extends AbstractHistoBackedHDRPercentilesAggregator {
 
-    HistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent, double[] percents,
+    public HistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent, double[] percents,
                              int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
                              Map<String, Object> metadata) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter, metadata);

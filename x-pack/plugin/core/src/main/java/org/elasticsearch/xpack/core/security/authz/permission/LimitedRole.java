@@ -62,10 +62,10 @@ public final class LimitedRole extends Role {
                                           FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl =
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
-        IndicesAccessControl limitedByIndicesAccessControl = fromRole.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
+        IndicesAccessControl fromIndicesAccessControl = fromRole.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
 
-        return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
+        return fromIndicesAccessControl.limitIndicesAccessControl(indicesAccessControl);
     }
 
     /**
@@ -74,14 +74,14 @@ public final class LimitedRole extends Role {
      */
     @Override
     public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(fromRole.indices().allowedIndicesMatcher(action));
+        Predicate<String> predicate = fromRole.indices().allowedIndicesMatcher(action);
+        predicate = predicate.and(super.indices().allowedIndicesMatcher(action));
         return predicate;
     }
 
     @Override
     public Automaton allowedActionsMatcher(String index) {
-        final Automaton allowedMatcher = super.allowedActionsMatcher(index);
+        final Automaton allowedMatcher = fromRole.allowedActionsMatcher(index);
         final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
         return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
@@ -111,9 +111,9 @@ public final class LimitedRole extends Role {
     @Override
     public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
                                                         Set<String> checkForPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
+        ResourcePrivilegesMap resourcePrivilegesMap = fromRole.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
                 checkForPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = fromRole.indices().checkResourcePrivileges(checkForIndexPatterns,
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = super.indices().checkResourcePrivileges(checkForIndexPatterns,
                 allowRestrictedIndices, checkForPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
@@ -162,9 +162,9 @@ public final class LimitedRole extends Role {
     public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
                                                                     Set<String> checkForPrivilegeNames,
                                                                     Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
+        ResourcePrivilegesMap resourcePrivilegesMap = fromRole.application().checkResourcePrivileges(applicationName, checkForResources,
                 checkForPrivilegeNames, storedPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = fromRole.application().checkResourcePrivileges(applicationName,
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = super.application().checkResourcePrivileges(applicationName,
                 checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }

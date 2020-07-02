@@ -61,8 +61,8 @@ public class IndexNameExpressionResolver {
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
     public IndexNameExpressionResolver(Settings settings) {
+        dateMathExpressionResolver = new DateMathExpressionResolver(settings);
         expressionResolvers = Arrays.asList(
-            dateMathExpressionResolver = new DateMathExpressionResolver(settings),
             new WildcardExpressionResolver()
         );
     }
@@ -859,8 +859,8 @@ public class IndexNameExpressionResolver {
         DateMathExpressionResolver(Settings settings) {
             String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
             this.defaultTimeZone = ZoneId.of(defaultTimeZoneId);
-            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "uuuu.MM.dd");
-            this.defaultDateFormatter = DateFormatters.forPattern("uuuu.MM.dd");
+            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "8uuuu.MM.dd");
+            this.defaultDateFormatter = DateFormatters.forPattern(defaultDateFormatterPattern);
         }
 
         @Override

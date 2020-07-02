@@ -170,6 +170,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58901")
     public void testClearCache() throws Exception {
         @SuppressWarnings("unchecked")
         final Function<Map<?, ?>, Long> sumCachedBytesWritten = stats -> stats.values()

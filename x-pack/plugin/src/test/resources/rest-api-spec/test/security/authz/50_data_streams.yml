@@ -72,7 +72,7 @@ teardown:
         index:  simple-data-stream1
         id:       1
         op_type:  create
-        body:   { foo: bar }
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
 
   - set: { _seq_no: seqno }
   - set: { _primary_term: primary_term }
@@ -108,7 +108,7 @@ teardown:
         if_seq_no: $seqno
         if_primary_term: $primary_term
         op_type:  index
-        body:   { foo: bar2 }
+        body:   { foo: bar2, "@timestamp": "2020-12-12" }
 
   - match: { _version: 2 }
 

@@ -272,28 +272,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateProcessorWithDuplicateFields() {
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
-            clusterService,
-            Settings.EMPTY);
-
-        Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
-            put(InferenceProcessor.MODEL_ID, "my_model");
-            put(InferenceProcessor.TARGET_FIELD, "ml");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(),
-                Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
-        }};
-
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
-            fail("should not have succeeded creating with duplicate fields");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
-                "More than one field is configured as [warning]"));
-        }
-    }
-
     private static ClusterState buildClusterState(Metadata metadata) {
        return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }

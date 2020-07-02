@@ -25,6 +25,16 @@ PUT /_autoscaling/policy/<name>
 --------------------------------------------------
 // TEST[s/<name>/name/]
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/name
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 [[autoscaling-put-autoscaling-policy-prereqs]]
 ==== {api-prereq-title}
 
@@ -65,3 +75,13 @@ The API returns the following result:
   "acknowledged": true
 }
 --------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

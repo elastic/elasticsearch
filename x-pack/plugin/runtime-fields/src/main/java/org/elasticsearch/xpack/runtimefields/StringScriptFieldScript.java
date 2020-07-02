@@ -54,7 +54,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
          * Build an {@link StringRuntimeValues} to manage creation of doc
          * values and queries using the script.
          */
-        default StringRuntimeValues runtimeValues() throws IOException {
+        default StringRuntimeValues runtimeValues() {
             return new StringRuntimeValues((ctx, sync) -> {
                 StringScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {

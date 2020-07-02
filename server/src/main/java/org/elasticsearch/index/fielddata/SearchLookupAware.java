@@ -21,6 +21,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+
 //TODO this is a temporary interface only to avoid changing signature of MappedFieldType#fielddataBuilder
 public interface SearchLookupAware {
 

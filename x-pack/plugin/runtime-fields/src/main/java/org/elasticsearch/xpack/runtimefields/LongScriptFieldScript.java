@@ -51,7 +51,7 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
          * Build an {@link LongRuntimeValues} to manage creation of doc
          * values and queries using the script.
          */
-        default LongRuntimeValues runtimeValues() throws IOException {
+        default LongRuntimeValues runtimeValues() {
             return new LongRuntimeValues((ctx, sync) -> {
                 LongScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {

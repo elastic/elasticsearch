@@ -6,10 +6,11 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -27,7 +28,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     private final StringScriptFieldScript.Factory scriptFactory;
 
     RuntimeKeywordMappedFieldType(String name, Script script, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, false, false, TextSearchInfo.NONE, meta);
+        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
         this.scriptFactory = scriptFactory;
     }
@@ -60,15 +61,28 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
+
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }
 
+    private String toValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BytesRef) {
+            return ((BytesRef) value).utf8ToString();
+        }
+        return value.toString();
+    }
+
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
-        return null;
+        // TODO cache the runtimeValues in the context somehow
+        LogManager.getLogger().error("ASDFDAF [{}]", toValue(value));
+        return scriptFactory.newFactory(script.getParams(), context.lookup()).runtimeValues().termQuery(name(), toValue(value));
     }
 
     @Override

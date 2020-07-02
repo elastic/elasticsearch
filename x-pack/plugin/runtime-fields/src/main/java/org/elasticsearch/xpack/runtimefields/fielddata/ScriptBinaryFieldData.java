@@ -10,6 +10,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -33,9 +34,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 public final class ScriptBinaryFieldData extends AbstractIndexComponent
     implements
@@ -64,7 +63,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     private final String fieldName;
     private final StringScriptFieldScript.Factory scriptFactory;
-    private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
+    private final SetOnce<CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException>> docValuesBuilder = new SetOnce<>();
 
     private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName, StringScriptFieldScript.Factory scriptFactory) {
         super(indexSettings);
@@ -72,9 +71,11 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         this.scriptFactory = scriptFactory;
     }
 
+    @Override
     public void setSearchLookup(SearchLookup searchLookup) {
         // TODO wire the params from the mappings definition, we don't parse them yet
-        this.leafFactory.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup));
+        // TODO it'd be nice if we could stuff `runtimeValues` some place into the search context so we could reuse it
+        this.docValuesBuilder.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup).runtimeValues().docValues());
     }
 
     @Override
@@ -102,10 +103,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     @Override
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        ScriptBinaryResult scriptBinaryResult = new ScriptBinaryResult();
-        return new ScriptBinaryLeafFieldData(
-            new ScriptBinaryDocValues(leafFactory.get().newInstance(context, scriptBinaryResult::accept), scriptBinaryResult)
-        );
+        return new ScriptBinaryLeafFieldData(docValuesBuilder.get().apply(context));
     }
 
     @Override
@@ -134,10 +132,10 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     }
 
     static class ScriptBinaryLeafFieldData implements LeafFieldData {
-        private final ScriptBinaryDocValues scriptBinaryDocValues;
+        private final SortedBinaryDocValues docValues;
 
-        ScriptBinaryLeafFieldData(ScriptBinaryDocValues scriptBinaryDocValues) {
-            this.scriptBinaryDocValues = scriptBinaryDocValues;
+        ScriptBinaryLeafFieldData(SortedBinaryDocValues docValues) {
+            this.docValues = docValues;
         }
 
         @Override
@@ -147,7 +145,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
         @Override
         public SortedBinaryDocValues getBytesValues() {
-            return scriptBinaryDocValues;
+            return docValues;
         }
 
         @Override
@@ -158,18 +156,6 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         @Override
         public void close() {
 
-        }
-    }
-
-    static class ScriptBinaryResult {
-        private final List<String> result = new ArrayList<>();
-
-        void accept(String value) {
-            this.result.add(value);
-        }
-
-        List<String> getResult() {
-            return result;
         }
     }
 }

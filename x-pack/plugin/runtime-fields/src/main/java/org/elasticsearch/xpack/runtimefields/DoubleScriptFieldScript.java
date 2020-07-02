@@ -51,7 +51,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
          * Build an {@link DoubleRuntimeValues} to manage creation of doc
          * values and queries using the script.
          */
-        default DoubleRuntimeValues runtimeValues() throws IOException {
+        default DoubleRuntimeValues runtimeValues() {
             return new DoubleRuntimeValues((ctx, sync) -> {
                 DoubleScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {

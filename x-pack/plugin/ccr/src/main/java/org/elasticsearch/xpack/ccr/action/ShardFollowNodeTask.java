@@ -91,6 +91,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long failedWriteRequests = 0;
     private long operationWritten = 0;
     private long lastFetchTime = -1;
+    private final Queue<Tuple<Long, Long>> partialReadRequests = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
@@ -188,6 +189,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         LOGGER.trace("{} coordinate reads, lastRequestedSeqNo={}, leaderGlobalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqNo, leaderGlobalCheckpoint);
+        assert partialReadRequests.size() <= params.getMaxOutstandingReadRequests() :
+            "too many partial read requests [" + partialReadRequests + "]";
+        while (hasReadBudget() && partialReadRequests.isEmpty() == false) {
+            final Tuple<Long, Long> range = partialReadRequests.remove();
+            assert range.v1() <= range.v2() && range.v2() <= lastRequestedSeqNo :
+                "invalid partial range [" + range.v1() + "," + range.v2() + "]; last requested seq_no [" + lastRequestedSeqNo + "]";
+            final long fromSeqNo = range.v1();
+            final long maxRequiredSeqNo = range.v2();
+            final int requestOpCount = Math.toIntExact(maxRequiredSeqNo - fromSeqNo + 1);
+            LOGGER.trace("{}[{} ongoing reads] continue partial read request from_seqno={} max_required_seqno={} batch_count={}",
+                params.getFollowShardId(), numOutstandingReads, fromSeqNo, maxRequiredSeqNo, requestOpCount);
+            numOutstandingReads++;
+            sendShardChangesRequest(fromSeqNo, requestOpCount, maxRequiredSeqNo);
+        }
         final int maxReadRequestOperationCount = params.getMaxReadRequestOperationCount();
         while (hasReadBudget() && lastRequestedSeqNo < leaderGlobalCheckpoint) {
             final long from = lastRequestedSeqNo + 1;
@@ -203,8 +218,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{}[{} ongoing reads] read from_seqno={} max_required_seqno={} batch_count={}",
                 params.getFollowShardId(), numOutstandingReads, from, maxRequiredSeqNo, requestOpCount);
             numOutstandingReads++;
-            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
             lastRequestedSeqNo = maxRequiredSeqNo;
+            sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
         }
 
         if (numOutstandingReads == 0 && hasReadBudget()) {
@@ -220,6 +235,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private boolean hasReadBudget() {
         assert Thread.holdsLock(this);
+        // TODO: To ensure that we never overuse the buffer, we need to
+        // - Overestimate the size and count of the responses of the outstanding request when calculating the budget
+        // - Limit the size and count of next read requests by the remaining size and count of the buffer
         if (numOutstandingReads >= params.getMaxOutstandingReadRequests()) {
             LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
                 params.getFollowShardId(), numOutstandingReads);
@@ -229,7 +247,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{} no new reads, buffer size limit has been reached [{}]", params.getFollowShardId(), bufferSizeInBytes);
             return false;
         }
-        if (buffer.size() > params.getMaxWriteBufferCount()) {
+        if (buffer.size() >= params.getMaxWriteBufferCount()) {
             LOGGER.trace("{} no new reads, buffer count limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
@@ -374,16 +392,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
             coordinateWrites();
         }
-        if (newFromSeqNo <= maxRequiredSeqNo && isStopped() == false) {
-            int newSize = Math.toIntExact(maxRequiredSeqNo - newFromSeqNo + 1);
-            LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
+        if (newFromSeqNo <= maxRequiredSeqNo) {
+            LOGGER.trace("{} received [{}] operations, enqueue partial read request [{}/{}]",
                 params.getFollowShardId(), response.getOperations().length, newFromSeqNo, maxRequiredSeqNo);
-            sendShardChangesRequest(newFromSeqNo, newSize, maxRequiredSeqNo);
-        } else {
-            // read is completed, decrement
-            numOutstandingReads--;
-            coordinateReads();
+            partialReadRequests.add(Tuple.tuple(newFromSeqNo, maxRequiredSeqNo));
         }
+        numOutstandingReads--;
+        coordinateReads();
     }
 
     private void sendBulkShardOperationsRequest(List<Translog.Operation> operations, long leaderMaxSeqNoOfUpdatesOrDeletes,

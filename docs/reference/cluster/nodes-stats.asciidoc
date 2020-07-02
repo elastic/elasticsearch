@@ -245,6 +245,18 @@ Total size of all shards assigned to the node.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to the node.
+
+`reserved`::
+(<<byte-units,byte value>>)
+A prediction of how much larger the shard stores on this node will eventually
+grow due to ongoing peer recoveries, restoring snapshots, and similar
+activities. A value of `-1b` indicates that this is not available.
+
+`reserved_in_bytes`::
+(integer)
+A prediction, in bytes, of how much larger the shard stores on this node will
+eventually grow due to ongoing peer recoveries, restoring snapshots, and
+similar activities. A value of `-1` indicates that this is not available.
 =======
 
 `indexing`::

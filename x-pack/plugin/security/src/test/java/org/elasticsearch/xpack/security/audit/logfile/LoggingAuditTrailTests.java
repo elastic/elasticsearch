@@ -1376,7 +1376,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 AuthenticationType.TOKEN, AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS), Collections.emptyMap());
     }
 
-    private Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication userAuthentication) throws Exception {
+    static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication userAuthentication) throws Exception {
         XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", userAuthentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
                 Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), null, Version.CURRENT);

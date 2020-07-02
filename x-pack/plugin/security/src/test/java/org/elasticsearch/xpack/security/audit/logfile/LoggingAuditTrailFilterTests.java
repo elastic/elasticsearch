@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -17,11 +18,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -33,7 +36,9 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockRequest;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -41,6 +46,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -49,6 +55,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,6 +68,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
+    private ApiKeyService apiKeyService;
 
     @Before
     public void init() throws Exception {
@@ -82,6 +90,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), new XPackLicenseState(settings),
+                mock(SecurityIndexManager.class), clusterService, mock(ThreadPool.class));
     }
 
     public void testPolicyDoesNotMatchNullValuesInEvent() throws Exception {
@@ -463,7 +473,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Collections.emptyList());
             }
         }
-        final Authentication filteredAuthentication;
+        Authentication filteredAuthentication;
         if (randomBoolean()) {
             filteredAuthentication = createAuthentication(
                     new User(randomFrom(allFilteredUsers), new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
@@ -472,13 +482,19 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             filteredAuthentication = createAuthentication(new User(randomFrom(allFilteredUsers), new String[] { "r1" }),
                     "effectiveRealmName");
         }
-        final Authentication unfilteredAuthentication;
+        if (randomBoolean()) {
+            filteredAuthentication = createApiKeyAuthentication(apiKeyService, filteredAuthentication);
+        }
+        Authentication unfilteredAuthentication;
         if (randomBoolean()) {
             unfilteredAuthentication = createAuthentication(new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4),
                     new String[] { "r1" }, new User("authUsername", new String[] { "r2" })), "effectiveRealmName");
         } else {
             unfilteredAuthentication = createAuthentication(
                     new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4), new String[] { "r1" }), "effectiveRealmName");
+        }
+        if (randomBoolean()) {
+            unfilteredAuthentication = createApiKeyAuthentication(apiKeyService, unfilteredAuthentication);
         }
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext)
                 : new MockIndicesRequest(threadContext, new String[] { "idx1", "idx2" });
@@ -849,14 +865,18 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessGranted(randomAlphaOfLength(8),
+                randomBoolean() ? createAuthentication(user, filteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm)),
+                "_action", request, authzInfo(new String[]{"role1"}));
         assertThat("AccessGranted message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessGranted(randomAlphaOfLength(8),
+                randomBoolean() ? createAuthentication(user, unfilteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm)),
+                "_action", request, authzInfo(new String[]{"role1"}));
         assertThat("AccessGranted message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -873,27 +893,31 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "internal:_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessGranted(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, filteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm)),
+                "internal:_action", request, authzInfo(new String[]{"role1"}));
         assertThat("AccessGranted internal message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "internal:_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessGranted(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, unfilteredRealm) :
+                createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm)),
+                "internal:_action", request, authzInfo(new String[] { "role1" }));
         assertThat("AccessGranted internal message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
-        auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessDenied(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, filteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm)), "_action", request,
+                authzInfo(new String[]{"role1"}));
         assertThat("AccessDenied message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessDenied(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, unfilteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm)), "_action", request,
+                authzInfo(new String[]{"role1"}));
         assertThat("AccessDenied message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -910,14 +934,16 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "internal:_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessDenied(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, filteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm)), "internal:_action",
+                request, authzInfo(new String[]{"role1"}));
         assertThat("AccessGranted internal message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "internal:_action", request,
-            authzInfo(new String[] { "role1" }));
+        auditTrail.accessDenied(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, unfilteredRealm) :
+                        createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm)), "internal:_action",
+                request, authzInfo(new String[]{"role1"}));
         assertThat("AccessGranted internal message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -941,12 +967,14 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), createAuthentication(user, filteredRealm), "_action", request);
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, filteredRealm) :
+                createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm)), "_action", request);
         assertThat("Tampered message: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), createAuthentication(user, unfilteredRealm), "_action", request);
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), randomBoolean() ? createAuthentication(user, unfilteredRealm) :
+                createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm)), "_action", request);
         assertThat("Tampered message: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
@@ -1080,12 +1108,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.otherPolicy.roles", otherRoles);
         }
         final String[] unfilteredRoles = _unfilteredRoles.toArray(new String[0]);
-        final Authentication authentication;
+        Authentication authentication;
         if (randomBoolean()) {
             authentication = createAuthentication(new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
                     "effectiveRealmName");
         } else {
             authentication = createAuthentication(new User("user1", new String[] { "r1" }), "effectiveRealmName");
+        }
+        if (randomBoolean()) {
+            authentication = createApiKeyAuthentication(apiKeyService, authentication);
         }
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext)
                 : new MockIndicesRequest(threadContext, new String[] { "idx1", "idx2" });
@@ -1357,12 +1388,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.otherPolicy.indices", otherIndices);
         }
         final String[] unfilteredIndices = _unfilteredIndices.toArray(new String[0]);
-        final Authentication authentication;
+        Authentication authentication;
         if (randomBoolean()) {
             authentication = createAuthentication(new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" })),
                     "effectiveRealmName");
         } else {
             authentication = createAuthentication(new User("user1", new String[] { "r1" }), "effectiveRealmName");
+        }
+        if (randomBoolean()) {
+            authentication = createApiKeyAuthentication(apiKeyService, authentication);
         }
         final MockToken authToken = new MockToken("token1");
         final TransportRequest noIndexRequest = new MockRequest(threadContext);

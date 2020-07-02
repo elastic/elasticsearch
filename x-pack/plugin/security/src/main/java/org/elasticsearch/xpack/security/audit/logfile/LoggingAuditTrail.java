@@ -892,8 +892,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     private static String effectiveRealmName(Authentication authentication) {
-        return authentication.getLookedUpBy() != null ? authentication.getLookedUpBy().getName()
-                : authentication.getAuthenticatedBy().getName();
+        if (authentication.getLookedUpBy() != null) {
+            return authentication.getLookedUpBy().getName();
+        } else if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY) {
+            return (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+        } else {
+            return authentication.getAuthenticatedBy().getName();
+        }
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

@@ -230,8 +230,8 @@ public class ApiKeyService {
 
     // public for test
     public XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
-                                          Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
-                                          Version version) throws IOException {
+                                       Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
+                                       Version version) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -494,7 +494,7 @@ public class ApiKeyService {
 
     // public for test
     public void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
-                                  ActionListener<AuthenticationResult> listener) {
+                                         ActionListener<AuthenticationResult> listener) {
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
         if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
             final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));

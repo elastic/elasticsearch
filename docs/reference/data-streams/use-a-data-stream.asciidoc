@@ -51,7 +51,6 @@ PUT /_data_stream/logs_alt
 ----
 // TESTSETUP
 
-////
 [source,console]
 ----
 DELETE /_data_stream/*

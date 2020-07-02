@@ -54,20 +54,26 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
     private final Rounding rounding;
-    private final Rounding shardRounding;
 
-    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig config,
-            BucketOrder order, boolean keyed, long minDocCount,
-            Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
+    public DateHistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        Rounding rounding,
+        ExtendedBounds extendedBounds,
+        QueryShardContext queryShardContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.rounding = rounding;
-        this.shardRounding = shardRounding;
     }
 
     public long minDocCount() {
@@ -89,7 +95,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
         Rounding.Prepared preparedRounding = config.getValuesSource()
             .roundingPreparer(queryShardContext.getIndexReader())
-            .apply(shardRounding);
+            .apply(rounding);
         return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(
             name,
             factories,

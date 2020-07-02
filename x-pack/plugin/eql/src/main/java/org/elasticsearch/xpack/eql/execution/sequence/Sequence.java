@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.text.NumberFormat;
@@ -31,19 +32,19 @@ public class Sequence {
 
     private int currentStage = 0;
 
-    public Sequence(SequenceKey key, int stages, long timestamp, SearchHit firstHit) {
+    public Sequence(SequenceKey key, int stages, Ordinal ordinal, SearchHit firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.stages = stages;
         this.matches = new Match[stages];
-        this.matches[0] = new Match(timestamp, firstHit);
+        this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public int putMatch(int stage, SearchHit hit, long timestamp) {
+    public int putMatch(int stage, SearchHit hit, Ordinal ordinal) {
         if (stage == currentStage + 1) {
             int previousStage = currentStage;
             currentStage = stage;
-            matches[currentStage] = new Match(timestamp, hit);
+            matches[currentStage] = new Match(ordinal, hit);
             return previousStage;
         }
         throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage=]", stage, key, currentStage);
@@ -53,20 +54,12 @@ public class Sequence {
         return key;
     }
 
-    public int currentStage() {
-        return currentStage;
+    public Ordinal ordinal() {
+        return matches[currentStage].ordinal();
     }
 
-    public long currentTimestamp() {
-        return matches[currentStage].timestamp();
-    }
-
-    public long timestamp(int stage) {
-        // stages not initialized yet return an out-of-band value to have no impact on the interval range
-        if (stage > currentStage) {
-            return Long.MAX_VALUE;
-        }
-        return matches[stage].timestamp();
+    public long startTimestamp() {
+        return matches[0].ordinal().timestamp();
     }
 
     public List<SearchHit> hits() {
@@ -106,7 +99,7 @@ public class Sequence {
         StringBuilder sb = new StringBuilder();
         sb.append(format(null, "[Seq<{}>[{}/{}]]",
                 key,
-                nf.format(currentStage()),
+                nf.format(currentStage),
                 nf.format(stages - 1)));
 
         for (int i = 0; i < matches.length; i++) {

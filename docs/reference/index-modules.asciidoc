@@ -173,31 +173,6 @@ specific index module:
     for the <<analysis-shingle-tokenfilter,`shingle` token filter>>. Defaults to
     `3`.
 
-`index.blocks.read_only`::
-
-    Set to `true` to make the index and index metadata read only, `false` to
-    allow writes and metadata changes.
-
-`index.blocks.read_only_allow_delete`::
-
-    Similar to `index.blocks.read_only` but also allows deleting the index to
-    free up resources. The <<disk-based-shard-allocation,disk-based shard
-    allocator>> may add and remove this block automatically.
-
-`index.blocks.read`::
-
-    Set to `true` to disable read operations against the index.
-
-`index.blocks.write`::
-
-    Set to `true` to disable data write operations against the index. Unlike `read_only`,
-    this setting does not affect metadata. For instance, you can close an index with a `write`
-    block, but not an index with a `read_only` block.
-
-`index.blocks.metadata`::
-
-    Set to `true` to disable index metadata reads and writes.
-
 `index.max_refresh_listeners`::
 
     Maximum number of refresh listeners available on each shard of the index.
@@ -316,6 +291,8 @@ Other index settings are available in index modules:
 include::index-modules/analysis.asciidoc[]
 
 include::index-modules/allocation.asciidoc[]
+
+include::index-modules/blocks.asciidoc[]
 
 include::index-modules/mapper.asciidoc[]
 

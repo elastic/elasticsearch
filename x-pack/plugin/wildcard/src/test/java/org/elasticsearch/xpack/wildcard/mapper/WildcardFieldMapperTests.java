@@ -30,6 +30,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
@@ -71,17 +72,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WildcardFieldMapperTests extends ESTestCase {
-    
+
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         return queryShardContext;
-    }    
+    }
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
     public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
-    
+
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
     static KeywordFieldMapper keywordFieldType;
@@ -168,8 +169,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
         wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 20000, null, MOCK_QSC);
         wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
-        
-        
+
+
         reader.close();
         dir.close();
     }
@@ -214,9 +215,9 @@ public class WildcardFieldMapperTests extends ESTestCase {
             Query wildcardFieldQuery = null;
             Query keywordFieldQuery = null;
             String pattern = null;
-            switch (randomInt(3)) {
+            switch (randomInt(4)) {
             case 0:
-                pattern = getRandomWildcardPattern();                
+                pattern = getRandomWildcardPattern();
                 wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
                 keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
                 break;
@@ -251,18 +252,27 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 // Prefix length shouldn't be longer than selected search string
                 // BUT keyword field has a bug with prefix length when equal - see https://github.com/elastic/elasticsearch/issues/55790
                 // so we opt for one less
-                prefixLength = Math.min(pattern.length() - 1 , prefixLength);                
+                prefixLength = Math.min(pattern.length() - 1 , prefixLength);
                 boolean transpositions = randomBoolean();
-                
-                wildcardFieldQuery = wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, 
+
+                wildcardFieldQuery = wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50,
                     transpositions, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, 
+                keywordFieldQuery = keywordFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50,
                     transpositions, MOCK_QSC);
                 break;
+            case 4:
+                TermRangeQuery trq = getRandomRange(values);
+                wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
+                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
+                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                break;
+
             }
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
-            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+            assertThat(keywordFieldQuery + "\n" + wildcardFieldQuery,
+                wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
@@ -293,29 +303,98 @@ public class WildcardFieldMapperTests extends ESTestCase {
         reader.close();
         dir.close();
     }
-    
+
+    private void indexDoc(RandomIndexWriter iw, String value) throws IOException {
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();
+        addFields(parseDoc, doc, value);
+        indexDoc(parseDoc, doc, iw);
+    }
+
+    public void testRangeQueryVersusKeywordField() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        // Tests for acceleration strategy based on long common prefix
+        indexDoc(iw, "C:\\Program Files\\a.txt");
+        indexDoc(iw, "C:\\Program Files\\n.txt");
+        indexDoc(iw, "C:\\Program Files\\z.txt");
+
+        // Tests for acceleration strategy based on no common prefix
+        indexDoc(iw, "a.txt");
+        indexDoc(iw, "n.txt");
+        indexDoc(iw, "z.txt");
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+
+        String [][] rangeTests = {
+            {"C:\\Program Files\\a", "C:\\Program Files\\z"},
+            {"C:\\Program Files\\a", "C:\\Program Files\\n"},
+            {null, "C:\\Program Files\\z"},
+            {"C:\\Program Files\\a", null},
+
+            {"a.txt", "z.txt"},
+            {"a.txt", "n.txt"},
+            {null, "z.txt"},
+            {"a.txt", null}
+        };
+
+        for (String[] bounds : rangeTests) {
+            BytesRef lower = bounds[0] == null ? null :new BytesRef(bounds[0]);
+            BytesRef upper = bounds[1] == null ? null :new BytesRef(bounds[1]);
+            TermRangeQuery trq = new TermRangeQuery(WILDCARD_FIELD_NAME, lower, upper, randomBoolean(), randomBoolean());
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
+                trq.includesUpper(), null, null, null, MOCK_QSC);
+            Query keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
+                trq.includesUpper(), null, null, null, MOCK_QSC);
+
+
+            TopDocs kwTopDocs = searcher.search(keywordFieldQuery, 10, Sort.RELEVANCE);
+            TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.RELEVANCE);
+            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+
+            HashSet<Integer> expectedDocs = new HashSet<>();
+            for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
+                expectedDocs.add(topDoc.doc);
+            }
+            for (ScoreDoc wcTopDoc : wildcardFieldTopDocs.scoreDocs) {
+                assertTrue(expectedDocs.remove(wcTopDoc.doc));
+            }
+            assertThat(expectedDocs.size(), equalTo(0));
+
+        }
+        reader.close();
+        dir.close();
+    }
+
     public void testRegexAcceleration() throws IOException, ParseException {
         // All these expressions should rewrite to a match all with no verification step required at all
         String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
-        }        
+        }
         String matchNoDocsRegexes[]= { ""};
         for (String regex : matchNoDocsRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             assertTrue(wildcardFieldQuery instanceof MatchNoDocsQuery);
-        }        
+        }
 
-        // All of these regexes should be accelerated as the equivalent of the given QueryString query 
-        String acceleratedTests[][] = { 
-            {".*foo.*", "foo"}, 
+        // All of these regexes should be accelerated as the equivalent of the given QueryString query
+        String acceleratedTests[][] = {
+            {".*foo.*", "foo"},
             {"..foobar","+foo +oba +ar_ +r__"},
             {"(maynotexist)?foobar","+foo +oba +ar_ +r__"},
-            {".*/etc/passw.*", "+\\/et +tc\\/ +\\/pa +ass +ssw"}, 
-            {".*etc/passwd",  "+etc +c\\/p +pas +ssw +wd_ +d__"}, 
-            {"(http|ftp)://foo.*",  "+((+htt +ttp) ftp) +(+\\:\\/\\/ +\\/fo +foo)"}, 
-            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+_po +owe +ers +she +ell +l\\.e +exe +e__"}, 
+            {".*/etc/passw.*", "+\\/et +tc\\/ +\\/pa +ass +ssw"},
+            {".*etc/passwd",  "+etc +c\\/p +pas +ssw +wd_ +d__"},
+            {"(http|ftp)://foo.*",  "+((+htt +ttp) ftp) +(+\\:\\/\\/ +\\/fo +foo)"},
+            {"[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",  "+_po +owe +ers +she +ell +l\\.e +exe +e__"},
             {"foo<1-100>bar",  "+(+_fo +foo) +(+bar +r__ )"},
             {"(aaa.+&.+bbb)cat", "+cat +t__"},
             {".a", "a__"}
@@ -323,24 +402,24 @@ public class WildcardFieldMapperTests extends ESTestCase {
         for (String[] test : acceleratedTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);            
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
-        
-        // All these expressions should rewrite to just the verification query (there's no ngram acceleration) 
-        // TODO we can possibly improve on some of these 
+
+        // All these expressions should rewrite to just the verification query (there's no ngram acceleration)
+        // TODO we can possibly improve on some of these
         String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-            assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery), 
+            assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
-        }        
-        
-        
-        
-        // Documentation - regexes that do try accelerate but we would like to improve in future versions. 
-        String suboptimalTests[][] = { 
-            // TODO short wildcards like a* OR b* aren't great so we just drop them. 
+        }
+
+
+
+        // Documentation - regexes that do try accelerate but we would like to improve in future versions.
+        String suboptimalTests[][] = {
+            // TODO short wildcards like a* OR b* aren't great so we just drop them.
             // Ideally we would attach to successors to create (acd OR bcd)
             { "[ab]cd",  "+cd_ +d__"}
             };
@@ -348,18 +427,18 @@ public class WildcardFieldMapperTests extends ESTestCase {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 20000, null, MOCK_QSC);
-            
-            testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
-        }          
 
-    }    
+            testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
+        }
+
+    }
     // Make error messages more readable
     String formatQuery(Query q) {
         return q.toString().replaceAll(WILDCARD_FIELD_NAME+":", "").replaceAll(WildcardFieldMapper.TOKEN_START_STRING, "_");
     }
-    
+
     public void testWildcardAcceleration() throws IOException, ParseException {
-        
+
         // All these expressions should rewrite to MatchAll with no verification step required at all
         String superfastPattern[] = { "*", "**", "*?" };
         for (String pattern : superfastPattern) {
@@ -399,7 +478,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
 
     }
-    
+
     static class FuzzyTest {
         String pattern;
         int prefixLength;
@@ -470,7 +549,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             return bq.build();
         }
     }
-    
+
     public void testFuzzyAcceleration() throws IOException, ParseException {
 
         FuzzyTest[] tests = {
@@ -483,8 +562,55 @@ public class WildcardFieldMapperTests extends ESTestCase {
             Query wildcardFieldQuery = test.getFuzzyQuery();
             testExpectedAccelerationQuery(test.pattern, wildcardFieldQuery, test.getExpectedApproxQuery());
         }
-    }    
-    
+    }
+
+    static class RangeTest {
+        String lower;
+        String upper;
+        String ngrams;
+
+        RangeTest(
+            String lower,
+            String upper,
+            String ngrams
+        ) {
+            super();
+            this.lower = lower;
+            this.upper = upper;
+            this.ngrams = ngrams;
+        }
+
+        Query getRangeQuery() {
+            return wildcardFieldType.fieldType().rangeQuery(lower, upper, true, true, null, null, null, MOCK_QSC);
+        }
+
+        Query getExpectedApproxQuery() throws ParseException {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            if (ngrams != null) {
+                String[] tokens = ngrams.split(" ");
+                for (String token : tokens) {
+                    Query ngramQuery = new TermQuery(
+                        new Term(WILDCARD_FIELD_NAME, token.replaceAll("_", WildcardFieldMapper.TOKEN_START_STRING))
+                    );
+                    bq.add(ngramQuery, Occur.MUST);
+                }
+            }
+            return bq.build();
+        }
+    }
+
+    public void testRangeAcceleration() throws IOException, ParseException {
+
+        RangeTest[] tests = {
+            new RangeTest("c:/a.txt", "c:/z.txt", "_c: c:/"),
+            new RangeTest("C:/ProgramFiles/a.txt", "C:/ProgramFiles/z.txt", "_c: :/p pro ogr ram mfi ile es/"),
+        };
+        for (RangeTest test : tests) {
+            Query wildcardFieldQuery = test.getRangeQuery();
+            testExpectedAccelerationQuery(test.lower + "-" + test.upper, wildcardFieldQuery, test.getExpectedApproxQuery());
+        }
+    }
+
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
 
         QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
@@ -505,35 +631,61 @@ public class WildcardFieldMapperTests extends ESTestCase {
             }
         }
         assert verifyQueryFound;
-        
-        String message = "regex: "+ regex +"\nactual query: " + formatQuery(approximationQuery) + 
+
+        String message = "regex: "+ regex +"\nactual query: " + formatQuery(approximationQuery) +
             "\nexpected query: " + formatQuery(expectedAccelerationQuery) + "\n";
         assertEquals(message, expectedAccelerationQuery, approximationQuery);
-    }    
-    
+    }
+
     private String getRandomFuzzyPattern(HashSet<String> values, int edits, int prefixLength) {
         assert edits >=0 && edits <=2;
         // Pick one of the indexed document values to focus our queries on.
         String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];
-        
+
         if (edits == 0) {
             return randomValue;
         }
-        
+
         if (randomValue.length() > prefixLength) {
             randomValue = randomValue.substring(0,prefixLength) + "C" + randomValue.substring(prefixLength);
             edits--;
         }
-        
+
         if(edits > 0) {
             randomValue = randomValue + "a";
         }
         return randomValue;
-    }    
+    }
+
+    private TermRangeQuery getRandomRange(HashSet<String> values) {
+        // Pick one of the indexed document values to focus our queries on.
+        String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];
+        StringBuilder upper = new StringBuilder();
+        //Pick a part of the string to change
+        int substitutionPoint = randomIntBetween(0, randomValue.length()-1);
+        int substitutionLength = randomIntBetween(1, Math.min(10, randomValue.length() - substitutionPoint));
+
+        //Add any head to the result, unchanged
+        if(substitutionPoint >0) {
+            upper.append(randomValue.substring(0,substitutionPoint));
+        }
+
+        // Modify the middle...
+        String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
+        // .-replace all a chars with z
+        upper.append(replacementPart.replaceAll("a", "z"));
+
+        //add any remaining tail, unchanged
+        if(substitutionPoint + substitutionLength <= randomValue.length()-1) {
+            upper.append(randomValue.substring(substitutionPoint + substitutionLength));
+        }
+        return new TermRangeQuery(WILDCARD_FIELD_NAME, new BytesRef(randomValue), new BytesRef(upper.toString()),
+            randomBoolean(), randomBoolean());
+    }
 
     private String getRandomRegexPattern(HashSet<String> values) {
         // Pick one of the indexed document values to focus our queries on.
-        String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];        
+        String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];
         return convertToRandomRegex(randomValue);
     }
 
@@ -548,38 +700,38 @@ public class WildcardFieldMapperTests extends ESTestCase {
         if(substitutionPoint >0) {
             result.append(randomValue.substring(0,substitutionPoint));
         }
-        
+
         // Modify the middle...
         String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
         int mutation = randomIntBetween(0, 11);
         switch (mutation) {
         case 0:
             // OR with random alpha of same length
-            result.append("("+replacementPart+"|c"+ randomABString(replacementPart.length())+")");            
+            result.append("("+replacementPart+"|c"+ randomABString(replacementPart.length())+")");
             break;
         case 1:
             // OR with non-existant value
-            result.append("("+replacementPart+"|doesnotexist)");            
+            result.append("("+replacementPart+"|doesnotexist)");
             break;
         case 2:
             // OR with another randomised regex (used to create nested levels of expression).
-            result.append("(" + convertToRandomRegex(replacementPart) +"|doesnotexist)");   
+            result.append("(" + convertToRandomRegex(replacementPart) +"|doesnotexist)");
             break;
         case 3:
             // Star-replace all ab sequences.
-            result.append(replacementPart.replaceAll("ab", ".*"));            
+            result.append(replacementPart.replaceAll("ab", ".*"));
             break;
         case 4:
             // .-replace all b chars
-            result.append(replacementPart.replaceAll("b", "."));            
+            result.append(replacementPart.replaceAll("b", "."));
             break;
         case 5:
             // length-limited stars {1,2}
-            result.append(".{1,"+replacementPart.length()+"}");            
+            result.append(".{1,"+replacementPart.length()+"}");
             break;
         case 6:
             // replace all chars with .
-            result.append(replacementPart.replaceAll(".", "."));       
+            result.append(replacementPart.replaceAll(".", "."));
             break;
         case 7:
             // OR with uppercase chars eg [aA] (many of these sorts of expression in the wild..
@@ -611,7 +763,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         if(substitutionPoint + substitutionLength <= randomValue.length()-1) {
             result.append(randomValue.substring(substitutionPoint + substitutionLength));
         }
-        
+
         //Assert our randomly generated regex actually matches the provided raw input.
         RegExp regex = new RegExp(result.toString());
         Automaton automaton = regex.toAutomaton();
@@ -685,7 +837,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 if (randomBoolean()) {
                     sb.append("a");
                 } else {
-                    sb.append("A");                    
+                    sb.append("A");
                 }
             } else {
                 sb.append("b");

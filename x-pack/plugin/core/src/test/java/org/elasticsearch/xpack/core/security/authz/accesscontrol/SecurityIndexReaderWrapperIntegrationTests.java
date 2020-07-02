@@ -74,10 +74,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -99,7 +96,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -191,10 +188,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
         when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
-            KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-            ft.setName(fieldName);
-            ft.freeze();
-            return ft;
+            return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -235,7 +229,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetCache, securityContext, licenseState, scriptService) {
 

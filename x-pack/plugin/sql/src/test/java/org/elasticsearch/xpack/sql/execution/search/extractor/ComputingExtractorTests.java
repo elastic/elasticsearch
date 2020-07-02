@@ -80,9 +80,8 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
         for (int i = 0; i < times; i++) {
             double value = randomDouble();
             double expected = Math.log(value);
-            SearchHit hit = new SearchHit(1);
             DocumentField field = new DocumentField(fieldName, singletonList(value));
-            hit.fields(singletonMap(fieldName, field));
+            SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
             assertEquals(expected, extractor.process(hit));
         }
     }

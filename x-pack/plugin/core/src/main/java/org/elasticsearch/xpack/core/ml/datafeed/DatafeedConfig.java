@@ -643,98 +643,113 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.indicesOptions = config.indicesOptions;
         }
 
-        public void setId(String datafeedId) {
+        public Builder setId(String datafeedId) {
             id = ExceptionsHelper.requireNonNull(datafeedId, ID.getPreferredName());
+            return this;
         }
 
         public String getId() {
             return id;
         }
 
-        public void setJobId(String jobId) {
+        public Builder setJobId(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            return this;
         }
 
-        public void setHeaders(Map<String, String> headers) {
+        public Builder setHeaders(Map<String, String> headers) {
             this.headers = ExceptionsHelper.requireNonNull(headers, HEADERS.getPreferredName());
+            return this;
         }
 
-        public void setIndices(List<String> indices) {
+        public Builder setIndices(List<String> indices) {
             this.indices = ExceptionsHelper.requireNonNull(indices, INDICES.getPreferredName());
+            return this;
         }
 
-        public void setQueryDelay(TimeValue queryDelay) {
+        public Builder setQueryDelay(TimeValue queryDelay) {
             TimeUtils.checkNonNegativeMultiple(queryDelay, TimeUnit.MILLISECONDS, QUERY_DELAY);
             this.queryDelay = queryDelay;
+            return this;
         }
 
-        public void setFrequency(TimeValue frequency) {
+        public Builder setFrequency(TimeValue frequency) {
             TimeUtils.checkPositiveMultiple(frequency, TimeUnit.SECONDS, FREQUENCY);
             this.frequency = frequency;
+            return this;
         }
 
-        public void setQueryProvider(QueryProvider queryProvider) {
+        public Builder setQueryProvider(QueryProvider queryProvider) {
             this.queryProvider = ExceptionsHelper.requireNonNull(queryProvider, QUERY.getPreferredName());
+            return this;
         }
 
         // For testing only
-        public void setParsedQuery(QueryBuilder queryBuilder) {
+        public Builder setParsedQuery(QueryBuilder queryBuilder) {
             try {
                 this.queryProvider = ExceptionsHelper.requireNonNull(QueryProvider.fromParsedQuery(queryBuilder), QUERY.getPreferredName());
             } catch (IOException exception) {
                 // eat exception as it should never happen
                 logger.error("Exception trying to setParsedQuery", exception);
             }
+            return this;
         }
 
         // For testing only
-        public void setParsedAggregations(AggregatorFactories.Builder aggregations) {
+        public Builder setParsedAggregations(AggregatorFactories.Builder aggregations) {
             try {
                 this.aggProvider = AggProvider.fromParsedAggs(aggregations);
             } catch (IOException exception) {
                 // eat exception as it should never happen
                 logger.error("Exception trying to setParsedAggregations", exception);
             }
+            return this;
         }
 
-        private void setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider aggProvider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
             this.aggProvider = aggProvider;
+            return this;
         }
 
-        public void setAggProvider(AggProvider aggProvider) {
+        public Builder setAggProvider(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
+            return this;
         }
 
-        public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
+        public Builder setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
             for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
                 sorted.add(scriptField);
             }
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
+            return this;
         }
 
-        public void setScrollSize(int scrollSize) {
+        public Builder setScrollSize(int scrollSize) {
             if (scrollSize < 0) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                         DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
                 throw ExceptionsHelper.badRequestException(msg);
             }
             this.scrollSize = scrollSize;
+            return this;
         }
 
-        public void setChunkingConfig(ChunkingConfig chunkingConfig) {
+        public Builder setChunkingConfig(ChunkingConfig chunkingConfig) {
             this.chunkingConfig = chunkingConfig;
+            return this;
         }
 
-        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+        public Builder setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
             this.delayedDataCheckConfig = delayedDataCheckConfig;
+            return this;
         }
 
-        public void setMaxEmptySearches(int maxEmptySearches) {
+        public Builder setMaxEmptySearches(int maxEmptySearches) {
             if (maxEmptySearches == -1) {
                 this.maxEmptySearches = null;
             } else if (maxEmptySearches <= 0) {
@@ -744,6 +759,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             } else {
                 this.maxEmptySearches = maxEmptySearches;
             }
+            return this;
         }
 
         public Builder setIndicesOptions(IndicesOptions indicesOptions) {

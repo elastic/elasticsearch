@@ -33,7 +33,17 @@ import java.util.Map;
 @FunctionalInterface
 public interface GeoGridAggregatorSupplier extends AggregatorSupplier {
 
-    GeoGridAggregator build(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                            int precision, GeoBoundingBox geoBoundingBox, int requiredSize, int shardSize,
-                            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException;
+    GeoGridAggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        int requiredSize,
+        int shardSize,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

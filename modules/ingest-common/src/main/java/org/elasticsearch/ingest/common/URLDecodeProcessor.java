@@ -30,8 +30,8 @@ public final class URLDecodeProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "urldecode";
 
-    URLDecodeProcessor(String processorTag, String field, boolean ignoreMissing, String targetField) {
-        super(processorTag, field, ignoreMissing, targetField);
+    URLDecodeProcessor(String processorTag, String description, String field, boolean ignoreMissing, String targetField) {
+        super(processorTag, description, ignoreMissing, targetField, field);
     }
 
     public static String apply(String value) {
@@ -59,9 +59,9 @@ public final class URLDecodeProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected URLDecodeProcessor newProcessor(String tag, Map<String, Object> config, String field,
+        protected URLDecodeProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
                                                   boolean ignoreMissing, String targetField) {
-            return new URLDecodeProcessor(tag, field, ignoreMissing, targetField);
+            return new URLDecodeProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }

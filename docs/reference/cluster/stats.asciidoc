@@ -28,15 +28,15 @@ memory usage) and information about the current nodes that form the cluster
 ==== {api-path-parms-title}
 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]
@@ -78,7 +78,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of
 the last time the cluster statistics were refreshed.
 
 `status`::
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 +
 See <<cluster-health>>.
 
@@ -231,6 +231,17 @@ Total size of all shards assigned to selected nodes.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
+
+`reserved`::
+(<<byte-units,byte value>>)
+A prediction of how much larger the shard stores will eventually grow due to
+ongoing peer recoveries, restoring snapshots, and similar activities.
+
+`reserved_in_bytes`::
+(integer)
+A prediction, in bytes, of how much larger the shard stores will eventually
+grow due to ongoing peer recoveries, restoring snapshots, and similar
+activities.
 =====
 
 `fielddata`::
@@ -1135,7 +1146,9 @@ The API returns the following response:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684
+         "size_in_bytes": 16684,
+         "reserved": "0b",
+         "reserved_in_bytes": 0
       },
       "fielddata": {
          "memory_size": "0b",

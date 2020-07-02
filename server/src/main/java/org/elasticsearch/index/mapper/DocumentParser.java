@@ -389,7 +389,7 @@ final class DocumentParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 paths = splitAndValidatePath(currentFieldName);
-                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
+                if (context.mapperService().isMetadataField(context.path().pathAsText(currentFieldName))) {
                     throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
                         + " a document. Use the index API request parameters.");
                 } else if (containsDisabledObjectMapper(mapper, paths)) {
@@ -522,7 +522,7 @@ final class DocumentParser {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
-            if (mapper instanceof ArrayValueMapperParser) {
+            if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
@@ -543,7 +543,7 @@ final class DocumentParser {
                     Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                     mapper = builder.build(builderContext);
                     assert mapper != null;
-                    if (mapper instanceof ArrayValueMapperParser) {
+                    if (parsesArrayValue(mapper)) {
                         context.addDynamicMapper(mapper);
                         context.path().add(arrayFieldName);
                         parseObjectOrField(context, mapper);
@@ -560,6 +560,10 @@ final class DocumentParser {
                 context.path().remove();
             }
         }
+    }
+
+    private static boolean parsesArrayValue(Mapper mapper) {
+        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
     private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper,

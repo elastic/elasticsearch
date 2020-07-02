@@ -118,12 +118,23 @@ onwards and Eclipse 2020-3 and onwards.
 
     ./gradlew :run
 
-You can access Elasticsearch with:
+That'll spend a while building Elasticsearch and then it'll start Elasticsearch,
+writing its log above Gradle's status message. We log a lot of stuff on startup,
+specifically these lines tell you that Elasticsearch is ready:
+
+    [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
+    [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
+
+But to be honest its typically easier to wait until the console stopps scrolling
+and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
 
+
+
 ### Importing the project into IntelliJ IDEA
 
+The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
 Elasticsearch builds using Java 14. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "14"** so that the project import will detect it automatically. For more details
@@ -140,7 +151,7 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 13. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
@@ -574,7 +585,7 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
+<dt>`testImplementation`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
 </dl>

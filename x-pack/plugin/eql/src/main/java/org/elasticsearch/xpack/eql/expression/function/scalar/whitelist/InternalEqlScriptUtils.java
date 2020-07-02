@@ -41,12 +41,12 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) ConcatFunctionProcessor.doProcess(values);
     }
 
-    public static Boolean endsWith(String s, String pattern) {
-        return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern);
+    public static Boolean endsWith(String s, String pattern, Boolean isCaseSensitive) {
+        return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
     }
 
-    public static Integer indexOf(String s, String substring, Number start) {
-        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start);
+    public static Integer indexOf(String s, String substring, Number start, Boolean isCaseSensitive) {
+        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start, isCaseSensitive);
     }
 
     public static Integer length(String s) {
@@ -57,8 +57,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) ToStringFunctionProcessor.doProcess(s);
     }
 
-    public static Boolean stringContains(String string, String substring) {
-        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
+    public static Boolean stringContains(String string, String substring, Boolean isCaseSensitive) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring, isCaseSensitive);
     }
 
     public static Number number(String source, Number base) {

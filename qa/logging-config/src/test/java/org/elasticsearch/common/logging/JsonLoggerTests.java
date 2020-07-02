@@ -336,15 +336,15 @@ public class JsonLoggerTests extends ESTestCase {
 
 
     public void testDuplicateLogMessages() throws IOException {
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("test"));
+        final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("test");
 
         // For the same key and X-Opaque-ID deprecation should be once
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -375,8 +375,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
             DeprecationLogger.setThreadContext(threadContext);
-            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            deprecationLogger.deprecate("key", "message1");
+            deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),

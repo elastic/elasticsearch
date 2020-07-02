@@ -10,14 +10,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -29,12 +33,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -51,6 +59,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 public class DataFrameAnalyticsConfigProvider {
 
@@ -68,31 +77,115 @@ public class DataFrameAnalyticsConfigProvider {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
-        String id = config.getId();
-
+    /**
+     * Puts the given {@link DataFrameAnalyticsConfig} document into the config index.
+     */
+    public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<DataFrameAnalyticsConfig> listener) {
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
-            DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
-            config = builder.build();
+            config = new DataFrameAnalyticsConfig.Builder(config)
+                .setHeaders(filterSecurityHeaders(headers))
+                .build();
         }
+        index(config, null, listener);
+    }
+
+    /**
+     * Updates the {@link DataFrameAnalyticsConfig} document in the config index using given {@link DataFrameAnalyticsConfigUpdate}.
+     */
+    public void update(DataFrameAnalyticsConfigUpdate update,
+                       Map<String, String> headers,
+                       ClusterState clusterState,
+                       ActionListener<DataFrameAnalyticsConfig> listener) {
+        String id = update.getId();
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(id));
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
+            getResponse -> {
+
+                // Fail the update request if the config to be updated doesn't exist
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
+                    return;
+                }
+
+                // Parse the original config
+                DataFrameAnalyticsConfig originalConfig;
+                try {
+                    try (InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
+                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                             .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                        originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
+                    }
+                } catch (IOException e) {
+                    listener.onFailure(
+                        new ElasticsearchParseException("Failed to parse data frame analytics configuration [" + id + "]", e));
+                    return;
+                }
+
+                // Check that the update can be applied given current analytics state
+                checkUpdateCanBeApplied(originalConfig, update, clusterState);
+
+                // Merge the original config with the given update object
+                DataFrameAnalyticsConfig.Builder updatedConfigBuilder = update.mergeWithConfig(originalConfig);
+                if (headers.isEmpty() == false) {
+                    updatedConfigBuilder.setHeaders(filterSecurityHeaders(headers));
+                }
+                DataFrameAnalyticsConfig updatedConfig = updatedConfigBuilder.build();
+
+                // Index the update config
+                index(updatedConfig, getResponse, listener);
+            },
+            listener::onFailure
+        ));
+    }
+
+    private static void checkUpdateCanBeApplied(DataFrameAnalyticsConfig originalConfig,
+                                                DataFrameAnalyticsConfigUpdate update,
+                                                ClusterState clusterState) {
+        String analyticsId = update.getId();
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(analyticsId, tasks);
+        if (DataFrameAnalyticsState.STOPPED.equals(analyticsState)) {
+            // Analytics is stopped, therefore it is safe to proceed with the udpate
+            return;
+        }
+        if (update.requiresRestart(originalConfig)) {
+            throw ExceptionsHelper.conflictStatusException(
+                Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_CANNOT_UPDATE_IN_CURRENT_STATE, analyticsId, analyticsState));
+        }
+    }
+
+    /**
+     * Indexes the new version of {@link DataFrameAnalyticsConfig} document into the config index.
+     *
+     * @param config config object to be indexed
+     * @param getResponse {@link GetResponse} coming from requesting the previous version of the config.
+     *                    If null, this config is indexed for the first time
+     * @param listener listener to be called after indexing
+     */
+    private void index(DataFrameAnalyticsConfig config,
+                       @Nullable GetResponse getResponse,
+                       ActionListener<DataFrameAnalyticsConfig> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
-                    .id(DataFrameAnalyticsConfig.documentId(config.getId()))
-                    .opType(DocWriteRequest.OpType.CREATE)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .source(builder);
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName())
+                .id(DataFrameAnalyticsConfig.documentId(config.getId()))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(builder);
+            if (getResponse == null) {
+                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            } else {
+                indexRequest
+                    .opType(DocWriteRequest.OpType.INDEX)
+                    .setIfSeqNo(getResponse.getSeqNo())
+                    .setIfPrimaryTerm(getResponse.getPrimaryTerm());
+            }
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                listener::onResponse,
+                indexResponse -> listener.onResponse(config),
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(id));
+                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
                     } else {
                         listener.onFailure(e);
                     }
@@ -142,7 +235,7 @@ public class DataFrameAnalyticsConfigProvider {
         query.filter(QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
         query.filter(QueryBuilders.termsQuery(DataFrameAnalyticsConfig.ID.getPreferredName(), jobsWithTask));
 
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.configIndexName());
+        SearchRequest searchRequest = new SearchRequest(MlConfigIndex.indexName());
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         searchRequest.source().size(DataFrameAnalyticsConfigProvider.MAX_CONFIGS_SIZE);
         searchRequest.source().query(query);

@@ -248,6 +248,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
     }
 
+    /**
+     * Returns the job id from the doc id. Returns {@code null} if the doc id is invalid.
+     */
+    @Nullable
+    public static String extractJobIdFromDocumentId(String docId) {
+        String jobId = docId.replaceAll("^" + ANOMALY_DETECTOR_JOB_TYPE +"-", "");
+        return jobId.equals(docId) ? null : jobId;
+    }
+
 
     /**
      * Return the Job Id.

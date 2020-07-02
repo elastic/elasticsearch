@@ -607,22 +607,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public String getDescription() {
-                StringBuilder sb = new StringBuilder();
-                sb.append("indices[");
-                Strings.arrayToDelimitedString(indices, ",", sb);
-                sb.append("], ");
-                sb.append("search_type[").append(searchType).append("], ");
-                if (scroll != null) {
-                    sb.append("scroll[").append(scroll.keepAlive()).append("], ");
-                }
-                if (source != null) {
-                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-                } else {
-                    sb.append("source[]");
-                }
-                return sb.toString();
+                return buildDescription();
             }
         };
+    }
+
+    public String buildDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append("search_type[").append(searchType).append("], ");
+        if (scroll != null) {
+            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+        }
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     @Override

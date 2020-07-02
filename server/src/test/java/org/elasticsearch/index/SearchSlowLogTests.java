@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -106,84 +107,101 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"));
         String uuid = UUIDs.randomBase64UUID();
         IndexSettings settings =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", uuid), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata("index", settings(uuid)), Settings.EMPTY);
         SearchSlowLog log = new SearchSlowLog(settings);
 
+        // For this test, when level is not breached, the level below should be used.
         {
-            //level set to WARN, should only log when WARN limit is breached
             log.onQueryPhase(ctx, 40L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
             log.onQueryPhase(ctx, 41L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
 
             log.onFetchPhase(ctx, 40L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
             log.onFetchPhase(ctx, 41L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
         }
 
         {
-            // level set INFO, should log when INFO level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
             log.onQueryPhase(ctx, 30L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
             log.onQueryPhase(ctx, 31L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
 
             log.onFetchPhase(ctx, 30L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
             log.onFetchPhase(ctx, 31L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
         }
 
         {
-            // level set DEBUG, should log when DEBUG level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
             log.onQueryPhase(ctx, 20L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
             log.onQueryPhase(ctx, 21L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
 
             log.onFetchPhase(ctx, 20L);
-            assertNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
             log.onFetchPhase(ctx, 21L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
         }
 
         {
-            // level set TRACE, should log when TRACE level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
             log.onQueryPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 11L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
 
             log.onFetchPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
             log.onFetchPhase(ctx, 11L);
-            assertNotNull(appender.getLastEventAndReset());
+            assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
         }
+    }
+
+    private Settings.Builder settings(String uuid) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "20nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "30nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
+
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos");
     }
 
     public void testTwoLoggersDifferentLevel() {
         SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
         SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
         IndexSettings settings1 =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata("index-1", Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")), Settings.EMPTY);
         SearchSlowLog log1 = new SearchSlowLog(settings1);
 
         IndexSettings settings2 =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata("index-2", Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")), Settings.EMPTY);
         SearchSlowLog log2 = new SearchSlowLog(settings2);
 
         {
-            // level set WARN, should not log
+            // threshold set on WARN only, should not log
             log1.onQueryPhase(ctx1, 11L);
             assertNull(appender.getLastEventAndReset());
             log1.onFetchPhase(ctx1, 11L);
             assertNull(appender.getLastEventAndReset());
 
-            // level set TRACE, should log
+            // threshold set on TRACE, should log
             log2.onQueryPhase(ctx2, 11L);
             assertNotNull(appender.getLastEventAndReset());
             log2.onFetchPhase(ctx2, 11L);
@@ -196,34 +214,21 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
         IndexSettings settings1 =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata("index-1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
         SearchSlowLog log1 = new SearchSlowLog(settings1);
         int numberOfLoggersBefore = context.getLoggers().size();
 
         SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
         IndexSettings settings2 =
-            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+            new IndexSettings(createIndexMetadata("index-2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
         SearchSlowLog log2 = new SearchSlowLog(settings2);
 
         int numberOfLoggersAfter = context.getLoggers().size();
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
-    private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
-        return newIndexMeta(index, Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level)
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "20nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "30nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
-
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
-            .build());
+    private IndexMetadata createIndexMetadata(String index, Settings.Builder put) {
+        return newIndexMeta(index, put.build());
     }
 
     public void testSlowLogHasJsonFields() throws IOException {
@@ -270,71 +275,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         // Makes sure that output doesn't contain any new lines
         assertThat(p.get("source"), not(containsString("\n")));
         assertThat(p.get("id"), equalTo("my_id"));
-    }
-
-    public void testLevelSetting() {
-        SlowLogLevel level = randomFrom(SlowLogLevel.values());
-        IndexMetadata metadata = newIndexMeta("index", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level)
-            .build());
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        SearchSlowLog log = new SearchSlowLog(settings);
-        assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetadata(newIndexMeta("index",
-            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
-        assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetadata(newIndexMeta("index",
-            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
-        assertEquals(level, log.getLevel());
-
-
-        settings.updateIndexMetadata(newIndexMeta("index",
-            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
-        assertEquals(level, log.getLevel());
-
-        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
-        assertEquals(SlowLogLevel.TRACE, log.getLevel());
-
-        metadata = newIndexMeta("index", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build());
-        settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new SearchSlowLog(settings);
-        try {
-            settings.updateIndexMetadata(newIndexMeta("index",
-                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
-            fail();
-        } catch (IllegalArgumentException ex) {
-            final String expected = "illegal value can't update [index.search.slowlog.level] from [TRACE] to [NOT A LEVEL]";
-            assertThat(ex, hasToString(containsString(expected)));
-            assertNotNull(ex.getCause());
-            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
-        }
-        assertEquals(SlowLogLevel.TRACE, log.getLevel());
-
-        metadata = newIndexMeta("index", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG)
-            .build());
-        settings = new IndexSettings(metadata, Settings.EMPTY);
-        SearchSlowLog debugLog = new SearchSlowLog(settings);
-
-        metadata = newIndexMeta("index", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.INFO)
-            .build());
-        settings = new IndexSettings(metadata, Settings.EMPTY);
-        SearchSlowLog infoLog = new SearchSlowLog(settings);
-
-        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
-        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetQueryLevels() {

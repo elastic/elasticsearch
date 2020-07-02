@@ -285,6 +285,7 @@ TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
 TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
+TIME_PARSE       |SCALAR
 TODAY            |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
@@ -342,7 +343,8 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 STARTS_WITH      |SCALAR
-SUBSTRING        |SCALAR         
+SUBSTRING        |SCALAR
+TRIM             |SCALAR
 UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
@@ -1127,6 +1129,18 @@ Georgi         |Facello        |10001
 // end::limitBasic
 ;
 
+topBasic
+// tag::topBasic
+SELECT TOP 2 first_name, last_name, emp_no FROM emp;
+
+  first_name   |   last_name   |    emp_no
+---------------+---------------+---------------
+Georgi         |Facello        |10001
+Bezalel        |Simmel         |10002
+
+// end::topBasic
+;
+
 ///////////////////////////////
 //
 // Aggregations
@@ -1829,6 +1843,16 @@ Elastic
 // end::stringSubString
 ;
 
+stringTrim
+// tag::stringTrim
+SELECT TRIM('   Elastic   ') AS trimmed;
+
+trimmed
+--------------
+Elastic
+// end::stringTrim
+;
+
 stringUCase
 // tag::stringUCase
 SELECT UCASE('Elastic');
@@ -1856,7 +1880,8 @@ SELECT CAST('123' AS INT) AS int;
 // end::conversionStringToIntCast
 ;
 
-conversionIntToStringCast-Ignore
+conversionIntToStringCast
+schema::string:s
 // tag::conversionIntToStringCast
 SELECT CAST(123 AS VARCHAR) AS string;
 
@@ -2574,7 +2599,6 @@ Monday
 // end::dayName
 ;
 
-
 // Ignored because of https://github.com/elastic/elasticsearch/issues/33796
 constantMonthName-Ignore
 // tag::monthName
@@ -2802,6 +2826,42 @@ schema::datetime:ts
 -----------------------------
 2020-04-07T10:20:30.000+03:00
 // end::dateTimeParse3
+;
+
+timeParse1
+schema::time:time
+// tag::timeParse1
+SELECT TIME_PARSE('10:20:30.123', 'HH:mm:ss.SSS') AS "time";
+
+     time
+---------------
+10:20:30.123Z
+// end::timeParse1
+;
+
+timeParse2
+schema::time:time
+// tag::timeParse2
+SELECT TIME_PARSE('10:20:30-01:00', 'HH:mm:ssXXX') AS "time";
+
+     time
+---------------
+11:20:30.000Z
+// end::timeParse2
+;
+
+timeParse3-Ignore
+schema::time:time
+// tag::timeParse3
+{
+    "query" : "SELECT DATETIME_PARSE('10:20:30', 'HH:mm:ss') AS \"time\"",
+    "time_zone" : "Europe/Athens"
+}
+
+      time
+------------------------------------
+10:20:30.000+02:00
+// end::timeParse3
 ;
 
 datePartDateTimeYears

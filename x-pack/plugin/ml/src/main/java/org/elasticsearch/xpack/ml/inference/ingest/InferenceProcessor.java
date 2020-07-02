@@ -28,7 +28,6 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -37,15 +36,13 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -84,11 +81,12 @@ public class InferenceProcessor extends AbstractProcessor {
     public InferenceProcessor(Client client,
                               InferenceAuditor auditor,
                               String tag,
+                              String description,
                               String targetField,
                               String modelId,
                               InferenceConfigUpdate inferenceConfig,
                               Map<String, String> fieldMap) {
-        super(tag);
+        super(tag, description);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
@@ -132,7 +130,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        Model.mapFieldsIfNecessary(fields, fieldMap);
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
         return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
@@ -170,10 +168,6 @@ public class InferenceProcessor extends AbstractProcessor {
         //Any more than 10 nestings of processors, we stop searching for inference processor definitions
         private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
         private static final Logger logger = LogManager.getLogger(Factory.class);
-
-        private static final Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
-            WarningInferenceResults.WARNING.getPreferredName(),
-            MODEL_ID));
 
         private final Client client;
         private final InferenceAuditor auditor;
@@ -270,7 +264,8 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                         Map<String, Object> config) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
@@ -300,6 +295,7 @@ public class InferenceProcessor extends AbstractProcessor {
             return new InferenceProcessor(client,
                 auditor,
                 tag,
+                description,
                 targetField,
                 modelId,
                 inferenceConfig,
@@ -330,37 +326,15 @@ public class InferenceProcessor extends AbstractProcessor {
             if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 ClassificationConfigUpdate config = ClassificationConfigUpdate.fromMap(valueMap);
-                checkFieldUniqueness(config.getResultsField(), config.getTopClassesResultsField());
                 return config;
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 RegressionConfigUpdate config = RegressionConfigUpdate.fromMap(valueMap);
-                checkFieldUniqueness(config.getResultsField());
                 return config;
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
                     inferenceConfig.keySet(),
                     Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
-            }
-        }
-
-        private static void checkFieldUniqueness(String... fieldNames) {
-            Set<String> duplicatedFieldNames = new HashSet<>();
-            Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
-            for(String fieldName : fieldNames) {
-                if (fieldName == null) {
-                    continue;
-                }
-                if (currentFieldNames.contains(fieldName)) {
-                    duplicatedFieldNames.add(fieldName);
-                } else {
-                    currentFieldNames.add(fieldName);
-                }
-            }
-            if (duplicatedFieldNames.isEmpty() == false) {
-                throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
-                        " More than one field is configured as {}",
-                    duplicatedFieldNames);
             }
         }
 

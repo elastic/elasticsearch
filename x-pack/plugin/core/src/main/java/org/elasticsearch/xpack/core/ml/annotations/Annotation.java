@@ -14,14 +14,52 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Objects;
 
 public class Annotation implements ToXContentObject, Writeable {
+
+    public enum Type {
+        ANNOTATION,
+        COMMENT;
+
+        public static Type fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum Event {
+        USER,
+        DELAYED_DATA,
+        MODEL_SNAPSHOT_STORED,
+        MODEL_CHANGE,
+        CATEGORIZATION_STATUS_CHANGE;
+
+        public static Event fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * Result type is needed due to the fact that {@link Annotation} can be returned from C++ as an ML result.
+     */
+    public static final ParseField RESULTS_FIELD = new ParseField("annotation");
 
     public static final ParseField ANNOTATION = new ParseField("annotation");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
@@ -31,6 +69,7 @@ public class Annotation implements ToXContentObject, Writeable {
     public static final ParseField MODIFIED_TIME = new ParseField("modified_time");
     public static final ParseField MODIFIED_USERNAME = new ParseField("modified_username");
     public static final ParseField TYPE = new ParseField("type");
+    public static final ParseField EVENT = new ParseField("event");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
     public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
     public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
@@ -39,29 +78,51 @@ public class Annotation implements ToXContentObject, Writeable {
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), true, Builder::new);
+    /**
+     * Parses {@link Annotation} using a strict parser.
+     */
+    public static Annotation fromXContent(XContentParser parser, Void context) {
+        return STRICT_PARSER.apply(parser, context).build();
+    }
+
+    /**
+     * Strict parser for cases when {@link Annotation} is returned from C++ as an ML result.
+     */
+    private static final ObjectParser<Builder, Void> STRICT_PARSER =
+        new ObjectParser<>(RESULTS_FIELD.getPreferredName(), false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setAnnotation, ANNOTATION);
-        PARSER.declareField(Builder::setCreateTime,
+        STRICT_PARSER.declareString(Builder::setAnnotation, ANNOTATION);
+        STRICT_PARSER.declareField(Builder::setCreateTime,
             p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setCreateUsername, CREATE_USERNAME);
-        PARSER.declareField(Builder::setTimestamp,
+        STRICT_PARSER.declareString(Builder::setCreateUsername, CREATE_USERNAME);
+        STRICT_PARSER.declareField(Builder::setTimestamp,
             p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(Builder::setEndTimestamp,
+        STRICT_PARSER.declareField(Builder::setEndTimestamp,
             p -> TimeUtils.parseTimeField(p, END_TIMESTAMP.getPreferredName()), END_TIMESTAMP, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setJobId, Job.ID);
-        PARSER.declareField(Builder::setModifiedTime,
+        STRICT_PARSER.declareString(Builder::setJobId, Job.ID);
+        STRICT_PARSER.declareField(Builder::setModifiedTime,
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
-        PARSER.declareString(Builder::setType, TYPE);
-        PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
-        PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(Builder::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareString(Builder::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(Builder::setByFieldValue, BY_FIELD_VALUE);
+        STRICT_PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
+        STRICT_PARSER.declareField(Builder::setType, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return Type.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, TYPE, ObjectParser.ValueType.STRING);
+        STRICT_PARSER.declareField(Builder::setEvent, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return Event.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, EVENT, ObjectParser.ValueType.STRING);
+        STRICT_PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+        STRICT_PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        STRICT_PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setOverFieldValue, OVER_FIELD_VALUE);
+        STRICT_PARSER.declareString(Builder::setByFieldName, BY_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setByFieldValue, BY_FIELD_VALUE);
     }
 
     private final String annotation;
@@ -75,7 +136,8 @@ public class Annotation implements ToXContentObject, Writeable {
     private final String jobId;
     private final Date modifiedTime;
     private final String modifiedUsername;
-    private final String type;
+    private final Type type;
+    private final Event event;
     /**
      * Scope-related fields.
      */
@@ -88,8 +150,9 @@ public class Annotation implements ToXContentObject, Writeable {
     private final String byFieldValue;
 
     private Annotation(String annotation, Date createTime, String createUsername, Date timestamp, Date endTimestamp, String jobId,
-                       Date modifiedTime, String modifiedUsername, String type, Integer detectorIndex, String partitionFieldName,
-                       String partitionFieldValue, String overFieldName, String overFieldValue, String byFieldName, String byFieldValue) {
+                       Date modifiedTime, String modifiedUsername, Type type, Event event, Integer detectorIndex,
+                       String partitionFieldName, String partitionFieldValue, String overFieldName, String overFieldValue,
+                       String byFieldName, String byFieldValue) {
         this.annotation = Objects.requireNonNull(annotation);
         this.createTime = Objects.requireNonNull(createTime);
         this.createUsername = Objects.requireNonNull(createUsername);
@@ -99,6 +162,7 @@ public class Annotation implements ToXContentObject, Writeable {
         this.modifiedTime = modifiedTime;
         this.modifiedUsername = modifiedUsername;
         this.type = Objects.requireNonNull(type);
+        this.event = event;
         this.detectorIndex = detectorIndex;
         this.partitionFieldName = partitionFieldName;
         this.partitionFieldValue = partitionFieldValue;
@@ -125,8 +189,9 @@ public class Annotation implements ToXContentObject, Writeable {
             modifiedTime = null;
         }
         modifiedUsername = in.readOptionalString();
-        type = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        type = Type.fromString(in.readString());
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            event = in.readBoolean() ? in.readEnum(Event.class) : null;
             detectorIndex = in.readOptionalInt();
             partitionFieldName = in.readOptionalString();
             partitionFieldValue = in.readOptionalString();
@@ -135,6 +200,7 @@ public class Annotation implements ToXContentObject, Writeable {
             byFieldName = in.readOptionalString();
             byFieldValue = in.readOptionalString();
         } else {
+            event = null;
             detectorIndex = null;
             partitionFieldName = null;
             partitionFieldValue = null;
@@ -165,8 +231,14 @@ public class Annotation implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalString(modifiedUsername);
-        out.writeString(type);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        out.writeString(type.toString());
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (event != null) {
+                out.writeBoolean(true);
+                out.writeEnum(event);
+            } else {
+                out.writeBoolean(false);
+            }
             out.writeOptionalInt(detectorIndex);
             out.writeOptionalString(partitionFieldName);
             out.writeOptionalString(partitionFieldValue);
@@ -209,8 +281,12 @@ public class Annotation implements ToXContentObject, Writeable {
         return modifiedUsername;
     }
 
-    public String getType() {
+    public Type getType() {
         return type;
+    }
+
+    public Event getEvent() {
+        return event;
     }
 
     public Integer getDetectorIndex() {
@@ -261,6 +337,9 @@ public class Annotation implements ToXContentObject, Writeable {
             builder.field(MODIFIED_USERNAME.getPreferredName(), modifiedUsername);
         }
         builder.field(TYPE.getPreferredName(), type);
+        if (event != null) {
+            builder.field(EVENT.getPreferredName(), event);
+        }
         if (detectorIndex != null) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
@@ -289,7 +368,7 @@ public class Annotation implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(
-            annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type,
+            annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type, event,
             detectorIndex, partitionFieldName, partitionFieldValue, overFieldName, overFieldValue, byFieldName, byFieldValue);
     }
 
@@ -311,6 +390,7 @@ public class Annotation implements ToXContentObject, Writeable {
             Objects.equals(modifiedTime, other.modifiedTime) &&
             Objects.equals(modifiedUsername, other.modifiedUsername) &&
             Objects.equals(type, other.type) &&
+            Objects.equals(event, other.event) &&
             Objects.equals(detectorIndex, other.detectorIndex) &&
             Objects.equals(partitionFieldName, other.partitionFieldName) &&
             Objects.equals(partitionFieldValue, other.partitionFieldValue) &&
@@ -338,7 +418,8 @@ public class Annotation implements ToXContentObject, Writeable {
         private String jobId;
         private Date modifiedTime;
         private String modifiedUsername;
-        private String type;
+        private Type type;
+        private Event event;
         private Integer detectorIndex;
         private String partitionFieldName;
         private String partitionFieldValue;
@@ -360,6 +441,7 @@ public class Annotation implements ToXContentObject, Writeable {
             this.modifiedTime = other.modifiedTime == null ? null : new Date(other.modifiedTime.getTime());
             this.modifiedUsername = other.modifiedUsername;
             this.type = other.type;
+            this.event = other.event;
             this.detectorIndex = other.detectorIndex;
             this.partitionFieldName = other.partitionFieldName;
             this.partitionFieldValue = other.partitionFieldValue;
@@ -409,8 +491,13 @@ public class Annotation implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setType(String type) {
+        public Builder setType(Type type) {
             this.type = Objects.requireNonNull(type);
+            return this;
+        }
+
+        public Builder setEvent(Event event) {
+            this.event = event;
             return this;
         }
 
@@ -451,7 +538,7 @@ public class Annotation implements ToXContentObject, Writeable {
 
         public Annotation build() {
             return new Annotation(
-                annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type,
+                annotation, createTime, createUsername, timestamp, endTimestamp, jobId, modifiedTime, modifiedUsername, type, event,
                 detectorIndex, partitionFieldName, partitionFieldValue, overFieldName, overFieldValue, byFieldName, byFieldValue);
         }
     }

@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -39,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.NodeRoles.ingestOnlyNode;
+import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -112,12 +113,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     public void testEnrichDedicatedIngestNode() {
         internalCluster().startNode();
-        Settings settings = Settings.builder()
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_INGEST_SETTING.getKey(), true)
-            .build();
-        String ingestOnlyNode = internalCluster().startNode(settings);
+        String ingestOnlyNode = internalCluster().startNode(ingestOnlyNode());
 
         List<String> keys = createSourceIndex(64);
         createAndExecutePolicy();
@@ -126,11 +122,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     public void testEnrichNoIngestNodes() {
-        Settings settings = Settings.builder()
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(Node.NODE_INGEST_SETTING.getKey(), false)
-            .build();
+        Settings settings = Settings.builder().put(nonIngestNode()).build();
         internalCluster().startNode(settings);
 
         createSourceIndex(64);

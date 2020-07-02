@@ -83,7 +83,9 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.NodeClosedException;
@@ -141,6 +143,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -794,22 +797,26 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         MockTransportService redTransportService =
             (MockTransportService) internalCluster().getInstance(TransportService.class, redNodeName);
 
-        AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+        final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
+        final AtomicBoolean finalizeReceived = new AtomicBoolean(false);
 
-        final SingleStartEnforcer validator = new SingleStartEnforcer(indexName, recoveryStarted);
+        final SingleStartEnforcer validator = new SingleStartEnforcer(indexName, recoveryStarted, finalizeReceived);
         redTransportService.addSendBehavior(blueTransportService, (connection, requestId, action, request, options) -> {
             validator.accept(action, request);
             connection.sendRequest(requestId, action, request, options);
         });
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
+           logger.info("--> closing connections from source node to target node");
             blueTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
             if (randomBoolean()) {
                 // Sometimes break connection from remote to source to ensure that recovery is re-established
+                logger.info("--> closing connections from target node to source node");
                 redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
             }
         };
-        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
+        TransientReceiveRejected handlingBehavior =
+            new TransientReceiveRejected(recoveryActionToBlock, finalizeReceived, recoveryStarted, connectionBreaker);
         redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
 
         try {
@@ -833,12 +840,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         private final String actionName;
         private final AtomicBoolean recoveryStarted;
+        private final AtomicBoolean finalizeReceived;
         private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted, Runnable connectionBreaker) {
+        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted, AtomicBoolean finalizeReceived,
+                                         Runnable connectionBreaker) {
             this.actionName = actionName;
             this.recoveryStarted = recoveryStarted;
+            this.finalizeReceived = finalizeReceived;
             this.connectionBreaker = connectionBreaker;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
         }
@@ -847,6 +857,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         public void messageReceived(TransportRequestHandler<TransportRequest> handler, TransportRequest request, TransportChannel channel,
                                     Task task) throws Exception {
             recoveryStarted.set(true);
+            if (actionName.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                finalizeReceived.set(true);
+            }
             if (blocksRemaining.getAndUpdate(i -> i == 0 ? 0 : i - 1) != 0) {
                 String rejected = "rejected";
                 String circuit = "circuit";
@@ -872,11 +885,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     private class SingleStartEnforcer implements BiConsumer<String, TransportRequest> {
 
         private final AtomicBoolean recoveryStarted;
+        private final AtomicBoolean finalizeReceived;
         private final String indexName;
 
-        private SingleStartEnforcer(String indexName, AtomicBoolean recoveryStarted) {
+        private SingleStartEnforcer(String indexName, AtomicBoolean recoveryStarted, AtomicBoolean finalizeReceived) {
             this.indexName = indexName;
             this.recoveryStarted = recoveryStarted;
+            this.finalizeReceived = finalizeReceived;
         }
 
         @Override
@@ -887,7 +902,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 StartRecoveryRequest startRecoveryRequest = (StartRecoveryRequest) request;
                 ShardId shardId = startRecoveryRequest.shardId();
                 logger.info("--> attempting to send start_recovery request for shard: " + shardId);
-                if (indexName.equals(shardId.getIndexName()) && recoveryStarted.get()) {
+                if (indexName.equals(shardId.getIndexName()) && recoveryStarted.get() && finalizeReceived.get() == false) {
                     throw new IllegalStateException("Recovery cannot be started twice");
                 }
             }
@@ -1757,4 +1772,59 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             }
         });
     }
+
+    public void testReservesBytesDuringPeerRecoveryPhaseOne() throws Exception {
+        internalCluster().startNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
+        ensureGreen(indexName);
+        final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .collect(Collectors.toList());
+        indexRandom(randomBoolean(), true, true, indexRequests);
+        assertThat(client().admin().indices().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        DiscoveryNode nodeWithPrimary = clusterState.nodes().get(clusterState.routingTable()
+            .index(indexName).shard(0).primaryShard().currentNodeId());
+        MockTransportService transportService = (MockTransportService) internalCluster()
+            .getInstance(TransportService.class, nodeWithPrimary.getName());
+
+        final AtomicBoolean fileInfoIntercepted = new AtomicBoolean();
+        final AtomicBoolean fileChunkIntercepted = new AtomicBoolean();
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
+                if (fileInfoIntercepted.compareAndSet(false, true)) {
+                    final NodeIndicesStats nodeIndicesStats = client().admin().cluster().prepareNodesStats(connection.getNode().getId())
+                        .clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Store)).get().getNodes().get(0).getIndices();
+                    assertThat(nodeIndicesStats.getStore().getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
+                        .stream().flatMap(s -> Arrays.stream(s.getShards())).map(s -> s.getStats().getStore().getReservedSize().getBytes())
+                        .collect(Collectors.toList()),
+                        everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES)));
+                }
+            } else if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                if (fileChunkIntercepted.compareAndSet(false, true)) {
+                    assertThat(client().admin().cluster().prepareNodesStats(connection.getNode().getId()).clear()
+                            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Store)).get().getNodes().get(0)
+                            .getIndices().getStore().getReservedSize().getBytes(),
+                        greaterThan(0L));
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 1)));
+        ensureGreen();
+        assertTrue(fileInfoIntercepted.get());
+        assertTrue(fileChunkIntercepted.get());
+
+        assertThat(client().admin().cluster().prepareNodesStats().get().getNodes().stream()
+            .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes()).sum(), equalTo(0L));
+    }
+
 }

@@ -15,10 +15,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffP
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
@@ -289,9 +289,13 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
-        return DateTimeParseProcessor.process(dateField, pattern, ZoneId.of(tzId));
+        return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
 
+    public static Object timeParse(String dateField, String pattern, String tzId) {
+        return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+    
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }
@@ -419,6 +423,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static String substring(String s, Number start, Number length) {
         return (String) SubstringFunctionProcessor.doProcess(s, start, length);
+    }
+
+    public static String trim(String s) {
+        return (String) StringOperation.TRIM.apply(s);
     }
 
     public static String ucase(String s) {

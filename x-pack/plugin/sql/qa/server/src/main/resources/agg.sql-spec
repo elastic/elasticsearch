@@ -227,9 +227,9 @@ SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c 
 
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
-aggCountOnColumnAndHavingBetween-Ignore
+aggCountOnColumnAndHavingBetween
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
-aggCountOnColumnAndHavingBetweenWithLimit-Ignore
+aggCountOnColumnAndHavingBetweenWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
 aggCountStarAndMultipleHavingWithLimit
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;

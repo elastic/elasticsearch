@@ -1,22 +1,25 @@
 [role="xpack"]
 [testenv="basic"]
 [[set-up-lifecycle-policy]]
-== Configure lifecycle policy [[ilm-policy-definition]]
+== Configure a lifecycle policy [[ilm-policy-definition]]
 
 For {ilm-init} to manage an index, a valid policy 
 must be specified in the `index.lifecycle.name` index setting. 
 
-To configure a lifecycle policy for rolling indices, 
-you create the policy and add it to the index template.
+To configure a lifecycle policy for <<index-rollover, rolling indices>>, 
+you create the policy and add it to the <<indices-templates, index template>>.
 
 To use a policy to manage an index that doesn't roll over,
-you can specify the policy directly when you create it.
+you can specify a lifecycle policy when you create it.
+
+{ilm-init} policies are stored in the global cluster state and can be included in snapshots
+by setting `include_global_state` to `true` when you <<snapshots-take-snapshot, take the snapshot>>. 
+When the snapshot is restored, all of the policies in the global state are restored and any local policies with the same names are overwritten.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 the necessary policies and configuration changes are applied automatically. 
 You can modify the default policies, but you do not need to explicitly configure a policy or
 bootstrap an initial index.
-
 
 [discrete]
 [[ilm-create-policy]]
@@ -54,11 +57,6 @@ PUT _ilm/policy/my_policy
 
 <1> Roll over the index when it reaches 25GB in size
 <2> Delete the index 30 days after rollover
-
-NOTE: {ilm-init} policies are stored in the global cluster state and can be included in snapshots by  
-setting `include_global_state` to `true` when you <<snapshots-take-snapshot, take the snapshot>>. 
-Restoring {ilm-init} policies from a snapshot is all-or-nothing. 
-The entire global state, including all policies, is overwritten when you restore the snapshot.
 
 [discrete]
 [[apply-policy-template]]
@@ -135,7 +133,7 @@ index exceeds 25GB.
 [[apply-policy-manually]]
 === Apply lifecycle policy manually
 
-When you create an index directly, you can apply a lifecycle policy 
+When you create an index, you can apply a lifecycle policy 
 by specifying the `index.lifecycle.name` setting.
 This causes {ilm-init} to immediately start managing the index.
 
@@ -154,3 +152,80 @@ PUT test-index
 IMPORTANT: Do not manually apply a policy that uses the rollover action.
 Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
 Otherwise, the policy is not carried forward when the rollover action creates a new index.
+
+[discrete]
+[[apply-policy-multiple]]
+==== Apply a policy to multiple indices
+
+You can apply the same policy to multiple indices by using wildcards in the index name 
+when you call the <<indices-update-settings,update settings>> API.
+
+WARNING: Be careful that you don't inadvertently match indices that you don't want to modify.
+
+//////////////////////////
+[source,console]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "mylogs-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.24/_doc
+{
+  "@timestamp": "2019-06-24T10:34:00",
+  "message": "this is one log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.25/_doc
+{
+  "@timestamp": "2019-06-25T17:42:00",
+  "message": "this is another log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+--------------------------------------------------
+DELETE _template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[source,console]
+-----------------------
+PUT mylogs-pre-ilm*/_settings <1>
+{
+  "index": {
+    "lifecycle": {
+      "name": "mylogs_policy_existing"
+    }
+  }
+}
+-----------------------
+// TEST[continued]
+
+<1> Updates all indices with names that start with `mylogs-pre-ilm`

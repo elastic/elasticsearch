@@ -28,6 +28,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
 
     GeoMatchProcessor(
         String tag,
+        String description,
         Client client,
         String policyName,
         TemplateScript.Factory field,
@@ -38,13 +39,14 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         int maxMatches,
         ShapeRelation shapeRelation
     ) {
-        super(tag, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
     }
 
     /** used in tests **/
     GeoMatchProcessor(
         String tag,
+        String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
@@ -55,7 +57,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         int maxMatches,
         ShapeRelation shapeRelation
     ) {
-        super(tag, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
     }
 

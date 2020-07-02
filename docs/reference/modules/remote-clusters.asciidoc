@@ -257,7 +257,7 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
 `cluster.remote.<cluster_alias>.skip_unavailable`::
 
   Per cluster boolean setting that allows to skip specific clusters when no
-  nodes belonging to them are available and they are the targetof a remote
+  nodes belonging to them are available and they are the target of a remote
   cluster request. Default is `false`, meaning that all clusters are mandatory
   by default, but they can selectively be made optional by setting this setting
   to `true`.

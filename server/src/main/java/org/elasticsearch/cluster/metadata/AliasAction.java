@@ -149,16 +149,19 @@ public abstract class AliasAction {
      */
     public static class Remove extends AliasAction {
         private final String alias;
+        @Nullable
+        private final Boolean mustExist;
 
         /**
          * Build the operation.
          */
-        public Remove(String index, String alias) {
+        public Remove(String index, String alias, @Nullable Boolean mustExist) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;
+            this.mustExist = mustExist;
         }
 
         /**
@@ -176,6 +179,9 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
+                if (mustExist != null && mustExist.booleanValue()) {
+                    throw new IllegalArgumentException("required alias [" + alias  + "] does not exist");
+                }
                 return false;
             }
             metadata.put(IndexMetadata.builder(index).removeAlias(alias));

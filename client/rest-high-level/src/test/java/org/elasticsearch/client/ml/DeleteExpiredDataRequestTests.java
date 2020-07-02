@@ -33,9 +33,11 @@ public class DeleteExpiredDataRequestTests extends AbstractXContentTestCase<Dele
     private static ConstructingObjectParser<DeleteExpiredDataRequest, Void> PARSER = new ConstructingObjectParser<>(
         "delete_expired_data_request",
         true,
-        (a) -> new DeleteExpiredDataRequest((Float) a[0], (TimeValue) a[1])
+        (a) -> new DeleteExpiredDataRequest((String) a[0], (Float) a[1], (TimeValue) a[2])
     );
     static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(),
+            new ParseField(DeleteExpiredDataRequest.JOB_ID));
         PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(),
             new ParseField(DeleteExpiredDataRequest.REQUESTS_PER_SECOND));
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
@@ -46,7 +48,9 @@ public class DeleteExpiredDataRequestTests extends AbstractXContentTestCase<Dele
 
     @Override
     protected DeleteExpiredDataRequest createTestInstance() {
-        return new DeleteExpiredDataRequest(randomBoolean() ? null : randomFloat(),
+        return new DeleteExpiredDataRequest(
+            randomBoolean() ? null : randomAlphaOfLength(6),
+            randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "test"));
     }
 

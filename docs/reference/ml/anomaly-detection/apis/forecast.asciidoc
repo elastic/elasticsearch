@@ -45,7 +45,7 @@ forecast. For more information about this property, see <<ml-put-job>>.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}
@@ -62,6 +62,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   default value is 14 days. If set to a value of `0`, the forecast is never 
   automatically deleted.
 
+`max_model_memory`::
+  (Optional, <<byte-units,byte value>>) The maximum memory the forecast can use.
+  If the forecast needs to use more than the provided amount, it will spool to
+  disk. Default is 20mb, maximum is 500mb and minimum is 1mb. If set to 40% or
+  more of the job's configured memory limit, it is automatically reduced to
+  below that amount.
 
 [[ml-forecast-example]]
 ==== {api-examples-title}

@@ -32,36 +32,20 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
         BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-
-        // using task avoidance api means the task configuration of the sample task is never triggered
-        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
         result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-
-        // using task avoidance api means the task configuration of the sample task is never triggered
-        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
-    }
-
-    public void testImplicitTaskDependencyCopy() {
-        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sampleCopyAll", "-s", "-i").build();
-
-        assertTaskSuccessful(result, ":buildResources");
-        assertTaskSuccessful(result, ":sampleCopyAll");
-        assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
-
-        // using task avoidance api means the task configuration of the sample task is never triggered
-        // which means buildResource is not configured to copy this file
-        assertBuildFileDoesNotExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
-    }
-
-    public void testImplicitTaskDependencyInputFileOfOther() {
-        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sample", "-s", "-i").build();
-
-        assertTaskSuccessful(result, ":sample");
-        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+    }
+
+    public void testOutputAsInput() {
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sampleCopy", "-s", "-i").build();
+
+        assertTaskSuccessful(result, ":sampleCopy");
+        assertBuildFileExists(result, PROJECT_NAME, "sampleCopy/checkstyle.xml");
+        assertBuildFileExists(result, PROJECT_NAME, "sampleCopy/checkstyle_suppressions.xml");
     }
 
     public void testIncorrectUsage() {

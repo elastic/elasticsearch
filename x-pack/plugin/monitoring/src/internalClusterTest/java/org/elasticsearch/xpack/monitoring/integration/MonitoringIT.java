@@ -364,6 +364,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final Settings settings = Settings.builder()
                 .put("xpack.monitoring.collection.enabled", true)
+                .put("xpack.monitoring.exporters._local.type", "local")
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .build();
 
@@ -390,6 +391,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     public void disableMonitoring() throws Exception {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")
+                .putNull("xpack.monitoring.exporters._local.type")
                 .putNull("xpack.monitoring.exporters._local.enabled")
                 .putNull("cluster.metadata.display_name")
                 .build();

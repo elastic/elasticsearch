@@ -58,7 +58,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         long interval = randomIntBetween(1, 3);
         intervalMillis = randomFrom(timeValueSeconds(interval), timeValueMinutes(interval), timeValueHours(interval)).getMillis();
         Rounding rounding = Rounding.builder(TimeValue.timeValueMillis(intervalMillis)).build();
-        baseMillis = rounding.round(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        baseMillis = rounding.prepare(now, now).round(now);
         if (randomBoolean()) {
             minDocCount = randomIntBetween(1, 10);
             emptyBucketInfo = null;
@@ -108,8 +109,12 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             long minBound = -1;
             long maxBound = -1;
             if (emptyBucketInfo.bounds != null) {
-                minBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMin());
-                maxBound = emptyBucketInfo.rounding.round(emptyBucketInfo.bounds.getMax());
+                Rounding.Prepared prepared = emptyBucketInfo.rounding.prepare(
+                    emptyBucketInfo.bounds.getMin(),
+                    emptyBucketInfo.bounds.getMax()
+                );
+                minBound = prepared.round(emptyBucketInfo.bounds.getMin());
+                maxBound = prepared.round(emptyBucketInfo.bounds.getMax());
                 if (expectedCounts.isEmpty() && minBound <= maxBound) {
                     expectedCounts.put(minBound, 0L);
                 }

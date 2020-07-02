@@ -20,15 +20,18 @@ be removed or changed in the next major version.
 
 `GET /_migration/deprecations` +
 
-`GET /<index_name>/_migration/deprecations`
+`GET /<target>/_migration/deprecations`
 
 [[migration-api-path-params]]
 ==== {api-path-parms-title}
 
-`index_name`::
-  (Optional, string) Identifier for the index. It can be an index name or a
-  wildcard expression. When you specify this parameter, only index-level
-  deprecations for the specified indices are returned.
+`<target>`::
+(Optional, string)
+Comma-separate list of data streams or indices to check. Wildcard (`*`)
+expressions are supported.
++
+When you specify this parameter, only deprecations for the specified
+data streams or indices are returned.
 
 [[migration-api-example]]
 ==== {api-examples-title}
@@ -108,8 +111,9 @@ key. Similarly, any node-level warnings are found under `node_settings`. Since
 only a select subset of your nodes might incorporate these settings, it is
 important to read the `details` section for more information about which nodes
 are affected. Index warnings are sectioned off per index and can be filtered
-using an index-pattern in the query. Machine Learning related deprecation
-warnings can be found under the `ml_settings` key.
+using an index-pattern in the query. This section includes warnings for the
+backing indices of data streams specified in the request path. Machine Learning
+related deprecation warnings can be found under the `ml_settings` key.
 
 The following example request shows only index-level deprecations of all
 `logstash-*` indices:

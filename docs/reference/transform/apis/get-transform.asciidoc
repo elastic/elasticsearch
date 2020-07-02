@@ -48,22 +48,22 @@ specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 
 `<transform_id>`::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
   
 [[get-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 [[get-transform-response]]
 ==== {api-response-body-title}

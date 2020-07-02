@@ -26,6 +26,240 @@ index that make warmers not necessary anymore.
 The types exists endpoint has been removed. See <<removal-of-types>> for
 more details.
 
+[role="exclude",id="xpack-commands"]
+=== X-Pack commands
+
+See <<commands>>.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See <<ml-get-calendar>> and
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{ml-docs}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and
+{ml-docs}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="index-apis"]
+=== Index APIs
+{es} index APIs are now documented in <<indices>>.
+
+[role="exclude",id="search-request-docvalue-fields"]
+=== Doc value fields parameter for request body search API
+See <<request-body-search-docvalue-fields>>.
+
+[role="exclude",id="search-request-explain"]
+=== Explain parameter for request body search API
+See <<request-body-search-explain>>.
+
+[role="exclude",id="search-request-collapse"]
+=== Collapse parameter for request body search API
+See <<request-body-search-collapse>>.
+
+[role="exclude",id="search-request-from-size"]
+=== From and size parameters for request body search API
+See <<paginate-search-results>>.
+
+[role="exclude",id="search-request-highlighting"]
+=== Highlight parameter for request body search API
+See <<request-body-search-highlighting>>.
+
+[role="exclude",id="search-request-index-boost"]
+=== Index boost parameter for request body search API
+See <<request-body-search-index-boost>>.
+
+[role="exclude",id="search-request-inner-hits"]
+=== Inner hits parameter for request body search API
+See <<request-body-search-inner-hits>>.
+
+[role="exclude",id="search-request-min-score"]
+=== Minimum score parameter for request body search API
+See <<request-body-search-min-score>>.
+
+[role="exclude",id="search-request-named-queries-and-filters"]
+=== Named query parameter for request body search API
+See <<request-body-search-queries-and-filters>>.
+
+[role="exclude",id="search-request-post-filter"]
+=== Post filter parameter for request body search API
+See <<request-body-search-post-filter>>.
+
+[role="exclude",id="search-request-preference"]
+=== Preference parameter for request body search API
+See <<request-body-search-preference>>.
+
+[role="exclude",id="search-request-query"]
+=== Query parameter for request body search API
+See <<request-body-search-query>>.
+
+[role="exclude",id="search-request-rescore"]
+=== Rescoring parameter for request body search API
+See <<request-body-search-rescore>>.
+
+[role="exclude",id="search-request-script-fields"]
+=== Script fields parameter for request body search API
+See <<request-body-search-script-fields>>.
+
+[role="exclude",id="search-request-scroll"]
+=== Scroll parameter for request body search API
+See <<request-body-search-scroll>>.
+
+[role="exclude",id="search-request-search-after"]
+=== Search after parameter for request body search API
+See <<request-body-search-search-after>>.
+
+[role="exclude",id="search-request-search-type"]
+=== Search type parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-seq-no-primary-term"]
+=== Sequence numbers and primary terms parameter for request body search API
+See <<request-body-search-search-type>>.
+
+[role="exclude",id="search-request-sort"]
+=== Sort parameter for request body search API
+See <<request-body-search-sort>>.
+
+[role="exclude",id="search-request-source-filtering"]
+=== Source filtering parameter for request body search API
+See <<request-body-search-source-filtering>>.
+
+[role="exclude",id="search-request-stored-fields"]
+=== Stored fields parameter for request body search API
+See <<request-body-search-stored-fields>>.
+
+[role="exclude",id="search-request-track-total-hits"]
+=== Track total hits parameter for request body search API
+See <<request-body-search-track-total-hits>>.
+
+[role="exclude",id="search-request-version"]
+=== Version parameter for request body search API
+See <<request-body-search-version>>.
+
+[role="exclude",id="search-suggesters-term"]
+=== Term suggester
+See <<term-suggester>>.
+
+[role="exclude",id="search-suggesters-phrase"]
+=== Phrase suggester
+See <<phrase-suggester>>.
+
+[role="exclude",id="search-suggesters-completion"]
+=== Completion suggester
+See <<completion-suggester>>.
+
+[role="exclude",id="suggester-context"]
+=== Context suggester
+See <<context-suggester>>.
+
+[role="exclude",id="returning-suggesters-type"]
+=== Return suggester type
+See <<return-suggesters-type>>.
+
+[role="exclude",id="search-profile-queries"]
+=== Profiling queries
+See <<profiling-queries>>.
+
+[role="exclude",id="search-profile-aggregations"]
+=== Profiling aggregations
+See <<profiling-aggregations>>.
+
+[role="exclude",id="search-profile-considerations"]
+=== Profiling considerations
+See <<profiling-considerations>>.
+
+[role="exclude",id="_explain_analyze"]
+=== Explain analyze API
+See <<explain-analyze-api>>.
+
+[role="exclude",id="indices-synced-flush"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="indices-synced-flush-api"]
+=== Synced flush API
+The synced flush API has been removed. Use the <<indices-flush,flush API>>
+instead. A regular flush has the same effect as a synced flush in 7.6 and later.
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
 [role="exclude",id="delete-data-frame-transform"]
 ===  Delete {transforms} API
 
@@ -387,12 +621,6 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 
 coming::[7.x]
 
-[role="exclude",id="data-streams"]
-=== Data stream APIs
-
-See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
-<<indices-delete-data-stream>>.
-
 [role="exclude",id="modules-indices"]
 === Indices module
 
@@ -504,7 +732,7 @@ See <<search-search>>.
 [role="exclude",id="modules-gateway-dangling-indices"]
 === Dangling indices
 
-See <<modules-gateway-dangling-indices>>.
+See <<dangling-indices>>.
 
 [role="exclude",id="shards-allocation"]
 === Cluster-level shard allocation
@@ -564,6 +792,123 @@ For other information, see:
 
 See <<add-elasticsearch-nodes>>.
 
+[role="exclude",id="_timing"]
+=== Timing
+
+See <<ilm-phase-transitions>>.
+
+[role="exclude",id="_installation"]
+=== Installation
+
+See <<install-elasticsearch>>.
+
+[role="exclude",id="mapping-ttl-field"]
+=== `_ttl` mappings
+
+The `_ttl` mappings have been removed. As a replacement for `_ttl`
+mappings, we recommend using <<index-lifecycle-management,{ilm-init}>> to create
+time-based indices.
+
+[role="exclude",id="setup-service"]
+=== Running as a service on Linux
+
+See <<starting-elasticsearch>>.
+
+[role="exclude",id="modules-scripting-painless-syntax"]
+=== Painless syntax
+
+See {painless}/painless-lang-spec.html[Painless language specification].
+
+[role="exclude",id="using-policies-rollover"]
+=== Using policies to manage index rollover
+
+See <<getting-started-index-lifecycle-management>>.
+
+[role="exclude",id="_applying_a_policy_to_our_index"]
+=== Applying a policy to our index
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="setup-dir-layout"]
+=== Directory layout
+
+See <<settings>>.
+
+[role="exclude",id="scan-scroll"]
+=== Scan and scroll
+
+See <<request-body-search-scroll>>.
+
+[role="exclude",id="mapping-dynamic-mapping"]
+=== Dynamic mapping
+
+See <<dynamic-mapping>>.
+
+[role="exclude",id="applying-policy-to-template"]
+=== Applying a policy to an index template
+
+See <<ilm-gs-apply-policy>>.
+
+[role="exclude",id="indices-status"]
+=== Index status API
+
+The  index `_status` API has been replaced with the <<indices-stats,index
+stats>> and <<indices-recovery,index recovery>> APIs.
+
+[role="exclude",id="search-facets"]
+=== Search facets
+
+See <<search-aggregations>>.
+
+[role="exclude",id="_executing_searches"]
+=== Executing searches
+
+See <<getting-started-search>>.
+
+[role="exclude",id="mapping-root-object-type"]
+=== Mapping root object type
+
+Mapping types have been removed. See <<mapping>>.
+
+[role="exclude",id="query-dsl-filters"]
+=== Query DSL filters
+
+See <<query-filter-context>>.
+
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
+
+[role="exclude",id="ilm-with-existing-periodic-indices"]
+=== Manage existing periodic indices with {ilm-init}
+
+See <<ilm-existing-indices-apply>>.
+
+[role="exclude",id="ilm-reindexing-into-rollover"]
+=== Reindexing via {ilm-init}
+
+See <<ilm-existing-indices-reindex>>.
+
+[role="exclude",id="analysis-pathhierarchy-tokenizer-examples"]
+=== Path hierarchy tokenizer examples
+
+See <<analysis-pathhierarchy-tokenizer-detailed-examples>>.
+
+[role="exclude",id="modules-tribe"]
+=== Tribe node
+
+Tribe node functionality has been removed in favor of {ccs}. See
+<<modules-cross-cluster-search>>.
+
+[role="exclude",id="release-highlights-7.0.0"]
+=== Release highlights
+
+See <<release-highlights>>.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search
@@ -578,4 +923,14 @@ For search examples, see <<run-a-search>>.
 ==== From / size
 
 See <<paginate-search-results>>.
+
+[role="exclude",id="request-body-search-source-filtering"]
+==== Source filtering
+
+See <<source-filtering, source filtering>>.
+
+[role="exclude",id="request-body-search-docvalue-fields"]
+==== Doc value fields
+
+See <<docvalue-fields, doc value fields>>.
 ////

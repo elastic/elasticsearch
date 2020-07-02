@@ -46,6 +46,8 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/fips.gradle'
+apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -374,43 +376,6 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-// we need to add the same --debug-jvm option as
-// the real RunTask has, so we can pass it through
-class Run extends DefaultTask {
-  boolean debug = false
-
-  @Option(
-    option = "debug-jvm",
-    description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-  )
-  public void setDebug(boolean enabled) {
-    project.project(':distribution').run.debug = enabled
-  }
-
-  @Option(
-    option = "data-dir",
-    description = "Override the base data directory used by the testcluster"
-  )
-  public void setDataDir(String dataDirStr) {
-    project.project(':distribution').run.dataDir = dataDirStr
-  }
-
-  @Option(
-    option = "keystore-password",
-    description = "Set the elasticsearch keystore password"
-  )
-  public void setKeystorePassword(String password) {
-    project.project(':distribution').run.keystorePassword = password
-  }
-}
-
-tasks.register("run", Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
-}
-
 wrapper {
   distributionType = 'ALL'
   doLast {
@@ -461,12 +426,17 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
+  apply plugin: 'elasticsearch.enforce-deprecation-use-failures'
+
   tasks.register('resolveAllDependencies') {
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      configurations.findAll { it.isCanBeResolved() &&
+        it.name.equals("testCompile") == false &&
+        it.name.equals("compile") == false
+      }.each { it.resolve() }
     }
   }
 

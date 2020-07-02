@@ -47,6 +47,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -54,11 +55,15 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
     private IndexService indexService;
     private DocumentMapperParser parser;
 
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
+    }
+
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-        setDummyNullValue(true);
     }
 
     @Override

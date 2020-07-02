@@ -549,10 +549,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             if (fieldName.equals(MISSING_FIELD_NAME)) {
                 return null;
             } else {
-                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-                ft.setName(fieldName);
-                ft.freeze();
-                return ft;
+                return new KeywordFieldMapper.KeywordFieldType(fieldName);
             }
         });
 

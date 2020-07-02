@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,7 +27,7 @@ import java.util.Objects;
  */
 public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FrequencyEncoding.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FrequencyEncoding.class);
 
     public static final ParseField NAME = new ParseField("frequency_encoding");
     public static final ParseField FIELD = new ParseField("field");
@@ -109,7 +108,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
 
     @Override
     public void process(Map<String, Object> fields) {
-        Object value = MapHelper.dig(field, fields);
+        Object value = fields.get(field);
         if (value == null) {
             return;
         }

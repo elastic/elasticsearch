@@ -9,6 +9,27 @@
 //
 //
 
+castStringToDateTime
+SELECT CAST('2020-06-01T10:20:30Z' AS DATETIME) AS cast1, CAST('2020-06-01 10:20:30.000Z' AS DATETIME) AS cast2;
+
+        cast1             | cast2
+--------------------------+-------------------------
+2020-06-01T10:20:30.000Z  | 2020-06-01T10:20:30.000Z
+;
+
+castStringToDateTimeWithField
+SELECT CAST(CAST(birth_date AS STRING) AS DATETIME) AS cast1, CAST(REPLACE(CAST(birth_date AS STRING), 'T', ' ') AS DATETIME) AS cast2
+FROM test_emp ORDER BY emp_no LIMIT 5;
+
+        cast1             | cast2
+--------------------------+-------------------------
+1953-09-02T00:00:00.000Z  | 1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z  | 1964-06-02T00:00:00.000Z
+1959-12-03T00:00:00.000Z  | 1959-12-03T00:00:00.000Z
+1954-05-01T00:00:00.000Z  | 1954-05-01T00:00:00.000Z
+1955-01-21T00:00:00.000Z  | 1955-01-21T00:00:00.000Z
+;
+
 dateTimeSecond
 SELECT SECOND(birth_date) d, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,6 +56,13 @@ public class RestForecastJobAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(ForecastJobAction.Request.EXPIRES_IN.getPreferredName())) {
                 request.setExpiresIn(restRequest.param(ForecastJobAction.Request.EXPIRES_IN.getPreferredName()));
+            }
+            if (restRequest.hasParam(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName())) {
+                long limit = ByteSizeValue.parseBytesSizeValue(
+                    restRequest.param(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()),
+                    ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()
+                ).getBytes();
+                request.setMaxModelMemory(limit);
             }
         }
 

@@ -301,7 +301,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
         indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
-        indicesCommonStats.getStore().add(new StoreStats(++iota));
+        indicesCommonStats.getStore().add(new StoreStats(++iota, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
@@ -340,7 +340,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 "_memory_ctrl_group", "2000000000", "1000000000");
 
         final OsStats.Mem osMem = new OsStats.Mem(0, 0);
-        final OsStats.Swap osSwap = new OsStats.Swap(no, no);
+        final OsStats.Swap osSwap = new OsStats.Swap(0, 0);
         final OsStats os = new OsStats(no, osCpu, osMem, osSwap, osCgroup);
 
         // Process

@@ -35,11 +35,7 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
 
     @Override
     protected EqlSearchResponse createTestInstance() {
-        TotalHits totalHits = null;
-        if (randomBoolean()) {
-            totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
-        }
-        return createRandomInstance(totalHits);
+        return randomEqlSearchResponse();
     }
 
     @Override
@@ -47,12 +43,25 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         return EqlSearchResponse::new;
     }
 
+    public static EqlSearchResponse randomEqlSearchResponse() {
+        TotalHits totalHits = null;
+        if (randomBoolean()) {
+            totalHits = new TotalHits(randomIntBetween(100, 1000), TotalHits.Relation.EQUAL_TO);
+        }
+        return createRandomInstance(totalHits);
+    }
+
     public static EqlSearchResponse createRandomEventsResponse(TotalHits totalHits) {
         EqlSearchResponse.Hits hits = null;
         if (randomBoolean()) {
             hits = new EqlSearchResponse.Hits(randomEvents(), null, null, totalHits);
         }
-        return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static EqlSearchResponse createRandomSequencesResponse(TotalHits totalHits) {
@@ -72,7 +81,12 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             hits = new EqlSearchResponse.Hits(null, seq, null, totalHits);
         }
-        return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static EqlSearchResponse createRandomCountResponse(TotalHits totalHits) {
@@ -92,7 +106,12 @@ public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearc
         if (randomBoolean()) {
             hits = new EqlSearchResponse.Hits(null, null, cn, totalHits);
         }
-        return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        if (randomBoolean()) {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+        } else {
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
+                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+        }
     }
 
     public static EqlSearchResponse createRandomInstance(TotalHits totalHits) {

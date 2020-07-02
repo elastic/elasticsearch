@@ -152,6 +152,10 @@ public final class Expressions {
         return null;
     }
 
+    public static boolean isPresent(NamedExpression e) {
+        return e instanceof EmptyAttribute == false;
+    }
+
     public static boolean equalsAsAttribute(Expression left, Expression right) {
         if (!left.semanticEquals(right)) {
             Attribute l = attribute(left);

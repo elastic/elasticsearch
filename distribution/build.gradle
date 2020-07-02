@@ -24,23 +24,29 @@ import org.elasticsearch.gradle.DependenciesInfoTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testclusters.RunTask
 
 import java.nio.file.Files
 import java.nio.file.Path
 
-apply plugin: 'elasticsearch.testclusters'
-
+plugins {
+  id 'base'
+}
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
 
 // Concatenates the dependencies CSV files into a single file
-task generateDependenciesReport(type: ConcatFilesTask) {
+tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
+
+  // explicitly add our dependency on the JDK
+  String jdkVersion = VersionProperties.versions.get('bundled_jdk')
+  String jdkMajorVersion = jdkVersion.split('[+.]')[0]
+  String sourceUrl = "http://hg.openjdk.java.net/jdk-updates/jdk${jdkMajorVersion}u/archive/jdk-${jdkVersion}.tar.gz"
+  additionalLines << "OpenJDK,${jdkVersion},https://openjdk.java.net/,GPL-2.0-with-classpath-exception,${sourceUrl}".toString()
 }
 
 /*****************************************************************************
@@ -48,24 +54,29 @@ task generateDependenciesReport(type: ConcatFilesTask) {
  *****************************************************************************/
 
 // integ test zip only uses server, so a different notice file is needed there
-task buildServerNotice(type: NoticeTask) {
-  licensesDir new File(project(':server').projectDir, 'licenses')
-}
+task buildServerNotice(type: NoticeTask)
 
 // other distributions include notices from modules as well, which are added below later
 task buildDefaultNotice(type: NoticeTask) {
-  licensesDir new File(project(':server').projectDir, 'licenses')
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
+
 task buildOssNotice(type: NoticeTask) {
-  licensesDir new File(project(':server').projectDir, 'licenses')
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
-task buildDefaultNoJdkNotice(type: NoticeTask) {
-  licensesDir new File(project(':server').projectDir, 'licenses')
-}
-task buildOssNoJdkNotice(type: NoticeTask) {
-  licensesDir new File(project(':server').projectDir, 'licenses')
+
+task buildDefaultNoJdkNotice(type: NoticeTask)
+
+task buildOssNoJdkNotice(type: NoticeTask)
+
+// The :server and :libs projects belong to all distributions
+tasks.withType(NoticeTask) {
+  licensesDir project(':server').file('licenses')
+  source project(':server').file('src/main/java')
+  project(':libs').subprojects.each { Project lib ->
+    licensesDir lib.file('licenses')
+    source lib.file('src/main/java')
+  }
 }
 
 /*****************************************************************************
@@ -76,56 +87,56 @@ String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 
-task processOssOutputs(type: Sync) {
+tasks.register("processOssOutputs", Sync) {
   into ossOutputs
 }
 
-task processDefaultOutputs(type: Sync) {
+tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
   from processOssOutputs
 }
 
-task processSystemdOutputs(type: Sync) {
+tasks.register("processSystemdOutputs", Sync) {
   into systemdOutputs
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
-task processTransportOutputs(type: Sync) {
+tasks.register("processTransportOutputs", Sync) {
   into transportOutputs
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
-task buildOssModules {
-  dependsOn processOssOutputs
+tasks.register("buildOssModules") {
+  dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/modules"
 }
-task buildOssBin {
-  dependsOn processOssOutputs
+tasks.register("buildOssBin") {
+  dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/bin"
 }
-task buildOssConfig {
-  dependsOn processOssOutputs
+tasks.register("buildOssConfig") {
+  dependsOn "processOssOutputs"
   outputs.dir "${ossOutputs}/config"
 }
-task buildDefaultModules {
-  dependsOn processDefaultOutputs
+tasks.register("buildDefaultModules") {
+  dependsOn "processDefaultOutputs"
   outputs.dir "${defaultOutputs}/modules"
 }
-task buildDefaultBin {
-  dependsOn processDefaultOutputs
+tasks.register("buildDefaultBin") {
+  dependsOn "processDefaultOutputs"
   outputs.dir "${defaultOutputs}/bin"
 }
-task buildDefaultConfig {
-  dependsOn processDefaultOutputs
+tasks.register("buildDefaultConfig") {
+  dependsOn "processDefaultOutputs"
   outputs.dir "${defaultOutputs}/config"
 }
-task buildSystemdModule {
-  dependsOn processSystemdOutputs
+tasks.register("buildSystemdModule") {
+  dependsOn "processSystemdOutputs"
   outputs.dir "${systemdOutputs}/modules"
 }
-task buildTransportModules {
-  dependsOn processTransportOutputs
+tasks.register("buildTransportModules") {
+  dependsOn "processTransportOutputs"
   outputs.dir "${transportOutputs}/modules"
 }
 
@@ -156,14 +167,14 @@ void copyModule(Sync copyTask, Project module) {
 }
 
 // log4j config could be contained in modules, so we must join it together using these tasks
-task buildOssLog4jConfig {
-  dependsOn processOssOutputs
+tasks.register("buildOssLog4jConfig") {
+  dependsOn "processOssOutputs"
   ext.contents = []
   ext.log4jFile = file("${ossOutputs}/log4j2.properties")
   outputs.file log4jFile
 }
-task buildDefaultLog4jConfig {
-  dependsOn processDefaultOutputs
+tasks.register("buildDefaultLog4jConfig") {
+  dependsOn "processDefaultOutputs"
   ext.contents = []
   ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
   outputs.file log4jFile
@@ -176,8 +187,12 @@ Closure writeLog4jProperties = {
     it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
   }
 }
-buildOssLog4jConfig.doLast(writeLog4jProperties)
-buildDefaultLog4jConfig.doLast(writeLog4jProperties)
+tasks.named("buildOssLog4jConfig").configure {
+  doLast(writeLog4jProperties)
+}
+tasks.named("buildDefaultLog4jConfig").configure {
+  doLast(writeLog4jProperties)
+}
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
@@ -207,7 +222,9 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses
+    buildDefaultNotice.source module.file('src/main/java')
     buildOssNotice.licensesDir licenses
+    buildOssNotice.source module.file('src/main/java')
   }
 
   copyModule(processOssOutputs, module)
@@ -231,18 +248,13 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses
+    buildDefaultNotice.source xpackModule.file('src/main/java')
   }
   copyModule(processDefaultOutputs, xpackModule)
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
 
 copyModule(processSystemdOutputs, project(':modules:systemd'))
-
-// make sure we have a clean task since we aren't a java project, but we have tasks that
-// put stuff in the build dir
-task clean(type: Delete) {
-  delete 'build'
-}
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
@@ -275,13 +287,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
-        from { project(':server').configurations.runtime }
+        from { project(':server').configurations.runtimeClasspath }
         from { project(':libs:elasticsearch-plugin-classloader').jar }
         from { project(':distribution:tools:java-version-checker').jar }
         from { project(':distribution:tools:launchers').jar }
         into('tools/plugin-cli') {
           from { project(':distribution:tools:plugin-cli').jar }
-          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+          from { project(':distribution:tools:plugin-cli').configurations.runtimeClasspath }
         }
         into('tools/keystore-cli') {
           from { project(':distribution:tools:keystore-cli').jar }
@@ -289,7 +301,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (oss == false) {
           into('tools/security-cli') {
             from { project(':x-pack:plugin:security:cli').jar }
-            from { project(':x-pack:plugin:security:cli').configurations.compile }
+            from { project(':x-pack:plugin:security:cli').configurations.compileClasspath }
           }
         }
       }
@@ -435,30 +447,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
   }
-}
-
-testClusters {
-  runTask {
-    testDistribution = System.getProperty('run.distribution', 'default')
-    if (System.getProperty('run.distribution', 'default') == 'default') {
-      String licenseType = System.getProperty("run.license_type", "basic")
-      if (licenseType == 'trial') {
-        setting 'xpack.ml.enabled', 'true'
-        setting 'xpack.graph.enabled', 'true'
-        setting 'xpack.watcher.enabled', 'true'
-        setting 'xpack.license.self_generated.type', 'trial'
-      } else if (licenseType != 'basic') {
-        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
-      }
-      setting 'xpack.security.enabled', 'true'
-      keystore 'bootstrap.password', 'password'
-      user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
-    }
-  }
-}
-
-task run(type: RunTask) {
-  useCluster testClusters.runTask;
 }
 
 /**

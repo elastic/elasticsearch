@@ -36,7 +36,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 `<model_id>`::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
 [[ml-delete-inference-response-codes]]

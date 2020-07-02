@@ -118,7 +118,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
             builder.field("data_stream_count", streams);
             builder.field("backing_indices", backingIndices);
-            builder.field("total_store_size", totalStoreSize);
+            builder.humanReadableField("total_store_size_bytes", "total_store_size", totalStoreSize);
             builder.array("data_streams", (Object[]) dataStreamStats);
         }
 
@@ -172,8 +172,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             builder.startObject();
             builder.field("data_stream", dataStreamName);
             builder.field("backing_indices", backingIndices);
-            builder.field("store_size");
-            builder.humanReadableField("store_size_in_bytes", "store_size", storeSize);
+            builder.humanReadableField("store_size_bytes", "store_size", storeSize);
             builder.field("maximum_timestamp", maxTimestamp);
             builder.endObject();
             return builder;
@@ -314,6 +313,9 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
+                    logger.info("shard[{}:{}] has max value {}", shardRouting.getIndexName(), shardRouting.getId(), maxTimestamp);
+                } else {
+                    logger.info("shard[{}:{}] has null max value", shardRouting.getIndexName(), shardRouting.getId());
                 }
             }
             return new DataStreamShardStats(
@@ -351,6 +353,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 // Aggregate data stream stats
                 AggregatedStats stats = dataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
+                logger.info("shard[{}:{}] max stamp [{}]", shardStat.getShardRouting().getIndexName(), shardStat.getShardRouting().getId(),
+                    shardStat.getMaxTimestamp());
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
                 stats.backingIndices.add(indexName);
             }

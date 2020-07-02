@@ -50,7 +50,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
         msle.process(aggs);
 
         EvaluationMetricResult result = msle.getResult().get();
-        String expected = "{\"error\":0.8123}";
+        String expected = "{\"value\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 

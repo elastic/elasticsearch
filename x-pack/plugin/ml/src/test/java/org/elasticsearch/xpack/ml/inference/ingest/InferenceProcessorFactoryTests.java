@@ -69,7 +69,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
     }
 
     public void testNumInferenceProcessors() throws Exception {
@@ -269,28 +269,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
         } catch (Exception ex) {
             fail(ex.getMessage());
-        }
-    }
-
-    public void testCreateProcessorWithDuplicateFields() {
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
-            clusterService,
-            Settings.EMPTY);
-
-        Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
-            put(InferenceProcessor.MODEL_ID, "my_model");
-            put(InferenceProcessor.TARGET_FIELD, "ml");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(),
-                Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
-        }};
-
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
-            fail("should not have succeeded creating with duplicate fields");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
-                "More than one field is configured as [warning]"));
         }
     }
 

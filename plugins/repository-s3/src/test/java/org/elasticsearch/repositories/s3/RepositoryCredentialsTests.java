@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -146,8 +147,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         @Override
         protected S3Repository createRepository(RepositoryMetadata metadata,
-                                                NamedXContentRegistry registry, ClusterService clusterService) {
-            return new S3Repository(metadata, registry, service, clusterService) {
+                                                NamedXContentRegistry registry, ClusterService clusterService,
+                                                RecoverySettings recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

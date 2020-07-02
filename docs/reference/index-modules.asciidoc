@@ -12,6 +12,8 @@ an index.
 [[index-modules-settings]]
 == Index Settings
 
+[[index-modules-settings-description]]
+// tag::index-modules-settings-description-tag[]
 Index level settings can be set per-index.  Settings may be:
 
 _static_::
@@ -23,6 +25,7 @@ _dynamic_::
 
 They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
+// end::index-modules-settings-description-tag[]
 
 WARNING: Changing static or dynamic index settings on a closed index could
 result in incorrect settings that are impossible to rectify without deleting
@@ -34,15 +37,14 @@ and recreating the index.
 Below is a list of all _static_ index settings that are not associated with any
 specific index module:
 
-`index.number_of_shards`::
+[[index-number-of-shards]]
+// tag::index-number-of-shards-tag[]
+`index.number_of_shards` {ess-icon}::
+The number of primary shards that an index should have. Defaults to `1`. This setting can only be set at index creation time. It cannot be changed on a closed index.
++
+NOTE: The number of shards are limited to `1024` per index. This limitation is a safety limit to prevent accidental creation of indices that can destabilize a cluster due to resource allocation. The limit can be modified by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is part of the cluster.
 
-    The number of primary shards that an index should have.  Defaults to 1.
-    This setting can only be set at index creation time.  It cannot be
-    changed on a closed index. Note: the number of shards are limited to `1024` per
-    index. This limitation is a safety limit to prevent accidental creation of indices
-    that can destabilize a cluster due to resource allocation. The limit can be modified
-    by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is
-    part of the cluster.
+// end::index-number-of-shards-tag[]
 
 `index.shard.check_on_startup`::
 
@@ -173,35 +175,6 @@ specific index module:
     for the <<analysis-shingle-tokenfilter,`shingle` token filter>>. Defaults to
     `3`.
 
-`index.blocks.read_only`::
-
-    Set to `true` to make the index and index metadata read only, `false` to
-    allow writes and metadata changes.
-
-`index.blocks.read_only_allow_delete`::
-
-    Similar to `index.blocks.read_only`, but also allows deleting the index to
-    make more resources available. The <<disk-based-shard-allocation,disk-based shard
-    allocator>> may add and remove this block automatically.
-
-Deleting documents from an index to release resources - rather than deleting the index itself - can increase the index size over time. When `index.blocks.read_only_allow_delete` is set to `true`, deleting documents is not permitted. However, deleting the index itself releases the read-only index block and makes resources available almost immediately.
-
-IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood_stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
-
-`index.blocks.read`::
-
-    Set to `true` to disable read operations against the index.
-
-`index.blocks.write`::
-
-    Set to `true` to disable data write operations against the index. Unlike `read_only`,
-    this setting does not affect metadata. For instance, you can close an index with a `write`
-    block, but not an index with a `read_only` block.
-
-`index.blocks.metadata`::
-
-    Set to `true` to disable index metadata reads and writes.
-
 `index.max_refresh_listeners`::
 
     Maximum number of refresh listeners available on each shard of the index.
@@ -320,6 +293,8 @@ Other index settings are available in index modules:
 include::index-modules/analysis.asciidoc[]
 
 include::index-modules/allocation.asciidoc[]
+
+include::index-modules/blocks.asciidoc[]
 
 include::index-modules/mapper.asciidoc[]
 

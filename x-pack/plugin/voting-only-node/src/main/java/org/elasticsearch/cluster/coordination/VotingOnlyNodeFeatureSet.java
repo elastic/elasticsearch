@@ -67,7 +67,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         @Override
         protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                        ActionListener<XPackUsageFeatureResponse> listener) {
-            final boolean available = licenseState.isAllowed(Feature.VOTING_ONLY);
+            final boolean available = licenseState.checkFeature(Feature.VOTING_ONLY);
             final VotingOnlyNodeFeatureSetUsage usage =
                 new VotingOnlyNodeFeatureSetUsage(available);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -92,7 +92,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
 
         @Override
         protected boolean available() {
-            return licenseState.isAllowed(Feature.VOTING_ONLY);
+            return licenseState.checkFeature(Feature.VOTING_ONLY);
         }
 
         @Override

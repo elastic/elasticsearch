@@ -21,7 +21,7 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
@@ -55,7 +55,7 @@ public class MemberFieldLoadNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (isStatic) {

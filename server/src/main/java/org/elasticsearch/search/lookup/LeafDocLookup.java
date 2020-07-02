@@ -21,7 +21,9 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -41,14 +43,20 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
+    private final SearchLookup searchLookup;
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        MapperService mapperService,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        SearchLookup searchLookup,
+        LeafReaderContext reader
+    ) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
+        this.searchLookup = searchLookup;
         this.reader = reader;
     }
 
@@ -75,7 +83,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
                 @Override
                 public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
+                    // TODO should this go through QueryShardContext?
+                    IndexFieldData<?> ifd = fieldDataLookup.apply(fieldType);
+                    if (ifd instanceof SearchLookupAware) {
+                        ((SearchLookupAware) ifd).setSearchLookup(searchLookup);
+                    }
+                    return ifd.load(reader).getScriptValues();
                 }
             });
             localCacheFieldData.put(fieldName, scriptValues);

@@ -6,9 +6,13 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -16,10 +20,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.runtimefields.StringRuntimeValues;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
@@ -61,33 +68,78 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
+    private StringRuntimeValues runtimeValues(QueryShardContext ctx) {
+        // TODO cache the runtimeValues in the context somehow
+        return scriptFactory.newFactory(script.getParams(), ctx.lookup()).runtimeValues();
+    }
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
+        // TODO figure out how to use runtimeValues here
         return new ScriptBinaryFieldData.Builder(scriptFactory);
-    }
-
-    private String toValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof BytesRef) {
-            return ((BytesRef) value).utf8ToString();
-        }
-        return value.toString();
-    }
-
-    @Override
-    public Query termQuery(Object value, QueryShardContext context) {
-        // TODO cache the runtimeValues in the context somehow
-        LogManager.getLogger().error("ASDFDAF [{}]", toValue(value));
-        return scriptFactory.newFactory(script.getParams(), context.lookup()).runtimeValues().termQuery(name(), toValue(value));
     }
 
     @Override
     public Query existsQuery(QueryShardContext context) {
-        return null;
+        return runtimeValues(context).existsQuery(name());
+    }
+
+    @Override
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        QueryShardContext context
+    ) {
+        String term = BytesRefs.toString(value);
+        return runtimeValues(context).fuzzyQuery(name(), term, fuzziness.asDistance(term), prefixLength, maxExpansions, transpositions);
+    }
+
+    @Override
+    public Query prefixQuery(String value, RewriteMethod method, QueryShardContext context) {
+        return runtimeValues(context).prefixQuery(name(), value);
+    }
+
+    @Override
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        QueryShardContext context
+    ) {
+        return runtimeValues(context).rangeQuery(
+            name(),
+            BytesRefs.toString(lowerTerm),
+            BytesRefs.toString(upperTerm),
+            includeLower,
+            includeUpper
+        );
+    }
+
+    @Override
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+        return runtimeValues(context).regexpQuery(name(), value, flags, maxDeterminizedStates);
+    }
+
+    @Override
+    public Query termQuery(Object value, QueryShardContext context) {
+        return runtimeValues(context).termQuery(name(), BytesRefs.toString(value));
+    }
+
+    @Override
+    public Query termsQuery(List<?> values, QueryShardContext context) {
+        return runtimeValues(context).termsQuery(name(), values.stream().map(BytesRefs::toString).toArray(String[]::new));
+    }
+
+    @Override
+    public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
+        return runtimeValues(context).wildcardQuery(name(), value);
     }
 
     void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {

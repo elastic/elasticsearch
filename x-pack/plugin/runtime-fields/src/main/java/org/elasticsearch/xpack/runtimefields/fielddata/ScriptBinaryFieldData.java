@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import java.io.IOException;
 import java.util.Collections;
 
-public final class ScriptBinaryFieldData extends AbstractIndexComponent
+public final class ScriptBinaryFieldData extends AbstractIndexComponent  // TODO do we need to extends AbstractIndexComponent?
     implements
         IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>,
         SearchLookupAware {

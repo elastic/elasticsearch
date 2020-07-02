@@ -53,7 +53,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         docLookup = new LeafDocLookup(mapperService,
             ignored -> fieldData,
-            null);
+            null, null);
     }
 
     public void testBasicLookup() {

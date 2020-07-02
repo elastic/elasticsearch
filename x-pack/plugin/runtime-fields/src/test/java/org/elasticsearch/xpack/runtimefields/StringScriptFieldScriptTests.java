@@ -114,10 +114,14 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
-        assertThat(c.collect(addO.rangeQuery("foo", "catz", "cbat"), addO), equalTo(List.of()));
-        assertThat(c.collect(addO.rangeQuery("foo", "c", "cb"), addO), equalTo(List.of("cato", "pigo")));
-        assertThat(c.collect(addO.rangeQuery("foo", "p", "q"), addO), equalTo(List.of("cato", "pigo")));
-        assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs"), addO), equalTo(List.of("chickeno", "dogo")));
+        assertThat(c.collect(addO.rangeQuery("foo", "catz", "cbat", false, false), addO), equalTo(List.of()));
+        assertThat(c.collect(addO.rangeQuery("foo", "c", "cb", false, false), addO), equalTo(List.of("cato", "pigo")));
+        assertThat(c.collect(addO.rangeQuery("foo", "p", "q", false, false), addO), equalTo(List.of("cato", "pigo")));
+        assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs", false, false), addO), equalTo(List.of("chickeno", "dogo")));
+        assertThat(c.collect(addO.rangeQuery("foo", "dogo", "dogs", false, false), addO), equalTo(List.of()));
+        assertThat(c.collect(addO.rangeQuery("foo", "dogo", "dogs", true, false), addO), equalTo(List.of("chickeno", "dogo")));
+        assertThat(c.collect(addO.rangeQuery("foo", "dog", "dogo", false, false), addO), equalTo(List.of()));
+        assertThat(c.collect(addO.rangeQuery("foo", "dog", "dogo", false, true), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
     public void testRegexpQuery() throws IOException {

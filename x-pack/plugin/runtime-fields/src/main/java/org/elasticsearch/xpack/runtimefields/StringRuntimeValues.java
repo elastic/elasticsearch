@@ -58,20 +58,20 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         return unstarted().new PrefixQuery(fieldName, value);
     }
 
+    public Query rangeQuery(String fieldName, String lowerValue, String upperValue, boolean includeLower, boolean includeUpper) {
+        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue, includeLower, includeUpper);
+    }
+
+    public Query regexpQuery(String fieldName, String pattern, int flags, int maxDeterminizedStates) {
+        return unstarted().new RegexpQuery(fieldName, pattern, flags, maxDeterminizedStates);
+    }
+
     public Query termQuery(String fieldName, String value) {
         return unstarted().new TermQuery(fieldName, value);
     }
 
     public Query termsQuery(String fieldName, String... values) {
         return unstarted().new TermsQuery(fieldName, values);
-    }
-
-    public Query rangeQuery(String fieldName, String lowerValue, String upperValue) {
-        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
-    }
-
-    public Query regexpQuery(String fieldName, String pattern, int flags, int maxDeterminizedStates) {
-        return unstarted().new RegexpQuery(fieldName, pattern, flags, maxDeterminizedStates);
     }
 
     public Query wildcardQuery(String fieldName, String pattern) {
@@ -359,19 +359,29 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
         private class RangeQuery extends AbstractRuntimeQuery {
             private final String lowerValue;
             private final String upperValue;
+            private final boolean includeLower;
+            private final boolean includeUpper;
 
-            private RangeQuery(String fieldName, String lowerValue, String upperValue) {
+            private RangeQuery(String fieldName, String lowerValue, String upperValue, boolean includeLower, boolean includeUpper) {
                 super(fieldName);
                 this.lowerValue = lowerValue;
                 this.upperValue = upperValue;
+                this.includeLower = includeLower;
+                this.includeUpper = includeUpper;
                 assert lowerValue.compareTo(upperValue) <= 0;
             }
 
             @Override
             protected boolean matches() {
                 for (int i = 0; i < count; i++) {
-                    if (lowerValue.compareTo(values[i]) <= 0 && upperValue.compareTo(values[i]) >= 0) {
-                        return true;
+                    int lct = lowerValue.compareTo(values[i]);
+                    boolean lowerOk = includeLower ? lct <= 0 : lct < 0;
+                    if (lowerOk) {
+                        int uct = upperValue.compareTo(values[i]);
+                        boolean upperOk = includeUpper ? uct >= 0 : uct > 0;
+                        if (upperOk) {
+                            return true;
+                        }
                     }
                 }
                 return false;

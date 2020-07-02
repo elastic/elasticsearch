@@ -1,0 +1,172 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              day_of_week:
+                type: script
+                runtime_type: keyword
+                script: value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))
+              days_starting_with_s:
+                type: script
+                runtime_type: keyword
+                script: |
+                  String dayOfWeek = doc['day_of_week'].value;
+                  if (dayOfWeek.startsWith('S')) {
+                    value(dayOfWeek);
+                  }
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"fetch":
+  - do:
+      search:
+        index: sensor
+        body:
+          docvalue_fields:
+            - day_of_week
+            - days_starting_with_s
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday]}
+  - match: {hits.hits.1.fields.day_of_week: [Friday]}
+  - match: {hits.hits.2.fields.day_of_week: [Saturday]}
+  - match: {hits.hits.3.fields.day_of_week: [Sunday]}
+  - match: {hits.hits.4.fields.day_of_week: [Monday]}
+  - match: {hits.hits.5.fields.day_of_week: [Tuesday]}
+  - is_false: hits.hits.0.fields.days_starting_with_s
+  - is_false: hits.hits.1.fields.days_starting_with_s
+  - match: {hits.hits.2.fields.days_starting_with_s: [Saturday]}
+  - match: {hits.hits.3.fields.days_starting_with_s: [Sunday]}
+  - is_false: hits.hits.4.fields.days_starting_with_s
+  - is_false: hits.hits.5.fields.days_starting_with_s
+
+---
+"exists query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            exists:
+              field: days_starting_with_s
+  - match: {hits.total.value: 2}
+
+---
+"fuzzy query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            fuzzy:
+              day_of_week: Mondai
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"match query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"prefix query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            prefix:
+              day_of_week: Mon
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"regexp query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            regexp:
+              day_of_week: 
+                value: Mon.+
+          sort: timestamp
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"terms query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            terms:
+              day_of_week: [Monday, Tuesday]
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.8}
+  - match: {hits.hits.1._source.voltage: 5.2}
+
+---
+"wildcard query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            wildcard:
+              day_of_week: Mond?y
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}

@@ -547,6 +547,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             highIdx = relevantNodes - 1;
                             continue;
                         }
+                    } else {
+                        highIdx--;
+                        continue;
                     }
                     if (lowIdx < highIdx - 1) {
                         /* Shrinking the window from MIN to MAX

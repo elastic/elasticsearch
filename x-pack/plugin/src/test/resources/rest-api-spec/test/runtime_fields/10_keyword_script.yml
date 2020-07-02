@@ -170,3 +170,21 @@ setup:
               day_of_week: Mond?y
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"in a bool query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            bool:
+              should:
+                - term:
+                    day_of_week: Monday
+                - term:
+                    day_of_week: Tuesday
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.8}
+  - match: {hits.hits.1._source.voltage: 5.2}

@@ -6,6 +6,17 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
@@ -14,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -25,23 +37,11 @@ import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript.Factory;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
-
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     DoubleScriptFieldScript.Factory,
     DoubleRuntimeValues,
     SortedNumericDoubleValues,
     Double> {
-
-    private final Set<Integer> visited = new LinkedHashSet<>();
 
     public void testConstant() throws IOException {
         assertThat(randomDoubles().collect("value(3.14)"), equalTo(List.of(3.14, 3.14)));
@@ -83,11 +83,8 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.termQuery("foo", 1), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 10.89), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 99.99), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
@@ -95,13 +92,9 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.termsQuery("foo", 1, 2), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 21.78, 22), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 20, 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 99.99, 100), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
@@ -109,15 +102,10 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.rangeQuery("foo", 1, 2), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 9, 11), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 21.78, 22), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 21, 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 99, 100), timesTen), equalTo(List.of(99.99, 198.99)));
     }
 
@@ -221,58 +209,45 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
                     private DoubleScriptFieldScript.Factory compile(String name) {
                         if (name.equals("times_nine_point_nine")) {
-                            return (params, source, fieldData) -> {
-                                DoubleScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new DoubleScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                sync.accept(((double) v) * 9.9);
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    sync.accept(((double) v) * 9.9);
+                                }
+                            });
                         }
                         if (name.equals("is_one_point_one")) {
-                            return (params, source, fieldData) -> {
-                                DoubleScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new DoubleScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                double d = (double) v;
-                                                if (d == 1.1) {
-                                                    sync.accept(1.1);
-                                                }
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    double d = (double) v;
+                                    if (d == 1.1) {
+                                        sync.accept(1.1);
+                                    }
+                                }
+                            });
                         }
                         throw new IllegalArgumentException();
                     }
                 };
             }
         });
+    }
+
+    private DoubleScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, DoubleConsumer> impl) {
+        return (params, source, fieldData) -> {
+            DoubleScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                return new DoubleScriptFieldScript(params, source, fieldData, ctx, sync) {
+                    @Override
+                    public void execute() {
+                        impl.accept(getDoc(), sync);
+                    }
+
+                    @Override
+                    protected void onSetDocId(int docId) {
+                        onVisitDocId(ctx, docId);
+                    }
+                };
+            };
+            return leafFactory;
+        };
     }
 }

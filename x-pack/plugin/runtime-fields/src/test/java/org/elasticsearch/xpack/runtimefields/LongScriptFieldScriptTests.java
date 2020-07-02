@@ -6,6 +6,17 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -15,6 +26,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -25,23 +37,11 @@ import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript.Factory;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
-
 public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     LongScriptFieldScript.Factory,
     LongRuntimeValues,
     SortedNumericDocValues,
     Long> {
-
-    private final Set<Integer> visited = new LinkedHashSet<>();
 
     public void testConstant() throws IOException {
         assertThat(randomLongs().collect("value(10)"), equalTo(List.of(10L, 10L)));
@@ -78,11 +78,8 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.termQuery("foo", 1), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 10), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 20), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.termQuery("foo", 100), timesTen), equalTo(List.of(100L, 200L)));
     }
 
@@ -90,13 +87,9 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.termsQuery("foo", 1, 2), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 10, 11), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 20, 21), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 19, 20), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.termsQuery("foo", 100, 11), timesTen), equalTo(List.of(100L, 200L)));
     }
 
@@ -104,24 +97,19 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.rangeQuery("foo", 1, 2), timesTen), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 9, 11), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 10, 11), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 19, 21), timesTen), equalTo(List.of(10L, 20L)));
-        visited.clear();
         assertThat(c.collect(timesTen.rangeQuery("foo", 99, 101), timesTen), equalTo(List.of(100L, 200L)));
     }
 
     public void testInsideBoolTermQuery() throws IOException {
         /*
-         * Its required that bool queries that contain more our runtime
-         * fields queries be wrapped in ForceNoBulkScoringQuery. Exactly what
-         * queries in the tree need to be wrapped and when isn't super clear
-         * but it is safest to wrap the whole query tree when there are *any*
-         * of these queries in it. We might be able to skip some of them
-         * eventually, when we're more comfortable with this.
+         * Its required that bool queries that contain more our runtime fields queries
+         * be wrapped in ForceNoBulkScoringQuery. Exactly what queries in the tree need
+         * to be wrapped and when isn't super clear but it is safest to wrap the whole
+         * query tree when there are *any* of these queries in it. We might be able to
+         * skip some of them eventually, when we're more comfortable with this.
          */
         TestCase c = multipleValuesInDocValues();
         LongRuntimeValues timesTen = c.testScript("times_ten");
@@ -235,58 +223,45 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
                     private LongScriptFieldScript.Factory compile(String name) {
                         if (name.equals("times_ten")) {
-                            return (params, source, fieldData) -> {
-                                LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                sync.accept(((long) v) * 10);
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    sync.accept(((long) v) * 10);
+                                }
+                            });
                         }
                         if (name.equals("is_one")) {
-                            return (params, source, fieldData) -> {
-                                LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                long l = (long) v;
-                                                if (l == 1) {
-                                                    sync.accept(1);
-                                                }
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    long l = (long) v;
+                                    if (l == 1) {
+                                        sync.accept(1);
+                                    }
+                                }
+                            });
                         }
                         throw new IllegalArgumentException();
                     }
                 };
             }
         });
+    }
+
+    private LongScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, LongConsumer> impl) {
+        return (params, source, fieldData) -> {
+            LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
+                    @Override
+                    public void execute() {
+                        impl.accept(getDoc(), sync);
+                    }
+
+                    @Override
+                    protected void onSetDocId(int docId) {
+                        onVisitDocId(ctx, docId);
+                    }
+                };
+            };
+            return leafFactory;
+        };
     }
 }

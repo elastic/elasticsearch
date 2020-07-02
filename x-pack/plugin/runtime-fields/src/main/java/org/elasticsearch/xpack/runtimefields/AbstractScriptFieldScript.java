@@ -38,10 +38,10 @@ public abstract class AbstractScriptFieldScript {
     public final void setDocId(int docId) {
         source.setSegmentAndDocument(ctx, docId);
         fieldData.setDocument(docId);
-        onSetDocument(docId);
+        onSetDocId(docId);
     }
 
-    protected void onSetDocument(int docId) {}
+    protected void onSetDocId(int docId) {}
 
     /**
      * Expose the {@code params} of the script to the script itself.

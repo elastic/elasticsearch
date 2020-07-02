@@ -6,6 +6,17 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
@@ -14,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -24,24 +36,11 @@ import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript.Factory;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
-
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     StringScriptFieldScript.Factory,
     StringRuntimeValues,
     SortedBinaryDocValues,
     String> {
-
-    private final Set<Integer> visited = new LinkedHashSet<>();
 
     public void testConstant() throws IOException {
         assertThat(randomStrings().collect("value('cat')"), equalTo(List.of("cat", "cat")));
@@ -80,11 +79,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.fuzzyQuery("foo", "caaaaat", 1, 1, 1, true), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.fuzzyQuery("foo", "cat", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.fuzzyQuery("foo", "pig", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.fuzzyQuery("foo", "dog", 1, 1, 1, true), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -92,11 +88,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "cato"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "pigo"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.termQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -104,11 +97,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.termsQuery("foo", "cat", "dog"), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.termsQuery("foo", "cato", "piglet"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.termsQuery("foo", "pigo", "catington"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.termsQuery("foo", "dogo", "lightbulb"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -116,13 +106,9 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.prefixQuery("foo", "catdog"), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "cat"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "pig"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "dogo"), addO), equalTo(List.of("chickeno", "dogo")));
-        visited.clear();
         assertThat(c.collect(addO.prefixQuery("foo", "d"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -130,11 +116,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.rangeQuery("foo", "catz", "cbat"), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.rangeQuery("foo", "c", "cb"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.rangeQuery("foo", "p", "q"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.rangeQuery("foo", "doggie", "dogs"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -142,11 +125,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.regexpQuery("foo", "cat", RegExp.ALL, 100000), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.regexpQuery("foo", "cat[aeiou]", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.regexpQuery("foo", "p.*", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.regexpQuery("foo", "dog?o", RegExp.ALL, 100000), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -154,11 +134,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         TestCase c = multipleValuesInDocValues();
         StringRuntimeValues addO = c.testScript("add_o");
         assertThat(c.collect(addO.wildcardQuery("foo", "cat"), addO), equalTo(List.of()));
-        visited.clear();
         assertThat(c.collect(addO.wildcardQuery("foo", "cat?"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.wildcardQuery("foo", "p*"), addO), equalTo(List.of("cato", "pigo")));
-        visited.clear();
         assertThat(c.collect(addO.wildcardQuery("foo", "do?o"), addO), equalTo(List.of("chickeno", "dogo")));
     }
 
@@ -236,58 +213,45 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
                     private StringScriptFieldScript.Factory compile(String name) {
                         if (name.equals("add_o")) {
-                            return (params, source, fieldData) -> {
-                                StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                sync.accept(v + "o");
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    sync.accept(v + "o");
+                                }
+                            });
                         }
                         if (name.equals("is_cat")) {
-                            return (params, source, fieldData) -> {
-                                StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                                    return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
-                                        @Override
-                                        protected void onSetDocument(int docId) {
-                                            int rebased = ctx.docBase + docId;
-                                            if (false == visited.add(rebased)) {
-                                                throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-                                            }
-                                        }
-
-                                        @Override
-                                        public void execute() {
-                                            for (Object v : getDoc().get("foo")) {
-                                                if (v.equals("cat")) {
-                                                    sync.accept("cat");
-                                                }
-                                            }
-                                        }
-                                    };
-                                };
-                                return leafFactory;
-                            };
+                            return assertingScript((fieldData, sync) -> {
+                                for (Object v : fieldData.get("foo")) {
+                                    if (v.equals("cat")) {
+                                        sync.accept("cat");
+                                    }
+                                }
+                            });
                         }
                         throw new IllegalArgumentException();
                     }
                 };
             }
         });
+    }
+
+    private StringScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, Consumer<String>> impl) {
+        return (params, source, fieldData) -> {
+            StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
+                return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
+                    @Override
+                    public void execute() {
+                        impl.accept(getDoc(), sync);
+                    }
+
+                    @Override
+                    protected void onSetDocId(int docId) {
+                        onVisitDocId(ctx, docId);
+                    }
+                };
+            };
+            return leafFactory;
+        };
     }
 
     @Override

@@ -26,15 +26,32 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "double_whitelist.txt"));
     }
 
+    /**
+     * Magic constant that painless needs to name the parameters. There aren't any so it is empty.
+     */
     public static final String[] PARAMETERS = {};
 
+    /**
+     * Factory for building instances of the script for a particular search context.
+     */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
     }
 
+    /**
+     * Factory for building the script for a particular leaf or for building
+     * runtime values which manages the creation of doc values and queries.
+     */
     public interface LeafFactory {
+        /**
+         * Build a new script.
+         */
         DoubleScriptFieldScript newInstance(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
 
+        /**
+         * Build an {@link DoubleRuntimeValues} to manage creation of doc
+         * values and queries using the script.
+         */
         default DoubleRuntimeValues runtimeValues() throws IOException {
             return new DoubleRuntimeValues((ctx, sync) -> {
                 DoubleScriptFieldScript script = newInstance(ctx, sync);

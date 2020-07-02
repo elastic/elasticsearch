@@ -26,15 +26,32 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
     }
 
+    /**
+     * Magic constant that painless needs to name the parameters. There aren't any so it is empty.
+     */
     public static final String[] PARAMETERS = {};
 
+    /**
+     * Factory for building instances of the script for a particular search context.
+     */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
     }
 
+    /**
+     * Factory for building the script for a particular leaf or for building
+     * runtime values which manages the creation of doc values and queries.
+     */
     public interface LeafFactory {
+        /**
+         * Build a new script.
+         */
         LongScriptFieldScript newInstance(LeafReaderContext ctx, LongConsumer sync) throws IOException;
 
+        /**
+         * Build an {@link LongRuntimeValues} to manage creation of doc
+         * values and queries using the script.
+         */
         default LongRuntimeValues runtimeValues() throws IOException {
             return new LongRuntimeValues((ctx, sync) -> {
                 LongScriptFieldScript script = newInstance(ctx, sync);

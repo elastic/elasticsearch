@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -49,7 +48,8 @@ public final class ScriptFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        //TODO overrice this
+        RuntimeKeywordMappedFieldType fieldType = (RuntimeKeywordMappedFieldType) fieldType();
+        fieldType.doXContentBody(builder, includeDefaults, params);
     }
 
     @Override
@@ -89,7 +89,7 @@ public final class ScriptFieldMapper extends FieldMapper {
             MappedFieldType mappedFieldType;
             if (runtimeType.equals("keyword")) {
                 StringScriptFieldScript.Factory factory = scriptService.compile(script, StringScriptFieldScript.CONTEXT);
-                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), factory, meta);
+                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script, factory, meta);
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
             }
@@ -129,6 +129,9 @@ public final class ScriptFieldMapper extends FieldMapper {
                     iterator.remove();
                 }
             }
+            // TODO these get passed in sometimes and we don't need them
+            node.remove("doc_values");
+            node.remove("index");
             return builder;
         }
     }

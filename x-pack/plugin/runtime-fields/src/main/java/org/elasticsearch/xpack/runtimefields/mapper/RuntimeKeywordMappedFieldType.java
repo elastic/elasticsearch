@@ -8,26 +8,33 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 
+import java.io.IOException;
 import java.util.Map;
 
 public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
+    private final Script script;
     private final StringScriptFieldScript.Factory scriptFactory;
 
-    RuntimeKeywordMappedFieldType(String name, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
+    RuntimeKeywordMappedFieldType(String name, Script script, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
         super(name, false, false, TextSearchInfo.NONE, meta);
+        this.script = script;
         this.scriptFactory = scriptFactory;
     }
 
     RuntimeKeywordMappedFieldType(RuntimeKeywordMappedFieldType ref) {
         super(ref);
+        this.script = ref.script;
         this.scriptFactory = ref.scriptFactory;
     }
 
@@ -55,7 +62,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        //TODO once we get SearchLookup as an argument here, we can already call scriptFactory.newFactory here and pass through the result
+        //TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }
 
@@ -67,6 +74,11 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     @Override
     public Query existsQuery(QueryShardContext context) {
         return null;
+    }
+
+    void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        builder.field("runtime_type", "keyword");
+        builder.field("script", script.getIdOrCode()); //TODO For some reason this doesn't allow us to do the full xcontent of the script.
     }
 
     //TODO do we need to override equals/hashcode?

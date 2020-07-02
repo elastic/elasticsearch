@@ -211,7 +211,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         IFD indexFieldData = (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
         //TODO this is a temporary hack to inject search lookup to the scripted fielddata
-        // implementations without changing MappedFieldType#fielddataBuilder signature
+        // implementations without changing MappedFieldType#fielddataBuilder signature, as that would cause daily merge conflicts
         if (indexFieldData instanceof SearchLookupAware) {
             ((SearchLookupAware) indexFieldData).setSearchLookup(lookup());
         }

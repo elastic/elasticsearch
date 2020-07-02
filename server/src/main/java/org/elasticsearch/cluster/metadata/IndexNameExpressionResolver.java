@@ -860,7 +860,7 @@ public class IndexNameExpressionResolver {
             String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
             this.defaultTimeZone = ZoneId.of(defaultTimeZoneId);
             defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "8uuuu.MM.dd");
-            this.defaultDateFormatter = DateFormatters.forPattern(defaultDateFormatterPattern);
+            this.defaultDateFormatter = DateFormatter.forPattern(defaultDateFormatterPattern);
         }
 
         @Override

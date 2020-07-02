@@ -122,7 +122,7 @@ public enum FormatNames {
     private final String camelCaseName;
     private final String snakeCaseName;
 
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(FormatNames.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FormatNames.class));
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
@@ -152,7 +152,8 @@ public enum FormatNames {
         if(format.equals(camelCaseName) && DEPRECATED_CAMEL_CASE_NAMES.contains(format)){
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
-            deprecationLogger.deprecate("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
+            deprecationLogger.deprecatedAndMaybeLog("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
+            new RuntimeException().printStackTrace();
         }
     }
 

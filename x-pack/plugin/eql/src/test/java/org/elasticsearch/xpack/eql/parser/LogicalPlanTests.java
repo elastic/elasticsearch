@@ -145,6 +145,5 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
-
     }
 }

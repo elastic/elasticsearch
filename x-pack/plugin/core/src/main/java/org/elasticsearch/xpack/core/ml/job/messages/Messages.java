@@ -89,6 +89,7 @@ public final class Messages {
             " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
 
     public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
+    public static final String INFERENCE_TRAINED_MODEL_DOC_EXISTS = "Trained machine learning model chunked doc [{0}][{1}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
     public static final String INFERENCE_NOT_FOUND_MULTIPLE = "Could not find trained models {0}";

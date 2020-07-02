@@ -458,7 +458,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
                                                           final AtomicInteger pendingResponses) {
-        final boolean canAddWatches = licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canAddWatches = licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);

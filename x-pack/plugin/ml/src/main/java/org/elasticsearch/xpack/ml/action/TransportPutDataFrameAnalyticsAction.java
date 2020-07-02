@@ -229,7 +229,7 @@ public class TransportPutDataFrameAnalyticsAction
     @Override
     protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
                              ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

@@ -47,7 +47,7 @@ POST /twitter/_delete_by_query
 [[docs-delete-by-query-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_delete_by_query`
+`POST /<target>/_delete_by_query`
 
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}
@@ -55,7 +55,7 @@ POST /twitter/_delete_by_query
 You can specify the query criteria in the request URI or the request body
 using the same syntax as the  <<search-search,Search API>>. 
 
-When you submit a delete by query request, {es} gets a snapshot of the index
+When you submit a delete by query request, {es} gets a snapshot of the data stream or index
 when it begins processing the request and deletes matching documents using
 `internal` versioning. If a document changes between the time that the
 snapshot is taken and the delete operation is processed, it results in a version
@@ -134,12 +134,12 @@ Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the
 delete process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
-Setting `slices` to `auto` chooses a reasonable number for most indices. 
+Setting `slices` to `auto` chooses a reasonable number for most data streams and indices. 
 If you're slicing manually or otherwise tuning automatic slicing, keep in mind 
 that:
 
 * Query performance is most efficient when the number of `slices` is equal to 
-the number of shards in the index. If that number is large (for example,
+the number of shards in the index or backing index. If that number is large (for example,
 500), choose a lower number as too many `slices` hurts performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -153,9 +153,13 @@ documents being reindexed and cluster resources.
 [[docs-delete-by-query-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string) A comma-separated list of index names to search. Use `_all`
-or omit to search all indices.
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams or indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[docs-delete-by-query-api-query-params]]
 ==== {api-query-parms-title}
@@ -200,7 +204,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<request-body-search-scroll>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
@@ -343,7 +350,7 @@ version conflicts.
 [[docs-delete-by-query-api-example]]
 ==== {api-examples-title}
 
-Delete all tweets from the `twitter` index:
+Delete all tweets from the `twitter` data stream or index:
 
 [source,console]
 --------------------------------------------------
@@ -356,7 +363,7 @@ POST twitter/_delete_by_query?conflicts=proceed
 --------------------------------------------------
 // TEST[setup:twitter]
 
-Delete documents from multiple indices:
+Delete documents from multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
@@ -531,8 +538,8 @@ Which results in a sensible `total` like this one:
 
 Setting `slices` to `auto` will let {es} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
-there are multiple source indices, it will choose the number of slices based
-on the index with the smallest number of shards.
+there are multiple source data streams or indices, it will choose the number of slices based
+on the index or backing index with the smallest number of shards.
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
@@ -555,7 +562,7 @@ slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.
-* Each sub-request gets a slightly different snapshot of the source index
+* Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
 [float]

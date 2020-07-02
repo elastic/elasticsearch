@@ -737,18 +737,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             if (entry.state() == State.STARTED) {
-                for (ObjectCursor<String> index : entry.waitingIndices().keys()) {
-                    if (event.indexRoutingTableChanged(index.value)) {
-                        IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index.value);
+                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
+                    if (shardStatus.value.state() != ShardState.WAITING) {
+                        continue;
+                    }
+                    final ShardId shardId = shardStatus.key;
+                    if (event.indexRoutingTableChanged(shardId.getIndexName())) {
+                        IndexRoutingTable indexShardRoutingTable =
+                            event.state().getRoutingTable().index(shardId.getIndex());
                         if (indexShardRoutingTable == null) {
                             // index got removed concurrently and we have to fail WAITING state shards
                             return true;
                         }
-                        for (ShardId shardId : entry.waitingIndices().get(index.value)) {
-                            ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
-                            if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
-                                return true;
-                            }
+                        ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
+                        if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
+                            return true;
                         }
                     }
                 }

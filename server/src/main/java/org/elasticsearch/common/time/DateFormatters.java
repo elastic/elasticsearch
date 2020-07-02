@@ -1680,12 +1680,6 @@ public class DateFormatters {
             } else {
                 return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
             }
-        }  else if (accessor.isSupported(ChronoField.YEAR)) {
-            if (accessor.isSupported(MONTH_OF_YEAR)) {
-                return getFirstOfMonth(accessor).atStartOfDay(zoneId);
-            } else {
-                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
-            }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
             return getLocaldate(accessor, locale).atStartOfDay(zoneId);
@@ -1712,7 +1706,6 @@ public class DateFormatters {
 
         }
     }
-
 
     private static LocalDate getLocaldate(TemporalAccessor accessor, Locale locale) {
         if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {

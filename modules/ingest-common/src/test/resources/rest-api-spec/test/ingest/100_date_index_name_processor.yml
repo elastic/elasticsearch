@@ -34,3 +34,66 @@ teardown:
           date: "2016-04-22T16:32:14.968Z"
         }
   - match: { _index: "events-2016-04-22"}
+
+---
+"Test date index name processor with joda pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "date_index_name" : {
+                  "field": "date",
+                  "date_rounding": "d",
+                  "index_name_prefix": "prefix-",
+                  "index_name_format": "xxxx-w"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: _doc
+        id: 1
+        pipeline: "1"
+        body: {
+          date: "2020-08-10T01:01:01.000Z"
+        }
+  - match: { _index: "prefix-2020-33"}
+
+
+---
+"Test date index name processor with java pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "date_index_name" : {
+                  "field": "date",
+                  "date_rounding": "d",
+                  "index_name_prefix": "prefix-",
+                  "index_name_format": "8YYYY-w"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: _doc
+        id: 1
+        pipeline: "1"
+        body: {
+          date: "2020-08-10T01:01:01.000Z"
+        }
+  - match: { _index: "prefix-2020-33"}

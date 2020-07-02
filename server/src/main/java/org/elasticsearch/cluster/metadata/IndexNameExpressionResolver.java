@@ -27,21 +27,19 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.joda.JodaDateFormatter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,7 +47,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,10 +63,10 @@ public class IndexNameExpressionResolver {
     public IndexNameExpressionResolver(Settings settings) {
         dateMathExpressionResolver = new DateMathExpressionResolver(settings);
         expressionResolvers = Arrays.asList(
-                dateMathExpressionResolver,
-                new WildcardExpressionResolver());
+            dateMathExpressionResolver,
+            new WildcardExpressionResolver()
+        );
     }
-        
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
@@ -848,6 +845,7 @@ public class IndexNameExpressionResolver {
 
     static final class DateMathExpressionResolver implements ExpressionResolver {
 
+        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatters.forPattern("uuuu.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";
         private static final char LEFT_BOUND = '{';
@@ -855,15 +853,15 @@ public class IndexNameExpressionResolver {
         private static final char ESCAPE_CHAR = '\\';
         private static final char TIME_ZONE_BOUND = '|';
 
-        private final DateTimeZone defaultTimeZone;
+        private final ZoneId defaultTimeZone;
         private final String defaultDateFormatterPattern;
-        private final DateTimeFormatter defaultDateFormatter;
+        private final DateFormatter defaultDateFormatter;
 
         DateMathExpressionResolver(Settings settings) {
             String defaultTimeZoneId = settings.get("date_math_expression_resolver.default_time_zone", "UTC");
-            this.defaultTimeZone = DateTimeZone.forID(defaultTimeZoneId);
-            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "YYYY.MM.dd");
-            this.defaultDateFormatter = DateTimeFormat.forPattern(defaultDateFormatterPattern);
+            this.defaultTimeZone = ZoneId.of(defaultTimeZoneId);
+            defaultDateFormatterPattern = settings.get("date_math_expression_resolver.default_date_format", "8uuuu.MM.dd");
+            this.defaultDateFormatter = DateFormatter.forPattern(defaultDateFormatterPattern);
         }
 
         @Override
@@ -930,11 +928,10 @@ public class IndexNameExpressionResolver {
                                 int dateTimeFormatLeftBoundIndex = inPlaceHolderString.indexOf(LEFT_BOUND);
                                 String mathExpression;
                                 String dateFormatterPattern;
-                                DateTimeFormatter dateFormatter;
-                                final DateTimeZone timeZone;
+                                DateFormatter dateFormatter;
+                                final ZoneId timeZone;
                                 if (dateTimeFormatLeftBoundIndex < 0) {
                                     mathExpression = inPlaceHolderString;
-                                    dateFormatterPattern = defaultDateFormatterPattern;
                                     dateFormatter = defaultDateFormatter;
                                     timeZone = defaultTimeZone;
                                 } else {
@@ -947,23 +944,25 @@ public class IndexNameExpressionResolver {
                                             inPlaceHolderString);
                                     }
                                     mathExpression = inPlaceHolderString.substring(0, dateTimeFormatLeftBoundIndex);
-                                    String patternAndTZid =
+                                    String dateFormatterPatternAndTimeZoneId =
                                         inPlaceHolderString.substring(dateTimeFormatLeftBoundIndex + 1, inPlaceHolderString.length() - 1);
-                                    int formatPatternTimeZoneSeparatorIndex = patternAndTZid.indexOf(TIME_ZONE_BOUND);
+                                    int formatPatternTimeZoneSeparatorIndex = dateFormatterPatternAndTimeZoneId.indexOf(TIME_ZONE_BOUND);
                                     if (formatPatternTimeZoneSeparatorIndex != -1) {
-                                        dateFormatterPattern = patternAndTZid.substring(0, formatPatternTimeZoneSeparatorIndex);
-                                        timeZone = DateTimeZone.forID(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                        dateFormatterPattern
+                                            = dateFormatterPatternAndTimeZoneId.substring(0, formatPatternTimeZoneSeparatorIndex);
+                                        timeZone = ZoneId.of(
+                                            dateFormatterPatternAndTimeZoneId.substring(formatPatternTimeZoneSeparatorIndex + 1));
                                     } else {
-                                        dateFormatterPattern = patternAndTZid;
+                                        dateFormatterPattern = dateFormatterPatternAndTimeZoneId;
                                         timeZone = defaultTimeZone;
                                     }
-                                    dateFormatter = DateTimeFormat.forPattern(dateFormatterPattern);
+                                    dateFormatter = DateFormatter.forPattern(dateFormatterPattern);
                                 }
-                                DateTimeFormatter parser = dateFormatter.withLocale(Locale.ROOT).withZone(timeZone);
-                                JodaDateFormatter formatter = new JodaDateFormatter(dateFormatterPattern, parser, parser);
+                                DateFormatter formatter = dateFormatter.withZone(timeZone);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();
-                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false,
-                                    DateUtils.dateTimeZoneToZoneId(timeZone));
+                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
+
+
                                 String time = formatter.formatMillis(millis);
                                 beforePlaceHolderSb.append(time);
                                 inPlaceHolderSb = new StringBuilder();
@@ -1007,18 +1006,4 @@ public class IndexNameExpressionResolver {
             return beforePlaceHolderSb.toString();
         }
     }
-
-    /**
-     * Returns <code>true</code> iff the given expression resolves to the given index name otherwise <code>false</code>
-     */
-    public final boolean matchesIndex(String indexName, String expression, ClusterState state) {
-        final String[] concreteIndices = concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), expression);
-        for (String index : concreteIndices) {
-            if (Regex.simpleMatch(index, indexName)) {
-                return true;
-            }
-        }
-        return indexName.equals(expression);
-    }
-
 }

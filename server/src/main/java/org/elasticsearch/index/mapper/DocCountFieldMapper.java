@@ -154,11 +154,6 @@ public class DocCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
-
-    @Override
     protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         // nothing to do
     }

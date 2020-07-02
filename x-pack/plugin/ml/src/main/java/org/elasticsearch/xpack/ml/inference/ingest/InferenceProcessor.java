@@ -295,12 +295,17 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = Collections.emptyMap();
             }
 
-            InferenceConfigUpdate inferenceConfig;
+            InferenceConfigUpdate inferenceConfigUpdate;
             Map<String, Object> inferenceConfigMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INFERENCE_CONFIG);
             if (inferenceConfigMap == null) {
-                inferenceConfig = new EmptyConfigUpdate();
+                if (minNodeVersion.before(EmptyConfigUpdate.minimumSupportedVersion())) {
+                    // an inference config is required when the empty update is not supported
+                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
+                }
+
+                inferenceConfigUpdate = new EmptyConfigUpdate();
             } else {
-                inferenceConfig = inferenceConfigFromMap(inferenceConfigMap);
+                inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
             return new InferenceProcessor(client,
@@ -309,7 +314,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 description,
                 targetField,
                 modelId,
-                inferenceConfig,
+                inferenceConfigUpdate,
                 fieldMap);
         }
 
@@ -319,13 +324,13 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfigUpdate inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
-            ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-            if (inferenceConfig.size() != 1) {
+        InferenceConfigUpdate inferenceConfigUpdateFromMap(Map<String, Object> configMap) {
+            ExceptionsHelper.requireNonNull(configMap, INFERENCE_CONFIG);
+            if (configMap.size() != 1) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
                     INFERENCE_CONFIG);
             }
-            Object value = inferenceConfig.values().iterator().next();
+            Object value = configMap.values().iterator().next();
 
             if ((value instanceof Map<?, ?>) == false) {
                 throw ExceptionsHelper.badRequestException("{} must be an object with one inference type mapped to an object.",
@@ -334,17 +339,17 @@ public class InferenceProcessor extends AbstractProcessor {
             @SuppressWarnings("unchecked")
             Map<String, Object> valueMap = (Map<String, Object>)value;
 
-            if (inferenceConfig.containsKey(ClassificationConfig.NAME.getPreferredName())) {
+            if (configMap.containsKey(ClassificationConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 ClassificationConfigUpdate config = ClassificationConfigUpdate.fromMap(valueMap);
                 return config;
-            } else if (inferenceConfig.containsKey(RegressionConfig.NAME.getPreferredName())) {
+            } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 RegressionConfigUpdate config = RegressionConfigUpdate.fromMap(valueMap);
                 return config;
             } else {
                 throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
-                    inferenceConfig.keySet(),
+                    configMap.keySet(),
                     Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
             }
         }

@@ -227,6 +227,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
     }
 
+    public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+
+        Map<String, Object> minimalConfig = new HashMap<>() {{
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "result");
+        }};
+
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, minimalConfig));
+        assertThat(ex.getMessage(), equalTo("[inference_config] required property is missing"));
+    }
+
     public void testCreateProcessor() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,10 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     public static EmptyConfigUpdate fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public static Version minimumSupportedVersion() {
+        return Version.V_7_9_0;
     }
 
     public EmptyConfigUpdate() {

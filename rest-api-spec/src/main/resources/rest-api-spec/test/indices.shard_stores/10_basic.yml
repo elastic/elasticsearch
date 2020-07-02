@@ -117,6 +117,7 @@
   - do:
       cluster.health:
         wait_for_status: green
+        index: simple-data-stream1
 
   - do:
       indices.shard_stores:

@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.Arrays;
@@ -133,7 +133,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        Model.mapFieldsIfNecessary(fields, fieldMap);
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
         return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 

@@ -55,9 +55,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         settings = Settings.builder().put("path.home", createTempDir().toString()).put("node.name", "test-" + getTestName())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
-        when(mockLicenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override

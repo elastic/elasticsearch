@@ -78,7 +78,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             return null;
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+            indexNameExpressionResolver.concreteIndexNames(state, request, true));
     }
 
     @Override
@@ -89,7 +89,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     @Override
     protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request, true);
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
                 .indices(concreteIndices)
                 .settings(request.settings())
@@ -97,7 +97,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));

@@ -4,11 +4,12 @@
 <titleabbrev>Get data stream</titleabbrev>
 ++++
 
-Returns information about one or more data streams.
+Retrieves information about one or more <<data-streams,data streams>>.
+See <<get-info-about-a-data-stream>>.
 
 ////
 [source,console]
------------------------------------
+----
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
@@ -27,63 +28,97 @@ PUT _index_template/template
 }
 
 PUT /_data_stream/my-data-stream
------------------------------------
+----
 // TESTSETUP
 ////
 
 ////
 [source,console]
------------------------------------
+----
 DELETE /_data_stream/my-data-stream
 DELETE /_index_template/template
------------------------------------
+----
 // TEARDOWN
 ////
 
 [source,console]
---------------------------------------------------
-GET _data_stream/my-data-stream
---------------------------------------------------
+----
+GET /_data_stream/my-data-stream
+----
 // TEST[skip_shard_failures]
 
 [[get-data-stream-api-request]]
 ==== {api-request-title}
 
-`GET _data_stream/<data-stream>`
-
+`GET /_data_stream/<data-stream>`
 
 [[get-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
+(Required, string)
+Name of the data stream to retrieve.
+Wildcard (`*`) expressions are supported.
+
+[role="child_attributes"]
+[[get-data-stream-api-response-body]]
+==== {api-response-body-title}
+
+`name`::
+(string)
+Name of the data stream.
+
+`timestamp_field`::
+(string)
+Name of the data stream's timestamp field. This field must be included in every
+document indexed to the data stream.
+
+`indices`::
+(array of objects)
+Array of objects containing information about the data stream's backing
+indices.
 +
---
-(Required, string) Name or wildcard expression of the data stream(s) to
-retrieve.
---
+The last item in this array contains information about the stream's current
+<<data-stream-write-index,write index>>.
++
+.Properties of `indices` objects
+[%collapsible%open]
+====
+`index_name`::
+(string)
+Name of the backing index. For naming conventions, see
+<<data-streams-generation>>.
+
+`index_uuid`::
+(string)
+Universally unique identifier (UUID) for the index.
+====
+
+`generation`::
+(integer)
+Current <<data-streams-generation,generation>> for the data stream. This number
+acts as a cumulative count of the stream's backing indices, including
+deleted indices.
 
 [[get-data-stream-api-example]]
 ==== {api-examples-title}
 
-[[get-data-stream-basic-example]]
-===== Basic example
-
 [source,console]
---------------------------------------------------
+----
 GET _data_stream/my-data-stream*
---------------------------------------------------
+----
 // TEST[continued]
 // TEST[skip_shard_failures]
 
 The API returns the following response:
 
 [source,console-result]
---------------------------------------------------
+----
 [
   {
-    "name" : "my-data-stream", <1>
-    "timestamp_field" : "@timestamp", <2>
-    "indices" : [ <3>
+    "name" : "my-data-stream",                      <1>
+    "timestamp_field" : "@timestamp",               <2>
+    "indices" : [                                   <3>
       {
         "index_name" : ".ds-my-data-stream-000001",
         "index_uuid" : "DXAE-xcCQTKF93bMm9iawA"
@@ -93,10 +128,10 @@ The API returns the following response:
         "index_uuid" : "Wzxq0VhsQKyPxHhaK3WYAg"
       }
     ],
-    "generation" : 2 <4>
+    "generation" : 2                                <4>
   }
 ]
---------------------------------------------------
+----
 // TESTRESPONSE[skip:unable to assert responses with top level array]
 
 <1> Name of the data stream

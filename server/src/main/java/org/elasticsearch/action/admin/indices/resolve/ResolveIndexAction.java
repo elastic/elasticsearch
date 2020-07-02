@@ -718,7 +718,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         dataStreams.add(new ResolvedDataStream(
                             dataStream.getName(),
                             backingIndices,
-                            dataStream.getDataStream().getTimeStampField()));
+                            dataStream.getDataStream().getTimeStampField().getName()));
                         break;
                     default:
                         throw new IllegalStateException("unknown index abstraction type: " + ia.getType());

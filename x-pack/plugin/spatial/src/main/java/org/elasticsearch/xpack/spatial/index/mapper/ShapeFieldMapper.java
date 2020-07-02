@@ -10,7 +10,6 @@ import org.apache.lucene.document.XYShape;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -59,7 +58,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
             ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), orientation(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -105,8 +104,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     public ShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                             Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
+                            MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
             multiFields, copyTo);
     }
 

@@ -55,7 +55,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(
                 calendar -> {
-                    GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, eventId);
+                    GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), eventId);
                     executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
                             getResponse -> {
                                 if (getResponse.isExists() == false) {
@@ -89,7 +89,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     }
 
     private void deleteEvent(String eventId, Calendar calendar, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, eventId);
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest,

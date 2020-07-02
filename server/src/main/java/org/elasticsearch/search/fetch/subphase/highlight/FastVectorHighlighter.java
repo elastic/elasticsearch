@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -75,11 +75,12 @@ public class FastVectorHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;
 
-        if (canHighlight(highlighterContext.luceneFieldType) == false) {
+        if (canHighlight(fieldType) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
+        TextSearchInfo tsi = fieldType.getTextSearchInfo();
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
@@ -99,7 +100,7 @@ public class FastVectorHighlighter implements Highlighter {
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
-                    if (!forceSource && highlighterContext.luceneFieldType.stored()) {
+                    if (!forceSource && tsi.isStored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                 field.fieldOptions().postTags(), boundaryScanner);
                     } else {
@@ -110,7 +111,7 @@ public class FastVectorHighlighter implements Highlighter {
                     fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ?
                         new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
                     if (field.fieldOptions().scoreOrdered()) {
-                        if (!forceSource && highlighterContext.luceneFieldType.stored()) {
+                        if (!forceSource && tsi.isStored()) {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
@@ -118,7 +119,7 @@ public class FastVectorHighlighter implements Highlighter {
                                     field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
-                        if (!forceSource && highlighterContext.luceneFieldType.stored()) {
+                        if (!forceSource && tsi.isStored()) {
                             fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
@@ -211,10 +212,8 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(FieldType fieldType) {
-        return fieldType.storeTermVectors()
-            && fieldType.storeTermVectorOffsets()
-            && fieldType.storeTermVectorPositions();
+    public boolean canHighlight(MappedFieldType ft) {
+        return ft.getTextSearchInfo().termVectors() == TextSearchInfo.TermVector.OFFSETS;
     }
 
     private static BoundaryScanner getBoundaryScanner(Field field) {

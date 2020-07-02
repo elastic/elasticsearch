@@ -47,22 +47,23 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.LongConsumer;
 
 /**
  * An aggregator of string values that hashes the strings on the fly rather
  * than up front like the {@link GlobalOrdinalsStringTermsAggregator}.
  */
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
+    private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
-    private final ValuesSource valuesSource;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
 
     public MapStringTermsAggregator(
         String name,
         AggregatorFactories factories,
+        CollectorSource collectorSource,
         Function<MapStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
-        ValuesSource valuesSource,
         BucketOrder order,
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
@@ -75,56 +76,39 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
+        this.collectorSource = collectorSource;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
-        this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (collectorSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
-            final BytesRefBuilder previous = new BytesRefBuilder();
-
-            @Override
-            public void collect(int doc, long owningBucketOrd) throws IOException {
-                if (false == values.advanceExact(doc)) {
-                    return;
-                }
-                int valuesCount = values.docValueCount();
-
-                // SortedBinaryDocValues don't guarantee uniqueness so we
-                // need to take care of dups
-                previous.clear();
-                for (int i = 0; i < valuesCount; ++i) {
-                    final BytesRef bytes = values.nextValue();
-                    if (includeExclude != null && false == includeExclude.accept(bytes)) {
-                        continue;
-                    }
-                    if (i > 0 && previous.get().equals(bytes)) {
-                        continue;
-                    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        return resultStrategy.wrapCollector(
+            collectorSource.getLeafCollector(
+                includeExclude,
+                ctx,
+                sub,
+                this::addRequestCircuitBreakerBytes,
+                (s, doc, owningBucketOrd, bytes) -> {
                     long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
                     if (bucketOrdinal < 0) { // already seen
                         bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
+                        collectExistingBucket(s, doc, bucketOrdinal);
                     } else {
-                        collectBucket(sub, doc, bucketOrdinal);
+                        collectBucket(s, doc, bucketOrdinal);
                     }
-                    previous.copyBytes(bytes);
                 }
-            }
-        });
+            )
+        );
     }
 
     @Override
@@ -146,7 +130,82 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds, resultStrategy);
+        Releasables.close(collectorSource, resultStrategy, bucketOrds);
+    }
+
+    /**
+     * Abstaction on top of building collectors to fetch values.
+     */
+    public interface CollectorSource extends Releasable {
+        boolean needsScores();
+
+        LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException;
+    }
+    @FunctionalInterface
+    public interface CollectConsumer {
+        void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
+    }
+
+    /**
+     * Fetch values from a {@link ValuesSource}.
+     */
+    public static class ValuesSourceCollectorSource implements CollectorSource {
+        private final ValuesSource valuesSource;
+
+        public ValuesSourceCollectorSource(ValuesSource valuesSource) {
+            this.valuesSource = valuesSource;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return valuesSource.needsScores();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException {
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                final BytesRefBuilder previous = new BytesRefBuilder();
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (false == values.advanceExact(doc)) {
+                        return;
+                    }
+                    int valuesCount = values.docValueCount();
+
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    previous.clear();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        BytesRef bytes = values.nextValue();
+                        if (includeExclude != null && false == includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        if (i > 0 && previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        previous.copyBytes(bytes);
+                        consumer.accept(sub, doc, owningBucketOrd, bytes);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -270,6 +329,12 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Builds results for the standard {@code terms} aggregation.
      */
     class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
+        private final ValuesSource valuesSource;
+
+        StandardTermsResults(ValuesSource valuesSource) {
+            this.valuesSource = valuesSource;
+        }
+
         @Override
         String describe() {
             return "terms";

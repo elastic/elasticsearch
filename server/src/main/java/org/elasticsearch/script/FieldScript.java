@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -39,8 +38,7 @@ public abstract class FieldScript {
 
     public static final String[] PARAMETERS = {};
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate("field-script_doc",

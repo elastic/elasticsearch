@@ -365,7 +365,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
-                this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType(), this.getType());
+                this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
     }
 
     protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,

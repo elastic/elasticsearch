@@ -67,6 +67,74 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
+[role="child_attributes"]
+[[ml-get-inference-stats-results]]
+==== {api-response-body-title}
+
+`count`::
+(integer)
+The total number of trained model statistics that matched the requested ID patterns.
+Could be higher than the number of items in the `trained_model_stats` array as the
+size of the array is restricted by the supplied `size` parameter.
+
+`trained_model_stats`::
+(array)
+An array of trained model statistics, which are sorted by the `model_id` value in
+ascending order.
++
+.Properties of trained model stats
+[%collapsible%open]
+====
+`model_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`pipeline_count`:::
+(integer)
+The number of ingest pipelines that currently refer to the model.
+
+`inference_stats`:::
+(object)
+A collection of inference stats fields.
++
+.Properties of inference stats
+[%collapsible%open]
+=====
+
+`missing_all_fields_count`:::
+(integer)
+The number of inference calls where all the training features for the model
+were missing.
+
+`inference_count`:::
+(integer)
+The total number of times the model has been called for inference.
+This is across all inference contexts, including all pipelines.
+
+`cache_miss_count`:::
+(integer)
+The number of times the model was loaded for inference and was not retrieved from the
+cache. If this number is close to the `inference_count`, then the cache
+is not being appropriately used. This can be remedied by increasing the cache's size
+or its time-to-live (TTL). See <<general-ml-settings>> for the
+appropriate settings.
+
+`failure_count`:::
+(integer)
+The number of failures when using the model for inference.
+
+`timestamp`:::
+(<<time-units,time units>>)
+The time when the statistics were last updated.
+=====
+
+`ingest`:::
+(object)
+A collection of ingest stats for the model across all nodes. The values are
+summations of the individual node statistics. The format matches the `ingest`
+section in <<cluster-nodes-stats>>.
+
+====
 
 [[ml-get-inference-stats-response-codes]]
 ==== {api-response-codes-title}
@@ -74,7 +142,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
-  
 
 [[ml-get-inference-stats-example]]
 ==== {api-examples-title}
@@ -97,11 +164,25 @@ The API returns the following results:
   "trained_model_stats": [
     {
       "model_id": "flight-delay-prediction-1574775339910",
-      "pipeline_count": 0
+      "pipeline_count": 0,
+      "inference_stats": {
+        "failure_count": 0,
+        "inference_count": 4,
+        "cache_miss_count": 3,
+        "missing_all_fields_count": 0,
+        "timestamp": 1592399986979
+      }
     },
     {
       "model_id": "regression-job-one-1574775307356",
       "pipeline_count": 1,
+      "inference_stats": {
+        "failure_count": 0,
+        "inference_count": 178,
+        "cache_miss_count": 3,
+        "missing_all_fields_count": 0,
+        "timestamp": 1592399986979
+      },
       "ingest": {
         "total": {
           "count": 178,

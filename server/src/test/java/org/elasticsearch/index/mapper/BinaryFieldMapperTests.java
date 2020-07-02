@@ -47,7 +47,7 @@ public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMappe
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity");
+        return Set.of("analyzer", "eager_global_ordinals", "norms", "similarity", "index");
     }
 
     @Override
@@ -74,6 +74,8 @@ public class BinaryFieldMapperTests extends FieldMapperTestCase<BinaryFieldMappe
 
         assertThat(mapper, instanceOf(BinaryFieldMapper.class));
         assertThat(mapper.fieldType.stored(), equalTo(false));
+
+        assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testStoredValue() throws IOException {

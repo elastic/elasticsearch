@@ -27,4 +27,8 @@ public class EmptyConfigUpdateTests extends AbstractSerializingTestCase<EmptyCon
     protected EmptyConfigUpdate createTestInstance() {
         return new EmptyConfigUpdate();
     }
+
+    public void testToConfig() {
+        expectThrows(UnsupportedOperationException.class, () -> new EmptyConfigUpdate().toConfig());
+    }
 }

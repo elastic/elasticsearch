@@ -292,7 +292,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         Exception ex = expectThrows(Exception.class, () ->
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
-        assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
+        assertThat(ex.getMessage(), equalTo("Invalid inference config. " +
             "More than one field is configured as [warning]"));
     }
 

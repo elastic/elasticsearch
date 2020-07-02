@@ -50,7 +50,7 @@ public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteab
             }
         }
         if (duplicatedFieldNames.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("Cannot apply inference config." +
+            throw ExceptionsHelper.badRequestException("Invalid inference config." +
                     " More than one field is configured as {}",
                 duplicatedFieldNames);
         }

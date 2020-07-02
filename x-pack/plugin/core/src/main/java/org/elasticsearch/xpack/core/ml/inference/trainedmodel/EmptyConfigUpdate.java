@@ -38,18 +38,28 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     }
 
     @Override
+    public String getResultsField() {
+        return null;
+    }
+
+    @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
         return originalConfig;
     }
 
     @Override
     public InferenceConfig toConfig() {
-        return RegressionConfig.EMPTY_PARAMS;
+        throw new UnsupportedOperationException("the empty config update cannot be rewritten");
     }
 
     @Override
     public boolean isSupported(InferenceConfig config) {
         return true;
+    }
+
+    @Override
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder();
     }
 
     @Override
@@ -82,5 +92,17 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     @Override
     public int hashCode() {
         return EmptyConfigUpdate.class.hashCode();
+    }
+
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {
+
+        @Override
+        public Builder setResultsField(String resultsField) {
+            return this;
+        }
+
+        public EmptyConfigUpdate build() {
+            return new EmptyConfigUpdate();
+        }
     }
 }

@@ -28,6 +28,11 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
 
+/**
+ * This service is responsible for writing deprecation messages to a data stream. It also creates
+ * the data stream if necessary. The writing of messages can be toggled using the
+ * {@link #WRITE_DEPRECATION_LOGS_TO_INDEX} setting.
+ */
 public class DeprecationIndexingService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(DeprecationIndexingService.class);
 
@@ -38,15 +43,15 @@ public class DeprecationIndexingService implements ClusterStateListener {
     private static final String DEPRECATION_ORIGIN = "deprecation";
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
-        "cluster.deprecation_logs.write_to_index",
+        "cluster.deprecation_indexing.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     private final Client client;
-    private boolean isEnabled = true;
     private boolean hasTriedToLoadTemplate = false;
+    private volatile boolean isEnabled = false;
 
     public DeprecationIndexingService(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, DEPRECATION_ORIGIN);
@@ -59,7 +64,7 @@ public class DeprecationIndexingService implements ClusterStateListener {
      * @param key       the key that was used to determine if this deprecation should have been be logged.
      *                  Useful when aggregating the recorded messages.
      * @param message   the message to log
-     * @param xOpaqueId the associated "X-Opaque-ID" header value, if any
+     * @param xOpaqueId the associated "X-Opaque-ID" header value if any, or <code>null</code>
      * @param params    parameters to the message, if any
      */
     public void writeMessage(String key, String message, String xOpaqueId, Object[] params) {
@@ -96,6 +101,9 @@ public class DeprecationIndexingService implements ClusterStateListener {
             });
     }
 
+    /**
+     * Listens for changes to the cluster state, in order to know whether to toggle indexing.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         this.isEnabled = WRITE_DEPRECATION_LOGS_TO_INDEX.get(event.state().getMetadata().settings());
@@ -115,6 +123,9 @@ public class DeprecationIndexingService implements ClusterStateListener {
         loadTemplate();
     }
 
+    /*
+     * Attempts to load a template for the deprecation logs data stream
+     */
     private void loadTemplate() {
         try (InputStream is = getClass().getResourceAsStream(TEMPLATE_MAPPING)) {
             final XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, null, is);

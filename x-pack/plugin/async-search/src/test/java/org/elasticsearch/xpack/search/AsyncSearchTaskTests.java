@@ -146,12 +146,12 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AsyncSearchTask task = createAsyncSearchTask();
         task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
             SearchResponse.Clusters.EMPTY, false);
-        InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
         //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
         //causing an exception when executing getResponse as part of the completion listener callback
         DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::new, new NamedWriteableRegistry(Collections.emptyList()));
+            .asSerialized(InternalAggregations::readFrom, new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             serializedAggs, 1);
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
@@ -184,12 +184,12 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AsyncSearchTask task = createAsyncSearchTask();
         task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
             SearchResponse.Clusters.EMPTY, false);
-        InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
         //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
         //causing an exception when executing getResponse as part of the completion listener callback
         DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
-            .asSerialized(InternalAggregations::new, new NamedWriteableRegistry(Collections.emptyList()));
+            .asSerialized(InternalAggregations::readFrom    , new NamedWriteableRegistry(Collections.emptyList()));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             serializedAggs, 1);
         task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));

@@ -21,7 +21,6 @@ package org.elasticsearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.io.InputStream;

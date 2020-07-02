@@ -61,7 +61,7 @@ disk space. When you delete an index the data is removed from disk almost
 immediately, freeing the space it consumes.
 
 IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
-disk utilisation exceeds the <<cluster-routing-flood_stage,flood-stage
+disk utilisation exceeds the <<cluster-routing-flood-stage,flood-stage
 watermark>> and removes it again when disk utilisation is below the
 <<cluster-routing-watermark-high,high watermark>>. You should not apply this
 block yourself.

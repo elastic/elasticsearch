@@ -25,7 +25,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -67,7 +67,7 @@ public class UnaryMathNode extends UnaryNode {
         return cat;
     }
 
-    public void setOriginallExplicit(boolean originallyExplicit) {
+    public void setOriginallyExplicit(boolean originallyExplicit) {
         this.originallyExplicit = originallyExplicit;
     }
 
@@ -78,14 +78,14 @@ public class UnaryMathNode extends UnaryNode {
     /* ---- end node data ---- */
 
     @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            getChildNode().write(classWriter, methodWriter, scopeTable);
+            getChildNode().write(classWriter, methodWriter, writeScope);
 
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
@@ -95,7 +95,7 @@ public class UnaryMathNode extends UnaryNode {
             methodWriter.push(true);
             methodWriter.mark(end);
         } else {
-            getChildNode().write(classWriter, methodWriter, scopeTable);
+            getChildNode().write(classWriter, methodWriter, writeScope);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.

@@ -24,6 +24,14 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
@@ -65,7 +73,7 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         Output output = new Output();
@@ -91,18 +99,16 @@ public class SCatch extends AStatement {
         Output blockOutput = null;
 
         if (blockNode != null) {
-            Input blockInput = new Input();
-            blockInput.lastSource = input.lastSource;
-            blockInput.inLoop = input.inLoop;
-            blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, semanticScope, blockInput);
+            semanticScope.replicateCondition(this, blockNode, LastSource.class);
+            semanticScope.replicateCondition(this, blockNode, InLoop.class);
+            semanticScope.replicateCondition(this, blockNode, LastLoop.class);
+            blockOutput = blockNode.analyze(classNode, semanticScope);
 
-            output.methodEscape = blockOutput.methodEscape;
-            output.loopEscape = blockOutput.loopEscape;
-            output.allEscape = blockOutput.allEscape;
-            output.anyContinue = blockOutput.anyContinue;
-            output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
+            semanticScope.setCondition(this, MethodEscape.class);
+            semanticScope.setCondition(this, LoopEscape.class);
+            semanticScope.setCondition(this, AllEscape.class);
+            semanticScope.setCondition(this, AnyContinue.class);
+            semanticScope.setCondition(this, AnyBreak.class);
         }
 
         CatchNode catchNode = new CatchNode();

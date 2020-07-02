@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
@@ -40,26 +40,34 @@ public class LogicalPlanTests extends ESTestCase {
         return parser.createExpression(source);
     }
 
+    private static Attribute timestamp() {
+        return new UnresolvedAttribute(Source.EMPTY, "@timestamp");
+    }
+
+    private static LogicalPlan relation() {
+        return new UnresolvedRelation(Source.EMPTY, null, "", false, "");
+    }
+
     public void testAnyQuery() {
         LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
         Expression fullExpression = expr("process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
-        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
-        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
-        assertEquals(expected, fullQuery);
+        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
+        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
+        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
+        assertEquals(sorted, fullQuery);
     }
 
     public void testEventQuery() {
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'");
         Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
-        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
-        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
-        assertEquals(expected, fullQuery);
+        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
+        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
+        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
+        assertEquals(sorted, fullQuery);
     }
 
     public void testParameterizedEventQuery() {
@@ -67,11 +75,11 @@ public class LogicalPlanTests extends ESTestCase {
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
         Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, new UnresolvedRelation(Source.EMPTY, null, "", false, ""), fullExpression);
-        Order order = new Order(Source.EMPTY, new UnresolvedAttribute(Source.EMPTY, "@timestamp"), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, filter, singletonList(order));
-        LogicalPlan expected = new Project(Source.EMPTY, sorted, emptyList());
-        assertEquals(expected, fullQuery);
+        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
+        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
+        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
+        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
+        assertEquals(sorted, fullQuery);
     }
     
 
@@ -85,6 +93,9 @@ public class LogicalPlanTests extends ESTestCase {
                 " " +
                 "until [process where event_subtype_full == \"termination_event\"]");
 
+        assertEquals(OrderBy.class, plan.getClass());
+        OrderBy ob = (OrderBy) plan;
+        plan = ob.child();
         assertEquals(Join.class, plan.getClass());
         Join join = (Join) plan;
         assertEquals(KeyedFilter.class, join.until().getClass());
@@ -113,6 +124,9 @@ public class LogicalPlanTests extends ESTestCase {
                 "    [process where process_name == \"*\" ] " +
                 "    [file where file_path == \"*\"]");
 
+        assertEquals(OrderBy.class, plan.getClass());
+        OrderBy ob = (OrderBy) plan;
+        plan = ob.child();
         assertEquals(Sequence.class, plan.getClass());
         Sequence seq = (Sequence) plan;
         assertEquals(KeyedFilter.class, seq.until().getClass());
@@ -131,6 +145,5 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
-
     }
 }

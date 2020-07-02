@@ -55,6 +55,6 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
     public void testToString_GivenNullTimestamp() {
         MemoryUsage memoryUsage = new MemoryUsage(null, 42L, MemoryUsage.Status.OK, null);
         assertThat(memoryUsage.toString(), equalTo(
-            "MemoryUsage[timestamp=null, peak_usage_bytes=42, status=ok, increased_memory_estimate_bytes=null]"));
+            "MemoryUsage[timestamp=null, peak_usage_bytes=42, status=ok, memory_reestimate_bytes=null]"));
     }
 }

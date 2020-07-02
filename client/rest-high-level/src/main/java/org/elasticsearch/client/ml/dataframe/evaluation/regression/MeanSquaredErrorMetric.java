@@ -22,7 +22,6 @@ import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -49,7 +48,12 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
     public MeanSquaredErrorMetric() {}
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.endObject();
         return builder;
@@ -68,41 +72,36 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
         return Objects.hashCode(NAME);
     }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
     public static class Result implements EvaluationMetric.Result {
 
-        public static final ParseField ERROR = new ParseField("error");
-        private final double error;
+        public static final ParseField VALUE = new ParseField("value");
+        private final double value;
 
         public static Result fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("mean_squared_error_result", true, args -> new Result((double) args[0]));
+            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
 
         static {
-            PARSER.declareDouble(constructorArg(), ERROR);
+            PARSER.declareDouble(constructorArg(), VALUE);
         }
 
-        public Result(double error) {
-            this.error = error;
+        public Result(double value) {
+            this.value = value;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ERROR.getPreferredName(), error);
+            builder.field(VALUE.getPreferredName(), value);
             builder.endObject();
             return builder;
         }
 
-        public double getError() {
-            return error;
+        public double getValue() {
+            return value;
         }
 
         @Override
@@ -115,12 +114,12 @@ public class MeanSquaredErrorMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(that.error, this.error);
+            return this.value == that.value;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(error);
+            return Double.hashCode(value);
         }
     }
 }

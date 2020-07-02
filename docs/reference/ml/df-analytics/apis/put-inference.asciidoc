@@ -629,6 +629,8 @@ Example of a `weighted_mode` object:
   }
 }
 ----------------------------------
+//NOTCONSOLE
+
 
 Example of an `exponent` object:
 

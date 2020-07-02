@@ -57,6 +57,8 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+IMPORTANT: This aggregation cannot currently be nested under any aggregation that collects from more than a single bucket.
+
 ==== Clustering Algorithm
 Each shard fetches the first `initial_buffer` documents and stores them in memory. Once the buffer is full, these documents
 are sorted and linearly separated into `3/4 * shard_size buckets`.

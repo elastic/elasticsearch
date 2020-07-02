@@ -231,6 +231,17 @@ Total size of all shards assigned to selected nodes.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
+
+`reserved`::
+(<<byte-units,byte value>>)
+A prediction of how much larger the shard stores will eventually grow due to
+ongoing peer recoveries, restoring snapshots, and similar activities.
+
+`reserved_in_bytes`::
+(integer)
+A prediction, in bytes, of how much larger the shard stores will eventually
+grow due to ongoing peer recoveries, restoring snapshots, and similar
+activities.
 =====
 
 `fielddata`::
@@ -1135,7 +1146,9 @@ The API returns the following response:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684
+         "size_in_bytes": 16684,
+         "reserved": "0b",
+         "reserved_in_bytes": 0
       },
       "fielddata": {
          "memory_size": "0b",

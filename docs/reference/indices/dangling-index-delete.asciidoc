@@ -20,7 +20,7 @@ DELETE /_dangling/<index-uuid>?accept_data_loss=true
 
 include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
 
-This API lets you delete single dangling index from disk. You reference the
+This API lets you delete a dangling index. You reference the
 index by its UUID, which you can find using the
 <<dangling-indices-list,list API>>. You can also
 <<dangling-index-import,import>> a dangling index.
@@ -31,7 +31,7 @@ index by its UUID, which you can find using the
 `<index-uuid>`::
 (Required, string)
 UUID of the index to delete. You can find this using the
-<<dangling-indices-list,dangling indices list API>>.
+<<dangling-indices-list,list dangling indices API>>.
 
 [[dangling-index-delete-api-query-params]]
 ==== {api-query-parms-title}

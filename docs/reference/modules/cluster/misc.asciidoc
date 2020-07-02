@@ -108,8 +108,8 @@ than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
 
 If {es} encounters index data that is absent from the current cluster
-state, those indices are considered to be dangling. For example, copying a
-data directory between clusters, or deleting more than
+state, those indices are considered to be dangling. For example,
+this can happen if you delete more than
 `cluster.indices.tombstones.size` indices while an {es} node is offline.
 You can use the <<dangling-indices-api,Dangling indices API>> to manage
 this situation.

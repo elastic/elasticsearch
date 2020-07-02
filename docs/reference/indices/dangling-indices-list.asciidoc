@@ -20,8 +20,8 @@ GET /_dangling
 
 // tag::dangling-index-description[]
 If {es} encounters index data that is absent from the current cluster
-state, those indices are considered to be dangling. For example, copying a
-data directory between clusters, or deleting more than
+state, those indices are considered to be dangling. For example,
+this can happen if you delete more than
 `cluster.indices.tombstones.size` indices while an {es} node is offline.
 // end::dangling-index-description[]
 

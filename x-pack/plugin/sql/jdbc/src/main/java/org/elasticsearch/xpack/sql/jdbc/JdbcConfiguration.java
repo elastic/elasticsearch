@@ -113,8 +113,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     private static URI parseUrl(String u) throws JdbcSQLException {
-        String url = u;
-        String format = "jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*";
         if (!canAccept(u)) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
@@ -122,7 +120,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         try {
             return parseURI(removeJdbcPrefix(u), DEFAULT_URI);
         } catch (IllegalArgumentException ex) {
-            throw new JdbcSQLException(ex, "Invalid URL [" + url + "], format should be [" + format + "]");
+            final String format = "jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*";
+            throw new JdbcSQLException(ex, "Invalid URL: " + ex.getMessage() + "; format should be [" + format + "]");
         }
     }
 

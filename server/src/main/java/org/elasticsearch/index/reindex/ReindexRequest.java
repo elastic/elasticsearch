@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParseField;
@@ -237,6 +238,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
+     * Sets the no_auto_create request flag on the destination index
+     */
+    public ReindexRequest setNoAutoCreate(boolean noAutoCreate) {
+        this.getDestination().setNoAutoCreate(noAutoCreate);
+        return this;
+    }
+
+    /**
      * Gets the target for this reindex request in the for of an {@link IndexRequest}
      */
     public IndexRequest getDestination() {
@@ -302,6 +311,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.field("pipeline", getDestination().getPipeline());
             }
             builder.field("version_type", VersionType.toString(getDestination().versionType()));
+            if (getDestination().isNoAutoCreate()) {
+                builder.field(DocWriteRequest.NO_AUTO_CREATE, getDestination().isNoAutoCreate());
+            }
             builder.endObject();
         }
         {
@@ -345,6 +357,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
+        destParser.declareBoolean(IndexRequest::setNoAutoCreate, new ParseField(DocWriteRequest.NO_AUTO_CREATE));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);

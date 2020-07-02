@@ -133,7 +133,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
 
             @Override
-            boolean shouldAutoCreate(String index, ClusterState state) {
+            boolean shouldAutoCreate(String index, boolean noAutoCreate, ClusterState state) {
                 return shouldAutoCreate.apply(index);
             }
 

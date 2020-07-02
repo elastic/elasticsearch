@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Booleans;
@@ -63,9 +64,12 @@ public final class AutoCreateIndex {
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
-    public boolean shouldAutoCreate(String index, ClusterState state) {
+    public boolean shouldAutoCreate(String index, boolean noAutoCreateFlag, ClusterState state) {
         if (resolver.hasIndexAbstraction(index, state)) {
             return false;
+        }
+        if (noAutoCreateFlag)  {
+            throw new IndexNotFoundException("[" + DocWriteRequest.NO_AUTO_CREATE + "] request flag is [true]", index);
         }
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;

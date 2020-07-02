@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -74,6 +75,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
+        updateRequest.setNoAutoCreate(request.paramAsBoolean(DocWriteRequest.NO_AUTO_CREATE, updateRequest.isNoAutoCreate()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

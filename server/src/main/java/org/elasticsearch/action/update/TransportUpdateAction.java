@@ -116,7 +116,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        if (autoCreateIndex.shouldAutoCreate(request.index(), request.isNoAutoCreate(), clusterService.state())) {
             client.admin().indices().create(new CreateIndexRequest()
                 .index(request.index())
                 .cause("auto(update api)")

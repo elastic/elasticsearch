@@ -99,6 +99,10 @@
       "if_primary_term":{
         "type":"number",
         "description":"only perform the update operation if the last operation that has changed the document has the specified primary term"
+      },
+      "no_auto_create": {
+        "type": "boolean",
+        "description": "When true, disallows this specific request from creating the specified index. Default is false and relies on the configured auto creation settings"
       }
     },
     "body":{

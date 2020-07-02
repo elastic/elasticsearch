@@ -25,9 +25,9 @@ and <<update-delete-docs-in-a-backing-index>>.
 
 `POST /<target>/_create/<_id>`
 
-IMPORTANT: You cannot add new documents to a data stream using the 
-`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the 
-`PUT /<target>/_create/<_id>` format instead. See 
+IMPORTANT: You cannot add new documents to a data stream using the
+`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
+`PUT /<target>/_create/<_id>` format instead. See
 <<add-documents-to-a-data-stream>>.
 
 [[docs-index-api-path-params]]
@@ -93,6 +93,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=no_auto_create]
 
 [[docs-index-api-request-body]]
 ==== {api-request-body-title}

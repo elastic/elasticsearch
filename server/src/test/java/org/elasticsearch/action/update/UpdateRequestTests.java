@@ -433,6 +433,7 @@ public class UpdateRequestTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         UpdateRequest updateRequest = new UpdateRequest();
         updateRequest.detectNoop(randomBoolean());
+        updateRequest.setNoAutoCreate(randomBoolean());
 
         if (randomBoolean()) {
             XContentType xContentType = randomFrom(XContentType.values());
@@ -495,6 +496,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         assertEquals(updateRequest.scriptedUpsert(), parsedUpdateRequest.scriptedUpsert());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+        assertEquals(updateRequest.isNoAutoCreate(), parsedUpdateRequest.isNoAutoCreate());
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);

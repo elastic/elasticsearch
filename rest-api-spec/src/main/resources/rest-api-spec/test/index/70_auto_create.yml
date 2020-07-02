@@ -1,0 +1,18 @@
+---
+"Set no_auto_create flag":
+  - skip:
+      # TODO adjust after backport
+      version: " - 7.99.99"
+      reason: "no_auto_create flag added in 7.9+"
+  - do:
+      catch: missing
+      index:
+        index:   test_no_auto_create
+        no_auto_create: true
+        body:    { foo: bar }
+
+  - do:
+      index:
+        index:   test_no_auto_create
+        no_auto_create: false
+        body:    { foo: bar }

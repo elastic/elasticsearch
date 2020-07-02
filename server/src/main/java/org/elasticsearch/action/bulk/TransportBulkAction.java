@@ -221,24 +221,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         if (needToCheck()) {
             // Attempt to create all the indices that we're going to need during the bulk before we start.
-            // Step 1: collect all the indices in the request
-            final Set<String> indices = bulkRequest.requests.stream()
+            // Step 1: collect all the indices in the request and if the request is specifically disallowing index auto creation
+            final Map<String, Boolean> indices = bulkRequest.requests.stream()
                     // delete requests should not attempt to create the index (if the index does not
                     // exists), unless an external versioning is used
                 .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
                         || request.versionType() == VersionType.EXTERNAL
                         || request.versionType() == VersionType.EXTERNAL_GTE)
-                .map(DocWriteRequest::index)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isNoAutoCreate, (v1, v2) -> v1 && v2));
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
              * that we'll use when we try to run the requests. */
             final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
             Set<String> autoCreateIndices = new HashSet<>();
             ClusterState state = clusterService.state();
-            for (String index : indices) {
+            for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
+                final String index = indexAndFlag.getKey();
                 boolean shouldAutoCreate;
                 try {
-                    shouldAutoCreate = shouldAutoCreate(index, state);
+                    shouldAutoCreate = shouldAutoCreate(index, indexAndFlag.getValue() == null ? false : indexAndFlag.getValue(), state);
                 } catch (IndexNotFoundException e) {
                     shouldAutoCreate = false;
                     indicesThatCannotBeCreated.put(index, e);
@@ -442,8 +442,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.needToCheck();
     }
 
-    boolean shouldAutoCreate(String index, ClusterState state) {
-        return autoCreateIndex.shouldAutoCreate(index, state);
+    boolean shouldAutoCreate(String index, boolean noAutoCreate, ClusterState state) {
+        return autoCreateIndex.shouldAutoCreate(index, noAutoCreate, state);
     }
 
     void createIndex(String index,

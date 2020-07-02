@@ -222,4 +222,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         request.setPipeline(pipeline);
         return this;
     }
+
+    /**
+     * Sets the no_auto_create flag to prevent this request from creating an index
+     */
+    public IndexRequestBuilder setNoAutoCreate(boolean noAutoCreate) {
+        request.setNoAutoCreate(noAutoCreate);
+        return this;
+    }
 }

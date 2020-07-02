@@ -1,0 +1,23 @@
+---
+"Set no_auto_create flag":
+  - skip:
+      # TODO adjust after backport
+      version: " - 7.99.99"
+      reason: "no_auto_create flag added in 7.9+"
+  - do:
+      catch: missing
+      update:
+        index:            test_1_autocreate
+        id:               1
+        no_auto_create:   true
+        body:
+          doc:            { foo: bar, count: 1 }
+          doc_as_upsert:  true
+  - do:
+      update:
+        index:            test_1_autocreate
+        id:               1
+        no_auto_create:   false
+        body:
+          doc:            { foo: bar, count: 1 }
+          doc_as_upsert:  true

@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    "deprecation-elasticsearch-default"
+    "logs-deprecation-elasticsearch"
   ],
   "template": {
     "mappings": {

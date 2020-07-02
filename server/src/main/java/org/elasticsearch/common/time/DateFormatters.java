@@ -22,7 +22,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -1644,13 +1643,21 @@ public class DateFormatters {
      * @return The converted zoned date time
      */
     public static ZonedDateTime from(TemporalAccessor accessor) {
+        return from(accessor, Locale.ROOT, ZoneOffset.UTC);
+    }
+
+    public static ZonedDateTime from(TemporalAccessor accessor, Locale locale) {
+        return from(accessor, locale, ZoneOffset.UTC);
+    }
+
+    public static ZonedDateTime from(TemporalAccessor accessor, Locale locale, ZoneId defaultZone) {
         if (accessor instanceof ZonedDateTime) {
             return (ZonedDateTime) accessor;
         }
 
         ZoneId zoneId = accessor.query(TemporalQueries.zone());
         if (zoneId == null) {
-            zoneId = ZoneOffset.UTC;
+            zoneId = defaultZone;
         }
 
         LocalDate localDate = accessor.query(TemporalQueries.localDate());
@@ -1666,8 +1673,14 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(getLocaldate(accessor), localTime, zoneId);
+            return of(getLocaldate(accessor, locale), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
+            if (accessor.isSupported(MONTH_OF_YEAR)) {
+                return getFirstOfMonth(accessor).atStartOfDay(zoneId);
+            } else {
+                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
+            }
+        }  else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
@@ -1675,19 +1688,9 @@ public class DateFormatters {
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
-            return getLocaldate(accessor).atStartOfDay(zoneId);
-        } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
-            if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(WeekFields.ISO.weekOfWeekBasedYear(), accessor.getLong(WeekFields.ISO.weekOfWeekBasedYear()))
-                    .atStartOfDay(zoneId);
-            } else {
-                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
-                    .atDay(1)
-                    .with(TemporalAdjusters.firstInMonth(DayOfWeek.MONDAY))
-                    .atStartOfDay(zoneId);
-            }
+            return getLocaldate(accessor, locale).atStartOfDay(zoneId);
+        } else if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale).atStartOfDay(zoneId);
         }
 
         // we should not reach this piece of code, everything being parsed we should be able to
@@ -1695,16 +1698,45 @@ public class DateFormatters {
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
     }
 
-    private static LocalDate getLocaldate(TemporalAccessor accessor) {
-        if (accessor.isSupported(MONTH_OF_YEAR)) {
+    private static LocalDate localDateFromWeekBasedDate(TemporalAccessor accessor, Locale locale) {
+        WeekFields weekFields = WeekFields.of(locale);
+        if (accessor.isSupported(weekFields.weekOfWeekBasedYear())) {
+            return LocalDate.ofEpochDay(0)
+                .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
+                .with(weekFields.weekOfWeekBasedYear(), accessor.get(weekFields.weekOfWeekBasedYear()))
+                .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
+        } else {
+            return LocalDate.ofEpochDay(0)
+                .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
+                .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
+
+        }
+    }
+
+
+    private static LocalDate getLocaldate(TemporalAccessor accessor, Locale locale) {
+        if (accessor.isSupported(WeekFields.of(locale).weekBasedYear())) {
+            return localDateFromWeekBasedDate(accessor, locale);
+        } else if (accessor.isSupported(MONTH_OF_YEAR)) {
+            int year = getYear(accessor);
             if (accessor.isSupported(DAY_OF_MONTH)) {
-                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
+                return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
             } else {
-                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), 1);
+                return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), 1);
             }
         }
 
         return LOCALDATE_EPOCH;
+    }
+
+    private static int getYear(TemporalAccessor accessor) {
+        if(accessor.isSupported(ChronoField.YEAR)){
+            return accessor.get(ChronoField.YEAR);
+        }
+        if(accessor.isSupported(ChronoField.YEAR_OF_ERA)){
+            return accessor.get(ChronoField.YEAR_OF_ERA);
+        }
+        return 1970;
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")

@@ -6,17 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.DoubleConsumer;
-
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
@@ -36,6 +25,17 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript.Factory;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     DoubleScriptFieldScript.Factory,

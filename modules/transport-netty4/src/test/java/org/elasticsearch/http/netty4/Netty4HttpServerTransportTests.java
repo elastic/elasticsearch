@@ -122,9 +122,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
-            .build();
+        final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
     }
@@ -138,9 +136,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
-        final Settings settings = Settings.builder().put(key, maxContentLength + "b")
-            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
-            .build();
+        final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
         runExpectHeaderTest(
                 settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
@@ -151,7 +147,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
+        Settings settings = createSettings();
         runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
@@ -206,7 +202,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        Settings initialSettings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
+        Settings initialSettings = createSettings();
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(initialSettings, networkService, bigArrays, threadPool,
                 xContentRegistry(), new NullDispatcher(), clusterSettings, new SharedGroupFactory(Settings.EMPTY))) {
             transport.start();
@@ -254,11 +250,10 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
         if (randomBoolean()) {
             maxInitialLineLength = httpMaxInitialLineLengthSetting.getDefault(Settings.EMPTY).bytesAsInt();
-            settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
+            settings = createSettings();
         } else {
             maxInitialLineLength = randomIntBetween(1, 8192);
-            settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
-                .put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
+            settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
@@ -307,9 +302,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
         };
 
-        final Settings settings = Settings.builder()
+        final Settings settings = createBuilderWithPort()
             .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
 
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
@@ -370,8 +364,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
         };
 
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
+        Settings settings = createBuilderWithPort()
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
             .build();
 
@@ -405,4 +398,11 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         }
     }
 
+    private Settings createSettings() {
+        return createBuilderWithPort().build();
+    }
+
+    private Settings.Builder createBuilderWithPort() {
+        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+    }
 }

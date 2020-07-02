@@ -66,14 +66,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client.admin().cluster().preparePutRepository(repoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                // Don't cache repository data because the test manually modifies the repository data
-                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository(repoName, "fs", Settings.builder()
+            .put("location", repo).put("compress", false)
+            // Don't cache repository data because the test manually modifies the repository data
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
@@ -125,12 +122,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
     public void testFindDanglingLatestGeneration() throws Exception {
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client().admin().cluster().preparePutRepository(repoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository(repoName, "fs", Settings.builder()
+            .put("location", repo).put("compress", false)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
@@ -200,14 +194,12 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
     public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client().admin().cluster().preparePutRepository(repoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)
-                // Don't cache repository data because the test manually modifies the repository data
-                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository(repoName, "fs", Settings.builder()
+            .put("location", repo)
+            .put("compress", false)
+            // Don't cache repository data because the test manually modifies the repository data
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
 
         final String snapshotPrefix = "test-snap-";
         final int snapshots = randomIntBetween(1, 2);
@@ -268,13 +260,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         Path repo = randomRepoPath();
         final String repoName = "test-repo";
-        logger.info("-->  creating repository at {}", repo.toAbsolutePath());
-        assertAcked(client.admin().cluster().preparePutRepository(repoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                // Don't cache repository data because the test manually modifies the repository data
-                .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-                .put("compress", false)));
+        createRepository(repoName, "fs", Settings.builder()
+            .put("location", repo)
+            // Don't cache repository data because the test manually modifies the repository data
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
+            .put("compress", false));
 
         final String snapshot = "test-snap";
 
@@ -292,12 +282,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify loading repository data throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(repository));
 
-        logger.info("--> mount repository path in a new repository");
         final String otherRepoName = "other-repo";
-        assertAcked(client.admin().cluster().preparePutRepository(otherRepoName)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", repo)
-                .put("compress", false)));
+        createRepository(otherRepoName, "fs", Settings.builder()
+            .put("location", repo).put("compress", false));
         final Repository otherRepo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(otherRepoName);
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
@@ -317,7 +304,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String indexName = "test-index";
         createIndex(indexName);
 
-        assertCreateSnapshotSuccess(repoName, "snapshot-1");
+        createFullSnapshot(repoName, "snapshot-1");
 
         // In the old metadata version the shard level metadata could be moved to the next generation for all sorts of reasons, this should
         // not break subsequent repository operations
@@ -331,7 +318,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete old version snapshot");
         client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
 
-        assertCreateSnapshotSuccess(repoName, "snapshot-2");
+        createFullSnapshot(repoName, "snapshot-2");
     }
 
     public void testRepairBrokenShardGenerations() throws IOException {
@@ -347,7 +334,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String indexName = "test-index";
         createIndex(indexName);
 
-        assertCreateSnapshotSuccess(repoName, "snapshot-1");
+        createFullSnapshot(repoName, "snapshot-1");
 
         logger.info("--> delete old version snapshot");
         client().admin().cluster().prepareDeleteSnapshot(repoName, oldVersionSnapshot).get();
@@ -381,17 +368,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         client().admin().cluster().prepareDeleteRepository(repoName).get();
         createRepository(repoName, "fs", repoPath);
 
-        assertCreateSnapshotSuccess(repoName, "snapshot-2");
-    }
-
-    private void assertCreateSnapshotSuccess(String repoName, String snapshotName) {
-        logger.info("--> create another snapshot");
-        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                .setWaitForCompletion(true).get().getSnapshotInfo();
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        final int successfulShards = snapshotInfo.successfulShards();
-        assertThat(successfulShards, greaterThan(0));
-        assertThat(successfulShards, equalTo(snapshotInfo.totalShards()));
+        createFullSnapshot(repoName, "snapshot-2");
     }
 
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {

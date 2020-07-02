@@ -246,8 +246,8 @@ public class QueryShardContext extends QueryRewriteContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchAnalyzer() != null) {
-            return fieldType.searchAnalyzer();
+        if (fieldType.getTextSearchInfo().getSearchAnalyzer() != null) {
+            return fieldType.getTextSearchInfo().getSearchAnalyzer();
         }
         return getMapperService().searchAnalyzer();
     }
@@ -257,8 +257,8 @@ public class QueryShardContext extends QueryRewriteContext {
      * TODO: remove this by moving defaults into mappers themselves
      */
     public Analyzer getSearchQuoteAnalyzer(MappedFieldType fieldType) {
-        if (fieldType.searchQuoteAnalyzer() != null) {
-            return fieldType.searchQuoteAnalyzer();
+        if (fieldType.getTextSearchInfo().getSearchQuoteAnalyzer() != null) {
+            return fieldType.getTextSearchInfo().getSearchQuoteAnalyzer();
         }
         return getMapperService().searchQuoteAnalyzer();
     }

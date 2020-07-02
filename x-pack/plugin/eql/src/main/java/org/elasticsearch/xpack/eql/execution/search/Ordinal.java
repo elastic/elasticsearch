@@ -4,20 +4,28 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.sequence;
+package org.elasticsearch.xpack.eql.execution.search;
 
 import java.util.Objects;
 
 public class Ordinal implements Comparable<Ordinal> {
 
-    final long timestamp;
-    final Comparable<Object> tiebreaker;
+    private final long timestamp;
+    private final Comparable<Object> tiebreaker;
 
     public Ordinal(long timestamp, Comparable<Object> tiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
     }
     
+    public long timestamp() {
+        return timestamp;
+    }
+
+    public Comparable<Object> tiebreaker() {
+        return tiebreaker;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(timestamp, tiebreaker);

@@ -35,8 +35,8 @@ query string parameter>> or <<search-request-body,request body>>.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices,
-and index aliases used to limit the request.
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
 +
 To search all data streams and indices in a cluster, omit this parameter or use
 `_all` or `*`.
@@ -161,7 +161,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 Period to retain the <<scroll-search-context,search context>> for scrolling. See
 <<request-body-search-scroll>>.
 +
-By default, this value cannot must be less than `1d` (one day). You can change
+By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]

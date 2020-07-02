@@ -169,6 +169,13 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -337,3 +344,9 @@ teardown:
   - match: { response.hits.hits.0._source.filter_field: 1 }
   - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
 
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }

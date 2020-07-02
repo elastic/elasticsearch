@@ -68,10 +68,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(0, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
-        assertEquals(0, stats.getStreams());
+        assertEquals(0, stats.getDataStreamCount());
         assertEquals(0, stats.getBackingIndices());
         assertEquals(0L, stats.getTotalStoreSize().getBytes());
-        assertEquals(0, stats.getDataStreamStats().length);
+        assertEquals(0, stats.getDataStreams().length);
     }
 
     public void testStatsEmptyDataStream() throws Exception {
@@ -80,14 +80,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
-        assertEquals(1, stats.getStreams());
+        assertEquals(1, stats.getDataStreamCount());
         assertEquals(1, stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
-        assertEquals(1, stats.getDataStreamStats().length);
-        assertEquals(dataStreamName, stats.getDataStreamStats()[0].getDataStreamName());
-        assertEquals(0L, stats.getDataStreamStats()[0].getMaxTimestamp());
-        assertNotEquals(0L, stats.getDataStreamStats()[0].getStoreSize().getBytes());
-        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreamStats()[0].getStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
     public void testStatsExistingDataStream() throws Exception {
@@ -97,14 +97,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
-        assertEquals(1, stats.getStreams());
+        assertEquals(1, stats.getDataStreamCount());
         assertEquals(1, stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
-        assertEquals(1, stats.getDataStreamStats().length);
-        assertEquals(dataStreamName, stats.getDataStreamStats()[0].getDataStreamName());
-        assertEquals(timestamp, stats.getDataStreamStats()[0].getMaxTimestamp());
-        assertNotEquals(0L, stats.getDataStreamStats()[0].getStoreSize().getBytes());
-        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreamStats()[0].getStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
     public void testStatsRolledDataStream() throws Exception {
@@ -116,14 +116,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
-        assertEquals(1, stats.getStreams());
+        assertEquals(1, stats.getDataStreamCount());
         assertEquals(2, stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
-        assertEquals(1, stats.getDataStreamStats().length);
-        assertEquals(dataStreamName, stats.getDataStreamStats()[0].getDataStreamName());
-        assertEquals(timestamp, stats.getDataStreamStats()[0].getMaxTimestamp());
-        assertNotEquals(0L, stats.getDataStreamStats()[0].getStoreSize().getBytes());
-        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreamStats()[0].getStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
     public void testStatsMultipleDataStreams() throws Exception {
@@ -144,14 +144,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(createdDataStreams.size(), stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
-        assertEquals(createdDataStreams.size(), stats.getStreams());
+        assertEquals(createdDataStreams.size(), stats.getDataStreamCount());
         assertEquals(createdDataStreams.size(), stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
-        assertEquals(createdDataStreams.size(), stats.getDataStreamStats().length);
-        for (DataStreamsStatsAction.DataStreamStats dataStreamStats : stats.getDataStreamStats()) {
-            long expectedMaxTS = maxTimestamps.get(dataStreamStats.getDataStreamName());
+        assertEquals(createdDataStreams.size(), stats.getDataStreams().length);
+        for (DataStreamsStatsAction.DataStreamStats dataStreamStats : stats.getDataStreams()) {
+            long expectedMaxTS = maxTimestamps.get(dataStreamStats.getDataStream());
             assertEquals(1, dataStreamStats.getBackingIndices());
-            assertEquals(expectedMaxTS, dataStreamStats.getMaxTimestamp());
+            assertEquals(expectedMaxTS, dataStreamStats.getMaximumTimestamp());
             assertNotEquals(0L, dataStreamStats.getStoreSize().getBytes());
         }
     }

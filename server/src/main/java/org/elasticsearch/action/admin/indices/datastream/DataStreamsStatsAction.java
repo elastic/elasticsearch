@@ -83,47 +83,47 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
     }
 
     public static class Response extends BroadcastResponse {
-        private final int streams;
+        private final int dataStreamCount;
         private final int backingIndices;
         private final ByteSizeValue totalStoreSize;
-        private final DataStreamStats[] dataStreamStats;
+        private final DataStreamStats[] dataStreams;
 
         public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures,
-                        int streams, int backingIndices, ByteSizeValue totalStoreSize, DataStreamStats[] dataStreamStats) {
+                        int dataStreamCount, int backingIndices, ByteSizeValue totalStoreSize, DataStreamStats[] dataStreams) {
             super(totalShards, successfulShards, failedShards, shardFailures);
-            this.streams = streams;
+            this.dataStreamCount = dataStreamCount;
             this.backingIndices = backingIndices;
             this.totalStoreSize = totalStoreSize;
-            this.dataStreamStats = dataStreamStats;
+            this.dataStreams = dataStreams;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.streams = in.readVInt();
+            this.dataStreamCount = in.readVInt();
             this.backingIndices = in.readVInt();
             this.totalStoreSize = new ByteSizeValue(in);
-            this.dataStreamStats = in.readArray(DataStreamStats::new, DataStreamStats[]::new);
+            this.dataStreams = in.readArray(DataStreamStats::new, DataStreamStats[]::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(streams);
+            out.writeVInt(dataStreamCount);
             out.writeVInt(backingIndices);
             totalStoreSize.writeTo(out);
-            out.writeArray(dataStreamStats);
+            out.writeArray(dataStreams);
         }
 
         @Override
         protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-            builder.field("data_stream_count", streams);
+            builder.field("data_stream_count", dataStreamCount);
             builder.field("backing_indices", backingIndices);
             builder.humanReadableField("total_store_size_bytes", "total_store_size", totalStoreSize);
-            builder.array("data_streams", (Object[]) dataStreamStats);
+            builder.array("data_streams", (Object[]) dataStreams);
         }
 
-        public int getStreams() {
-            return streams;
+        public int getDataStreamCount() {
+            return dataStreamCount;
         }
 
         public int getBackingIndices() {
@@ -134,52 +134,52 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return totalStoreSize;
         }
 
-        public DataStreamStats[] getDataStreamStats() {
-            return dataStreamStats;
+        public DataStreamStats[] getDataStreams() {
+            return dataStreams;
         }
     }
 
     public static class DataStreamStats implements ToXContentObject, Writeable {
-        private final String dataStreamName;
+        private final String dataStream;
         private final int backingIndices;
         private final ByteSizeValue storeSize;
-        private final long maxTimestamp;
+        private final long maximumTimestamp;
 
-        public DataStreamStats(String dataStreamName, int backingIndices, ByteSizeValue storeSize, long maxTimestamp) {
-            this.dataStreamName = dataStreamName;
+        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp) {
+            this.dataStream = dataStream;
             this.backingIndices = backingIndices;
             this.storeSize = storeSize;
-            this.maxTimestamp = maxTimestamp;
+            this.maximumTimestamp = maximumTimestamp;
         }
 
         public DataStreamStats(StreamInput in) throws IOException {
-            this.dataStreamName = in.readString();
+            this.dataStream = in.readString();
             this.backingIndices = in.readVInt();
             this.storeSize = new ByteSizeValue(in);
-            this.maxTimestamp = in.readVLong();
+            this.maximumTimestamp = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(dataStreamName);
+            out.writeString(dataStream);
             out.writeVInt(backingIndices);
             storeSize.writeTo(out);
-            out.writeVLong(maxTimestamp);
+            out.writeVLong(maximumTimestamp);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("data_stream", dataStreamName);
+            builder.field("data_stream", dataStream);
             builder.field("backing_indices", backingIndices);
             builder.humanReadableField("store_size_bytes", "store_size", storeSize);
-            builder.field("maximum_timestamp", maxTimestamp);
+            builder.field("maximum_timestamp", maximumTimestamp);
             builder.endObject();
             return builder;
         }
 
-        public String getDataStreamName() {
-            return dataStreamName;
+        public String getDataStream() {
+            return dataStream;
         }
 
         public int getBackingIndices() {
@@ -190,8 +190,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             return storeSize;
         }
 
-        public long getMaxTimestamp() {
-            return maxTimestamp;
+        public long getMaximumTimestamp() {
+            return maximumTimestamp;
         }
     }
 

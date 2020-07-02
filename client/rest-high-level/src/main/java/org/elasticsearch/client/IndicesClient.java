@@ -49,6 +49,8 @@ import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
@@ -257,6 +259,40 @@ public final class IndicesClient {
                                           ActionListener<GetDataStreamResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamRequest, IndicesRequestConverters::getDataStreams, options,
             GetDataStreamResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets statistics about one or more data streams using the Get Data Streams Stats API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamsStatsRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DataStreamsStatsResponse getDataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
+            options, DataStreamsStatsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets statistics about one or more data streams using the Get Data Streams Stats API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamsStatsRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getDataStreamsStatsAsync(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options,
+                                                ActionListener<DataStreamsStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
+            options, DataStreamsStatsResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -63,6 +63,9 @@ import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DataStream;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse.DataStreamStats;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DeleteDataStreamRequest;
@@ -1607,6 +1610,26 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStream.getGeneration(), equalTo(1L));
         assertThat(dataStream.getTimeStampField(), equalTo("@timestamp"));
         assertThat(dataStream.getIndices(), hasSize(1));
+
+        DataStreamsStatsRequest dataStreamsStatsRequest = new DataStreamsStatsRequest();
+        DataStreamsStatsResponse dataStreamsStatsResponse = execute(dataStreamsStatsRequest, indices::getDataStreamsStats,
+            indices::getDataStreamsStatsAsync);
+        int dataStreamsCount = dataStreamsStatsResponse.getDataStreamCount();
+        assertThat(dataStreamsCount, equalTo(1));
+        int backingIndices = dataStreamsStatsResponse.getBackingIndices();
+        assertThat(backingIndices, equalTo(1));
+        ByteSizeValue byteSizeValue = dataStreamsStatsResponse.getTotalStoreSize();
+        assertThat(byteSizeValue, notNullValue());
+        assertThat(byteSizeValue.getBytes(), not(equalTo(0L)));
+        Map<String, DataStreamStats> dataStreamsStats = dataStreamsStatsResponse.getDataStreams();
+        assertThat(dataStreamsStats, notNullValue());
+        assertThat(dataStreamsStats.size(), equalTo(1));
+        DataStreamStats dataStreamStat = dataStreamsStats.get(dataStreamName);
+        assertThat(dataStreamStat, notNullValue());
+        assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
+        assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
+        assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0)); // No data in here
+        assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
 
         DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
         response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);

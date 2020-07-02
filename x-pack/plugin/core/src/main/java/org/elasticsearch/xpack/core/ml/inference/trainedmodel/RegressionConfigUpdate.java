@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.RESULTS_FIELD;
 
@@ -68,6 +67,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
                 "] must be greater than or equal to 0");
         }
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
+
+        InferenceConfigUpdate.checkFieldUniqueness(resultsField);
     }
 
     public RegressionConfigUpdate(StreamInput in) throws IOException {
@@ -75,12 +76,19 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
         this.numTopFeatureImportanceValues = in.readOptionalVInt();
     }
 
-    public int getNumTopFeatureImportanceValues() {
-        return numTopFeatureImportanceValues == null ? 0 : numTopFeatureImportanceValues;
+    public Integer getNumTopFeatureImportanceValues() {
+        return numTopFeatureImportanceValues;
     }
 
     public String getResultsField() {
-        return resultsField == null ? DEFAULT_RESULTS_FIELD : resultsField;
+        return resultsField;
+    }
+
+    @Override
+    public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
+        return new Builder()
+            .setNumTopFeatureImportanceValues(numTopFeatureImportanceValues)
+            .setResultsField(resultsField);
     }
 
     @Override
@@ -165,10 +173,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate {
                 || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues);
     }
 
-    public static class Builder {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, RegressionConfigUpdate> {
         private String resultsField;
         private Integer numTopFeatureImportanceValues;
 
+        @Override
         public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;

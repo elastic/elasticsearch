@@ -73,10 +73,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public String getDescription() {
+            return null;
+        }
+
         static class Factory implements Processor.Factory {
 
             @Override
-            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                    Map<String, Object> config) {
                 return new NotInferenceProcessor();
             }
         }
@@ -87,7 +93,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factoryMap = new HashMap<>();
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+            when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),

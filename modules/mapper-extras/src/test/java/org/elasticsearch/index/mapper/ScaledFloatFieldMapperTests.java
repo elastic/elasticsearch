@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -53,6 +54,11 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloat
             a.scalingFactor(10);
             b.scalingFactor(100);
         });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override

@@ -35,17 +35,17 @@ dependencies {
   compileOnly(project(':modules:lang-painless')) {
     exclude group: "org.ow2.asm"
   }
-  compile project('sql-action')
-  compile project(':modules:aggs-matrix-stats')
-  compile "org.antlr:antlr4-runtime:${antlrVersion}"
+  api project('sql-action')
+  api project(':modules:aggs-matrix-stats')
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
   bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 

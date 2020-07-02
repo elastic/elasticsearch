@@ -30,9 +30,10 @@ public class FlatObjectFieldParserTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         parser = new FlatObjectFieldParser("field", "field._keyed",
-            new FakeFieldType(),
+            new FakeFieldType("field"),
             Integer.MAX_VALUE,
-            Integer.MAX_VALUE);
+            Integer.MAX_VALUE,
+            null);
     }
 
     public void testTextValues() throws Exception {
@@ -209,7 +210,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
         FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
-            new FakeFieldType(), 2, Integer.MAX_VALUE);
+            new FakeFieldType("field"), 2, Integer.MAX_VALUE, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> configuredParser.parse(xContentParser));
@@ -221,7 +222,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
         FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
-            new FakeFieldType(), 3, Integer.MAX_VALUE);
+            new FakeFieldType("field"), 3, Integer.MAX_VALUE, null);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(4, fields.size());
@@ -231,7 +232,7 @@ public class FlatObjectFieldParserTests extends ESTestCase {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
         FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
-            new FakeFieldType(), Integer.MAX_VALUE, 10);
+            new FakeFieldType("field"), Integer.MAX_VALUE, 10, null);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(0, fields.size());
@@ -246,10 +247,9 @@ public class FlatObjectFieldParserTests extends ESTestCase {
 
         xContentParser = createXContentParser(input);
 
-        MappedFieldType fieldType = new FakeFieldType();
-        fieldType.setNullValue("placeholder");
+        MappedFieldType fieldType = new FakeFieldType("field");
         FlatObjectFieldParser configuredParser = new FlatObjectFieldParser("field", "field._keyed",
-            fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE);
+            fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE, "placeholder");
 
         fields = configuredParser.parse(xContentParser);
         assertEquals(2, fields.size());

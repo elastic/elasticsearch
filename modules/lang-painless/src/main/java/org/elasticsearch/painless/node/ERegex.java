@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -32,7 +31,10 @@ import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -45,31 +47,39 @@ import java.util.regex.PatternSyntaxException;
  */
 public class ERegex extends AExpression {
 
-    protected final String pattern;
-    protected final String flags;
+    private final String pattern;
+    private final String flags;
 
-    public ERegex(Location location, String pattern, String flags) {
-        super(location);
+    public ERegex(int identifier, Location location, String pattern, String flags) {
+        super(identifier, location);
 
         this.pattern = Objects.requireNonNull(pattern);
-        this.flags = flags;
+        this.flags = Objects.requireNonNull(flags);
+    }
+
+    public String getPattern() {
+        return pattern;
+    }
+
+    public String getFlags() {
+        return flags;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
         Output output = new Output();
 
-        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
+        if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
@@ -84,15 +94,16 @@ public class ERegex extends AExpression {
         try {
             Pattern.compile(pattern, flags);
         } catch (PatternSyntaxException e) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
+            throw new Location(getLocation().getSourceName(), getLocation().getOffset() + 1 + e.getIndex()).createError(
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        String name = scriptRoot.getNextSyntheticName("regex");
-        output.actual = Pattern.class;
+        semanticScope.putDecoration(this, new ValueType(Pattern.class));
+
+        String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
 
         FieldNode fieldNode = new FieldNode();
-        fieldNode.setLocation(location);
+        fieldNode.setLocation(getLocation());
         fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
         fieldNode.setFieldType(Pattern.class);
         fieldNode.setName(name);
@@ -101,13 +112,13 @@ public class ERegex extends AExpression {
 
         try {
             StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
-            statementExpressionNode.setLocation(location);
+            statementExpressionNode.setLocation(getLocation());
 
             BlockNode blockNode = classNode.getClinitBlockNode();
             blockNode.addStatementNode(statementExpressionNode);
 
             MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();
-            memberFieldStoreNode.setLocation(location);
+            memberFieldStoreNode.setLocation(getLocation());
             memberFieldStoreNode.setExpressionType(void.class);
             memberFieldStoreNode.setFieldType(Pattern.class);
             memberFieldStoreNode.setName(name);
@@ -116,19 +127,19 @@ public class ERegex extends AExpression {
             statementExpressionNode.setExpressionNode(memberFieldStoreNode);
 
             CallNode callNode = new CallNode();
-            callNode.setLocation(location);
+            callNode.setLocation(getLocation());
             callNode.setExpressionType(Pattern.class);
 
             memberFieldStoreNode.setChildNode(callNode);
 
             StaticNode staticNode = new StaticNode();
-            staticNode.setLocation(location);
+            staticNode.setLocation(getLocation());
             staticNode.setExpressionType(Pattern.class);
 
             callNode.setLeftNode(staticNode);
 
             CallSubNode callSubNode = new CallSubNode();
-            callSubNode.setLocation(location);
+            callSubNode.setLocation(getLocation());
             callSubNode.setExpressionType(Pattern.class);
             callSubNode.setBox(Pattern.class);
             callSubNode.setMethod(new PainlessMethod(
@@ -145,14 +156,14 @@ public class ERegex extends AExpression {
             callNode.setRightNode(callSubNode);
 
             ConstantNode constantNode = new ConstantNode();
-            constantNode.setLocation(location);
+            constantNode.setLocation(getLocation());
             constantNode.setExpressionType(String.class);
             constantNode.setConstant(pattern);
 
             callSubNode.addArgumentNode(constantNode);
 
             constantNode = new ConstantNode();
-            constantNode.setLocation(location);
+            constantNode.setLocation(getLocation());
             constantNode.setExpressionType(int.class);
             constantNode.setConstant(flags);
 
@@ -162,11 +173,10 @@ public class ERegex extends AExpression {
         }
 
         MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
-        memberFieldLoadNode.setLocation(location);
+        memberFieldLoadNode.setLocation(getLocation());
         memberFieldLoadNode.setExpressionType(Pattern.class);
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
-
         output.expressionNode = memberFieldLoadNode;
 
         return output;

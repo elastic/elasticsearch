@@ -261,10 +261,10 @@ cluster alerts are not displayed.
 `cluster_alerts.management.blacklist`::
 
 Prevents the creation of specific cluster alerts. It also removes any applicable
-watches that already exist in the current cluster. +
+watches that already exist in the current cluster.
 +
 --
-You can add any of the following watch identifiers to the blacklist:
+You can add any of the following watch identifiers to the list of blocked alerts:
 
 * `elasticsearch_cluster_status`
 * `elasticsearch_version_mismatch`

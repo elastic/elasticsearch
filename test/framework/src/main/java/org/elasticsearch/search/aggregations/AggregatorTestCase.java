@@ -178,7 +178,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             MappedFieldType fieldType = entry.getValue();
 
             when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-            when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
+            when(searchContext.fieldType(fieldName)).thenReturn(fieldType);
         }
     }
 
@@ -234,9 +234,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         MultiBucketConsumer bucketConsumer,
                                                         MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
+    protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
+        throws IOException {
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder
-            .rewrite(searchContext.getQueryShardContext())
+        A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
             .build(searchContext.getQueryShardContext(), null)
             .create(searchContext, null, true);
         return aggregator;
@@ -314,7 +318,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
                 BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
-                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested()).build(context);
             }
             return null;
         });
@@ -891,6 +895,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
+     * Hook for checking things after all {@link Aggregator}s have been closed.
+     */
+    protected void afterClose() {}
+
+    /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
@@ -904,46 +913,37 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code double}.
      */
     protected NumberFieldMapper.NumberFieldType doubleField(String name) {
-        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        result.setName(name);
-        return result;
+        return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
     }
 
     /**
      * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a {@code geo_point}.
      */
     protected GeoPointFieldMapper.GeoPointFieldType geoPointField(String name) {
-        GeoPointFieldMapper.GeoPointFieldType result = new GeoPointFieldMapper.GeoPointFieldType();
-        result.setHasDocValues(true);
-        result.setName(name);
-        return result;
+        return new GeoPointFieldMapper.GeoPointFieldType(name);
     }
 
     /**
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
-        KeywordFieldMapper.KeywordFieldType result = new KeywordFieldMapper.KeywordFieldType();
-        result.setName(name);
-        result.setHasDocValues(true);
-        return result;
+        return new KeywordFieldMapper.KeywordFieldType(name);
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code long}.
      */
     protected NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        result.setName(name);
-        return result;
+        return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
     }
 
     /**
      * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
      */
     protected RangeFieldMapper.RangeFieldType rangeField(String name, RangeType rangeType) {
-        RangeFieldMapper.RangeFieldType result = new RangeFieldMapper.Builder(name, rangeType).fieldType();
-        result.setName(name);
-        return result;
+        if (rangeType == RangeType.DATE) {
+            return new RangeFieldMapper.RangeFieldType(name, RangeFieldMapper.Defaults.DATE_FORMATTER);
+        }
+        return new RangeFieldMapper.RangeFieldType(name, rangeType);
     }
 }

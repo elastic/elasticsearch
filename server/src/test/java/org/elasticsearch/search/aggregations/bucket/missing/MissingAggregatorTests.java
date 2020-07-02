@@ -77,8 +77,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     public void testMatchNoDocs() throws IOException {
         final int numDocs = randomIntBetween(10, 200);
 
-        final MappedFieldType fieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        fieldType.setName("field");
+        final MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(fieldType.name());
@@ -102,10 +102,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         int numDocs = randomIntBetween(10, 200);
 
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
@@ -127,10 +125,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchSparse() throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
@@ -162,10 +158,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testMatchSparseRangeField() throws IOException {
         final RangeType rangeType = RangeType.DOUBLE;
-        MappedFieldType aggFieldType = new RangeFieldMapper.Builder("_name", rangeType).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new RangeFieldMapper.Builder("_name", rangeType).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new RangeFieldMapper.RangeFieldType("agg_field", rangeType);
+        final MappedFieldType anotherFieldType = new RangeFieldMapper.RangeFieldType("another_field", rangeType);
 
         final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final BytesRef encodedRange = rangeType.encodeRanges(singleton(range));
@@ -201,8 +195,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedWithoutMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field("unknown_field");
@@ -225,8 +218,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedWithMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field("unknown_field")
@@ -251,10 +243,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     public void testMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
 
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name())
@@ -277,10 +267,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiValuedField() throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name());
@@ -323,10 +311,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     private void valueScriptTestCase(Script script) throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        anotherFieldType.setName("another_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .field(aggFieldType.name())
@@ -369,8 +355,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     }
 
     private void fieldScriptTestCase(Script script, long threshold) throws IOException {
-        final MappedFieldType aggFieldType = new NumberFieldMapper.Builder("_name", NumberType.LONG).fieldType();
-        aggFieldType.setName("agg_field");
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name")
             .script(script);

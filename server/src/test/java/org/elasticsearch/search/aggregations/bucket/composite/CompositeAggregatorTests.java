@@ -110,17 +110,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void setUp() throws Exception {
         super.setUp();
         FIELD_TYPES = new MappedFieldType[8];
-        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType();
-        FIELD_TYPES[0].setName("keyword");
-        FIELD_TYPES[0].setHasDocValues(true);
-
-        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        FIELD_TYPES[1].setName("long");
-        FIELD_TYPES[1].setHasDocValues(true);
-
-        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        FIELD_TYPES[2].setName("double");
-        FIELD_TYPES[2].setHasDocValues(true);
+        FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
+        FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
+        FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
 
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder("date");
         builder.docValues(true);
@@ -129,21 +121,10 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
         FIELD_TYPES[3] = fieldMapper.fieldType();
 
-        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        FIELD_TYPES[4].setName("price");
-        FIELD_TYPES[4].setHasDocValues(true);
-
-        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType();
-        FIELD_TYPES[5].setName("terms");
-        FIELD_TYPES[5].setHasDocValues(true);
-
-        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType();
-        FIELD_TYPES[6].setName("ip");
-        FIELD_TYPES[6].setHasDocValues(true);
-
-        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType();
-        FIELD_TYPES[7].setName("geo_point");
-        FIELD_TYPES[7].setHasDocValues(true);
+        FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
+        FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
+        FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
+        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
     }
 
     @Override

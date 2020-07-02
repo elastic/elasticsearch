@@ -36,19 +36,25 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeatureFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
 
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
+    }
+
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
         addModifier("positive_score_impact", false, (a, b) -> {
-            a.fieldType().setPositiveScoreImpact(true);
-            b.fieldType().setPositiveScoreImpact(false);
+            a.positiveScoreImpact(true);
+            b.positiveScoreImpact(false);
         });
     }
 

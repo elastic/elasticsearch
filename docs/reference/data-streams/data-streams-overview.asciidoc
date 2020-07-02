@@ -5,13 +5,13 @@
 ++++
 
 A data stream consists of one or more _backing indices_. Backing indices are
-<<index-hidden,hidden>>, automatically-generated indices used to store a
-stream's documents.
+<<index-hidden,hidden>>, auto-generated indices used to store a stream's
+documents.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
-The creation of a data stream requires an associated
-<<indices-templates,composable template>>. This template acts as a blueprint for
+The creation of a data stream requires a matching
+<<indices-templates,index template>>. This template acts as a blueprint for
 the stream's backing indices. It contains:
 
 * A name or wildcard (`*`) pattern for the data stream.
@@ -22,7 +22,7 @@ the stream's backing indices. It contains:
 
 * The mappings and settings applied to each backing index when it's created.
 
-The same composable template can be used to create multiple data streams.
+The same index template can be used to create multiple data streams.
 See <<set-up-a-data-stream>>.
 
 [discrete]
@@ -78,19 +78,21 @@ You cannot add new documents to a stream's other backing indices, even by
 sending requests directly to the index. This means you cannot submit the
 following requests directly to any backing index except the write index:
 
-* An <<docs-index_,Index API>> request with an
+* An <<docs-index_,index API>> request with an
   <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
   defaults to `create` when adding new documents.
-* A <<docs-bulk,Bulk API>> request using a `create` action
+* A <<docs-bulk,bulk API>> request using a `create` action
 
 Because it's the only index capable of ingesting new documents, you cannot
 perform operations on a write index that might hinder indexing. These
 prohibited operations include:
 
-* <<indices-close,Closing the write index>>
-* <<indices-delete-index,Deleting the write index>>
-* <<freeze-index-api,Freezing the write index>>
-* <<indices-shrink-index,Shrinking the write index>>
+* <<indices-clone-index,Clone>>
+* <<indices-close,Close>>
+* <<indices-delete-index,Delete>>
+* <<freeze-index-api,Freeze>>
+* <<indices-shrink-index,Shrink>>
+* <<indices-split-index,Split>>
 
 [discrete]
 [[data-streams-rollover]]
@@ -117,26 +119,30 @@ manually perform a rollover. See <<manually-roll-over-a-data-stream>>.
 === Append-only
 
 For most time-series use cases, existing data is rarely, if ever, updated.
-Because of this, data streams are designed to be append-only. This means you can
-send indexing requests for new documents directly to a data stream. However, you
-cannot send update or deletion requests for existing documents to a data stream.
+Because of this, data streams are designed to be append-only.
 
-To update or delete specific documents in a data stream, submit one of the
-following requests to the backing index containing the document:
+You can send <<add-documents-to-a-data-stream,indexing requests for new
+documents>> directly to a data stream. However, you cannot send the following
+requests for existing documents directly to a data stream:
 
-* An <<docs-index_,Index API>> request with an
-  <<docs-index-api-op_type,`op_type`>> of `index`.
-  These requests must include valid <<optimistic-concurrency-control,`if_seq_no`
-  and `if_primary_term`>> arguments.
+* An <<docs-index_,index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `index`. The `op_type` parameter
+  defaults to `index` for existing documents.
 
-* A <<docs-bulk,Bulk API>> request using the `delete`, `index`, or `update`
-  action. If the action type is `index`, the action must include valid
-  <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
-  arguments.
+* A <<docs-bulk,bulk API>> request using the `delete`, `index`, or `update`
+  action.
 
-* A <<docs-delete,Delete API>> request
+* A <<docs-delete,delete API>> request
 
-TIP: If you need to frequently update or delete existing documents across
-multiple indices, we recommend using an <<indices-add-alias,index alias>> and
+Instead, you can use the <<docs-update-by-query,update by query>> and
+<<docs-delete-by-query,delete by query>> APIs to update or delete existing
+documents in a data stream. See <<update-delete-docs-in-a-data-stream>>.
+
+Alternatively, you can update or delete a document by submitting requests to the
+backing index containing the document. See
+<<update-delete-docs-in-a-backing-index>>.
+
+TIP: If you frequently update or delete existing documents,
+we recommend using an <<indices-add-alias,index alias>> and
 <<indices-templates,index template>> instead of a data stream. You can still
-use <<index-lifecycle-management,{ilm-init}>> to manage the indices.
+use <<index-lifecycle-management,{ilm-init}>> to manage indices for the alias.

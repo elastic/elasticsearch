@@ -22,7 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
 public class DotSubNode extends ExpressionNode {
@@ -42,7 +42,7 @@ public class DotSubNode extends ExpressionNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
@@ -60,12 +60,12 @@ public class DotSubNode extends ExpressionNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         // Do nothing.
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {
@@ -78,7 +78,7 @@ public class DotSubNode extends ExpressionNode {
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.javaField.getModifiers())) {

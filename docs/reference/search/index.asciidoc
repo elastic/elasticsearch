@@ -5,8 +5,8 @@
 --
 
 [[search-query]]
-A _search query_, or _query_, is a request for information about data in one or
-more {es} indices.
+A _search query_, or _query_, is a request for information about data in 
+{es} data streams or indices.
 
 You can think of a query as a question, written in a way {es} understands.
 Depending on your data, you can use a query to get answers to questions like:
@@ -14,7 +14,7 @@ Depending on your data, you can use a query to get answers to questions like:
 * What pages on my website contain a specific word or phrase?
 * What processes on my server take longer than 500 milliseconds to respond?
 * What users on my network ran `regsvr32.exe` within the last week?
-* How many of my products have a price greater than $20? 
+* How many of my products have a price greater than $20?
 
 A _search_ consists of one or more queries that are combined and sent to {es}.
 Documents that match a search's queries are returned in the _hits_, or
@@ -29,11 +29,13 @@ a specific number of results.
 === In this section
 
 * <<run-a-search>>
+* <<near-real-time>>
 * <<modules-cross-cluster-search>>
 * <<async-search-intro>>
 
 --
 
 include::run-a-search.asciidoc[]
+include::{es-repo-dir}/search/near-real-time.asciidoc[]
 include::{es-repo-dir}/async-search.asciidoc[]
 include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]

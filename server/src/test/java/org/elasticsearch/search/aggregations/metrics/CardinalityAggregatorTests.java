@@ -60,8 +60,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
         final String fieldName = "rangeField";
-        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
-        fieldType.setName(fieldName);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
         testAggregation(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
@@ -172,9 +171,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalCardinality> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }

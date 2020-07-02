@@ -8,6 +8,11 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp'
   - do:
@@ -17,14 +22,19 @@ setup:
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp2':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp2'
 
 ---
 "Create data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -40,12 +50,12 @@ setup:
       indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
   - match: { 0.generation: 1 }
   - length: { 1.indices: 1 }
   - match: { 1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
@@ -53,7 +63,9 @@ setup:
   - do:
       index:
         index:  simple-data-stream1
-        body:   { foo: bar }
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
 
   - do:
       indices.refresh:
@@ -95,7 +107,7 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason: "change to 7.8.99 after backport"
 
   - do:
@@ -111,27 +123,32 @@ setup:
   - do:
       indices.get_data_stream: {}
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
+  - match: { 1.timestamp_field.mapping: {type: date} }
   - match: { 1.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream1
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream*
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
+  - match: { 0.timestamp_field.mapping: {type: date} }
   - match: { 0.generation: 1 }
   - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.timestamp_field.name: '@timestamp2' }
+  - match: { 1.timestamp_field.mapping: {type: date} }
   - match: { 1.generation: 1 }
 
   - do:
@@ -160,8 +177,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -186,7 +203,7 @@ setup:
   - do:
       indices.get_data_stream: {}
   - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.timestamp_field.name: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
@@ -204,6 +221,67 @@ setup:
 ---
 "append-only writes to backing indices prohobited":
   - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          template:
+            mappings:
+              properties:
+                'timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: timestamp
+
+  - do:
+      index:
+        index:  logs-foobar
+        body:   { timestamp: '2020-12-12' }
+  - match: { _index: .ds-logs-foobar-000001 }
+
+  - do:
+      catch: bad_request
+      index:
+        index:  .ds-logs-foobar-000001
+        body:   { timestamp: '2020-12-12' }
+
+  - do:
+      bulk:
+        body:
+          - create:
+              _index: .ds-logs-foobar-000001
+          - timestamp: '2020-12-12'
+          - index:
+              _index: .ds-logs-foobar-000001
+          - timestamp: '2020-12-12'
+          - create:
+              _index: logs-foobar
+          - timestamp: '2020-12-12'
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.1.index.status: 400 }
+  - match: { items.1.index.error.type: illegal_argument_exception }
+  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.2.create.result: created }
+  - match: { items.2.create._index: .ds-logs-foobar-000001 }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+---
+"Indexing a document into a data stream without a timestamp field":
+  - skip:
       version: " - 7.9.99"
       reason: "enable in 7.9+ when backported"
       features: allowed_warnings
@@ -215,42 +293,41 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
+          template:
+            mappings:
+              properties:
+                'timestamp':
+                  type: date
           data_stream:
             timestamp_field: timestamp
 
   - do:
-      index:
-        index:  logs-foobar
-        body:   { foo: bar }
-  - match: { _index: .ds-logs-foobar-000001 }
-
-  - do:
       catch: bad_request
       index:
-        index:  .ds-logs-foobar-000001
+        index:  logs-foobar
         body:   { foo: bar }
 
   - do:
       bulk:
         body:
           - create:
-              _index: .ds-logs-foobar-000001
-          - foo: bar
-          - index:
-              _index: .ds-logs-foobar-000001
+              _index: logs-foobar
           - foo: bar
           - create:
               _index: logs-foobar
-          - foo: bar
+          - timestamp: '2020-12-12'
+          - create:
+              _index: logs-foobar
+          - timestamp: ['2020-12-12', '2022-12-12']
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
-  - match: { items.0.create.error.type: illegal_argument_exception }
-  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
-  - match: { items.1.index.status: 400 }
-  - match: { items.1.index.error.type: illegal_argument_exception }
-  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
-  - match: { items.2.create.result: created }
-  - match: { items.2.create._index: .ds-logs-foobar-000001 }
+  - match: { items.0.create.error.caused_by.type: illegal_argument_exception }
+  - match: { items.0.create.error.caused_by.reason: "data stream timestamp field [timestamp] is missing" }
+  - match: { items.1.create.result: created }
+  - match: { items.1.create._index: .ds-logs-foobar-000001 }
+  - match: { items.2.create.status: 400 }
+  - match: { items.2.create.error.caused_by.type: illegal_argument_exception }
+  - match: { items.2.create.error.caused_by.reason: "data stream timestamp field [timestamp] encountered multiple values" }
 
   - do:
       indices.delete_data_stream:

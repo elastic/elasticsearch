@@ -69,7 +69,7 @@ client is used in the HTTP input, the webhook, the slack, pagerduty,
 and jira actions. This setting can be updated dynamically.  It defaults to `*`
 allowing everything. Note: If you configure this setting and you are using one
 of the slack/pagerduty actions, you have to ensure that the
-corresponding endpoints are whitelisted as well.
+corresponding endpoints are explicitly allowed as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http

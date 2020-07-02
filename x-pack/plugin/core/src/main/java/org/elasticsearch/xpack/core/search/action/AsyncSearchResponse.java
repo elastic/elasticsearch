@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
@@ -176,7 +175,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
             // shard failures are not considered fatal for partial results so
             // we return OK until we get the final response even if we don't have
             // a single successful shard.
-            return error != null ? ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error)) : OK;
+            return error != null ? error.status() : OK;
         } else {
             return searchResponse.status();
         }

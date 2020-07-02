@@ -65,6 +65,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -498,10 +499,21 @@ public class MetadataCreateIndexService {
             request.mappings(), currentState, templateName, xContentRegistry);
 
         if (request.dataStreamName() != null) {
+            String timestampField;
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
+                // Data stream already exists and a new backing index gets added. For example during rollover.
+                timestampField = dataStream.getTimeStampField().getName();
+                // Use the timestamp field mapping as was recorded at the time the data stream was created
                 mappings.add(dataStream.getTimeStampField().getTimestampFieldMapping());
+            } else {
+                // The data stream doesn't yet exist and the first backing index gets created. Resolve ts field from template.
+                // (next time, the data stream instance does exist)
+                ComposableIndexTemplate template = currentState.metadata().templatesV2().get(templateName);
+                timestampField = template.getDataStreamTemplate().getTimestampField();
             }
+            // Add mapping for timestamp field mapper last, so that it can't be overwritten:
+            mappings.add(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", timestampField))));
         }
 
         final Settings aggregatedIndexSettings =

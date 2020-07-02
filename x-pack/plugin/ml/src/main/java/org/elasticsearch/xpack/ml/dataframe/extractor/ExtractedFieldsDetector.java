@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -52,7 +53,8 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", DestinationIndex.ID_COPY);
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", DestinationIndex.ID_COPY,
+        TimestampFieldMapper.NAME);
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;

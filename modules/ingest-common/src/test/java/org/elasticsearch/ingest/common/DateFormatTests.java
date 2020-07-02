@@ -78,7 +78,7 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseWeekBased() {
-        String format = randomFrom("YYYY-ww","8YYYY-ww");
+        String format = "8YYYY-ww";
         ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
         DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
 
@@ -88,7 +88,7 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseWeekBasedWithLocale() {
-        String format = randomFrom("YYYY-ww","8YYYY-ww");
+        String format = "8YYYY-ww";
         ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
         DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
 

@@ -22,11 +22,11 @@ setup:
           - '{"index": {}}'
           - '{"dc": 10, "str": "abc", "number" : 500 }'
           - '{"index": {}}'
-          - '{"dc": 5, "str": "xyz", "number" : 1500 }'
+          - '{"dc": 5, "str": "xyz", "number" : 100 }'
           - '{"index": {}}'
           - '{"dc": 7, "str": "foo", "number" : 100 }'
           - '{"index": {}}'
-          - '{"dc": 1, "str": "foo", "number" : 30 }'
+          - '{"dc": 1, "str": "foo", "number" : 200 }'
           - '{"index": {}}'
           - '{"str": "abc", "number" : 500 }'
 
@@ -36,9 +36,9 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "number" } } } }
 
   - match: { hits.total: 5 }
   - length: { aggregations.str_terms.buckets: 3 }
-  - match: { aggregations.str_terms.buckets.0.key: 'abc' }
-  - match: { aggregations.str_terms.buckets.0.doc_count: 11 }
+  - match: { aggregations.str_terms.buckets.0.key: 100 }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 8 }

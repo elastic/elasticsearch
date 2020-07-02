@@ -7,25 +7,14 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
-    public static final ParseField NAME = new ParseField("empty");
-
-    private static final ObjectParser<EmptyConfigUpdate, Void> PARSER =
-        new ObjectParser<>(NAME.getPreferredName(), EmptyConfigUpdate::new);
-
-    public static EmptyConfigUpdate fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
+    public static final String NAME = "empty";
 
     public static Version minimumSupportedVersion() {
         return Version.V_7_9_0;
@@ -64,24 +53,12 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
 
-    }
-
-    @Override
-    public String getName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.endObject();
-        return builder;
     }
 
     @Override

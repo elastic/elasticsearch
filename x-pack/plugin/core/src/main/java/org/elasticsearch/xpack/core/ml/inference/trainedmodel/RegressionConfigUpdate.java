@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -21,9 +22,9 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.RESULTS_FIELD;
 
-public class RegressionConfigUpdate implements InferenceConfigUpdate {
+public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
-    public static final ParseField NAME = new ParseField("regression");
+    public static final ParseField NAME = RegressionConfig.NAME;
 
     public static RegressionConfigUpdate EMPTY_PARAMS = new RegressionConfigUpdate(null, null);
 

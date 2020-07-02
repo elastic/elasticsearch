@@ -7,15 +7,12 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
+public class EmptyConfigUpdateTests extends AbstractWireSerializingTestCase<EmptyConfigUpdate> {
 
-public class EmptyConfigUpdateTests extends AbstractSerializingTestCase<EmptyConfigUpdate> {
-    @Override
-    protected EmptyConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return EmptyConfigUpdate.fromXContent(parser);
+    public static EmptyConfigUpdate testInstance() {
+        return new EmptyConfigUpdate();
     }
 
     @Override

@@ -9,14 +9,13 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 
-public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteable {
+public interface InferenceConfigUpdate extends NamedWriteable {
     Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
         WarningInferenceResults.WARNING.getPreferredName(),
         TrainedModelConfig.MODEL_ID.getPreferredName()));
@@ -35,6 +34,10 @@ public interface InferenceConfigUpdate extends NamedXContentObject, NamedWriteab
     }
 
     Builder<? extends Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder();
+
+    default String getName() {
+        return getWriteableName();
+    }
 
     static void checkFieldUniqueness(String... fieldNames) {
         Set<String> duplicatedFieldNames = new HashSet<>();

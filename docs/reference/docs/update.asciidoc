@@ -53,7 +53,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 `lang`::
 (Optional, string) The script language. Default: `painless`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=no_auto_create]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=no-auto-create]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 

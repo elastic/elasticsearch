@@ -570,11 +570,12 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
-tag::no_auto_create[]
+tag::no-auto-create[]
 `no_auto_create`::
 (Optional, boolean) When true, this prevents the request from auto creating the
 index. When false, auto creation behavior defaults to the configured settings
 (See <<index-creation, Index Creation>>). Defaults to false.
+end::no-auto-create[]
 
 tag::node-filter[]
 `<node_filter>`::

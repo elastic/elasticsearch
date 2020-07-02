@@ -135,7 +135,6 @@ public class NativePrivilegeStore {
     public void getPrivileges(Collection<String> applications, Collection<String> names,
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
 
-        // TODO: We should have a way to express true Zero applications
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
             org.elasticsearch.common.collect.Set.of("*") : org.elasticsearch.common.collect.Set.copyOf(applications);
 
@@ -143,7 +142,7 @@ public class NativePrivilegeStore {
         // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
         Set<String> concreteApplicationNames = applicationNamesCache == null ? null : applicationNamesCache.get(applicationNamesCacheKey);
 
-        if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
+        if (concreteApplicationNames != null && concreteApplicationNames.isEmpty()) {
             logger.debug("returning empty application privileges for [{}] as application names result in empty list",
                 applicationNamesCacheKey);
             listener.onResponse(Collections.emptySet());

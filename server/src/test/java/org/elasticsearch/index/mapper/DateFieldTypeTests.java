@@ -75,7 +75,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 randomBoolean(), randomBoolean(), null, null, context));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03")));
     }
 
     public void testIsFieldWithinQueryDateMillis() throws IOException {
@@ -109,49 +108,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
 
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2015-10-09"), instant("2016-01-02")));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2016-01-02"), instant("2016-06-20")));
-        assertEquals(Relation.INTERSECTS, ft.isFieldWithinRange(reader, instant("2016-01-02"), instant("2016-02-12")));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2014-01-02"), instant("2015-02-12")));
-        assertEquals(Relation.DISJOINT, ft.isFieldWithinRange(reader, instant("2016-05-11"), instant("2016-08-30")));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-09-25"), instant("2016-05-29")));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03")));
-        assertEquals(Relation.INTERSECTS,
-                ft.isFieldWithinRange(reader, instant("2015-10-12").plusMillis(1), instant("2016-04-03").minusMillis(1)));
-        assertEquals(Relation.INTERSECTS,
-                ft.isFieldWithinRange(reader, instant("2015-10-12").plusMillis(1), instant("2016-04-03")));
-        assertEquals(Relation.INTERSECTS,
-                ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03").minusMillis(1)));
-        assertEquals(Relation.INTERSECTS,
-                ft.isFieldWithinRange(reader, instant("2015-10-12").plusNanos(1), instant("2016-04-03").minusNanos(1)));
-        assertEquals(ft.resolution() == Resolution.NANOSECONDS ? Relation.INTERSECTS : Relation.WITHIN, // Millis round down here.
-                ft.isFieldWithinRange(reader, instant("2015-10-12").plusNanos(1), instant("2016-04-03")));
-        assertEquals(Relation.INTERSECTS,
-                ft.isFieldWithinRange(reader, instant("2015-10-12"), instant("2016-04-03").minusNanos(1)));
-
-        // Some edge cases
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.EPOCH, instant("2016-04-03")));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.ofEpochMilli(-1000), instant("2016-04-03")));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, Instant.ofEpochMilli(Long.MIN_VALUE), instant("2016-04-03")));
-        assertEquals(Relation.WITHIN, ft.isFieldWithinRange(reader, instant("2015-10-12"), Instant.ofEpochMilli(Long.MAX_VALUE)));
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
 
         assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
-        assertEquals(Relation.DISJOINT, ft2.isFieldWithinRange(reader, instant("2015-10-09"), instant("2016-01-02")));
-
-        // Fire a bunch of random values into isFieldWithinRange to make sure it doesn't crash
-        for (int iter = 0; iter < 1000; iter++) {
-            long min = randomLong();
-            long max = randomLong();
-            if (min > max) {
-                long swap = max;
-                max = min;
-                min = swap;
-            }
-            ft.isFieldWithinRange(reader, Instant.ofEpochMilli(min), Instant.ofEpochMilli(max));
-        }
 
         IOUtils.close(reader, w, dir);
     }

@@ -183,3 +183,132 @@ teardown:
   - match: { _source.date_source_7: "2018-02-05T13:44:56.657+0100" }
   - match: { _source.date_target_7: "2018-02-05T12:44:56.657Z" }
 
+
+---
+"Test week based date parsing":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              date_source_field:
+                type: date
+                format: YYYY-ww
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "formats" : ["YYYY-ww"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "date_source_field": "2020-33"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.date_source_field: "2020-33" }
+  - match: { docs.0.doc._source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {date_source_field: "2020-33"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.date_source_field: "2020-33" }
+  - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
+
+---
+"Test week based date parsing with locale":
+  #locale is used when parsing as well on a pipeline. As per US locale, start of the 33rd week 2020 is on 09August2020 (sunday)
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              date_source_field:
+                type: date
+                format: YYYY-ww
+                locale: en-US
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "formats" : ["YYYY-ww"],
+                  "locale" : "en-US"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "date_source_field": "2020-33"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.date_source_field: "2020-33" }
+  - match: { docs.0.doc._source.date_target_field: "2020-08-09T00:00:00.000Z" }
+  - length: { docs.0.doc._ingest: 1 }
+  - is_true: docs.0.doc._ingest.timestamp
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {date_source_field: "2020-33"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.date_source_field: "2020-33" }
+  - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }

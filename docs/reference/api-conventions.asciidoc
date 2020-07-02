@@ -13,14 +13,21 @@ API, unless otherwise specified.
 * <<url-access-control>>
 
 [[multi-index]]
-=== Multiple indices
+=== Multi-target syntax
 
-Most APIs that refer to an `index` parameter support execution across multiple indices,
-using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-supports wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
-ability to "exclude" (`-`), for example: `test*,-test3`.
+Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
+parameter also support _multi-target syntax_.
 
-All multi index APIs support the following url query string parameters:
+In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
+data streams, indices, or index aliases: `test1,test2,test3`. You can also use
+https://en.wikipedia.org/wiki/Glob_(programming)[glob-like] wildcard (`*`)
+expressions to target any
+resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
+
+You can exclude targets using the `-` character: `test*,-test3`.
+
+Multi-target APIs that can target indices support the following query
+string parameters:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -30,12 +37,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
-Some multi index APIs also support the following url query string parameter:
+Some multi-target APIs that can target indices also support the following query
+string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-NOTE: Single index APIs such as the <<docs>> and the
-<<indices-aliases,single-index `alias` APIs>> do not support multiple indices.
+NOTE: Single index APIs, such as the <<docs>> and
+<<indices-aliases,single-index `alias` APIs>>, do not support multi-target
+syntax.
 
 [[date-math-index-names]]
 === Date math support in index names
@@ -660,15 +669,14 @@ string parameter.
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to
-Elasticsearch indices. For <<search-multi-search,multi-search>>,
+{es} data streams and indices. For <<search-multi-search,multi-search>>,
 <<docs-multi-get,multi-get>>, and <<docs-bulk,bulk>> requests, the user has
-the choice of specifying an index in the URL and on each individual request
+the choice of specifying a data stream or  index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
-To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `elasticsearch.yml` file:
+To prevent the user from overriding the data stream or index specified in the
+URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.yml`.
 
-    rest.action.multi.allow_explicit_index: false
 
-The default value is `true`, but when set to `false`, Elasticsearch will
-reject requests that have an explicit index specified in the request body.
+This causes  {es} to
+reject requests that explicitly specfiy a data stream or index in the request body.

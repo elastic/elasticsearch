@@ -11,9 +11,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.PseudoHuber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
 import org.junit.After;
@@ -99,18 +99,18 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         assertThat(msleResult.getValue(), closeTo(Math.pow(Math.log(1000 + 1), 2), 10E-6));
     }
 
-    public void testEvaluate_PseudoHuber() {
+    public void testEvaluate_Huber() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(
                 HOUSES_DATA_INDEX,
-                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new PseudoHuber((Double) null))));
+                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new Huber((Double) null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
 
-        PseudoHuber.Result pseudoHuberResult = (PseudoHuber.Result) evaluateDataFrameResponse.getMetrics().get(0);
-        assertThat(pseudoHuberResult.getMetricName(), equalTo(PseudoHuber.NAME.getPreferredName()));
-        assertThat(pseudoHuberResult.getValue(), closeTo(Math.sqrt(1000000 + 1) - 1, 10E-6));
+        Huber.Result huberResult = (Huber.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(huberResult.getMetricName(), equalTo(Huber.NAME.getPreferredName()));
+        assertThat(huberResult.getValue(), closeTo(Math.sqrt(1000000 + 1) - 1, 10E-6));
     }
 
     public void testEvaluate_RSquared() {

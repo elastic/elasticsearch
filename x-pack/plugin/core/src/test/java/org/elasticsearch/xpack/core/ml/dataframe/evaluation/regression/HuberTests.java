@@ -19,37 +19,37 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PseudoHuberTests extends AbstractSerializingTestCase<PseudoHuber> {
+public class HuberTests extends AbstractSerializingTestCase<Huber> {
 
     @Override
-    protected PseudoHuber doParseInstance(XContentParser parser) throws IOException {
-        return PseudoHuber.fromXContent(parser);
+    protected Huber doParseInstance(XContentParser parser) throws IOException {
+        return Huber.fromXContent(parser);
     }
 
     @Override
-    protected PseudoHuber createTestInstance() {
+    protected Huber createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected Writeable.Reader<PseudoHuber> instanceReader() {
-        return PseudoHuber::new;
+    protected Writeable.Reader<Huber> instanceReader() {
+        return Huber::new;
     }
 
-    public static PseudoHuber createRandom() {
-        return new PseudoHuber(randomBoolean() ? randomDoubleBetween(0.0, 1000.0, false) : null);
+    public static Huber createRandom() {
+        return new Huber(randomBoolean() ? randomDoubleBetween(0.0, 1000.0, false) : null);
     }
 
     public void testEvaluate() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_pseudo_huber", 0.8123),
+            mockSingleValue("regression_huber", 0.8123),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
-        PseudoHuber pseudoHuber = new PseudoHuber((Double) null);
-        pseudoHuber.process(aggs);
+        Huber huber = new Huber((Double) null);
+        huber.process(aggs);
 
-        EvaluationMetricResult result = pseudoHuber.getResult().get();
+        EvaluationMetricResult result = huber.getResult().get();
         String expected = "{\"value\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
@@ -59,10 +59,10 @@ public class PseudoHuberTests extends AbstractSerializingTestCase<PseudoHuber> {
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
-        PseudoHuber pseudoHuber = new PseudoHuber((Double) null);
-        pseudoHuber.process(aggs);
+        Huber huber = new Huber((Double) null);
+        huber.process(aggs);
 
-        EvaluationMetricResult result = pseudoHuber.getResult().get();
-        assertThat(result, equalTo(new PseudoHuber.Result(0.0)));
+        EvaluationMetricResult result = huber.getResult().get();
+        assertThat(result, equalTo(new Huber.Result(0.0)));
     }
 }

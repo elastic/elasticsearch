@@ -116,7 +116,7 @@
 
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
         index: simple-data-stream1
 
   - do:

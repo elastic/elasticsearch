@@ -24,24 +24,6 @@ performing a reindex, you can use the same process to add new field
 mappings and change <<index-modules-settings,dynamic index settings>>. See
 <<data-streams-use-reindex-to-change-mappings-settings>>.
 
-
-[discrete]
-[[add-new-field-mapping-to-a-data-stream]]
-=== Add a new field mapping to a data stream
-
-To add a mapping for a new field to a data stream, following these steps:
-
-. Update the index template used by the data stream. This ensures the new
-field mapping is added to future backing indices created for the stream.
-+
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the `logs` data stream.
-
-The following <<indices-templates,put index template>> request adds a mapping
-for a new field, `message`, to the template.
-
 ////
 [source,console]
 ----
@@ -79,16 +61,60 @@ PUT /_index_template/logs_data_stream
           "type": "date"
         }
       }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
+    }
+  }
+}
+
+PUT /_index_template/new_logs_data_stream
+{
+  "index_patterns": [ "new_logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
     }
   }
 }
 
 PUT /_data_stream/logs
+
+PUT /_data_stream/new_logs
 ----
+// TESTSETUP
+
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+
+DELETE /_ilm/policy/logs_policy
+----
+// TEARDOWN
 ////
+
+[discrete]
+[[add-new-field-mapping-to-a-data-stream]]
+=== Add a new field mapping to a data stream
+
+To add a mapping for a new field to a data stream, following these steps:
+
+. Update the index template used by the data stream. This ensures the new
+field mapping is added to future backing indices created for the stream.
++
+.*Example*
+[%collapsible]
+====
+`logs_data_stream` is an existing index template used by the `logs` data stream.
+
+The following <<indices-templates,put index template>> request adds a mapping
+for a new field, `message`, to the template.
 
 [source,console]
 ----
@@ -108,14 +134,10 @@ PUT /_index_template/logs_data_stream
           "type": "text"
         }
       }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
     }
   }
 }
 ----
-// TEST[continued]
 <1> Adds a mapping for the new `message` field.
 ====
 
@@ -140,19 +162,6 @@ PUT /logs/_mapping
   }
 }
 ----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
 ====
 
 [discrete]
@@ -175,61 +184,6 @@ field mapping is added to future backing indices created for the stream.
 The following <<indices-templates,put index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
 mapping parameter to `true`.
-
-////
-[source,console]
-----
-PUT /_ilm/policy/logs_policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
-        "host": {
-          "properties": {
-            "ip": {
-              "type": "ip"
-            }
-          }
-        }
-      }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
-    }
-  }
-}
-
-PUT /_data_stream/logs
-----
-////
 
 [source,console]
 ----
@@ -254,14 +208,10 @@ PUT /_index_template/logs_data_stream
           }
         }
       }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
     }
   }
 }
 ----
-// TEST[continued]
 <1> Changes the `host.ip` field's `ignore_malformed` value to `true`.
 ====
 
@@ -292,19 +242,6 @@ PUT /logs/_mapping
   }
 }
 ----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
 ====
 
 Except for supported mapping parameters, we don't recommend you change the
@@ -334,54 +271,6 @@ applied to future backing indices created for the stream.
 The following <<indices-templates,put index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
 
-////
-[source,console]
-----
-PUT /_ilm/policy/logs_policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
-    }
-  }
-}
-
-PUT /_data_stream/logs
-----
-////
-
 [source,console]
 ----
 PUT /_index_template/logs_data_stream
@@ -399,13 +288,11 @@ PUT /_index_template/logs_data_stream
       }
     },
     "settings": {
-      "index.lifecycle.name": "logs_policy",
       "index.refresh_interval": "30s"             <1>
     }
   }
 }
 ----
-// TEST[continued]
 <1> Changes the `index.refresh_interval` setting to `30s` (30 seconds).
 ====
 
@@ -428,19 +315,6 @@ PUT /logs/_settings
   }
 }
 ----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
 ====
 
 [discrete]
@@ -463,60 +337,6 @@ backing index created after the update.
 The following <<indices-templates,put index template API>> requests adds new
 `sort.field` and `sort.order index` settings to the template.
 
-////
-[source,console]
-----
-PUT /_ilm/policy/logs_policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
-    }
-  }
-}
-
-PUT /logs/_bulk?refresh
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-08T11:04:05.000Z" }
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-08T11:06:07.000Z" }
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-09T11:07:08.000Z" }
-----
-////
-
 [source,console]
 ----
 PUT /_index_template/logs_data_stream
@@ -534,28 +354,14 @@ PUT /_index_template/logs_data_stream
       }
     },
     "settings": {
-      "index.lifecycle.name": "logs_policy",
       "sort.field" : [ "@timestamp"],             <1>
       "sort.order" : [ "desc"]                    <2>
     }
   }
 }
 ----
-// TEST[continued]
 <1> Adds the `sort.field` index setting.
 <2> Adds the `sort.order` index setting.
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
 ====
 
 If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
@@ -598,65 +404,10 @@ The following resolve index API request checks for any existing indices, index
 aliases, or data streams that start with `new_logs`. If not, the `new_logs*`
 wildcard pattern can be used to create a new data stream.
 
-////
-[source,console]
-----
-PUT /_ilm/policy/logs_policy
-{
-  "policy": {
-    "phases": {
-      "hot": {
-        "actions": {
-          "rollover": {
-            "max_size": "25GB"
-          }
-        }
-      },
-      "delete": {
-        "min_age": "30d",
-        "actions": {
-          "delete": {}
-        }
-      }
-    }
-  }
-}
-
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
-    "settings": {
-      "index.lifecycle.name": "logs_policy"
-    }
-  }
-}
-
-PUT /logs/_bulk?refresh
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-08T11:04:05.000Z" }
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-08T11:06:07.000Z" }
-{"create":{"_index" : "logs"}}
-{ "@timestamp": "2020-12-09T11:07:08.000Z" }
-----
-////
-
 [source,console]
 ----
 GET /_resolve/index/new_logs*
 ----
-// TEST[continued]
 
 The API returns the following response, indicating no existing targets match
 this pattern.
@@ -664,11 +415,12 @@ this pattern.
 [source,console-result]
 ----
 {
-  "indices" : [ ],
-  "aliases" : [ ],
-  "data_streams" : [ ]
+  "indices": [ ],
+  "aliases": [ ],
+  "data_streams": [ ]
 }
 ----
+// TESTRESPONSE[s/"data_streams": \[ \]/"data_streams": $body.data_streams/]
 ====
 
 . Create or update an index template. This template should contain the
@@ -717,15 +469,12 @@ PUT /_index_template/new_logs_data_stream
       }
     },
     "settings": {
-      "index.lifecycle.name": "logs_policy",
       "sort.field" : [ "@timestamp"],          <2>
       "sort.order" : [ "desc"]                 <3>
     }
   }
 }
 ----
-// TEST[continued]
-
 <1>  Changes the `@timestamp` field mapping to the `date_nanos` field datatype.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
@@ -762,7 +511,7 @@ existing index or data stream uses this name, this request creates the
 ----
 PUT /_data_stream/new_logs
 ----
-// TEST[continued]
+// TEST[s/new_logs/new_logs_two/]
 ====
 
 . If you do not want to mix new and old data in your new data stream, pause the
@@ -790,19 +539,6 @@ PUT /_cluster/settings
   }
 }
 ----
-// TEST[continued]
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
 ====
 
 . Reindex your data to the new data stream using an `op_type` of `create`.
@@ -861,49 +597,6 @@ The following <<docs-reindex,reindex API>> request copies documents from
 `.ds-logs-000001` to the `new_logs` data stream. Note the request's `op_type` is
 `create`.
 
-////
-[source,console]
-----
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
-}
-
-PUT /_index_template/new_logs_data_stream
-{
-  "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
-}
-
-PUT /_data_stream/logs
-
-PUT /_data_stream/new_logs
-----
-////
-
 [source,console]
 ----
 POST /_reindex
@@ -917,7 +610,6 @@ POST /_reindex
   }
 }
 ----
-// TEST[continued]
 ====
 +
 You can also use a query to reindex only a subset of documents with each
@@ -952,7 +644,6 @@ POST /_reindex
   }
 }
 ----
-// TEST[continued]
 ====
 
 . If you previously changed your {ilm-init} poll interval, change it back to its
@@ -974,7 +665,6 @@ PUT /_cluster/settings
   }
 }
 ----
-// TEST[continued]
 ====
 
 . Resume indexing using the new data stream. Searches on this stream will now
@@ -994,15 +684,4 @@ indices and any data they contain.
 ----
 DELETE /_data_stream/logs
 ----
-// TEST[continued]
 ====
-
-////
-[source,console]
-----
-DELETE /_data_stream/*
-
-DELETE /_index_template/*
-----
-// TEST[continued]
-////

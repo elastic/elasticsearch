@@ -247,18 +247,10 @@ public class IndexNameExpressionResolver {
                 if (addIndex(writeIndex, context)) {
                     concreteIndices.add(writeIndex.getIndex());
                 }
-            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                if (context.isResolveToWriteIndex()) {
-                    IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
-                    if (addIndex(writeIndex, context)) {
-                        concreteIndices.add(writeIndex.getIndex());
-                    }
-                } else {
-                    for (IndexMetadata index : indexAbstraction.getIndices()) {
-                        if (shouldTrackConcreteIndex(context, options, index)) {
-                            concreteIndices.add(index.getIndex());
-                        }
-                    }
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
+                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                if (addIndex(writeIndex, context)) {
+                    concreteIndices.add(writeIndex.getIndex());
                 }
             } else {
                 if (indexAbstraction.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
@@ -754,7 +746,16 @@ public class IndexNameExpressionResolver {
 
                 List<String> resolvedExpressions = new ArrayList<>(resolveEmptyOrTrivialWildcard(options, metadata));
                 if (context.includeDataStreams()) {
-                    resolvedExpressions.addAll(metadata.dataStreams().keySet());
+                    final IndexMetadata.State excludeState = excludeState(options);
+                    final Map<String, IndexAbstraction> dataStreamsAbstractions = metadata.getIndicesLookup().entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().getType() == IndexAbstraction.Type.DATA_STREAM)
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    // dedup backing indices if expand hidden indices option is true
+                    Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
+                    resolvedIncludingDataStreams.addAll(expand(context, excludeState, dataStreamsAbstractions,
+                        expressions.isEmpty() ? "_all" : expressions.get(0), options.expandWildcardsHidden()));
+                    return new ArrayList<>(resolvedIncludingDataStreams);
                 }
                 return resolvedExpressions;
             }

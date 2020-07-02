@@ -19,7 +19,11 @@
 
 package org.elasticsearch.common.time;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
+
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -110,8 +114,15 @@ public enum FormatNames {
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
                                                        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
                                                        .collect(Collectors.toSet());
+
+    private static final Set<String> DEPRECATED_CAMEL_CASE_NAMES = EnumSet.complementOf(EnumSet.of(ISO8601, DATE, HOUR, TIME,
+                                                                            YEAR, EPOCH_SECOND, EPOCH_MILLIS)).stream()
+                                                                          .map(n -> n.camelCaseName)
+                                                                          .collect(Collectors.toSet());
     private final String camelCaseName;
     private final String snakeCaseName;
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FormatNames.class));
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
@@ -122,7 +133,30 @@ public enum FormatNames {
         return ALL_NAMES.contains(format);
     }
 
+    public static FormatNames forName(String format){
+        for (FormatNames name : values()){
+            if(name.matches(format)){
+                return name;
+            }
+        }
+        throw new IllegalArgumentException("Format name " + format + " is not defined");
+    }
+
+
     public boolean matches(String format) {
+        deprecate(format);
         return format.equals(camelCaseName) || format.equals(snakeCaseName);
+    }
+
+    private void deprecate(String format) {
+        if(format.equals(camelCaseName) && DEPRECATED_CAMEL_CASE_NAMES.contains(format)){
+            String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
+                "Use snake case name {} instead.";
+            deprecationLogger.deprecatedAndMaybeLog("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
+        }
+    }
+
+    public String getSnakeCaseName() {
+        return snakeCaseName;
     }
 }

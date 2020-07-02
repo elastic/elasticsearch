@@ -1091,7 +1091,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStatuses, hasSize(count));
     }
 
-    private List<String> createNSnapshots(String repoName, int count) throws Exception {
+    private List<String> createNSnapshots(String repoName, int count) {
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
@@ -1134,10 +1134,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute();
-    }
-
-    private void createFullSnapshot(String repoName, String snapshotName) throws Exception {
-        assertSuccessful(startFullSnapshot(repoName, snapshotName));
     }
 
     private void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {

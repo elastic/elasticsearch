@@ -88,12 +88,10 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRandomIndex(idxName);
 
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository("test-repo", "fs", Settings.builder()
+            .put("location", randomRepoPath())
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
 
         final String masterNode1 = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(allMasterEligibleNodes);
@@ -178,21 +176,18 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         final String repoName = "test-repo";
-
-        logger.info("--> creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("mock")
-                .setSettings(Settings.builder().put("location", randomRepoPath())));
+        createRepository(repoName, "mock", randomRepoPath());
 
         final String masterNode = internalCluster().getMasterName();
 
-        AbstractSnapshotIntegTestCase.blockAllDataNodes(repoName);
+        blockAllDataNodes(repoName);
 
         final String snapshot = "test-snap";
         logger.info("--> starting snapshot");
         ActionFuture<CreateSnapshotResponse> future = client(masterNode).admin().cluster()
                 .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute();
 
-        AbstractSnapshotIntegTestCase.waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
+        waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
 
         NetworkDisruption networkDisruption = new NetworkDisruption(
                 new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode), Collections.singleton(dataNode)),
@@ -206,7 +201,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> stopping disrupting");
         networkDisruption.stopDisrupting();
-        AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
+        unblockAllDataNodes(repoName);
 
         ensureStableCluster(2, masterNode);
         logger.info("--> done");
@@ -217,10 +212,10 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         logger.info("--> run a snapshot that fails to finalize but succeeds on the data node");
-        AbstractSnapshotIntegTestCase.blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
+        blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture =
                 client(masterNode).admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2").setWaitForCompletion(true).execute();
-        AbstractSnapshotIntegTestCase.waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
+        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(10L));
         unblockNode(repoName, masterNode);
         assertFutureThrows(snapshotFuture, SnapshotException.class);
 

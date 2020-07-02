@@ -276,11 +276,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Path location) {
-        logger.info("-->  creating repository");
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
         assertAcked(client().admin().cluster().preparePutRepository(repoName)
-                .setType(type)
-                .setSettings(Settings.builder().put("location", location)));
+            .setType(type).setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Path location) {
+        createRepository(repoName, type, Settings.builder().put("location", location));
     }
 
     /**
@@ -318,5 +321,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         return oldVersionSnapshot;
+    }
+
+    protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
+        logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
     }
 }

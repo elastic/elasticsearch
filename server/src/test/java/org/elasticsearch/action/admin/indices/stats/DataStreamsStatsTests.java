@@ -67,7 +67,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsNoDataStream() throws Exception {
-        DataStreamStatsAction.Response stats = getDataStreamsStats();
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(0, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(0, stats.getStreams());
@@ -79,7 +79,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     public void testStatsEmptyDataStream() throws Exception {
         String dataStreamName = createDataStream();
 
-        DataStreamStatsAction.Response stats = getDataStreamsStats();
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -96,7 +96,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
 
-        DataStreamStatsAction.Response stats = getDataStreamsStats();
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(1, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -111,11 +111,11 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     public void testStatsRolledDataStream() throws Exception {
         String dataStreamName = createDataStream();
-        createDocument(dataStreamName);
-        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         long timestamp = createDocument(dataStreamName);
+        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        timestamp = Math.max(timestamp, createDocument(dataStreamName));
 
-        DataStreamStatsAction.Response stats = getDataStreamsStats();
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(2, stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(1, stats.getStreams());
@@ -143,14 +143,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             }
         }
 
-        DataStreamStatsAction.Response stats = getDataStreamsStats();
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(createdDataStreams.size(), stats.getSuccessfulShards());
         assertEquals(0, stats.getFailedShards());
         assertEquals(createdDataStreams.size(), stats.getStreams());
         assertEquals(createdDataStreams.size(), stats.getBackingIndices());
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
         assertEquals(createdDataStreams.size(), stats.getDataStreamStats().length);
-        for (DataStreamStatsAction.DataStreamStats dataStreamStats : stats.getDataStreamStats()) {
+        for (DataStreamsStatsAction.DataStreamStats dataStreamStats : stats.getDataStreamStats()) {
             long expectedMaxTS = maxTimestamps.get(dataStreamStats.getDataStreamName());
             assertEquals(1, dataStreamStats.getBackingIndices());
             assertEquals(expectedMaxTS, dataStreamStats.getMaxTimestamp());
@@ -183,8 +183,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         return timestamp;
     }
 
-    private DataStreamStatsAction.Response getDataStreamsStats() throws Exception {
-        return client().execute(DataStreamStatsAction.INSTANCE, new DataStreamStatsAction.Request()).get();
+    private DataStreamsStatsAction.Response getDataStreamsStats() throws Exception {
+        return client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()).get();
     }
 
     private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {

@@ -43,6 +43,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -61,13 +63,13 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
 
-public class DataStreamStatsAction extends ActionType<DataStreamStatsAction.Response> {
+public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Response> {
 
-    public static final DataStreamStatsAction INSTANCE = new DataStreamStatsAction();
+    public static final DataStreamsStatsAction INSTANCE = new DataStreamsStatsAction();
     public static final String NAME = "indices:monitor/data_stream/stats";
 
-    public DataStreamStatsAction() {
-        super(NAME, DataStreamStatsAction.Response::new);
+    public DataStreamsStatsAction() {
+        super(NAME, DataStreamsStatsAction.Response::new);
     }
 
     public static class Request extends BroadcastRequest<Request> {
@@ -105,10 +107,19 @@ public class DataStreamStatsAction extends ActionType<DataStreamStatsAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeVInt(streams);
             out.writeVInt(backingIndices);
             totalStoreSize.writeTo(out);
             out.writeArray(dataStreamStats);
+        }
+
+        @Override
+        protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+            builder.field("data_stream_count", streams);
+            builder.field("backing_indices", backingIndices);
+            builder.field("total_store_size", totalStoreSize);
+            builder.array("data_streams", (Object[]) dataStreamStats);
         }
 
         public int getStreams() {
@@ -128,7 +139,7 @@ public class DataStreamStatsAction extends ActionType<DataStreamStatsAction.Resp
         }
     }
 
-    public static class DataStreamStats implements Writeable {
+    public static class DataStreamStats implements ToXContentObject, Writeable {
         private final String dataStreamName;
         private final int backingIndices;
         private final ByteSizeValue storeSize;
@@ -154,6 +165,18 @@ public class DataStreamStatsAction extends ActionType<DataStreamStatsAction.Resp
             out.writeVInt(backingIndices);
             storeSize.writeTo(out);
             out.writeVLong(maxTimestamp);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("data_stream", dataStreamName);
+            builder.field("backing_indices", backingIndices);
+            builder.field("store_size");
+            builder.humanReadableField("store_size_in_bytes", "store_size", storeSize);
+            builder.field("maximum_timestamp", maxTimestamp);
+            builder.endObject();
+            return builder;
         }
 
         public String getDataStreamName() {
@@ -225,7 +248,7 @@ public class DataStreamStatsAction extends ActionType<DataStreamStatsAction.Resp
         @Inject
         public TransportAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(DataStreamStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            super(DataStreamsStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 Request::new, ThreadPool.Names.MANAGEMENT);
             this.clusterService = clusterService;
             this.indicesService = indicesService;

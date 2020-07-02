@@ -159,7 +159,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
-import org.elasticsearch.action.admin.indices.stats.DataStreamStatsAction;
+import org.elasticsearch.action.admin.indices.stats.DataStreamsStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
@@ -311,6 +311,7 @@ import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestDataStreamsStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
@@ -620,7 +621,7 @@ public class ActionModule extends AbstractModule {
             actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
             actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
             actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
-            actions.register(DataStreamStatsAction.INSTANCE, DataStreamStatsAction.TransportAction.class);
+            actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
         }
 
         // Persistent tasks:
@@ -797,6 +798,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestDeleteDataStreamAction());
             registerHandler.accept(new RestGetDataStreamsAction());
             registerHandler.accept(new RestResolveIndexAction());
+            registerHandler.accept(new RestDataStreamsStatsAction());
         }
 
         // CAT API

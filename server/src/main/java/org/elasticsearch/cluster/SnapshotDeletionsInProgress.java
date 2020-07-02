@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -228,14 +227,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
 
         public Entry(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-                this.repoName = in.readString();
-                this.snapshots = in.readList(SnapshotId::new);
-            } else {
-                final Snapshot snapshot = new Snapshot(in);
-                this.snapshots = Collections.singletonList(snapshot.getSnapshotId());
-                this.repoName = snapshot.getRepository();
-            }
+            this.repoName = in.readString();
+            this.snapshots = in.readList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             if (in.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {
@@ -312,14 +305,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-                out.writeString(repoName);
-                out.writeCollection(snapshots);
-            } else {
-                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing [" + out.getVersion() +
-                        "] but saw " + snapshots;
-                new Snapshot(repoName, snapshots.get(0)).writeTo(out);
-            }
+            out.writeString(repoName);
+            out.writeCollection(snapshots);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
             if (out.getVersion().onOrAfter(SnapshotsService.FULL_CONCURRENCY_VERSION)) {

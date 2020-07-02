@@ -59,8 +59,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(List.of());
 
-    private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
-
     public static final String TYPE = "snapshots";
 
     @Override
@@ -601,15 +599,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final Version version;
-            if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                version = Version.readVersion(in);
-            } else {
-                // If an older master informs us that shard generations are supported we use the minimum shard generation compatible
-                // version. If shard generations are not supported yet we use a placeholder for a version that does not use shard
-                // generations.
-                version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
-            }
-
+            version = Version.readVersion(in);
             List<String> dataStreams;
             if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
                 dataStreams = in.readStringList();
@@ -654,11 +644,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeLong(entry.repositoryStateId);
             out.writeOptionalString(entry.failure);
             out.writeMap(entry.userMetadata);
-            if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                Version.writeVersion(entry.version, out);
-            } else {
-                out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
-            }
+            Version.writeVersion(entry.version, out);
             if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
                 out.writeStringCollection(entry.dataStreams);
             }

@@ -27,10 +27,10 @@ import java.util.stream.Stream;
 /**
  * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
  */
-class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
-    final AtomicArray<Result> results;
+public class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
+    final public AtomicArray<Result> results;
 
-    ArraySearchPhaseResults(int size) {
+    public ArraySearchPhaseResults(int size) {
         super(size);
         this.results = new AtomicArray<>(size);
     }
@@ -39,7 +39,7 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
         return results.asList().stream();
     }
 
-    void consumeResult(Result result) {
+    public void consumeResult(Result result) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
         results.set(result.getShardIndex(), result);
     }

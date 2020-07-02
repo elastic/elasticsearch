@@ -65,7 +65,7 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
     /**
      * Reduces the collected results
      */
-    SearchPhaseController.ReducedQueryPhase reduce() {
+    public SearchPhaseController.ReducedQueryPhase reduce() {
         throw new UnsupportedOperationException("reduce is not supported");
     }
 }

@@ -445,7 +445,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    private ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
                                                 List<DelayableWriteable<InternalAggregations>> bufferedAggs,
                                                 List<TopDocs> bufferedTopDocs,
                                                 TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,
@@ -633,7 +633,7 @@ public final class SearchPhaseController {
      * This implementation can be configured to batch up a certain amount of results and only reduce them
      * iff the buffer is exhausted.
      */
-    static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+    public static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
         private final NamedWriteableRegistry namedWriteableRegistry;
         private final SearchShardTarget[] processedShards;
         private final DelayableWriteable.Serialized<InternalAggregations>[] aggsBuffer;
@@ -661,7 +661,7 @@ public final class SearchPhaseController {
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        private QueryPhaseResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
+        public QueryPhaseResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
                                          SearchPhaseController controller,
                                          int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
                                          int trackTotalHitsUpTo, int topNSize,
@@ -785,7 +785,7 @@ public final class SearchPhaseController {
      * A {@link ArraySearchPhaseResults} implementation
      * that reduces aggregation results in parallel.
      */
-    static final class QueryPhaseParallelResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+    public static final class QueryPhaseParallelResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
         private final NamedWriteableRegistry namedWriteableRegistry;
         private final SearchShardTarget[] processedShards;
         private final int numShards;
@@ -812,7 +812,7 @@ public final class SearchPhaseController {
          *                         and when a partial or final reduce has completed.
          * @param controller a controller instance to reduce the query response objects
          */
-        private QueryPhaseParallelResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
+        public QueryPhaseParallelResultConsumer(NamedWriteableRegistry namedWriteableRegistry, SearchProgressListener progressListener,
                                          SearchPhaseController controller,
                                          int numShards, boolean hasTopDocs, boolean hasAggs,
                                          int trackTotalHitsUpTo, int topNSize,
@@ -843,7 +843,7 @@ public final class SearchPhaseController {
         }
 
         @Override
-        void consumeResult(SearchPhaseResult result) {
+        public void consumeResult(SearchPhaseResult result) {
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeParallel(queryResult);
@@ -914,7 +914,7 @@ public final class SearchPhaseController {
         }
 
         @Override
-        ReducedQueryPhase reduce() {
+        public ReducedQueryPhase reduce() {
             waitForAllParallelsDone();
             drainToIntermediateResultQueue();
             logger.trace("aggs final reduction [{}] max [{}]", remainningResults.stream().mapToLong(PartialReduceResult::ramUsed).sum(), aggsMaxSize);
@@ -1048,13 +1048,13 @@ public final class SearchPhaseController {
         }
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
-            void consumeResult(SearchPhaseResult result) {
+            public void consumeResult(SearchPhaseResult result) {
                 super.consumeResult(result);
                 listener.notifyQueryResult(result.queryResult().getShardIndex());
             }
 
             @Override
-            ReducedQueryPhase reduce() {
+            public ReducedQueryPhase reduce() {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, aggReduceContextBuilder, request.isFinalReduce());
@@ -1065,7 +1065,7 @@ public final class SearchPhaseController {
         };
     }
 
-    static final class TopDocsStats {
+    public static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
@@ -1074,7 +1074,7 @@ public final class SearchPhaseController {
         boolean timedOut;
         Boolean terminatedEarly;
 
-        TopDocsStats(int trackTotalHitsUpTo) {
+        public TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
             this.totalHitsRelation = Relation.EQUAL_TO;

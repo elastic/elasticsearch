@@ -38,7 +38,9 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ScriptBinaryFieldData extends AbstractIndexComponent
-    implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
+    implements
+        IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>,
+        SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -49,8 +51,13 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         }
 
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+        public IndexFieldData<?> build(
+            IndexSettings indexSettings,
+            MappedFieldType fieldType,
+            IndexFieldDataCache cache,
+            CircuitBreakerService breakerService,
+            MapperService mapperService
+        ) {
             return new ScriptBinaryFieldData(indexSettings, fieldType.name(), scriptFactory);
         }
     }
@@ -66,7 +73,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     }
 
     public void setSearchLookup(SearchLookup searchLookup) {
-        //TODO wire the params from the mappings definition, we don't parse them yet
+        // TODO wire the params from the mappings definition, we don't parse them yet
         this.leafFactory.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup));
     }
 
@@ -97,7 +104,8 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         ScriptBinaryResult scriptBinaryResult = new ScriptBinaryResult();
         return new ScriptBinaryLeafFieldData(
-            new ScriptBinaryDocValues(leafFactory.get().newInstance(context, scriptBinaryResult::accept), scriptBinaryResult));
+            new ScriptBinaryDocValues(leafFactory.get().newInstance(context, scriptBinaryResult::accept), scriptBinaryResult)
+        );
     }
 
     @Override
@@ -107,9 +115,16 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                        XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format,
-                                        int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 

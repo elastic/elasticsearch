@@ -55,14 +55,14 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public String typeName() {
-        //TODO not sure what we should return here: the runtime type or the field type?
+        // TODO not sure what we should return here: the runtime type or the field type?
         // why is the same string returned from three different methods?
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        //TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
+        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }
 
@@ -78,8 +78,8 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("runtime_type", "keyword");
-        builder.field("script", script.getIdOrCode()); //TODO For some reason this doesn't allow us to do the full xcontent of the script.
+        builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
     }
 
-    //TODO do we need to override equals/hashcode?
+    // TODO do we need to override equals/hashcode?
 }

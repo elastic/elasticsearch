@@ -11,9 +11,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,12 +37,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
 
     private final Consumer<String> sync;
 
-    public StringScriptFieldScript(
-        Map<String, Object> params,
-        SearchLookup searchLookup,
-        LeafReaderContext ctx,
-        Consumer<String> sync
-    ) {
+    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, Consumer<String> sync) {
         super(params, searchLookup, ctx);
         this.sync = sync;
     }

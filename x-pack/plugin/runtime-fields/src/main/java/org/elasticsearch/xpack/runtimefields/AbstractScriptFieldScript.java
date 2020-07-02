@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,7 +24,7 @@ public abstract class AbstractScriptFieldScript {
 
     public AbstractScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
-        //TODO how do other scripts get stored fields exposed? Through asMap? I don't see any getters for them.
+        // TODO how do other scripts get stored fields exposed? Through asMap? I don't see any getters for them.
         this.params = params;
     }
 

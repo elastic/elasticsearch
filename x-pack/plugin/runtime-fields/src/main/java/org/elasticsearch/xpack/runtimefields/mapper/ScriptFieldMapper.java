@@ -37,12 +37,12 @@ public final class ScriptFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        //there is no field!
+        // there is no field!
     }
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        //TODO implement this
+        // TODO implement this
     }
 
     @Override
@@ -93,7 +93,7 @@ public final class ScriptFieldMapper extends FieldMapper {
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
             }
-            //TODO copy to and multi_fields... not sure what needs to be done.
+            // TODO copy to and multi_fields... not sure what needs to be done.
             return new ScriptFieldMapper(name, mappedFieldType, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -124,7 +124,7 @@ public final class ScriptFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [script] cannot be null.");
                     }
-                    //TODO this should become an object and support the usual script syntax, including lang and params
+                    // TODO this should become an object and support the usual script syntax, including lang and params
                     builder.script(new Script(XContentMapValues.nodeStringValue(propNode, name + ".script")));
                     iterator.remove();
                 }

@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.runtimefields;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 
@@ -21,23 +20,19 @@ import java.util.Map;
  */
 public abstract class AbstractScriptFieldScript {
     private final Map<String, Object> params;
-    private final LeafReaderContext ctx;
-    private final SourceLookup source;
-    private final LeafDocLookup fieldData;
+    private final LeafSearchLookup leafSearchLookup;
 
-    public AbstractScriptFieldScript(Map<String, Object> params, SourceLookup source, DocLookup fieldData, LeafReaderContext ctx) {
+    public AbstractScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+        leafSearchLookup = searchLookup.getLeafSearchLookup(ctx);
+        // TODO how do other scripts get stored fields exposed? Through asMap? I don't see any getters for them.
         this.params = params;
-        this.source = source;
-        this.fieldData = fieldData.getLeafDocLookup(ctx);
-        this.ctx = ctx;
     }
 
     /**
      * Set the document to run the script against.
      */
     public final void setDocId(int docId) {
-        source.setSegmentAndDocument(ctx, docId);
-        fieldData.setDocument(docId);
+        leafSearchLookup.setDocument(docId);
         onSetDocId(docId);
     }
 
@@ -57,16 +52,15 @@ public abstract class AbstractScriptFieldScript {
      * Expose the {@code _source} to the script.
      */
     public final Map<String, Object> getSource() {
-        return source;
+        return leafSearchLookup.source();
     }
 
     /**
      * Expose field data to the script as {@code doc}.
      */
     public final Map<String, ScriptDocValues<?>> getDoc() {
-        return fieldData;
+        return leafSearchLookup.doc();
     }
 
     public abstract void execute();
-
 }

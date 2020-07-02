@@ -6,17 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
@@ -32,9 +21,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript.Factory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     StringScriptFieldScript.Factory,
@@ -236,9 +235,9 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     private StringScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, Consumer<String>> impl) {
-        return (params, source, fieldData) -> {
+        return (params, searchLookup) -> {
             StringScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                return new StringScriptFieldScript(params, source, fieldData, ctx, sync) {
+                return new StringScriptFieldScript(params, searchLookup, ctx, sync) {
                     @Override
                     public void execute() {
                         impl.accept(getDoc(), sync);
@@ -265,9 +264,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected StringRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
-        throws IOException {
-        return factory.newFactory(params, source, fieldData).runtimeValues();
+    protected StringRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+        return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override

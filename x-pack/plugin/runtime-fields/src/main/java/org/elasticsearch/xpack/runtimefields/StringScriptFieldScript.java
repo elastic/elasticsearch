@@ -11,8 +11,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +22,7 @@ import java.util.function.Consumer;
  * Script for building {@link String} values at runtime.
  */
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
-    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
@@ -38,7 +37,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
      * Factory for building instances of the script for a particular search context.
      */
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }
 
     /**
@@ -68,14 +67,8 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
 
     private final Consumer<String> sync;
 
-    public StringScriptFieldScript(
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData,
-        LeafReaderContext ctx,
-        Consumer<String> sync
-    ) {
-        super(params, source, fieldData, ctx);
+    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, Consumer<String> sync) {
+        super(params, searchLookup, ctx);
         this.sync = sync;
     }
 

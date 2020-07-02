@@ -36,8 +36,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -85,7 +84,7 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
 
     protected abstract ScriptContext<F> scriptContext();
 
-    protected abstract V newValues(F factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData) throws IOException;
+    protected abstract V newValues(F factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException;
 
     protected abstract CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder(V values);
 
@@ -96,9 +95,8 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
     }
 
     protected class TestCase {
-        private final SourceLookup sourceLookup = new SourceLookup();
         private final MapperService mapperService = mock(MapperService.class);
-        private final DocLookup fieldData;
+        private final SearchLookup searchLookup;
         private final IndexSearcher searcher;
 
         private TestCase(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder) throws IOException {
@@ -107,7 +105,7 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
             }
             Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
                 .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
-            fieldData = new DocLookup(mapperService, fieldDataLookup);
+            searchLookup = new SearchLookup(mapperService, fieldDataLookup);
             Directory directory = newDirectory();
             lazyClose.add(directory);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -127,7 +125,7 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
         }
 
         private V script(Script script) throws IOException {
-            return newValues(scriptService.compile(script, scriptContext()), Map.of(), sourceLookup, fieldData);
+            return newValues(scriptService.compile(script, scriptContext()), Map.of(), searchLookup);
         }
 
         protected List<R> collect(String script) throws IOException {

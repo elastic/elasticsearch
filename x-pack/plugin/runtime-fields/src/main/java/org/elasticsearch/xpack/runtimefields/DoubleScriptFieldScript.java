@@ -11,8 +11,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +34,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
      * Factory for building instances of the script for a particular search context.
      */
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SourceLookup source, DocLookup fieldData);
+        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }
 
     /**
@@ -65,14 +64,8 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
 
     private final DoubleConsumer sync;
 
-    public DoubleScriptFieldScript(
-        Map<String, Object> params,
-        SourceLookup source,
-        DocLookup fieldData,
-        LeafReaderContext ctx,
-        DoubleConsumer sync
-    ) {
-        super(params, source, fieldData, ctx);
+    public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, DoubleConsumer sync) {
+        super(params, searchLookup, ctx);
         this.sync = sync;
     }
 

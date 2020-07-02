@@ -22,8 +22,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript.Factory;
 
 import java.io.IOException;
@@ -159,9 +158,8 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected DoubleRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
-        throws IOException {
-        return factory.newFactory(params, source, fieldData).runtimeValues();
+    protected DoubleRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+        return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override
@@ -233,9 +231,9 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     private DoubleScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, DoubleConsumer> impl) {
-        return (params, source, fieldData) -> {
+        return (params, searchLookup) -> {
             DoubleScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                return new DoubleScriptFieldScript(params, source, fieldData, ctx, sync) {
+                return new DoubleScriptFieldScript(params, searchLookup, ctx, sync) {
                     @Override
                     public void execute() {
                         impl.accept(getDoc(), sync);

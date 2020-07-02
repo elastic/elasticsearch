@@ -6,17 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.LongConsumer;
-
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -33,9 +22,19 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript.Factory;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     LongScriptFieldScript.Factory,
@@ -173,9 +172,8 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected LongRuntimeValues newValues(Factory factory, Map<String, Object> params, SourceLookup source, DocLookup fieldData)
-        throws IOException {
-        return factory.newFactory(params, source, fieldData).runtimeValues();
+    protected LongRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+        return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override
@@ -247,9 +245,9 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     private LongScriptFieldScript.Factory assertingScript(BiConsumer<Map<String, ScriptDocValues<?>>, LongConsumer> impl) {
-        return (params, source, fieldData) -> {
+        return (params, searchLookup) -> {
             LongScriptFieldScript.LeafFactory leafFactory = (ctx, sync) -> {
-                return new LongScriptFieldScript(params, source, fieldData, ctx, sync) {
+                return new LongScriptFieldScript(params, searchLookup, ctx, sync) {
                     @Override
                     public void execute() {
                         impl.accept(getDoc(), sync);

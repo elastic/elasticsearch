@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +52,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 
@@ -159,10 +157,10 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId,
-                                     Metadata clusterMetadata, Supplier<SnapshotInfo> buildSnapshotInfo, Version repositoryMetaVersion,
+        public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                     SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
                                      Function<ClusterState, ClusterState> stateTransformer,
-                                     ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                     ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 

@@ -965,17 +965,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void finalizeSnapshot(final SnapshotId snapshotId,
-                                 final ShardGenerations shardGenerations,
+    public void finalizeSnapshot(final ShardGenerations shardGenerations,
                                  final long repositoryStateId,
                                  final Metadata clusterMetadata,
-                                 Supplier<SnapshotInfo> buildSnapshotInfo,
+                                 SnapshotInfo snapshotInfo,
                                  Version repositoryMetaVersion,
                                  Function<ClusterState, ClusterState> stateTransformer,
-                                 final ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
+                                 final ActionListener<RepositoryData> listener) {
         assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN :
             "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
         final Collection<IndexId> indices = shardGenerations.indices();
+        final SnapshotId snapshotId = snapshotInfo.snapshotId();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
@@ -1002,10 +1002,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexMetaIdentifiers = null;
             }
 
-            final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
-                ActionListener.wrap(snapshotInfos -> {
-                    assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
-                    final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
+            final ActionListener<Void> allMetaListener = new GroupedActionListener<>(
+                ActionListener.wrap(v -> {
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
                         snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, stateTransformer,
@@ -1014,7 +1012,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         if (writeShardGens) {
                                             cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
                                         }
-                                        listener.onResponse(new Tuple<>(newRepoData, snapshotInfo));
+                                        listener.onResponse(newRepoData);
                                     }, onUpdateFailure));
                 }, onUpdateFailure), 2 + indices.size());
 
@@ -1049,11 +1047,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 ));
             }
-            executor.execute(ActionRunnable.supply(allMetaListener, () -> {
-                final SnapshotInfo snapshotInfo = buildSnapshotInfo.get();
-                snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
-                return snapshotInfo;
-            }));
+            executor.execute(ActionRunnable.run(allMetaListener,
+                () -> snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false)));
         }, onUpdateFailure);
     }
 

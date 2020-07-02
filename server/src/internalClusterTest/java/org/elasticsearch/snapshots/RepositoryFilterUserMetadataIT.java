@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -45,7 +44,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -89,12 +87,11 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     private final String initialMetaValue = metadata.settings().get(MASTER_SETTING_VALUE);
 
                     @Override
-                    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId,
-                                                 Metadata clusterMetadata, Supplier<SnapshotInfo> buildSnapshotInfo,
-                                                 Version repositoryMetaVersion,
+                    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId,
+                                                 Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
                                                  Function<ClusterState, ClusterState> stateTransformer,
-                                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
-                        super.finalizeSnapshot(snapshotId, shardGenerations, repositoryStateId, clusterMetadata, buildSnapshotInfo,
+                                                 ActionListener<RepositoryData> listener) {
+                        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo,
                             repositoryMetaVersion, stateTransformer, listener);
                     }
 

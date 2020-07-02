@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,7 +43,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * An interface for interacting with a repository in snapshot and restore.
@@ -120,21 +118,18 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId            snapshot id
      * @param shardGenerations      updated shard generations
      * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
      * @param clusterMetadata       cluster metadata
-     * @param buildSnapshotInfo     supplier of the {@link SnapshotInfo} instance to write for this snapshot
+     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener              listener to be invoked with the new {@link RepositoryData} and the snapshot's {@link SnapshotInfo}
-     *                              completion of the snapshot
+     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
-    void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                          Supplier<SnapshotInfo> buildSnapshotInfo, Version repositoryMetaVersion,
-                          Function<ClusterState, ClusterState> stateTransformer,
-                          ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener);
+    void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                          SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                          ActionListener<RepositoryData> listener);
 
     /**
      * Deletes snapshots

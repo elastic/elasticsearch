@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -177,12 +176,12 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
             final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
-            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
-                repository.finalizeSnapshot(snapshot.getSnapshotId(),
+            PlainActionFuture.<RepositoryData, Exception>get(f ->
+                repository.finalizeSnapshot(
                     shardGenerations,
                     RepositoryData.EMPTY_REPO_GEN,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
-                    () -> new SnapshotInfo(snapshot.getSnapshotId(), shardGenerations.indices().stream()
+                    new SnapshotInfo(snapshot.getSnapshotId(), shardGenerations.indices().stream()
                         .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L, 6,
                         Collections.emptyList(), true, Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), f));

@@ -141,9 +141,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
-        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
+        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
+        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
     }
@@ -373,7 +375,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-            fullPathObjectMappers, newFieldTypes);
+            fullPathObjectMappers, newFieldTypes, metadataMappers, newMapper);
 
         ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 

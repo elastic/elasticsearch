@@ -56,6 +56,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,6 +70,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
@@ -763,6 +765,30 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
             strategy.reroute(clusterState, "foo"); // ensure reroute doesn't fail even though there is negative free space
         }
+
+        {
+            clusterInfoReference.set(overfullClusterInfo);
+            clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
+            final List<ShardRouting> startedShardsWithOverfullDisk = clusterState.getRoutingNodes().shardsWithState(STARTED);
+            assertThat(startedShardsWithOverfullDisk.size(), equalTo(4));
+            for (ShardRouting shardRouting : startedShardsWithOverfullDisk) {
+                // no shards on node3 since it has no free space
+                assertThat(shardRouting.toString(), shardRouting.currentNodeId(), oneOf("node1", "node2"));
+            }
+
+            // reset free space on node 3 and reserve space on node1
+            clusterInfoReference.set(new DevNullClusterInfo(usages, usages, shardSizes,
+                (new ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace>()).fPut(
+                    new ClusterInfo.NodeAndPath("node1", "/dev/null"),
+                    new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), between(51, 200)).build()).build()));
+            clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
+            final List<ShardRouting> startedShardsWithReservedSpace = clusterState.getRoutingNodes().shardsWithState(STARTED);
+            assertThat(startedShardsWithReservedSpace.size(), equalTo(4));
+            for (ShardRouting shardRouting : startedShardsWithReservedSpace) {
+                // no shards on node1 since all its free space is reserved
+                assertThat(shardRouting.toString(), shardRouting.currentNodeId(), oneOf("node2", "node3"));
+            }
+        }
     }
 
     public void testCanRemainWithShardRelocatingAway() {
@@ -1123,7 +1149,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
                            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
                            ImmutableOpenMap<String, Long> shardSizes) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, ImmutableOpenMap.of());
+        }
+
+        DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+                           ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
+                           ImmutableOpenMap<String, Long> shardSizes, ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace) {
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
         }
 
         @Override

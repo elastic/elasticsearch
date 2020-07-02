@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -59,6 +59,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -188,7 +189,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType.stored()) {
-            context.doc().add(new Field(fieldType().name(), value, fieldType));
+            context.doc().add(new StoredField(fieldType().name(), value));
         }
 
         if (fieldType().hasDocValues()) {

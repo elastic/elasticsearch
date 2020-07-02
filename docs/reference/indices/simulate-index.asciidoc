@@ -6,8 +6,8 @@
 
 experimental[]
 
-Returns the index settings that would be applied to the specified index from an 
-<<indices-templates, index template>>.
+Returns the index configuration that would be applied to the specified index from an 
+existing <<indices-templates, index template>>.
 
 ////
 [source,console]
@@ -51,9 +51,10 @@ Name of the index to simulate.
 
 [[simulate-index-api-query-params]]
 ==== {api-query-parms-title}
-
+////
 `cause`::
 (Optional, string) The reason for running the simulation. 
+////
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
@@ -61,29 +62,49 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[simulate-index-api-response-body]]
 ==== {api-response-body-title}
 
+`overlapping`::
+(array) Any templates that also matched the index but were superseded by a higher-priority template.
+Response includes an empty array if there are no overlapping templates. 
++
+.Properties of `overlapping`
+[%collapsible%open]
+====
+`name`::
+(string) Name of the superseded template.
+
+`index_patterns`:: 
+(array) Index patterns that the superseded template applies to.
+====
+
 `template`::
 (object)
-The template settings, mappings, and aliases that would be applied to the index. 
+The settings, mappings, and aliases that would be applied to the index. 
 +
 .Properties of `template`
 [%collapsible%open]
 ====
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
++
+Response includes an empty object if no aliases would be applied. 
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
++
+Omitted from the response if no mappings would be applied.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
++
+Response includes an empty object if no settings would be applied. 
 ====
 
 [[simulate-index-api-example]]
 ==== {api-examples-title}
 
-The following example shows the settings that would be applied to `logdata-2019-02-01` by 
+The following example shows the configuration that would be applied to `myindex-1` by 
 an existing template.
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/ct1                             <1>
+PUT /_component_template/ct1                    <1>
 {
   "template": {
     "settings": {
@@ -92,7 +113,7 @@ PUT /_component_template/ct1                             <1>
   }
 }
 
-PUT /_component_template/ct2                             <2>
+PUT /_component_template/ct2                    <2>
 {
   "template": {
     "settings": {
@@ -108,21 +129,21 @@ PUT /_component_template/ct2                             <2>
   }
 }
 
-PUT /_index_template/final-template                      <3>
+PUT /_index_template/final-template             <3>
 {
-  "index_patterns": ["logdata-*"],
+  "index_patterns": ["myindex*"],
   "composed_of": ["ct1", "ct2"],
   "priority": 5
 }
 
-POST /_index_template/_simulate_index/logdata-2020-02-02 <4>
+POST /_index_template/_simulate_index/myindex-1 <4>
 --------------------------------------------------
-<1> Creates a component template (`ct1`) that sets the number of shards to two
-<2> Creates another component template (`ct2`) that sets the number of replicas to zero with mappings
-<3> Creates an index template called `final-template` using the `ct1` and `ct2` component templates
-<4> Show the settings that would be applied to the `logdata-2020-02-02`index
+<1> Create a component template (`ct1`) that sets the number of shards to 2
+<2> Create a second component template (`ct2`) that sets the number of replicas to 0 and defines a mapping
+<3> Create an index template (`final-template`) that uses the component templates
+<4> Show the configuration that would be applied to `myindex-1`
 
-The response shows the index settings, mappings, and aliases applied by the `final-template` template:
+The response shows the index settings, mappings, and aliases applied by the `final-template`:
 
 [source,console-result]
 ---------------------------------------------------------
@@ -131,13 +152,13 @@ The response shows the index settings, mappings, and aliases applied by the `fin
     "settings" : {
       "index" : {
         "number_of_shards" : "2",
-        "number_of_replicas" : "0" <1>
+        "number_of_replicas" : "0" 
       }
     },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
-          "type" : "date"          <2>
+          "type" : "date"         
         }
       }
     },
@@ -146,5 +167,3 @@ The response shows the index settings, mappings, and aliases applied by the `fin
   "overlapping" : [ ]
 }
 ---------------------------------------------------------
-<1> The number of replicas from the simulated template body
-<2> The `@timestamp` field inherited from the "ct2" component template

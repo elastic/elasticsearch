@@ -126,8 +126,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
-                    //this will only ever be called when there's an issue scheduling the thread will invoke
-                    //the completion listener once the wait for completion timeout expires
+                    //this will only ever be called if there is an issue scheduling the thread that executes
+                    //the completion listener once the wait for completion timeout expires.
                     onFatalFailure(searchTask, exc, true,
                         "fatal failure: addCompletionListener", submitListener);
                 }

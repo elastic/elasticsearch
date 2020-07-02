@@ -56,7 +56,8 @@ public class AuditTrailService {
         public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {}
+        public void authenticationSuccess(String requestId, Authentication authentication, String action,
+                                          TransportRequest transportRequest) {}
 
         @Override
         public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {}
@@ -149,7 +150,8 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
+        public void authenticationSuccess(String requestId, Authentication authentication, String action,
+                                          TransportRequest transportRequest) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
             }

@@ -5,6 +5,7 @@ Elasticsearch supports a number of different data types for the fields in a
 document:
 
 [float]
+[[_core_datatypes]]
 === Core data types
 
 string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>

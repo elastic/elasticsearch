@@ -82,6 +82,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> nullValue
             = new Parameter<>("null_value", false, null, (n, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
         private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+        private final Parameter<Map<String, String>> meta
+            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
 
         public Builder(String name) {
             super(name);

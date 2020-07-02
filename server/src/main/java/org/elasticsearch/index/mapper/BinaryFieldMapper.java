@@ -20,9 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -51,15 +49,17 @@ import java.util.Map;
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
-    
+
     private static BinaryFieldMapper toType(FieldMapper in) {
         return (BinaryFieldMapper) in;
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
-        final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
+        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+        private final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
+        private final Parameter<Map<String, String>> meta
+            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
 
         public Builder(String name) {
             this(name, false);

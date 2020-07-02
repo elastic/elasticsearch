@@ -64,7 +64,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         final Parameter<Boolean> fixed2
             = Parameter.boolParam("fixed2", false, m -> toType(m).fixed2, false);
         final Parameter<String> variable
-            = Parameter.stringParam("variable", true, m -> toType(m).variable, "default");
+            = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
 
         protected Builder(String name) {
             super(name);
@@ -133,7 +133,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             return null;
         }, Version.CURRENT, () -> null);
         return (TestMapper) new TypeParser()
-            .parse("test", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
+            .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
     }
 
@@ -145,14 +145,14 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         assertTrue(mapper.fixed);
         assertEquals("default", mapper.variable);
 
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
         builder.startObject();
         mapper.toXContent(builder, params);
         builder.endObject();
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":false,\"variable\":\"default\"}}",
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":false,\"variable\":\"default\"}}",
             Strings.toString(builder));
     }
 
@@ -160,23 +160,23 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
     public void testMerging() {
         String mapping = "{\"type\":\"test_mapper\",\"fixed\":false}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         TestMapper badMerge = fromMapping("{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":true}");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(badMerge));
-        String expectedError = "Mapper for [test] conflicts with existing mapper:\n" +
+        String expectedError = "Mapper for [field] conflicts with existing mapper:\n" +
             "\tCannot update parameter [fixed] from [false] to [true]\n" +
             "\tCannot update parameter [fixed2] from [false] to [true]";
         assertEquals(expectedError, e.getMessage());
 
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
 
         // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
         TestMapper goodMerge = fromMapping("{\"type\":\"test_mapper\",\"fixed\":false,\"variable\":\"updated\"}");
         TestMapper merged = (TestMapper) mapper.merge(goodMerge);
 
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"fixed\":false,\"variable\":\"updated\"}}", Strings.toString(merged));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":false,\"variable\":\"updated\"}}", Strings.toString(merged));
 
     }
 
@@ -184,52 +184,66 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
     public void testMultifields() {
         String mapping = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"fields\":{\"sub\":{\"type\":\"keyword\"}}}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         String addSubField = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"fields\":{\"sub2\":{\"type\":\"keyword\"}}}";
         TestMapper toMerge = fromMapping(addSubField);
         TestMapper merged = (TestMapper) mapper.merge(toMerge);
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"variable\":\"foo\"," +
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"variable\":\"foo\"," +
             "\"fields\":{\"sub\":{\"type\":\"keyword\"},\"sub2\":{\"type\":\"keyword\"}}}}", Strings.toString(merged));
 
         String badSubField = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"fields\":{\"sub2\":{\"type\":\"binary\"}}}";
         TestMapper badToMerge = fromMapping(badSubField);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merged.merge(badToMerge));
-        assertEquals("mapper [test.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
+        assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
 
     // add copy_to, verify
     public void testCopyTo() {
         String mapping = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"copy_to\":[\"other\"]}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"test\":" + mapping + "}", Strings.toString(mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         // On update, copy_to is completely replaced
 
         TestMapper toMerge = fromMapping("{\"type\":\"test_mapper\",\"variable\":\"updated\",\"copy_to\":[\"foo\",\"bar\"]}");
         TestMapper merged = (TestMapper) mapper.merge(toMerge);
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"variable\":\"updated\",\"copy_to\":[\"foo\",\"bar\"]}}",
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"variable\":\"updated\",\"copy_to\":[\"foo\",\"bar\"]}}",
             Strings.toString(merged));
 
         TestMapper removeCopyTo = fromMapping("{\"type\":\"test_mapper\",\"variable\":\"updated\"}");
         TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo);
-        assertEquals("{\"test\":{\"type\":\"test_mapper\",\"variable\":\"updated\"}}", Strings.toString(noCopyTo));
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"variable\":\"updated\"}}", Strings.toString(noCopyTo));
+    }
+
+    public void testNullables() {
+        String mapping = "{\"type\":\"test_mapper\",\"fixed\":null}";
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
+        assertEquals("[fixed] on mapper [field] of type [test_mapper] must not have a [null] value", e.getMessage());
+
+        String fine = "{\"type\":\"test_mapper\",\"variable\":null}";
+        TestMapper mapper = fromMapping(fine);
+        assertEquals("{\"field\":" + fine + "}", Strings.toString(mapper));
     }
 
     public void testObjectSerialization() throws IOException {
 
         IndexService indexService = createIndex("test");
 
-        String mapping = "{\"properties\":{\"object\":{\"properties\":{\"nestedobject\":{\"type\":\"test_mapper\"}}}}}";
-        DocumentMapperParser parser = new DocumentMapperParser(
-            indexService.getIndexSettings(),
-            indexService.mapperService(),
-            indexService.xContentRegistry(),
-            indexService.similarityService(),
-            indexService.mapperService().mapperRegistry, () -> null);
+        String mapping = "{\"_doc\":{" +
+            "\"properties\":{" +
+            "\"actual\":{\"type\":\"double\"}," +
+            "\"bucket_count\":{\"type\":\"long\"}," +
+            "\"bucket_influencers\":{\"type\":\"nested\",\"properties\":{" +
+            "\"anomaly_score\":{\"type\":\"double\"}," +
+            "\"bucket_span\":{\"type\":\"long\"}," +
+            "\"is_interim\":{\"type\":\"boolean\"}}}}}}";
+        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
-        assertEquals("{\"_doc\":" + mapping + "}", Strings.toString(mapper));
+        indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
+
 
     }
 

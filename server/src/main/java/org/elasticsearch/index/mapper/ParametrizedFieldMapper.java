@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -35,12 +34,31 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+/**
+ * Defines how a particular field should be indexed and searched
+ *
+ * Configuration {@link Parameter}s for the mapper are defined on a {@link Builder} subclass,
+ * and returned by its {@link Builder#getParameters()} method.  Merging, serialization
+ * and parsing of the mapper are all mediated through this set of parameters.
+ *
+ * Subclasses should implement a {@link Builder} that is returned from the
+ * {@link #getMergeBuilder()} method, initialised with the existing builder.
+ */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 
+    /**
+     * Creates a new ParametrizedFieldMapper
+     */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
     }
 
+    /**
+     * Returns a {@link Builder} to be used for merging and serialization
+     *
+     * Implement as follows:
+     * {@code return new MyBuilder(simpleName()).init(this); }
+     */
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
     @Override
@@ -67,7 +85,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         if (endPos == -1) {
             return new ContentPath(0);
         }
-        return new ContentPath(name.substring(endPos));
+        return new ContentPath(name.substring(0, endPos));
     }
 
     @Override
@@ -197,24 +215,24 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public static Parameter<String> stringParam(String name, boolean updateable,
                                                     Function<FieldMapper, String> initializer, String defaultValue) {
             return new Parameter<>(name, updateable, defaultValue,
-                (n, o) -> XContentMapValues.nodeStringValue(o, defaultValue), initializer);
+                (n, o) -> XContentMapValues.nodeStringValue(o), initializer);
         }
     }
 
-    public static final class Conflicts {
+    private static final class Conflicts {
 
         private final String mapperName;
         private final List<String> conflicts = new ArrayList<>();
 
-        public Conflicts(String mapperName) {
+        Conflicts(String mapperName) {
             this.mapperName = mapperName;
         }
 
-        public void addConflict(String parameter, String existing, String toMerge) {
+        void addConflict(String parameter, String existing, String toMerge) {
             conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
         }
 
-        public void check() {
+        void check() {
             if (conflicts.isEmpty()) {
                 return;
             }
@@ -225,19 +243,25 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     }
 
+    /**
+     * A Builder for a ParametrizedFieldMapper
+     */
     public abstract static class Builder extends Mapper.Builder<Builder> {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
-        protected CopyTo.Builder copyTo = new CopyTo.Builder();
+        protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
-        protected final Parameter<Map<String, String>> meta
-            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
-
+        /**
+         * Creates a new Builder with a field name
+         */
         protected Builder(String name) {
             super(name);
         }
 
-        protected Builder init(FieldMapper initializer) {
+        /**
+         * Initialises all parameters from an existing mapper
+         */
+        public Builder init(FieldMapper initializer) {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
@@ -257,22 +281,33 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             this.copyTo.reset(in.copyTo);
         }
 
+        /**
+         * @return the list of parameters defined for this mapper
+         */
         protected abstract List<Parameter<?>> getParameters();
 
         @Override
         public abstract ParametrizedFieldMapper build(BuilderContext context);
 
+        /**
+         * Builds the full name of the field, taking into account parent objects
+         */
         protected String buildFullName(BuilderContext context) {
             return context.path().pathAsText(name);
         }
 
-        public final XContentBuilder toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
-            return builder;
         }
 
+        /**
+         * Parse mapping parameters from a map of mappings
+         * @param name              the field mapper name
+         * @param parserContext     the parser context
+         * @param fieldNode         the root node of the map of mappings for this field
+         */
         public final void parse(String name, TypeParser.ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {

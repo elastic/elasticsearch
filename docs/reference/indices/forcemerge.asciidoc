@@ -55,8 +55,9 @@ until the ongoing force merge is complete.
 
 You can force merge multiple indices with a single request by targeting:
 
-* A data stream that contains multiple backing indices
-* Multiple specific indices
+* One or more data streams that contain multiple backing indices
+* Multiple indices
+* One or more index aliases that point to multiple indices
 * All data streams and indices in a cluster
 
 Multi-index operations are executed one shard at a
@@ -165,8 +166,9 @@ POST /_forcemerge
 [[forcemerge-api-time-based-index-ex]]
 ===== Data streams and time-based indices
 
-Force-merging is useful for a data stream's older backing indices and other time-based indices,
-particularly after a <<indices-rollover-index,rollover>>.
+Force-merging is useful for managing a data stream's older backing indices and
+other time-based indices, particularly after a
+<<indices-rollover-index,rollover>>.
 In these cases,
 each index only receives indexing traffic for a certain period of time.
 Once an index receive no more writes,

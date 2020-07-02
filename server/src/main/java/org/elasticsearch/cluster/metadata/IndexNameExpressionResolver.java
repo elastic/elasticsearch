@@ -63,6 +63,7 @@ public class IndexNameExpressionResolver {
     public IndexNameExpressionResolver(Settings settings) {
         dateMathExpressionResolver = new DateMathExpressionResolver(settings);
         expressionResolvers = Arrays.asList(
+            dateMathExpressionResolver,
             new WildcardExpressionResolver()
         );
     }

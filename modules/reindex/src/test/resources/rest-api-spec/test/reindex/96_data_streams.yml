@@ -34,7 +34,9 @@ teardown:
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          foo: bar
+          timestamp: '2020-12-12'
 
   - do:
       reindex:
@@ -65,7 +67,9 @@ teardown:
       index:
         index: old-logs-index
         refresh: true
-        body:   { foo: bar }
+        body:
+          foo: bar
+          timestamp: '2020-12-12'
 
   - do:
       reindex:
@@ -96,7 +100,9 @@ teardown:
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          foo: bar
+          timestamp: '2020-12-12'
 
   - do:
       reindex:

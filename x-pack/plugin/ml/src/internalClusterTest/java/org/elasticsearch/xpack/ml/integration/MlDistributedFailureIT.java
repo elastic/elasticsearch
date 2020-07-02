@@ -116,6 +116,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/58532")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);

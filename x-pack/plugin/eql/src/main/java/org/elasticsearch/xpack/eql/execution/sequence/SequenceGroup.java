@@ -7,15 +7,19 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-/** List of sequences (typically in a stage) used for finding continuous events within a time-frame */
-public class SequenceFrame {
+/** List of in-flight sequences for a given key. For fast lookup, typically associated with a stage. */
+public class SequenceGroup {
+
+    private final SequenceKey key;
 
     // NB: since the size varies significantly, use a LinkedList
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
@@ -23,6 +27,10 @@ public class SequenceFrame {
     private final List<Sequence> sequences = new LinkedList<>();
 
     private Ordinal start, stop;
+
+    SequenceGroup(SequenceKey key) {
+        this.key = key;
+    }
 
     public void add(Sequence sequence) {
         sequences.add(sequence);
@@ -92,7 +100,26 @@ public class SequenceFrame {
     }
 
     @Override
+    public int hashCode() {
+        return key.hashCode();
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        SequenceGroup other = (SequenceGroup) obj;
+        return Objects.equals(key, other.key);
+    }
+
+    @Override
     public String toString() {
-        return format(null, "[{}-{}]({} seqs)", start, stop, sequences.size());
+        return format(null, "[{}][{}-{}]({} seqs)", key, start, stop, sequences.size());
     }
 }

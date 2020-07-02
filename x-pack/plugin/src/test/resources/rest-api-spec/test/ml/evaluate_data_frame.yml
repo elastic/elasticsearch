@@ -846,9 +846,10 @@ setup:
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mean_squared_error.value: 28.67749840974834 }
   - is_false: regression.mean_squared_logarithmic_error.value
   - is_false: regression.r_squared.value
+  - is_false: regression.pseudo_huber.value
 ---
 "Test regression mean_squared_logarithmic_error":
   - do:
@@ -865,7 +866,28 @@ setup:
             }
           }
 
-  - match: { regression.mean_squared_logarithmic_error.error: 0.08680568028334916 }
+  - match: { regression.mean_squared_logarithmic_error.value: 0.08680568028334916 }
+  - is_false: regression.mean_squared_error.value
+  - is_false: regression.r_squared.value
+  - is_false: regression.pseudo_huber.value
+---
+"Test regression pseudo_huber":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "pseudo_huber": { "delta": 2.0 } }
+              }
+            }
+          }
+
+  - match: { regression.pseudo_huber.value: 3.5088110471730145 }
+  - is_false: regression.mean_squared_logarithmic_error.value
   - is_false: regression.mean_squared_error.value
   - is_false: regression.r_squared.value
 ---
@@ -886,6 +908,8 @@ setup:
   - match: { regression.r_squared.value: 0.8551031778603486 }
   - is_false: regression.mean_squared_error
   - is_false: regression.mean_squared_logarithmic_error.value
+  - is_false: regression.pseudo_huber.value
+
 ---
 "Test regression with null metrics":
   - do:
@@ -901,7 +925,7 @@ setup:
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mean_squared_error.value: 28.67749840974834 }
   - match: { regression.r_squared.value: 0.8551031778603486 }
   - is_false: regression.mean_squared_logarithmic_error.value
 ---

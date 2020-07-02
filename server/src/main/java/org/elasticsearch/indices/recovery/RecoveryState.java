@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -717,7 +718,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 File file = new File(in);
                 fileDetails.put(file.name, file);
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 fileDetailsComplete = in.readBoolean();
             } else {
                 // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
@@ -738,7 +739,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             for (File file : files) {
                 file.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 out.writeBoolean(fileDetailsComplete);
             }
             out.writeLong(sourceThrottlingInNanos);

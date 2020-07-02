@@ -384,8 +384,8 @@ sequence
 ==== `with maxspan` keywords
 
 You can use the `with maxspan` keywords to constrain a sequence to a specified
-timespan. All events in a matching sequence occur within this duration, starting
-at the first event's timestamp.
+timespan. All events in a matching sequence must occur within this duration,
+starting at the first event's timestamp.
 
 The `maxspan` keyword accepts <<time-units,time value>> arguments.
 
@@ -458,7 +458,7 @@ sequence by user.name
 ====
 
 You can combine the `sequence by` and `with maxspan` keywords to constrain a 
-sequence by both field values and timespan.
+sequence by both field values and a timespan.
 
 [source,eql]
 ----
@@ -474,7 +474,7 @@ sequence by field_foo with maxspan=30s
 The following sequence query uses the `sequence by` keyword and `with maxspan`
 keywords to match only a sequence of events that:
 
-* Share the same `user.name` field value
+* Share the same `user.name` field values
 * Occur within `15m` (15 minutes) of the first matching event
 
 [source,eql]

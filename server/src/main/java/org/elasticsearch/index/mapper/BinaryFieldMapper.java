@@ -51,16 +51,7 @@ import java.util.Map;
 public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
-
+    
     private static BinaryFieldMapper toType(FieldMapper in) {
         return (BinaryFieldMapper) in;
     }

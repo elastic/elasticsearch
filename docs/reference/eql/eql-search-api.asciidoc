@@ -92,7 +92,7 @@ When this period expires, the search and its results are deleted, even if the
 search is still ongoing.
 
 If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
-`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+`false`, {es} only stores <<eql-search-async,async searches>> that do not
 complete within the period set by the
 <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
 parameter, regardless of this value.
@@ -180,7 +180,7 @@ When this period expires, the search and its results are deleted, even if the
 search is still ongoing.
 
 If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
-`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+`false`, {es} only stores <<eql-search-async,async searches>> that do not
 complete within the period set by the
 <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
 parameter, regardless of this value.

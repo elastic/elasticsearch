@@ -430,15 +430,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().searchAnalyzer().name();
+            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
+                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
+            final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
+                ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
             boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer = searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer
+                = Objects.equals(searchAnalyzerName, searchQuoteAnalyzerName) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
                 if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", searchAnalyzerName);
                     if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
-                        builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
+                        builder.field("search_quote_analyzer", searchQuoteAnalyzerName);
                     }
                 }
             }

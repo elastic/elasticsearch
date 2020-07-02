@@ -134,6 +134,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+        Query ret = ExistsQueryBuilder.newFilter(context, "foo", false);
+        assertThat(ret, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testIllegalArguments() {

@@ -744,7 +744,7 @@ public class IndexNameExpressionResolver {
                     throw dataStreamsNotSupportedException(expressions.toString());
                 }
 
-                List<String> resolvedExpressions = new ArrayList<>(resolveEmptyOrTrivialWildcard(options, metadata));
+                List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(options, metadata);
                 if (context.includeDataStreams()) {
                     final IndexMetadata.State excludeState = excludeState(options);
                     final Map<String, IndexAbstraction> dataStreamsAbstractions = metadata.getIndicesLookup().entrySet()

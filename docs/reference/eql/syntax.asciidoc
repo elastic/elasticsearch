@@ -400,13 +400,13 @@ sequence with maxspan=30s
 .*Example*
 [%collapsible]
 ====
-The following sequence query uses a `maxspan` value of `1h` (one hour). Events
-in a matching sequence must occur within one hour of the first event's
+The following sequence query uses a `maxspan` value of `15m` (15 minutes).
+Events in a matching sequence must occur within one hour of the first event's
 timestamp.
 
 [source,eql]
 ----
-sequence with maxspan=1h
+sequence with maxspan=15m
   [ file where file.extension == "exe" ]
   [ process where true ]
 ----

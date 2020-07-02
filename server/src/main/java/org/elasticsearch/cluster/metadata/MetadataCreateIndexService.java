@@ -575,10 +575,8 @@ public class MetadataCreateIndexService {
                     // tripping the below assertion, we can safely ignore it
                     continue;
                 }
-                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
                 if (templateMapping.get(MapperService.SINGLE_MAPPING_NAME) instanceof Map == false) {
-                    throw new IllegalStateException("invalid mapping definition, expected a single map underneath [" +
-                        MapperService.SINGLE_MAPPING_NAME + "] but it was: [" + templateMapping + "]");
+                    templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping);
                 }
 
                 Map<String, Object> innerTemplateMapping = (Map<String, Object>) templateMapping.get(MapperService.SINGLE_MAPPING_NAME);

@@ -98,7 +98,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -392,7 +392,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         QueryShardContext context = readerContext.indexService().newQueryShardContext(canMatchRequest.shardId().id(),
                             searcher, canMatchRequest::nowInMillis, canMatchRequest.getClusterAlias());
                         Rewriteable.rewrite(canMatchRequest.getRewriteable(), context, true);
-                    } catch (IOException exc) {
+                    } catch (Exception exc) {
                         try (markAsUsed) {
                             listener.onFailure(exc);
                         } finally {
@@ -400,7 +400,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         }
                         return;
                     }
-
                     if (canRewriteToMatchNone(canMatchRequest.source())
                         && canMatchRequest.source().query() instanceof MatchNoneQueryBuilder) {
                         try (markAsUsed) {
@@ -409,8 +408,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     listener.onResponse(QuerySearchResult.nullInstance());
                                 } finally {
                                     // close and remove the ephemeral reader context
-                                    Releasables.close(readerContext);
                                     removeReaderContext(readerContext.id().getId());
+                                    Releasables.close(readerContext);
                                 }
                             } else {
                                 listener.onResponse(QuerySearchResult.nullInstance());
@@ -618,7 +617,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, listener);
     }
 
-    private ReaderContext getReaderContext(SearchContextId id) {
+    private ReaderContext getReaderContext(ShardSearchContextId id) {
         final ReaderContext reader = activeReaders.get(id.getId());
         if (reader == null) {
             return null;
@@ -629,7 +628,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
-    private ReaderContext findReaderContext(SearchContextId id) throws SearchContextMissingException {
+    private ReaderContext findReaderContext(ShardSearchContextId id) throws SearchContextMissingException {
         final ReaderContext reader = getReaderContext(id);
         if (reader == null) {
             throw new SearchContextMissingException(id);
@@ -709,7 +708,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Opens the reader context for given shardId. The newly opened reader context will be keep
      * until the {@code keepAlive} elapsed unless it is manually released.
      */
-    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<SearchContextId> listener) {
+    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<ShardSearchContextId> listener) {
         checkKeepAliveLimit(keepAlive.millis());
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
@@ -814,7 +813,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public boolean freeReaderContext(SearchContextId contextId) {
+    public boolean freeReaderContext(ShardSearchContextId contextId) {
         if (getReaderContext(contextId) != null) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
@@ -849,7 +848,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void processFailure(ShardSearchRequest request, ReaderContext context, Exception e) {
-        if (request.readerId() == null || request.scroll() != null) {
+        if (context.singleSession() || request.scroll() != null) {
             // we release the reader on failure if the request is a normal search or a scroll
             freeReaderContext(context.id());
         }

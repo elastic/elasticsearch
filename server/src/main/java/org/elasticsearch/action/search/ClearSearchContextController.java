@@ -74,10 +74,9 @@ final class ClearSearchContextController implements Runnable {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.listener = listener;
-        final Collection<SearchContextIdForNode> contexts =
-            TransportSearchHelper.decodeSearchContextId(closeSearchContextRequest.getId()).values();
-        expectedOps = new CountDown(contexts.size());
-        runner = () -> cleanReaderIds(contexts);
+        final SearchContextId context = SearchContextId.decode(closeSearchContextRequest.getId());
+        expectedOps = new CountDown(context.shards().size());
+        runner = () -> cleanReaderIds(context.shards().values());
     }
 
     @Override

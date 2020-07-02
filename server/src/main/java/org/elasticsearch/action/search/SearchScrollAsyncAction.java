@@ -31,7 +31,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
@@ -248,7 +248,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected void onShardFailure(String phaseName, final CountDown counter, final SearchContextId searchId, Exception failure,
+    protected void onShardFailure(String phaseName, final CountDown counter, final ShardSearchContextId searchId, Exception failure,
                                   @Nullable SearchShardTarget searchShardTarget,
                                   Supplier<SearchPhase> nextPhaseSupplier) {
         if (logger.isDebugEnabled()) {

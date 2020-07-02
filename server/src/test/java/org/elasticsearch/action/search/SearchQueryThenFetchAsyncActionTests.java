@@ -37,7 +37,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -92,7 +92,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     assertNotEquals(shardId, (int) request.getBottomSortValues().getFormattedSortValues()[0]);
                     numWithTopDocs.incrementAndGet();
                 }
-                QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("N/A", 123),
+                QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE), null);
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(

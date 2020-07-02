@@ -24,10 +24,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,13 +44,13 @@ public class TransportSearchHelperTests extends ESTestCase {
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId("a", 1), node1);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId("b", 12), node2);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("b", 12), node2);
         testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId("c", 42), node3);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("c", 42), node3);
         testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
@@ -94,23 +96,27 @@ public class TransportSearchHelperTests extends ESTestCase {
     public void testEncodeDecodeSearchContext() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         final Version version = VersionUtils.randomVersion(random());
-        final String readerId = TransportSearchHelper.encodeSearchContextId(queryResults, version);
-        final Map<ShardId, SearchContextIdForNode> contextIds = TransportSearchHelper.decodeSearchContextId(readerId);
-        assertThat(contextIds.keySet(), hasSize(3));
-
-        SearchContextIdForNode node1 = contextIds.get(new ShardId("idx", "uuid1", 2));
+        final Map<String, AliasFilter> aliasFilter = new HashMap<>();
+        for (SearchPhaseResult result : queryResults.asList()) {
+            aliasFilter.put(result.getSearchShardTarget().getShardId().getIndex().getUUID(),  AliasFilter.EMPTY);
+        }
+        final String id = SearchContextId.encode(queryResults.asList(), aliasFilter, version);
+        final SearchContextId context = SearchContextId.decode(id);
+        assertThat(context.shards().keySet(), hasSize(3));
+        assertThat(context.aliasFilter(), equalTo(aliasFilter));
+        SearchContextIdForNode node1 = context.shards().get(new ShardId("idx", "uuid1", 2));
         assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
         assertThat(node1.getNode(), equalTo("node_1"));
         assertThat(node1.getSearchContextId().getId(), equalTo(1L));
         assertThat(node1.getSearchContextId().getReaderId(), equalTo("a"));
 
-        SearchContextIdForNode node2 = contextIds.get(new ShardId("idy", "uuid2", 42));
+        SearchContextIdForNode node2 = context.shards().get(new ShardId("idy", "uuid2", 42));
         assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
         assertThat(node2.getNode(), equalTo("node_2"));
         assertThat(node2.getSearchContextId().getId(), equalTo(12L));
         assertThat(node2.getSearchContextId().getReaderId(), equalTo("b"));
 
-        SearchContextIdForNode node3 = contextIds.get(new ShardId("idy", "uuid2", 43));
+        SearchContextIdForNode node3 = context.shards().get(new ShardId("idy", "uuid2", 43));
         assertThat(node3.getClusterAlias(), nullValue());
         assertThat(node3.getNode(), equalTo("node_3"));
         assertThat(node3.getSearchContextId().getId(), equalTo(42L));

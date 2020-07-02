@@ -89,7 +89,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
-    private final SearchContextId readerId;
+    private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
     public ShardSearchRequest(OriginalIndices originalIndices,
@@ -114,7 +114,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               @Nullable String clusterAlias,
                               String[] indexRoutings,
-                              SearchContextId readerId,
+                              ShardSearchContextId readerId,
                               TimeValue keepAlive) {
         this(originalIndices,
             shardId,
@@ -158,7 +158,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                Scroll scroll,
                                long nowInMillis,
                                @Nullable String clusterAlias,
-                               SearchContextId readerId,
+                               ShardSearchContextId readerId,
                                TimeValue keepAlive) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
@@ -210,7 +210,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             bottomSortValues = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.readerId = in.readOptionalWriteable(SearchContextId::new);
+            this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             this.keepAlive = in.readOptionalTimeValue();
         } else {
             this.readerId = null;
@@ -385,7 +385,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * Returns a non-null value if this request should execute using a specific point-in-time reader;
      * otherwise, using the most up to date point-in-time reader.
      */
-    public SearchContextId readerId() {
+    public ShardSearchContextId readerId() {
         return readerId;
     }
 

@@ -30,7 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -50,11 +50,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     public void testSendRequestsToNodes() throws InterruptedException {
 
         ParsedScrollId scrollId = getParsedScrollId(
-            new SearchContextIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 1)),
-            new SearchContextIdForNode(null, "node2", new SearchContextId(UUIDs.randomBase64UUID(), 2)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 17)),
-            new SearchContextIdForNode(null, "node1", new SearchContextId(UUIDs.randomBase64UUID(), 0)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId(UUIDs.randomBase64UUID(), 0)));
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId(UUIDs.randomBase64UUID(), 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId(UUIDs.randomBase64UUID(), 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId(UUIDs.randomBase64UUID(), 17)),
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId(UUIDs.randomBase64UUID(), 0)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId(UUIDs.randomBase64UUID(), 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -119,11 +119,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     public void testFailNextPhase() throws InterruptedException {
 
         ParsedScrollId scrollId = getParsedScrollId(
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 1)),
-            new SearchContextIdForNode(null, "node2", new SearchContextId("a", 2)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("b", 17)),
-            new SearchContextIdForNode(null, "node1", new SearchContextId("c", 0)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("d", 0)));
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId("a", 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("b", 17)),
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("c", 0)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("d", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -209,11 +209,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testNodeNotAvailable() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 1)),
-            new SearchContextIdForNode(null, "node2", new SearchContextId("", 2)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("", 17)),
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 0)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("", 0)));
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 17)),
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 0)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0)));
         // node2 is not available
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -289,11 +289,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testShardFailures() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 1)),
-            new SearchContextIdForNode(null, "node2", new SearchContextId("", 2)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("",17)),
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 0)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("", 0)));
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("",17)),
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 0)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))
@@ -367,11 +367,11 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
     public void testAllShardsFailed() throws InterruptedException {
         ParsedScrollId scrollId = getParsedScrollId(
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 1)),
-            new SearchContextIdForNode(null, "node2", new SearchContextId("", 2)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("", 17)),
-            new SearchContextIdForNode(null, "node1", new SearchContextId("", 0)),
-            new SearchContextIdForNode(null, "node3", new SearchContextId("", 0)));
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 17)),
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 0)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0)));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
             .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT))

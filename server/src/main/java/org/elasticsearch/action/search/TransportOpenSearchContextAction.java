@@ -40,7 +40,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -136,13 +136,13 @@ public class TransportOpenSearchContextAction extends HandledTransportAction<Ope
     }
 
     static final class ShardOpenReaderResponse extends SearchPhaseResult {
-        ShardOpenReaderResponse(SearchContextId contextId) {
+        ShardOpenReaderResponse(ShardSearchContextId contextId) {
             this.contextId = contextId;
         }
 
         ShardOpenReaderResponse(StreamInput in) throws IOException {
             super(in);
-            contextId = new SearchContextId(in);
+            contextId = new ShardSearchContextId(in);
         }
 
         @Override

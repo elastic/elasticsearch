@@ -27,7 +27,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -45,7 +45,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
 
-    public ShardFetchSearchRequest(OriginalIndices originalIndices, SearchContextId id, ShardSearchRequest shardSearchRequest,
+    public ShardFetchSearchRequest(OriginalIndices originalIndices, ShardSearchContextId id, ShardSearchRequest shardSearchRequest,
                                    IntArrayList list, ScoreDoc lastEmittedDoc, RescoreDocIds rescoreDocIds, AggregatedDfs aggregatedDfs) {
         super(id, list, lastEmittedDoc);
         this.originalIndices = originalIndices;

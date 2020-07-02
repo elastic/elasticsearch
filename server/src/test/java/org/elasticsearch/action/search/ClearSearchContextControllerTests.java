@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.NodeNotConnectedException;
@@ -96,13 +96,13 @@ public class ClearSearchContextControllerTests extends ESTestCase {
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 1), node1);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 12), node2);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 12), node2);
         testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null, null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 42), node3);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 42), node3);
         testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
@@ -127,7 +127,7 @@ public class ClearSearchContextControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, SearchContextId contextId,
+            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
                                         ActionListener<SearchFreeContextResponse> listener) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();
@@ -160,13 +160,13 @@ public class ClearSearchContextControllerTests extends ESTestCase {
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 1), node1);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 12), node2);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 12), node2);
         testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null, null));
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(), 42), node3);
+            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 42), node3);
         testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
@@ -198,7 +198,7 @@ public class ClearSearchContextControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, SearchContextId contextId,
+            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
                                         ActionListener<SearchFreeContextResponse> listener) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();

@@ -20,7 +20,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -208,7 +208,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         Authentication original = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
         Authentication current =
                 randomBoolean() ? original : new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-        SearchContextId contextId = new SearchContextId(UUIDs.randomBase64UUID(), randomLong());
+        ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         final String action = randomAlphaOfLength(4);
         TransportRequest request = Empty.INSTANCE;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);

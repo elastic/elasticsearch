@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.util.List;
 import java.util.Objects;
@@ -44,7 +44,7 @@ public final class SearchShardIterator extends PlainShardIterator {
     private final String clusterAlias;
     private boolean skip = false;
 
-    private final SearchContextId searchContextId;
+    private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
 
     /**
@@ -62,7 +62,7 @@ public final class SearchShardIterator extends PlainShardIterator {
 
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
                                List<ShardRouting> shards, OriginalIndices originalIndices,
-                               SearchContextId searchContextId, TimeValue searchContextKeepAlive) {
+                               ShardSearchContextId searchContextId, TimeValue searchContextKeepAlive) {
         super(shardId, shards);
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
@@ -97,7 +97,7 @@ public final class SearchShardIterator extends PlainShardIterator {
     /**
      * Returns a non-null value if this request should use a specific search context instead of the latest one.
      */
-    SearchContextId getSearchContextId() {
+    ShardSearchContextId getSearchContextId() {
         return searchContextId;
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -104,7 +104,9 @@ interface SearchPhaseContext extends Executor {
      * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
      *
      */
-    default void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    default void sendReleaseSearchContext(ShardSearchContextId contextId,
+                                          Transport.Connection connection,
+                                          OriginalIndices originalIndices) {
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

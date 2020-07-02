@@ -25,7 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ public class CountedCollectorTests extends ESTestCase {
                     state.add(1);
                     executor.execute(() -> {
                         DfsSearchResult dfsSearchResult = new DfsSearchResult(
-                            new SearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
+                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
                         dfsSearchResult.setShardIndex(shardID);
                         dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
                             new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));

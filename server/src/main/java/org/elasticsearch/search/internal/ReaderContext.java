@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * can be guarded by a reference count and fail if it's been closed by an external event.
  */
 public class ReaderContext implements Releasable {
-    private final SearchContextId id;
+    private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;
     protected final Engine.SearcherSupplier searcherSupplier;
@@ -69,7 +69,7 @@ public class ReaderContext implements Releasable {
                          Engine.SearcherSupplier searcherSupplier,
                          long keepAliveInMillis,
                          boolean singleSession) {
-        this.id = new SearchContextId(UUIDs.base64UUID(), id);
+        this.id = new ShardSearchContextId(UUIDs.base64UUID(), id);
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
@@ -103,7 +103,7 @@ public class ReaderContext implements Releasable {
         onCloses.add(releasable);
     }
 
-    public SearchContextId id() {
+    public ShardSearchContextId id() {
         return id;
     }
 

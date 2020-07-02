@@ -35,7 +35,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private final List<Tuple<String, String>> resolvedNodes = new ArrayList<>();
-    private final Set<SearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
+    private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(SearchRequest request,
                                                                       ArraySearchPhaseResults<SearchPhaseResult> results,
@@ -113,7 +113,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            public void sendReleaseSearchContext(SearchContextId contextId, Transport.Connection connection,
+            public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection,
                                                  OriginalIndices originalIndices) {
                 releasedContexts.add(contextId);
             }
@@ -192,7 +192,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
-        Set<SearchContextId> requestIds = new HashSet<>();
+        Set<ShardSearchContextId> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(1, 5);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
@@ -220,7 +220,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
-        Set<SearchContextId> requestIds = new HashSet<>();
+        Set<ShardSearchContextId> requestIds = new HashSet<>();
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
@@ -263,14 +263,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
-    private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<SearchContextId> contextIds,
+    private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<ShardSearchContextId> contextIds,
                                                                            List<Tuple<String, String>> nodeLookups,
                                                                            int numFailures) {
         int numResults = randomIntBetween(1, 10);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numResults + numFailures);
 
         for (int i = 0; i < numResults; i++) {
-            SearchContextId contextId = new SearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+            ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
             contextIds.add(contextId);
             SearchPhaseResult phaseResult = new PhaseResult(contextId);
             String resultClusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
@@ -285,7 +285,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     }
 
     private static final class PhaseResult extends SearchPhaseResult {
-        PhaseResult(SearchContextId contextId) {
+        PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;
         }
     }

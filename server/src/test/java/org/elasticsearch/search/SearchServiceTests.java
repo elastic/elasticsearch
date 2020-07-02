@@ -81,7 +81,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -1036,7 +1036,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         IndexShard indexShard = indexService.getShard(0);
-        List<SearchContextId> contextIds = new ArrayList<>();
+        List<ShardSearchContextId> contextIds = new ArrayList<>();
         int numContexts = randomIntBetween(1, 10);
         CountDownLatch latch = new CountDownLatch(1);
         indexShard.getThreadPool().executor(ThreadPool.Names.SEARCH).execute(() -> {
@@ -1052,17 +1052,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 }
                 assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 while (contextIds.isEmpty() == false) {
-                    final SearchContextId contextId = randomFrom(contextIds);
-                    assertFalse(searchService.freeReaderContext(new SearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    final ShardSearchContextId contextId = randomFrom(contextIds);
+                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                     if (randomBoolean()) {
                         assertTrue(searchService.freeReaderContext(contextId));
                     } else {
-                        assertTrue(searchService.freeReaderContext((new SearchContextId("", contextId.getId()))));
+                        assertTrue(searchService.freeReaderContext((new ShardSearchContextId("", contextId.getId()))));
                     }
                     contextIds.remove(contextId);
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
-                    assertFalse(searchService.freeReaderContext(new SearchContextId("", contextId.getId())));
+                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId("", contextId.getId())));
                     assertFalse(searchService.freeReaderContext(contextId));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 }
@@ -1076,7 +1076,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public void testOpenReaderContext() {
         createIndex("index");
         SearchService searchService = getInstanceFromNode(SearchService.class);
-        PlainActionFuture<SearchContextId> future = new PlainActionFuture<>();
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
         searchService.openReaderContext(new ShardId(resolveIndex("index"), 0), TimeValue.timeValueMinutes(between(1, 10)), future);
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));

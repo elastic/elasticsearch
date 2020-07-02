@@ -41,7 +41,7 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -91,7 +91,7 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
-    public void sendFreeContext(Transport.Connection connection, final SearchContextId contextId, OriginalIndices originalIndices) {
+    public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
                 @Override
@@ -106,7 +106,7 @@ public class SearchTransportService {
             }, SearchFreeContextResponse::new));
     }
 
-    public void sendFreeContext(Transport.Connection connection, SearchContextId contextId,
+    public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
                                 ActionListener<SearchFreeContextResponse> listener) {
         transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
@@ -206,15 +206,15 @@ public class SearchTransportService {
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
-        private SearchContextId contextId;
+        private ShardSearchContextId contextId;
 
-        ScrollFreeContextRequest(SearchContextId contextId) {
+        ScrollFreeContextRequest(ShardSearchContextId contextId) {
             this.contextId = Objects.requireNonNull(contextId);
         }
 
         ScrollFreeContextRequest(StreamInput in) throws IOException {
             super(in);
-            contextId = new SearchContextId(in);
+            contextId = new ShardSearchContextId(in);
         }
 
         @Override
@@ -223,7 +223,7 @@ public class SearchTransportService {
             contextId.writeTo(out);
         }
 
-        public SearchContextId id() {
+        public ShardSearchContextId id() {
             return this.contextId;
         }
 
@@ -232,7 +232,7 @@ public class SearchTransportService {
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        SearchFreeContextRequest(OriginalIndices originalIndices, SearchContextId id) {
+        SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
             super(id);
             this.originalIndices = originalIndices;
         }

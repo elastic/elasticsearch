@@ -113,7 +113,7 @@ public abstract class SearchContext implements Releasable {
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
-    public abstract SearchContextId id();
+    public abstract ShardSearchContextId id();
 
     public abstract String source();
 

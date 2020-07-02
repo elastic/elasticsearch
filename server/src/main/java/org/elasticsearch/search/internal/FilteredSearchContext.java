@@ -106,7 +106,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextId id() {
+    public ShardSearchContextId id() {
         return in.id();
     }
 

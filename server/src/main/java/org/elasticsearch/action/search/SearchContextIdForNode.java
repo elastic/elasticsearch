@@ -20,14 +20,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 
 final class SearchContextIdForNode {
     private final String node;
-    private final SearchContextId searchContextId;
+    private final ShardSearchContextId searchContextId;
     private final String clusterAlias;
 
-    SearchContextIdForNode(@Nullable String clusterAlias, String node, SearchContextId searchContextId) {
+    SearchContextIdForNode(@Nullable String clusterAlias, String node, ShardSearchContextId searchContextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
@@ -42,7 +42,7 @@ final class SearchContextIdForNode {
         return clusterAlias;
     }
 
-    public SearchContextId getSearchContextId() {
+    public ShardSearchContextId getSearchContextId() {
         return searchContextId;
     }
 

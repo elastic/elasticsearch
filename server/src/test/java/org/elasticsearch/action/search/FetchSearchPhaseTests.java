@@ -34,7 +34,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -96,7 +96,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        SearchContextId ctx1 = new SearchContextId(UUIDs.base64UUID(), 123);
+        ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1, new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -105,7 +105,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        final SearchContextId ctx2 = new SearchContextId(UUIDs.base64UUID(), 321);
+        final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
         queryResult = new QuerySearchResult(
             ctx2, new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -157,7 +157,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        final SearchContextId ctx = new SearchContextId(UUIDs.base64UUID(), 123);
+        final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx,
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -166,7 +166,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(new SearchContextId("", 321),
+        queryResult = new QuerySearchResult(new ShardSearchContextId("", 321),
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
@@ -221,7 +221,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP,
             mockSearchPhaseContext.getRequest(), numHits);
         for (int i = 0; i < numHits; i++) {
-            QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("", i),
+            QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", i),
                 new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
@@ -278,7 +278,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(new SearchContextId("", 123),
+        QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
             new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -287,7 +287,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        queryResult = new QuerySearchResult(new SearchContextId("", 321),
+        queryResult = new QuerySearchResult(new ShardSearchContextId("", 321),
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
@@ -336,7 +336,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = 1;
-        final SearchContextId ctx1 = new SearchContextId(UUIDs.base64UUID(), 123);
+        final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1,
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -345,7 +345,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(0);
         results.consumeResult(queryResult);
 
-        final SearchContextId ctx2 = new SearchContextId(UUIDs.base64UUID(), 321);
+        final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
         queryResult = new QuerySearchResult(ctx2,
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE), null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),

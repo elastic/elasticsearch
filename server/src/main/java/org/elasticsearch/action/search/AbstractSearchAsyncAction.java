@@ -549,7 +549,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, minNodeVersion) : null;
             final String searchContextId =
-                includeSearchContextInResponse() ? TransportSearchHelper.encodeSearchContextId(queryResults, minNodeVersion) : null;
+                includeSearchContextInResponse() ? SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion) : null;
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
     }

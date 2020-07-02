@@ -27,17 +27,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-// TODO: Rename this to ReaderId?
-public final class SearchContextId implements Writeable {
+public final class ShardSearchContextId implements Writeable {
     private final String readerId;
     private final long id;
 
-    public SearchContextId(String readerId, long id) {
+    public ShardSearchContextId(String readerId, long id) {
         this.readerId = Objects.requireNonNull(readerId);
         this.id = id;
     }
 
-    public SearchContextId(StreamInput in) throws IOException {
+    public ShardSearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.readerId = in.readString();
@@ -66,7 +65,7 @@ public final class SearchContextId implements Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchContextId other = (SearchContextId) o;
+        ShardSearchContextId other = (ShardSearchContextId) o;
         return id == other.id && readerId.equals(other.readerId);
     }
 

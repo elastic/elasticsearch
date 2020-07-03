@@ -729,10 +729,6 @@ public class IndexNameExpressionResolver {
             }
 
             if (isEmptyOrTrivialWildcard(expressions)) {
-                if (context.includeDataStreams() == false && metadata.dataStreams().isEmpty() == false) {
-                    throw dataStreamsNotSupportedException(expressions.toString());
-                }
-
                 List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(options, metadata);
                 if (context.includeDataStreams()) {
                     final IndexMetadata.State excludeState = excludeState(options);

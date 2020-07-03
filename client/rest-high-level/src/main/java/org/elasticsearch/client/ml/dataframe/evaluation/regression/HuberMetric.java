@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
+import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -34,30 +35,30 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Calculates the pseudo Huber loss function.
  *
- * equation: pseudohuber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
+ * equation: huber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
  * where: a = y - y´
  *        δ - parameter that controls the steepness
  */
-public class PseudoHuberMetric implements EvaluationMetric {
+public class HuberMetric implements EvaluationMetric {
 
-    public static final String NAME = "pseudo_huber";
+    public static final String NAME = LossFunction.HUBER.toString();
 
     public static final ParseField DELTA = new ParseField("delta");
 
-    private static final ConstructingObjectParser<PseudoHuberMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new PseudoHuberMetric((Double) args[0]));
+    private static final ConstructingObjectParser<HuberMetric, Void> PARSER =
+        new ConstructingObjectParser<>(NAME, true, args -> new HuberMetric((Double) args[0]));
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), DELTA);
     }
 
-    public static PseudoHuberMetric fromXContent(XContentParser parser) {
+    public static HuberMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     private final Double delta;
 
-    public PseudoHuberMetric(@Nullable Double delta) {
+    public HuberMetric(@Nullable Double delta) {
         this.delta = delta;
     }
 
@@ -80,7 +81,7 @@ public class PseudoHuberMetric implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PseudoHuberMetric that = (PseudoHuberMetric) o;
+        HuberMetric that = (HuberMetric) o;
         return Objects.equals(this.delta, that.delta);
     }
 

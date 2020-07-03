@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.text.NumberFormat;
@@ -58,7 +59,7 @@ public class Sequence {
     }
 
     public long startTimestamp() {
-        return matches[0].ordinal().timestamp;
+        return matches[0].ordinal().timestamp();
     }
 
     public List<SearchHit> hits() {

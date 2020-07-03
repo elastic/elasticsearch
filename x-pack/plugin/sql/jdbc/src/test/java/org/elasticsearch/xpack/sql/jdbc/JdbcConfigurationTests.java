@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.DriverManager;
@@ -66,7 +65,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testPropertiesEscaping() throws Exception {
         String pass = randomUnicodeOfLengthBetween(1, 500);
-        String encPass = URLEncoder.encode(pass, StandardCharsets.UTF_8).replace("+", "%20");
+        String encPass = URLEncoder.encode(pass, "UTF-8").replace("+", "%20");
         String url = jdbcPrefix() + "test?password=" + encPass;
         JdbcConfiguration ci = ci(url);
         assertEquals(pass, ci.authPass());

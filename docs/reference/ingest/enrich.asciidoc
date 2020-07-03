@@ -134,8 +134,8 @@ You can manage source indices just like regular {es} indices using the
 <<docs,document>> and <<indices,index>> APIs.
 
 You also can set up {beats-ref}/getting-started.html[{beats}], such as a
-{filebeat-ref}/filebeat-getting-started.html[{filebeat}], to automatically send
-and index documents to your source indices. See
+{filebeat-ref}/filebeat-installation-configuration.html[{filebeat}], to
+automatically send and index documents to your source indices. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
 
 [[create-enrich-policy]]

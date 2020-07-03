@@ -80,12 +80,18 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markCoordinatingOperationStarted(primaryOperationSize(request));
+        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request) {
-        return writeMemoryLimits.markPrimaryOperationStarted(primaryOperationSize(request));
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
+        // If this primary request was submitted by a reroute performed on this local node, we have already
+        // accounted the bytes.
+        if (rerouteWasLocal) {
+            return () -> {};
+        } else {
+            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        }
     }
 
     protected long primaryOperationSize(Request request) {
@@ -94,7 +100,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaOperationStarted(replicaOperationSize(request));
+        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

@@ -286,7 +286,7 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        Releasable releasable = checkPrimaryLimits(request.getRequest());
+        Releasable releasable = checkPrimaryLimits(request.getRequest(), request.sentFromLocalReroute());
         ActionListener<Response> listener =
             ActionListener.runBefore(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
 
@@ -297,7 +297,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected Releasable checkPrimaryLimits(final Request request) {
+    protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal) {
         return () -> {};
     }
 
@@ -372,8 +372,7 @@ public abstract class TransportReplicationAction<
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(primaryRequest.getRequest(), primary.allocationId().getRelocationId(),
-                            primaryRequest.getPrimaryTerm()),
-                        transportOptions,
+                            primaryRequest.getPrimaryTerm()), transportOptions,
                         new ActionListenerResponseHandler<Response>(onCompletionListener, reader) {
                             @Override
                             public void handleResponse(Response response) {
@@ -585,7 +584,7 @@ public abstract class TransportReplicationAction<
                     Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                     AsyncReplicaAction.this.onFailure(e);
                 }));
-                // TODO: Evaludate if we still need to catch this exception
+                // TODO: Evaluate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);
@@ -751,7 +750,7 @@ public abstract class TransportReplicationAction<
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
             performAction(node, transportPrimaryAction, true,
-                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id())));
+                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id()), true));
         }
 
         private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
@@ -1103,19 +1102,27 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
+        // Indicates if this primary shard request originated by a reroute on this local node.
+        private final boolean sentFromLocalReroute;
 
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm  = in.readVLong();
+            sentFromLocalReroute = false;
             request = requestReader.read(in);
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {
+            this(request, targetAllocationID, primaryTerm, false);
+        }
+
+        public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm, boolean sentFromLocalReroute) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
+            this.sentFromLocalReroute = sentFromLocalReroute;
         }
 
         @Override
@@ -1144,9 +1151,17 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            // If sentFromLocalReroute is marked true, then this request should just be looped back through
+            // the local transport. It should never be serialized to be sent over the wire. If it is sent over
+            // the wire, then it was NOT sent from a local reroute.
+            assert sentFromLocalReroute == false;
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
             request.writeTo(out);
+        }
+
+        public boolean sentFromLocalReroute() {
+            return sentFromLocalReroute;
         }
 
         public R getRequest() {

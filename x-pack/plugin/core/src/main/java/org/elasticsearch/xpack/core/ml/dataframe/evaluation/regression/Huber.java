@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression.LossFunction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -37,13 +38,13 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Calculates the pseudo Huber loss function.
  *
- * equation: pseudohuber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
+ * equation: huber = 1/n * Σ(δ^2 * sqrt(1 + a^2 / δ^2) - 1)
  * where: a = y - y´
  *        δ - parameter that controls the steepness
  */
-public class PseudoHuber implements EvaluationMetric {
+public class Huber implements EvaluationMetric {
 
-    public static final ParseField NAME = new ParseField("pseudo_huber");
+    public static final ParseField NAME = new ParseField(LossFunction.HUBER.toString());
 
     public static final ParseField DELTA = new ParseField("delta");
     private static final double DEFAULT_DELTA = 1.0;
@@ -58,25 +59,25 @@ public class PseudoHuber implements EvaluationMetric {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
-    private static final ConstructingObjectParser<PseudoHuber, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new PseudoHuber((Double) args[0]));
+    private static final ConstructingObjectParser<Huber, Void> PARSER =
+        new ConstructingObjectParser<>(NAME.getPreferredName(), true, args -> new Huber((Double) args[0]));
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), DELTA);
     }
 
-    public static PseudoHuber fromXContent(XContentParser parser) {
+    public static Huber fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     private final double delta;
     private EvaluationMetricResult result;
 
-    public PseudoHuber(StreamInput in) throws IOException {
+    public Huber(StreamInput in) throws IOException {
         this.delta = in.readDouble();
     }
 
-    public PseudoHuber(@Nullable Double delta) {
+    public Huber(@Nullable Double delta) {
         this.delta = delta != null ? delta : DEFAULT_DELTA;
     }
 
@@ -130,7 +131,7 @@ public class PseudoHuber implements EvaluationMetric {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PseudoHuber that = (PseudoHuber) o;
+        Huber that = (Huber) o;
         return this.delta == that.delta;
     }
 

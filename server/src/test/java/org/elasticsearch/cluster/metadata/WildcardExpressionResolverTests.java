@@ -37,6 +37,7 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
     public void testConvertWildcardsJustIndicesTests() {
@@ -222,7 +223,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
             .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
-                org.elasticsearch.common.collect.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
+                List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 

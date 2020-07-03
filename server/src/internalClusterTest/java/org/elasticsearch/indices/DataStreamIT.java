@@ -70,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
@@ -728,6 +729,32 @@ public class DataStreamIT extends ESIntegTestCase {
             .id(indexResponse.getId()).setIfPrimaryTerm(indexResponse.getPrimaryTerm()).setIfSeqNo(indexResponse.getSeqNo());
         IndexResponse response = client().index(indexRequestWithRouting).actionGet();
         assertThat(response.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+    }
+
+    public void testSearchAllResolvesDataStreams() throws Exception {
+        putComposableIndexTemplate("id1", "@timestamp1", List.of("metrics-foo*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        putComposableIndexTemplate("id2", "@timestamp2", List.of("metrics-bar*"));
+        createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        int numDocsBar = randomIntBetween(2, 16);
+        indexDocs("metrics-bar", "@timestamp2", numDocsBar);
+        int numDocsFoo = randomIntBetween(2, 16);
+        indexDocs("metrics-foo", "@timestamp1", numDocsFoo);
+
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("metrics-foo", 2)));
+
+        // ingest some more data in the rolled data stream
+        int numDocsRolledFoo = randomIntBetween(2, 16);
+        indexDocs("metrics-foo", "@timestamp1", numDocsRolledFoo);
+
+        SearchRequest searchRequest = new SearchRequest("*");
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping) {

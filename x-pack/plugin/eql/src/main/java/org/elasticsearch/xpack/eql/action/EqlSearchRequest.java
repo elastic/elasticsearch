@@ -277,7 +277,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public int fetchSize() { return this.fetchSize; }
+    public int fetchSize() {
+        return this.fetchSize;
+    }
 
     public EqlSearchRequest fetchSize(int fetchSize) {
         this.fetchSize = fetchSize;
@@ -373,7 +375,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return size == that.size && 
+        return size == that.size &&
                 fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&

@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
@@ -23,6 +24,7 @@ public class ParserParams {
     private String fieldTiebreaker = null;
     private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
     private int size = SIZE;
+    private int fetchSize = FETCH_SIZE;
     private List<Object> queryParams = emptyList();
 
     public ParserParams(ZoneId zoneId) {
@@ -71,6 +73,15 @@ public class ParserParams {
 
     public ParserParams size(int size) {
         this.size = size;
+        return this;
+    }
+
+    public int fetchSize() {
+        return fetchSize;
+    }
+
+    public ParserParams fetchSize(int fetchSize) {
+        this.fetchSize = fetchSize;
         return this;
     }
 

@@ -144,6 +144,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
         request.isCaseSensitive(isCaseSensitive);
         request.tiebreakerField("event.sequence");
+        //request.fetchSize(1);
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 

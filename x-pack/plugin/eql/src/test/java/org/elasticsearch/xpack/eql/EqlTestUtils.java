@@ -17,7 +17,6 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
@@ -28,11 +27,11 @@ public final class EqlTestUtils {
     }
 
     public static final EqlConfiguration TEST_CFG_CASE_INSENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, -1, false, false,
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, false, 
             "", new TaskId("test", 123), null);
 
     public static final EqlConfiguration TEST_CFG_CASE_SENSITIVE = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), -1, -1, false, true,
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), false, true, 
             "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
@@ -50,8 +49,6 @@ public final class EqlTestUtils {
             randomAlphaOfLength(16),
             null,
             new TimeValue(randomNonNegativeLong()),
-            randomIntBetween(5, 100),
-            randomIntBetween(5, 100),
             randomBoolean(),
             isCaseSensitive,
             randomAlphaOfLength(16),

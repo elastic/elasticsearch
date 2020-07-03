@@ -116,10 +116,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
             .implicitJoinKey(request.implicitJoinKeyField())
-                .size(request.size());
+            .size(request.size())
+            .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.size(),
-            request.fetchSize(), includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
+            request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }

@@ -209,7 +209,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
 
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, defaultProjection()));
+        // add fetch size as a limit so it gets propagated into the resulting query
+        LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"), 
+                new Literal(synthetic("<fetch-value>"), params.fetchSize(), DataTypes.INTEGER), 
+                eventQuery);
+        // filter fields
+        LogicalPlan child = new Project(source(ctx), fetchSize, CollectionUtils.combine(keys, defaultProjection()));
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
     }
 

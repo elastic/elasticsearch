@@ -42,7 +42,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("@timestamp", "2020-12-12")
@@ -50,16 +50,16 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(2));
 
-        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
+        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("@timestamp1", "2020-12-12")
                 .endObject()),
             XContentType.JSON)));
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
 
-        e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
+        e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .array("@timestamp", "2020-12-12", "2020-12-13")
                 .endObject()),

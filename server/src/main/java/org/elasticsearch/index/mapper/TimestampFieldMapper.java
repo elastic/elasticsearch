@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +60,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     public static final class TimestampFieldType extends MappedFieldType {
 
         public TimestampFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -126,7 +127,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(ParserContext parserContext) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext) {
             return new TimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE,
                 new TimestampFieldType(), null);
         }

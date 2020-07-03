@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -173,11 +175,15 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
-            PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(f ->
-                repository.finalizeSnapshot(snapshot.getSnapshotId(),
-                    ShardGenerations.builder().put(indexId, 0, shardGen).build(),
-                    0L, null, 1, Collections.emptyList(), -1L, false,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
+            final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
+            PlainActionFuture.<RepositoryData, Exception>get(f ->
+                repository.finalizeSnapshot(
+                    shardGenerations,
+                    RepositoryData.EMPTY_REPO_GEN,
+                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                    new SnapshotInfo(snapshot.getSnapshotId(), shardGenerations.indices().stream()
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L, 6,
+                        Collections.emptyList(), true, Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), f));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));
@@ -198,7 +204,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
-        final FsRepository repository = new FsRepository(repositoryMetadata, createEnvironment(), xContentRegistry(), clusterService) {
+        final FsRepository repository = new FsRepository(repositoryMetadata, createEnvironment(), xContentRegistry(), clusterService,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually

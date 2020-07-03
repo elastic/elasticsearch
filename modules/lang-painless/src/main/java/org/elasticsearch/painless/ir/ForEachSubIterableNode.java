@@ -24,8 +24,9 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -97,16 +98,23 @@ public class ForEachSubIterableNode extends LoopNode {
         return method;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitForEachSubIterableLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        Variable variable = scopeTable.defineVariable(variableType, variableName);
-        Variable iterator = scopeTable.defineInternalVariable(iteratorType, iteratorName);
+        Variable variable = writeScope.defineVariable(variableType, variableName);
+        Variable iterator = writeScope.defineInternalVariable(iteratorType, iteratorName);
 
-        getConditionNode().write(classWriter, methodWriter, scopeTable);
+        getConditionNode().write(classWriter, methodWriter, writeScope);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
@@ -132,15 +140,15 @@ public class ForEachSubIterableNode extends LoopNode {
         methodWriter.writeCast(cast);
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        Variable loop = scopeTable.getInternalVariable("loop");
+        Variable loop = writeScope.getInternalVariable("loop");
 
         if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getBlockNode().getStatementCount(), location);
+            methodWriter.writeLoopCounter(loop.getSlot(), location);
         }
 
         getBlockNode().continueLabel = begin;
         getBlockNode().breakLabel = end;
-        getBlockNode().write(classWriter, methodWriter, scopeTable);
+        getBlockNode().write(classWriter, methodWriter, writeScope);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

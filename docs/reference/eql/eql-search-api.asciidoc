@@ -92,7 +92,7 @@ When this period expires, the search and its results are deleted, even if the
 search is still ongoing.
 
 If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
-`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+`false`, {es} only stores <<eql-search-async,async searches>> that do not
 complete within the period set by the
 <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
 parameter, regardless of this value.
@@ -180,7 +180,7 @@ When this period expires, the search and its results are deleted, even if the
 search is still ongoing.
 
 If the <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter is
-`false`, {es} only stores <<<eql-search-async,async searches>> that do not
+`false`, {es} only stores <<eql-search-async,async searches>> that do not
 complete within the period set by the
 <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
 parameter, regardless of this value.
@@ -502,6 +502,7 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Matching events in the `hits.events`
 property are sorted by <<eql-search-api-timestamp-field,timestamp>>, converted
@@ -624,6 +625,7 @@ GET /my_index/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event. Matching events in
@@ -679,11 +681,6 @@ the events in ascending, lexicographic order.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -706,11 +703,6 @@ the events in ascending, lexicographic order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000

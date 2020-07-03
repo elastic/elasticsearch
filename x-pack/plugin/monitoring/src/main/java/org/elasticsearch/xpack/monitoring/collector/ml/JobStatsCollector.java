@@ -62,7 +62,7 @@ public class JobStatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+                && licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
     }
 
     @Override

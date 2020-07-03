@@ -1903,7 +1903,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "*");
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true,
+                randomFrom(new String[]{"*"}, new String[]{"_all"}, new String[0]));
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(4));
             assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));

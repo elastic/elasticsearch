@@ -422,7 +422,7 @@ class IndicesAndAliasesResolver {
                                           boolean includeDataStreams, boolean dateMathExpression) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
-            return false;
+            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         final boolean isHidden = indexAbstraction.isHidden();
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

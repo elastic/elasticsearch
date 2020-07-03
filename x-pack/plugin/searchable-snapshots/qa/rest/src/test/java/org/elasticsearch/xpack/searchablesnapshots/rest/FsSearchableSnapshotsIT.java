@@ -24,11 +24,9 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
         if (randomBoolean()) {
             settings.put("compress", randomBoolean());
         }
-        if (randomBoolean()) {
-            final int chunkSize = randomIntBetween(100, 1000);
-            settings.put("chunk_size", chunkSize, ByteSizeUnit.BYTES);
-            logger.info("using chunk_size {}", chunkSize);
-        }
+        final int chunkSize = 100;
+        settings.put("chunk_size", chunkSize, ByteSizeUnit.BYTES);
+        logger.info("using chunk_size {}", chunkSize);
         return settings.build();
     }
 }

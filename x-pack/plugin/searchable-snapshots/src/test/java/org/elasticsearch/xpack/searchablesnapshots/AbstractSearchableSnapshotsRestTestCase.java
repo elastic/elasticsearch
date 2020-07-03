@@ -68,7 +68,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 10_000);
+        final int numDocs = 10_000;
         logger.info("indexing [{}] documents", numDocs);
 
         final StringBuilder bulkBody = new StringBuilder();
@@ -110,7 +110,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         logger.info("deleting index [{}]", indexName);
         deleteIndex(indexName);
 
-        final String restoredIndexName = true ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = indexName;
         logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, snapshot, restoredIndexName);
         mountSnapshot(repository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
 

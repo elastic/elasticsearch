@@ -229,6 +229,46 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(response.getDataStreams().get(0).getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
     }
 
+    public void testDataStreamAndBackingIndidcesAreRenamedUsingRegex() {
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        expectThrows(SnapshotRestoreException.class, () -> client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get());
+
+        // restore data stream attempting to rename the backing index
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("test-$1")
+            .get();
+
+        assertThat(restoreSnapshotResponse.status(), is(RestStatus.OK));
+
+        // assert "ds" was restored as "test-ds" and the backing index has a valid name
+        GetDataStreamAction.Request getRenamedDS = new GetDataStreamAction.Request("test-ds");
+        GetDataStreamAction.Response response = client.admin().indices().getDataStreams(getRenamedDS).actionGet();
+        assertThat(response.getDataStreams().get(0).getIndices().get(0).getName(),
+            is(DataStream.getDefaultBackingIndexName("test-ds", 1L)));
+
+        // data stream "ds" should still exist in the system
+        GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request("ds");
+        response = client.admin().indices().getDataStreams(getDSRequest).actionGet();
+        assertThat(response.getDataStreams().get(0).getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
+    }
+
     public void testWildcards() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
             .prepareCreateSnapshot(REPO, "snap2")

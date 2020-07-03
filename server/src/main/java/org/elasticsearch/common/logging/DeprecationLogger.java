@@ -31,18 +31,22 @@ import java.util.List;
  * for deprecation logger. For instance <code>new DeprecationLogger("org.elasticsearch.test.SomeClass")</code> will
  * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use
  * <code>deprecation</code> logger defined in log4j2.properties.
- *
+ * <p>
  * Deprecation logs are written to deprecation log file - defined in log4j2.properties, as well as warnings added to a response header.
  * All deprecation usages are throttled basing on a key. Key is a string provided in an argument and can be prefixed with
  * <code>X-Opaque-Id</code>. This allows to throttle deprecations per client usage.
  * <code>deprecationLogger.deprecate("key","message {}", "param");</code>
- *
- * @see HeaderWarningLogger for throttling and header warnings implementation details
+ * <p>
+ * Additional log handlers can be registered via {@link #addHandler(DeprecatedLogHandler)}. Subject to rate limiting,
+ * each additional handler will also be called with a deprecated message and its key.
  */
 public class DeprecationLogger {
+    /** Log handlers are are not tied to this specific <code>DeprecationLogger</code> instance */
     private static final List<DeprecatedLogHandler> additionalHandlers = new ArrayList<>();
 
+    /** Log handlers are are tied to this specific <code>DeprecationLogger</code> instance */
     private final List<DeprecatedLogHandler> handlers;
+
     private final RateLimiter rateLimiter;
 
     /**
@@ -52,7 +56,7 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        this.handlers = new ArrayList<>(additionalHandlers);
+        this.handlers = new ArrayList<>();
         this.rateLimiter = new RateLimiter();
 
         handlers.add(new HeaderWarningLogger(deprecatedLoggerName(parentLogger.getName())));
@@ -113,7 +117,10 @@ public class DeprecationLogger {
             rateLimiter.limit(opaqueId + key, () -> {
                 ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
                 for (DeprecatedLogHandler handler : handlers) {
-                    handler.log(key, deprecationMessage);
+                    handler.log(key, opaqueId, deprecationMessage);
+                }
+                for (DeprecatedLogHandler handler : additionalHandlers) {
+                    handler.log(key, opaqueId, deprecationMessage);
                 }
             });
             return this;

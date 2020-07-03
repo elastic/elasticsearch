@@ -20,5 +20,5 @@
 package org.elasticsearch.common.logging;
 
 public interface DeprecatedLogHandler {
-    void log(String key, ESLogMessage message);
+    void log(String key, String xOpaqueId, ESLogMessage message);
 }

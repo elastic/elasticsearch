@@ -70,7 +70,6 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationIndexingService;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
@@ -389,10 +388,6 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class), client);
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
-
-            final DeprecationIndexingService deprecationIndexingService = new DeprecationIndexingService(clusterService, client);
-            DeprecationLogger.addHandler(deprecationIndexingService);
-            resourcesToClose.add(() -> DeprecationLogger.removeHandler(deprecationIndexingService));
 
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);

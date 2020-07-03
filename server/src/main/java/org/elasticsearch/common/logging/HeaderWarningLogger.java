@@ -20,20 +20,14 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 /**
- * This class composes {@link HeaderWarning}, {@link DeprecationIndexingService} and {@link Logger},
- * in order to apply a single message to multiple destination.
- * <p>
- * Logging and indexing are throttled in order to avoid filling the destination with duplicates.
- * Throttling is implemented using a mandatory per-message key combined with any <code>X-Opaque-Id</code>
- * HTTP header value. This header allows throttling per user. This value is set in {@link ThreadContext}.
+ * This class composes {@link HeaderWarning} and {@link Logger}, in order to both log a message
+ * and add a header to an API response.
  * <p>
  * TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
  */
@@ -45,14 +39,11 @@ class HeaderWarningLogger implements DeprecatedLogHandler {
     }
 
     /**
-     * Adds a formatted warning message as a response header on the thread context, and logs a message if the associated key has
-     * not recently been seen.
-     *
-     * @param key     the key used to determine if this message should be logged
-     * @param message the message to log
+     * Logs a deprecation message and adds a formatted warning message as a response
+     * header on the thread context.
      */
     @Override
-    public void log(final String key, ESLogMessage message) {
+    public void log(final String key, String xOpaqueId, ESLogMessage message) {
         String messagePattern = message.getMessagePattern();
         Object[] arguments = message.getArguments();
         HeaderWarning.addWarning(messagePattern, arguments);

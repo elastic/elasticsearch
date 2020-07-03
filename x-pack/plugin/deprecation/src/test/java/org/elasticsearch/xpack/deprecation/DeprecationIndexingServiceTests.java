@@ -17,22 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -43,7 +39,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.logging.DeprecationIndexingService.WRITE_DEPRECATION_LOGS_TO_INDEX;
+import static org.elasticsearch.xpack.deprecation.DeprecationIndexingService.WRITE_DEPRECATION_LOGS_TO_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -53,7 +49,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class DeprecationIndexingServiceTests extends ESTestCase {
@@ -65,7 +60,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     @Before
     public void initialize() {
         clusterService = mock(ClusterService.class);
-        client = spy(new MyNoOpClient());
+        client = spy(new NoOpClient(this.getTestName()));
         service = new DeprecationIndexingService(clusterService, client);
     }
 
@@ -83,37 +78,13 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     }
 
     /**
-     * Checks that the service ensures that the data stream template is created when
-     * the service is enabled.
+     * Checks that the service does not attempt to index messages when it had not reach the
+     * "started" lifecycle state.
      */
-    public void testCreatesTemplateOnDemand() {
-        service.clusterChanged(getEvent(true));
+    public void testDoesNotWriteMessageWhenServiceNotStarted() {
+        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
-        verify(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), anyListener());
-    }
-
-    /**
-     * Checks that the service only creates the data stream template once,
-     * and not every time it processes the cluster state.
-     */
-    public void testOnlyCreatesTemplateOnce() {
-        service.clusterChanged(getEvent(true));
-        service.clusterChanged(getEvent(true));
-
-        verify(client, times(1)).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), anyListener());
-    }
-
-    /**
-     * Checks that the service only ensures that the data stream template is created once,
-     * even if it fails the first time, in order to prevent a flood of failure messages
-     * to the log.
-     */
-    public void testOnlyCreatesTemplateOnceEvenOnFailure() {
-        ((MyNoOpClient) client).setAcknowledged(false);
-        service.clusterChanged(getEvent(true));
-        service.clusterChanged(getEvent(true));
-
-        verify(client, times(1)).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), anyListener());
+        verify(client, never()).execute(any(), any(), anyListener());
     }
 
     /**
@@ -121,7 +92,9 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * is disabled.
      */
     public void testDoesNotWriteMessageWhenServiceDisabled() {
-        service.writeMessage("key", "message", "xOpaqueId", null);
+        service.start();
+
+        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
         verify(client, never()).execute(any(), any(), anyListener());
     }
@@ -130,10 +103,11 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Checks that the service can be disabled after being enabled.
      */
     public void testDoesNotWriteMessageWhenServiceEnabledAndDisabled() {
+        service.start();
         service.clusterChanged(getEvent(true));
         service.clusterChanged(getEvent(false));
 
-        service.writeMessage("key", "message", "xOpaqueId", null);
+        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
         verify(client, never()).execute(eq(IndexAction.INSTANCE), any(), anyListener());
     }
@@ -142,9 +116,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Checks that messages are indexed in the correct shape when the service is enabled.
      */
     public void testWritesMessageWhenServiceEnabled() {
+        service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", "a message", null, null);
+        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a message"));
 
         assertThat(payloadMap, hasKey("@timestamp"));
         assertThat(payloadMap, hasEntry("key", "a key"));
@@ -158,9 +133,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Check that if an xOpaqueId is set, then it is added to the index request payload.
      */
     public void testMessageIncludesOpaqueIdWhenSupplied() {
+        service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", "a message", "an ID", null);
+        final Map<String, Object> payloadMap = getWriteRequest("a key", "an ID", new ESLogMessage("a message"));
 
         assertThat(payloadMap, hasEntry("x-opaque-id", "an ID"));
     }
@@ -169,9 +145,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Check that if any params are set, then they are added to the index request payload.
      */
     public void testMessageIncludesParamsWhenSupplied() {
+        service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", "a message", null, new Object[] { "first", "second" });
+        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a message", "first", "second"));
 
         // I can't get this to work as a one-liner. Curse you, Hamcrest.
         assertThat(payloadMap, hasKey("params"));
@@ -192,42 +169,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     }
 
     /*
-     * A client that does nothing, except for requests of type
-     * PutComposableIndexTemplateAction.Request, in which case return an AcknowledgedResponse
-     */
-    private class MyNoOpClient extends NoOpClient {
-        private boolean isAcknowledged = true;
-
-        public MyNoOpClient() {
-            super(DeprecationIndexingServiceTests.this.getTestName());
-        }
-
-        public void setAcknowledged(boolean acknowledged) {
-            isAcknowledged = acknowledged;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            if (request instanceof PutComposableIndexTemplateAction.Request) {
-                listener.onResponse(((Response) new AcknowledgedResponse(isAcknowledged)));
-                return;
-            }
-
-            super.doExecute(action, request, listener);
-        }
-
-    }
-
-    /*
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
-    private Map<String, Object> getWriteRequest(String key, String message, String xOpaqueId, Object[] params) {
-        service.writeMessage(key, message, xOpaqueId, params);
+    private Map<String, Object> getWriteRequest(String key, String xOpaqueId, ESLogMessage message) {
+        service.log(key, xOpaqueId, message);
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
 

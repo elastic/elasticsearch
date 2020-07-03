@@ -9,6 +9,7 @@ package org.elasticsearch.test.eql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -51,8 +52,8 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     @After
     public void cleanup() throws Exception {
-        if (--counter == 0) {  
-            deleteIndex(testIndexName); 
+        if (--counter == 0) {
+            deleteIndex(testIndexName);
         }
     }
 
@@ -143,7 +144,11 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
         request.isCaseSensitive(isCaseSensitive);
         request.tiebreakerField("event.sequence");
-        return highLevelClient().eql().search(request, RequestOptions.DEFAULT);
+        return eqlClient().search(request, RequestOptions.DEFAULT);
+    }
+
+    private EqlClient eqlClient() {
+        return highLevelClient().eql();
     }
 
     protected void assertSearchHits(List<SearchHit> events) {

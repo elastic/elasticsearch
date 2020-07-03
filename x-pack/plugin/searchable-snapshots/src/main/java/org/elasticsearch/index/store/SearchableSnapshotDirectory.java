@@ -394,11 +394,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         queue.add(Tuple.tuple(listener, () -> {
                             ensureOpen();
 
-                            logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
+                            logger.info("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                             final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
                             ((CachedBlobContainerIndexInput) input).prefetchPart(part);
 
-                            logger.trace(
+                            logger.info(
                                 () -> new ParameterizedMessage(
                                     "{} part [{}/{}] of [{}] warmed in [{}] ms",
                                     shardId,
@@ -415,7 +415,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 }
             }
 
-            logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
+            logger.info("{} warming shard cache for [{}] files", shardId, queue.size());
 
             // Start as many workers as fit into the searchable snapshot pool at once at the most
             final int workers = Math.min(threadPool.info(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME).getMax(), queue.size());
@@ -431,7 +431,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             if (next == null) {
                 return;
             }
-            executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> prewarmNext(executor, queue)), next.v2()));
+            executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> {
+                logger.info("{} warming next task [isOpen {}]", shardId, isOpen);
+                prewarmNext(executor, queue);
+            }), next.v2()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);

@@ -110,7 +110,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         logger.info("deleting index [{}]", indexName);
         deleteIndex(indexName);
 
-        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = true ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, snapshot, restoredIndexName);
         mountSnapshot(repository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
 
@@ -255,11 +255,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
 
         final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
+        assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
@@ -322,6 +318,22 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteIndex(String index) throws IOException {
+        final Response response = client().performRequest(new Request("DELETE", "/" + index));
+        assertAcked("Deleting index [" + index + "] failed", response);
+    }
+
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        assertThat(message + ": response is not acknowledged", extractValue(responseAsMap, "acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {

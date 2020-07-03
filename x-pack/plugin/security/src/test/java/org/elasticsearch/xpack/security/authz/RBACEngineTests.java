@@ -11,8 +11,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -69,12 +75,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -1029,6 +1040,38 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(response.getRunAs(), containsInAnyOrder("user01", "user02"));
+    }
+
+    public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
+        final String dataStreamName = "my_data_stream";
+        User user = new User(randomAlphaOfLengthBetween(4, 12));
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
+        Role role = Role.builder("test1")
+            .cluster(Collections.singleton("all"), Collections.emptyList())
+            .add(IndexPrivilege.READ, dataStreamName)
+            .build();
+
+        TreeMap<String, IndexAbstraction> lookup = new TreeMap<>();
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        int numBackingIndices = randomIntBetween(1, 3);
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
+        }
+        DataStream ds = new DataStream(dataStreamName, null,
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        lookup.put(ds.getName(), iads);
+        for (IndexMetadata im : backingIndices) {
+            lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));
+        }
+
+        SearchRequest request = new SearchRequest("*");
+        List<String> authorizedIndices =
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, SearchAction.NAME), lookup);
+        assertThat(authorizedIndices, hasItem(dataStreamName));
+        assertThat(authorizedIndices, hasItems(backingIndices.stream()
+            .map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY)));
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

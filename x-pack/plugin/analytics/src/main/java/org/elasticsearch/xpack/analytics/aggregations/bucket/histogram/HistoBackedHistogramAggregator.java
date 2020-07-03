@@ -108,15 +108,12 @@ public class HistoBackedHistogramAggregator extends BucketsAggregator {
 
                     double previousKey = Double.NEGATIVE_INFINITY;
                     while (sketch.next()) {
-                        final int valuesCount = sketch.count();
-                        double value = sketch.value();
+                        final double value = sketch.value();
+                        final int count = sketch.count();
 
-                        for (int i = 0; i < valuesCount; ++i) {
-                            double key = Math.floor((value - offset) / interval);
-                            assert key >= previousKey;
-                            if (key == previousKey) {
-                                continue;
-                            }
+                        double key = Math.floor((value - offset) / interval);
+                        assert key >= previousKey;
+                        for (int i = 0; i < count; ++i) {
                             long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                             if (bucketOrd < 0) { // already seen
                                 bucketOrd = -1 - bucketOrd;
@@ -124,8 +121,8 @@ public class HistoBackedHistogramAggregator extends BucketsAggregator {
                             } else {
                                 collectBucket(sub, doc, bucketOrd);
                             }
-                            previousKey = key;
                         }
+                        previousKey = key;
                     }
                 }
             }

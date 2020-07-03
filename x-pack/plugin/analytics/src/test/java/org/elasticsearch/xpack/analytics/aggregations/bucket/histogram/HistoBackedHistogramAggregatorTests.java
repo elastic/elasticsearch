@@ -22,6 +22,8 @@ package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 import com.tdunning.math.stats.Centroid;
 import com.tdunning.math.stats.TDigest;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -57,8 +59,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
     public void testHistograms() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
             w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
             w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30, 90})));
 
@@ -76,7 +77,42 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(5d, histogram.getBuckets().get(2).getKey());
                 assertEquals(3, histogram.getBuckets().get(2).getDocCount());
                 assertEquals(10d, histogram.getBuckets().get(3).getKey());
-                assertEquals(3, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(4, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(20d, histogram.getBuckets().get(4).getKey());
+                assertEquals(2, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(30d, histogram.getBuckets().get(5).getKey());
+                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
+                assertEquals(90d, histogram.getBuckets().get(6).getKey());
+                assertEquals(1, histogram.getBuckets().get(6).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testMinDocCount() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30, 90})));
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field(FIELD_NAME)
+                .interval(5)
+                .minDocCount(2);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+                assertEquals(4, histogram.getBuckets().size());
+                assertEquals(0d, histogram.getBuckets().get(0).getKey());
+                assertEquals(3, histogram.getBuckets().get(0).getDocCount());
+                assertEquals(5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(3, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(2).getKey());
+                assertEquals(4, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(20d, histogram.getBuckets().get(3).getKey());
+                assertEquals(2, histogram.getBuckets().get(3).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }

@@ -83,13 +83,13 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request, true));
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state,
                                    final ActionListener<OpenIndexResponse> listener) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request, true);
+        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;

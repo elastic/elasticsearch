@@ -90,7 +90,6 @@ public class TransformIndexerTests extends ESTestCase {
             String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
-            TransformProgressGatherer progressGatherer,
             TransformConfig transformConfig,
             Map<String, String> fieldMappings,
             TransformAuditor auditor,
@@ -107,7 +106,6 @@ public class TransformIndexerTests extends ESTestCase {
                 executorName,
                 transformsConfigManager,
                 checkpointProvider,
-                progressGatherer,
                 auditor,
                 transformConfig,
                 fieldMappings,
@@ -213,6 +211,31 @@ public class TransformIndexerTests extends ESTestCase {
             } else {
                 fail("failIndexer should not be called, received error: " + message);
             }
+        }
+
+        @Override
+        void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            responseListener.onResponse(
+                new SearchResponse(
+                    new InternalSearchResponse(
+                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                        // Simulate completely null aggs
+                        null,
+                        new Suggest(Collections.emptyList()),
+                        new SearchProfileShardResults(Collections.emptyMap()),
+                        false,
+                        false,
+                        1
+                    ),
+                    "",
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
         }
 
     }
@@ -347,7 +370,6 @@ public class TransformIndexerTests extends ESTestCase {
             auditor,
             context
         );
-        indexer.initialize();
 
         IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
         assertThat(newPosition.getToIndex(), is(empty()));
@@ -445,12 +467,11 @@ public class TransformIndexerTests extends ESTestCase {
         TransformAuditor auditor,
         TransformContext context
     ) {
-        return new MockedTransformIndexer(
+        MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
             executorName,
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
-            new TransformProgressGatherer(client),
             config,
             Collections.emptyMap(),
             auditor,
@@ -462,6 +483,9 @@ public class TransformIndexerTests extends ESTestCase {
             bulkFunction,
             failureConsumer
         );
+
+        indexer.initialize();
+        return indexer;
     }
 
 }

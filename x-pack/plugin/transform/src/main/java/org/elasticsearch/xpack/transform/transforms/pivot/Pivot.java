@@ -23,7 +23,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -305,6 +308,28 @@ public class Pivot implements Function {
             processBucketsToIndexRequests(compositeAgg, destinationIndex, destinationPipeline, fieldMappings, stats),
             compositeAgg.afterKey()
         );
+    }
+
+    @Override
+    public SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder) {
+        BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
+
+        config.getGroupConfig()
+            .getGroups()
+            .values()
+            // TODO change once we allow missing_buckets
+            .forEach(src -> {
+                if (src.getField() != null) {
+                    existsClauses.must(QueryBuilders.existsQuery(src.getField()));
+                }
+            });
+
+        return searchSourceBuilder.query(existsClauses).size(0).trackTotalHits(true);
+    }
+
+    @Override
+    public void getInitialProgressFromResponse(SearchResponse response, ActionListener<TransformProgress> progressListener) {
+        progressListener.onResponse(new TransformProgress(response.getHits().getTotalHits().value, 0L, 0L));
     }
 
     /*

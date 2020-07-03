@@ -20,6 +20,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,7 +76,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
-    private final TransformProgressGatherer progressGatherer;
     private volatile float docsPerSecond = -1;
 
     protected final TransformAuditor auditor;
@@ -113,7 +113,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         TransformAuditor auditor,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
@@ -128,7 +127,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         super(threadPool, executorName, initialState, initialPosition, jobStats);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.progressGatherer = ExceptionsHelper.requireNonNull(progressGatherer, "progressGatherer");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
@@ -144,6 +142,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             docsPerSecond = transformConfig.getSettings().getDocsPerSecond();
         }
     }
+
+    abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
 
     public int getPageSize() {
         return pageSize;
@@ -229,8 +229,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                initializeFunction();
-
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
                     configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
@@ -248,6 +246,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
         ActionListener<Void> updateConfigListener = ActionListener.wrap(updateConfigResponse -> {
+            initializeFunction();
+
             if (initialRun()) {
                 createCheckpoint(ActionListener.wrap(cp -> {
                     nextCheckpoint = cp;
@@ -258,10 +258,28 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         finalListener.onResponse(null);
                         return;
                     }
-                    progressGatherer.getInitialProgress(buildFilterQuery(), getConfig(), ActionListener.wrap(newProgress -> {
-                        logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                        progress = newProgress;
-                        finalListener.onResponse(null);
+
+                    // get progress information
+                    SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
+                    SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+                    function.buildSearchQueryForInitialProgress(searchSourceBuilder);
+                    searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
+                    request.allowPartialSearchResults(false).source(searchSourceBuilder);
+
+                    doGetInitialProgress(request, ActionListener.wrap(response -> {
+                        function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
+                            logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
+                            progress = newProgress;
+                            finalListener.onResponse(null);
+                        }, failure -> {
+                            progress = null;
+                            logger.warn(
+                                new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()),
+                                failure
+                            );
+                            finalListener.onResponse(null);
+                        }));
                     }, failure -> {
                         progress = null;
                         logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
@@ -705,6 +723,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
+        // TODO: if buildChangesQuery changes the query it get overwritten
         sourceBuilder.query(filteredQuery);
 
         logger.trace("running changes query {}", sourceBuilder);

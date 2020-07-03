@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 import java.util.List;
 import java.util.Map;
@@ -120,6 +121,10 @@ public interface Function {
         int numberOfRows,
         ActionListener<List<Map<String, Object>>> listener
     );
+
+    SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder);
+
+    void getInitialProgressFromResponse(SearchResponse response, ActionListener<TransformProgress> progressListener);
 
     /**
      * Validate the configuration.

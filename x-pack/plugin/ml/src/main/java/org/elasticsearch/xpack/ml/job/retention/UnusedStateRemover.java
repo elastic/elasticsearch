@@ -58,14 +58,14 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         try {
             List<String> unusedStateDocIds = findUnusedStateDocIds();
             if (isTimedOutSupplier.get()) {
                 listener.onResponse(false);
             } else {
                 if (unusedStateDocIds.size() > 0) {
-                    executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
+                    executeDeleteUnusedStateDocs(unusedStateDocIds, requestsPerSec, listener);
                 } else {
                     listener.onResponse(true);
                 }
@@ -98,12 +98,12 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getJobIds() {
         Set<String> jobIds = new HashSet<>();
-        jobIds.addAll(getAnamalyDetectionJobIds());
+        jobIds.addAll(getAnomalyDetectionJobIds());
         jobIds.addAll(getDataFrameAnalyticsJobIds());
         return jobIds;
     }
 
-    private Set<String> getAnamalyDetectionJobIds() {
+    private Set<String> getAnomalyDetectionJobIds() {
         Set<String> jobIds = new HashSet<>();
 
         // TODO Once at 8.0, we can stop searching for jobs in cluster state
@@ -130,11 +130,13 @@ public class UnusedStateRemover implements MlDataRemover {
         return jobIds;
     }
 
-    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, ActionListener<Boolean> listener) {
+    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete",
                 unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setAbortOnVersionConflict(false)
+            .setRequestsPerSecond(requestsPerSec)
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
 
         // _doc is the most efficient sort order and will also disable scoring

@@ -29,15 +29,15 @@ versions << [
 ]
 
 dependencies {
-  compile "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
 restResources {
@@ -46,7 +46,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
 }
@@ -64,12 +64,34 @@ task writeTestJavaPolicy {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    javaPolicy.write(
-      [
-        "grant {",
-        "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
-        "};"
-      ].join("\n"))
+    if (BuildParams.inFipsJvm) {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
+          "  permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
+          "  permission java.lang.RuntimePermission \"getProtectionDomain\";",
+          "  permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
+          "  permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
+          "  permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
+          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
+          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
+          "  permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
+          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "};"
+        ].join("\n")
+      )
+    } else {
+      javaPolicy.write(
+        [
+          "grant {",
+          "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+          "};"
+        ].join("\n"))
+    }
   }
 }
 
@@ -78,9 +100,15 @@ test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 
-  // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
+  // Setting a custom policy to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+  if (BuildParams.inFipsJvm){
+    // Using the key==value format to override default JVM security settings and policy
+    // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+    systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
+  } else {
+    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+  }
 }
 
 check {

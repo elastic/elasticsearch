@@ -4,12 +4,12 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 restResources {
   restApi {
-    includeXpack 'security'
+    includeXpack 'security', 'async_search'
   }
 }
 

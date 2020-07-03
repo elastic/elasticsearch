@@ -10,8 +10,7 @@
 This tutorial demonstrates how to use {ilm} 
 ({ilm-init}) to manage indices that contain time-series data.
 
-When you continuously index timestamped documents into {es} using
-Filebeat, Logstash, or some other mechanism,
+When you continuously index timestamped documents into {es},
 you typically use an index alias so you can periodically roll over to a new index.
 This enables you to implement a hot-warm-cold architecture to meet your performance
 requirements for your newest data, control costs over time, enforce retention policies,
@@ -28,11 +27,12 @@ as expected.
 
 For an introduction to rolling indices, see <<index-rollover>>. 
 
-NOTE: {filebeat} includes a default {ilm-init} policy that initiates the rollover action when
-the index size reaches 50GB or becomes 30 days old. 
-You can use this policy as a starting point, or replace it with a custom policy.
-See {kibana-ref}/example-using-index-lifecycle-policy.html[Use {ilm-init} to manage Filebeat time-based indices].
-
+IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+lifecycle policies are set up automatically. 
+You do not need bootstrap the initial index or take any other actions.
+You can modify the default policies through 
+{kibana-ref}/example-using-index-lifecycle-policy.html[{kib} Management]
+or the {ilm-init} APIs.
 
 [discrete]
 [[ilm-gs-create-policy]]

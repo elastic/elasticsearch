@@ -58,10 +58,10 @@ public class ProfileConfigurationsTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseSettings() {
-        final Path keystore = randomBoolean()
-            ? getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks")
-            : getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
-
+        final Path keystore = inFipsJvm()
+            ? getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12")
+            : getDataPath(randomFrom("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12"));
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
 

@@ -653,24 +653,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    static void assertNoFailures(Map<?, ?> response) {
-        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
-        assertEquals(0, failed);
-    }
-
-    void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
-        int actualTotalHits = extractTotalHits(response);
-        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
-    }
-
-    int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
-            return (Integer) XContentMapValues.extractValue("hits.total", response);
-        } else {
-            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
-        }
-    }
-
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
@@ -708,6 +690,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
+            }
             createIndex(index, settings.build());
         }
         ensureGreen(index);
@@ -1428,5 +1416,44 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEmptyTranslog(index);
             ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
+    }
+
+    public void testRecoveryWithTranslogRetentionDisabled() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
+            }
+            if (randomBoolean()) {
+                settings.put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "1kb");
+            }
+            createIndex(index, settings.build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(0, 100);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(i));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
+            if (randomBoolean()) {
+                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            }
+            if (randomBoolean()) {
+                flush(index, randomBoolean());
+            } else if (randomBoolean()) {
+                performSyncedFlush(index);
+            }
+            saveInfoDocument("doc_count", Integer.toString(numDocs));
+        }
+        ensureGreen(index);
+        final int numDocs = Integer.parseInt(loadInfoDocument("doc_count"));
+        assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
 }

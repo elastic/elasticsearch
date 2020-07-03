@@ -79,7 +79,7 @@ include::../../enrich.asciidoc[tag=update-enrich-policy]
 
 `<enrich-policy>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
 
 
 [[put-enrich-policy-api-request-body]]

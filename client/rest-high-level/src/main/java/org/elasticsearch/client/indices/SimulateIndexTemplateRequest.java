@@ -31,7 +31,7 @@ public class SimulateIndexTemplateRequest extends TimedRequest {
     private String indexName;
 
     @Nullable
-    private PutIndexTemplateV2Request indexTemplateV2Request;
+    private PutComposableIndexTemplateRequest indexTemplateV2Request;
 
     public SimulateIndexTemplateRequest(String indexName) {
         if (Strings.isNullOrEmpty(indexName)) {
@@ -62,7 +62,7 @@ public class SimulateIndexTemplateRequest extends TimedRequest {
      * An optional new template request will be part of the index template simulation.
      */
     @Nullable
-    public PutIndexTemplateV2Request indexTemplateV2Request() {
+    public PutComposableIndexTemplateRequest indexTemplateV2Request() {
         return indexTemplateV2Request;
     }
 
@@ -70,7 +70,7 @@ public class SimulateIndexTemplateRequest extends TimedRequest {
      * Optionally, define a new template request which will included in the index simulation as if it was an index template stored in the
      * system. The new template will be validated just as a regular, standalone, live, new index template request.
      */
-    public SimulateIndexTemplateRequest indexTemplateV2Request(@Nullable PutIndexTemplateV2Request indexTemplateV2Request) {
+    public SimulateIndexTemplateRequest indexTemplateV2Request(@Nullable PutComposableIndexTemplateRequest indexTemplateV2Request) {
         this.indexTemplateV2Request = indexTemplateV2Request;
         return this;
     }

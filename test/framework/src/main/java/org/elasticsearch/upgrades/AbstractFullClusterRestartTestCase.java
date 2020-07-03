@@ -24,10 +24,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -113,5 +115,23 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     @Override
     protected boolean preserveSLMPoliciesUponCompletion() {
         return true;
+    }
+
+    protected void assertNoFailures(Map<?, ?> response) {
+        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
+        assertEquals(0, failed);
+    }
+
+    protected void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
+        int actualTotalHits = extractTotalHits(response);
+        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
+    }
+
+    protected int extractTotalHits(Map<?, ?> response) {
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
+            return (Integer) XContentMapValues.extractValue("hits.total", response);
+        } else {
+            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
+        }
     }
 }

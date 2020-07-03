@@ -39,7 +39,7 @@ GET /_cluster/health?wait_for_status=yellow&timeout=50s
 [[cluster-health-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 [[cluster-health-api-query-params]]
 ==== {api-query-parms-title}
@@ -48,9 +48,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
     (Optional, string) Can be one of `cluster`, `indices` or `shards`. Controls 
     the details level of the health information returned. Defaults to `cluster`.
     
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
     
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_active_shards`::
     (Optional, string) A number controlling to how many active shards to wait 
@@ -91,7 +91,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     (string) The name of the cluster.
 
 `status`::
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 
 `timed_out`::
     (boolean) If `false` the response returned within the period of 

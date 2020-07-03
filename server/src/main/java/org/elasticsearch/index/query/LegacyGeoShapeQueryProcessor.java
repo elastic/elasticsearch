@@ -94,7 +94,7 @@ public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);

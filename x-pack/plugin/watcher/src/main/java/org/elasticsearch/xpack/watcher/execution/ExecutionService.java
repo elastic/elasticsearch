@@ -452,7 +452,7 @@ public class ExecutionService {
      * Any existing watchRecord will be overwritten.
      */
     private void forcePutHistory(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterService.state());
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {

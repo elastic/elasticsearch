@@ -22,17 +22,17 @@ ability to "exclude" (`-`), for example: `test*,-test3`.
 
 All multi index APIs support the following url query string parameters:
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
 Some multi index APIs also support the following url query string parameter:
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 NOTE: Single index APIs such as the <<docs>> and the
 <<indices-aliases,single-index `alias` APIs>> do not support multiple indices.

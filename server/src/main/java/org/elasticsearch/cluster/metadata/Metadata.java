@@ -745,9 +745,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
-    public Map<String, IndexTemplateV2> templatesV2() {
-        return Optional.ofNullable((IndexTemplateV2Metadata) this.custom(IndexTemplateV2Metadata.TYPE))
-            .map(IndexTemplateV2Metadata::indexTemplates)
+    public Map<String, ComposableIndexTemplate> templatesV2() {
+        return Optional.ofNullable((ComposableIndexTemplateMetadata) this.custom(ComposableIndexTemplateMetadata.TYPE))
+            .map(ComposableIndexTemplateMetadata::indexTemplates)
             .orElse(Collections.emptyMap());
     }
 
@@ -1193,31 +1193,31 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder indexTemplates(Map<String, IndexTemplateV2> indexTemplates) {
-            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(indexTemplates));
+        public Builder indexTemplates(Map<String, ComposableIndexTemplate> indexTemplates) {
+            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(indexTemplates));
             return this;
         }
 
-        public Builder put(String name, IndexTemplateV2 indexTemplate) {
+        public Builder put(String name, ComposableIndexTemplate indexTemplate) {
             Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
             // ಠ_ಠ at ImmutableOpenMap
-            Map<String, IndexTemplateV2> existingTemplates =
-                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+            Map<String, ComposableIndexTemplate> existingTemplates =
+                Optional.ofNullable((ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE))
                     .map(itmd -> new HashMap<>(itmd.indexTemplates()))
                     .orElse(new HashMap<>());
             existingTemplates.put(name, indexTemplate);
-            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
             return this;
         }
 
         public Builder removeIndexTemplate(String name) {
             // ಠ_ಠ at ImmutableOpenMap
-            Map<String, IndexTemplateV2> existingTemplates =
-                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+            Map<String, ComposableIndexTemplate> existingTemplates =
+                Optional.ofNullable((ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE))
                     .map(itmd -> new HashMap<>(itmd.indexTemplates()))
                     .orElse(new HashMap<>());
             existingTemplates.remove(name);
-            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
             return this;
         }
 

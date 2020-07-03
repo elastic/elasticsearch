@@ -336,6 +336,7 @@ public class TrainedModelProvider {
             .addSort(TrainedModelConfig.MODEL_ID.getPreferredName(), SortOrder.ASC)
             .addSort("_index", SortOrder.DESC)
             .setQuery(queryBuilder)
+            .setSize(modelIds.size())
             .request();
         List<TrainedModelConfig> configs = new ArrayList<>(modelIds.size());
         Set<String> modelsInIndex = Sets.difference(modelIds, MODELS_STORED_AS_RESOURCE);
@@ -487,7 +488,6 @@ public class TrainedModelProvider {
                     if (requiredMatches.hasUnmatchedIds()) {
                         idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                     } else {
-
                         idsListener.onResponse(Tuple.tuple(totalHitCount, allFoundIds));
                     }
                 },

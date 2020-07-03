@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.internal.jvm.Jvm
 
 import java.nio.charset.StandardCharsets
 
@@ -12,8 +13,8 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 subprojects {
@@ -31,7 +32,7 @@ subprojects {
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
 
-        executable = "${BuildParams.compilerJavaHome}/bin/java"
+        executable = "${Jvm.current().javaHome}/bin/java"
 
         // default to main class files if such a source set exists
         final List files = []
@@ -59,6 +60,7 @@ subprojects {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 
 artifacts {

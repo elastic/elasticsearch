@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -89,7 +90,13 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56507")
+    public void testSuppressedOnJDK15() {
+        assumeTrue("AwaitsFix on JDK15", JavaVersion.current().compareTo(JavaVersion.parse("15")) < 0);
+    }
+
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK15();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -99,6 +106,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+        testSuppressedOnJDK15();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -108,6 +116,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+        testSuppressedOnJDK15();
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));

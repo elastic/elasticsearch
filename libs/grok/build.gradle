@@ -18,11 +18,11 @@
  */
 
 dependencies {
-  compile 'org.jruby.joni:joni:2.1.29'
+  api 'org.jruby.joni:joni:2.1.29'
   // joni dependencies:
-  compile 'org.jruby.jcodings:jcodings:1.0.44'
+  api 'org.jruby.jcodings:jcodings:1.0.44'
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
   }
 }

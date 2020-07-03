@@ -1,5 +1,8 @@
 [[analysis-chargroup-tokenizer]]
-=== Char Group Tokenizer
+=== Character group tokenizer
+++++
+<titleabbrev>Character group</titleabbrev>
+++++
 
 The `char_group` tokenizer breaks text into terms whenever it encounters a
 character which is in a defined set. It is mostly useful for cases where a simple

@@ -1,0 +1,36 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: delete-expired-data
+        body:  >
+          {
+            "job_id": "delete-expired-data",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span" : "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test delete expired data with no body":
+  - do:
+      ml.delete_expired_data: {}
+
+  - match: { deleted: true}
+---
+"Test delete expired data with body parameters":
+  - do:
+      ml.delete_expired_data:
+        body:  >
+           { "timeout": "10h", "requests_per_second": 100000.0 }
+  - match: { deleted: true}

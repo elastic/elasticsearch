@@ -12,7 +12,7 @@ setup:
       features: allowed_warnings
   - do:
       allowed_warnings:
-         - "index [airline-data] matches multiple v1 templates [global, template], v2 index templates will only match a single index template"
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:
@@ -113,7 +113,7 @@ setup:
       features: allowed_warnings
   - do:
       allowed_warnings:
-         - "index [airline-data] matches multiple v1 templates [global, template], v2 index templates will only match a single index template"
+         - "index [airline-data] matches multiple legacy templates [global, template], composable templates will only match a single template"
       indices.create:
         index: airline-data
         body:

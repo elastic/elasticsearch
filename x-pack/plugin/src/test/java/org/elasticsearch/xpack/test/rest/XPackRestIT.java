@@ -123,6 +123,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             final Map<String, Object> settings = new HashMap<>();
             settings.put("xpack.monitoring.collection.enabled", true);
             settings.put("xpack.monitoring.collection.interval", "1s");
+            settings.put("xpack.monitoring.exporters._local.type", "local");
             settings.put("xpack.monitoring.exporters._local.enabled", true);
 
             awaitCallApi("cluster.put_settings", emptyMap(),

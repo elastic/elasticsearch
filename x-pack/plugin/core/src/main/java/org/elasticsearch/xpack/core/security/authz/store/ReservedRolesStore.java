@@ -70,9 +70,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
                                 "manage_index_templates", "manage_ingest_pipelines", "monitor",
+                                GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
                                 "cluster:monitor/xpack/watcher/watch/get",
                                 "cluster:admin/xpack/watcher/watch/put",
-                                "cluster:admin/xpack/watcher/watch/delete",
+                                "cluster:admin/xpack/watcher/watch/delete"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
@@ -167,7 +168,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
                             .privileges("read", "view_index_metadata").build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*")
-                            .privileges("view_index_metadata", "read").build(),
+                            .privileges("read", "view_index_metadata").build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
+                            .privileges("read", "view_index_metadata").build()
                     }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {

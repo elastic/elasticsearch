@@ -1,5 +1,5 @@
 
-include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
+include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
 :lucene_version:        8.5.1
 :lucene_version_path:   8_5_1
@@ -8,10 +8,6 @@ include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 :build_flavor:          default
 :build_type:            tar
 
-:issue:           https://github.com/elastic/elasticsearch/issues/
-:ml-issue:        https://github.com/elastic/ml-cpp/issues/
-:pull:            https://github.com/elastic/elasticsearch/pull/
-:ml-pull:         https://github.com/elastic/ml-cpp/pull/
 :docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
 :docker-image:    {docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
@@ -72,4 +68,4 @@ endif::[]
 Shared attribute values are pulled from elastic/docs
 ///////
 
-include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+include::{docs-root}/shared/attributes.asciidoc[]

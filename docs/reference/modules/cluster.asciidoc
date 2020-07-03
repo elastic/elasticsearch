@@ -1,5 +1,9 @@
 [[modules-cluster]]
-== Shard allocation and cluster-level routing
+=== Cluster-level shard allocation and routing settings
+
+_Shard allocation_ is the process of allocating shards to nodes. This can
+happen during initial recovery, replica allocation, rebalancing, or
+when nodes are added or removed.
 
 One of the main roles of the master is to decide which shards to allocate to
 which nodes, and when to move shards between nodes in order to rebalance the
@@ -7,21 +11,21 @@ cluster.
 
 There are a number of settings available to control the shard allocation process:
 
-*   <<shards-allocation>> lists the settings to control the allocation and
+*   <<cluster-shard-allocation-settings>> control allocation and
     rebalancing operations.
 
-*   <<disk-allocator>> explains how Elasticsearch takes available disk space
-    into account, and the related settings.
+*   <<disk-based-shard-allocation>> explains how Elasticsearch takes available
+    disk space into account, and the related settings.
 
-*   <<allocation-awareness>> and <<forced-awareness>> control how shards can
-    be distributed across different racks or availability zones.
+*   <<shard-allocation-awareness>> and <<forced-awareness>> control how shards
+    can be distributed across different racks or availability zones.
 
-*   <<allocation-filtering>> allows certain nodes or groups of nodes excluded
-    from allocation so that they can be decommissioned.
+*   <<cluster-shard-allocation-filtering>> allows certain nodes or groups of
+    nodes excluded from allocation so that they can be decommissioned.
 
-Besides these, there are a few other <<misc-cluster,miscellaneous cluster-level settings>>.
+Besides these, there are a few other <<misc-cluster-settings,miscellaneous cluster-level settings>>.
 
-All of the settings in this section are _dynamic_ settings which can be
+All of these settings are _dynamic_ and can be
 updated on a live cluster with the
 <<cluster-update-settings,cluster-update-settings>> API.
 

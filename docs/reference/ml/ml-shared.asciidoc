@@ -183,15 +183,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 end::categorization-analyzer[]
 
@@ -270,11 +270,11 @@ time chunks are calculated and is an advanced configuration option.
 ====
 `mode`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=mode]
 
 `time_span`:::
 (<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-span]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-span]
 ====
 end::chunking-config[]
 
@@ -391,7 +391,7 @@ for {anomaly-detect} are retained.
 
 `time_format`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=time-format]
 ====
 end::data-description[]
 

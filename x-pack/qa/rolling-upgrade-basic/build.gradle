@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {

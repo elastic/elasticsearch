@@ -154,7 +154,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             if (creationCheck.compareAndSet(false, true)) {
                 IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
-                    logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
+                    logger.info("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putTemplate(newTemplate, creationCheck);
                 } else if (Objects.isNull(currentTemplate.getVersion()) || newTemplate.getVersion() > currentTemplate.getVersion()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can

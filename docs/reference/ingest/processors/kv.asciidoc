@@ -1,9 +1,8 @@
 [[kv-processor]]
 === KV Processor
-This processor helps automatically parse messages (or specific event fields) which are of the foo=bar variety.
+This processor helps automatically parse messages (or specific event fields) which are of the `foo=bar` variety.
 
-For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those automatically by configuring:
-
+For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those fields automatically by configuring:
 
 [source,js]
 --------------------------------------------------
@@ -17,8 +16,10 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 --------------------------------------------------
 // NOTCONSOLE
 
+TIP: Using the KV Processor can result in field names that you cannot control. Consider using the <<flattened>> datatype instead, which maps an entire object as a single field and allows for simple searches over its contents.
+
 [[kv-options]]
-.Kv Options
+.KV Options
 [options="header"]
 |======
 | Name             | Required  | Default  | Description

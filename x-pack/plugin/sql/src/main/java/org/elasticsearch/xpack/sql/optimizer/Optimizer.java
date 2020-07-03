@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
@@ -71,12 +73,15 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -119,7 +124,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new RewritePivot());
 
         Batch refs = new Batch("Replace References", Limiter.ONCE,
-                new ReplaceReferenceAttributeWithSource());
+                new ReplaceReferenceAttributeWithSource(),
+                new ReplaceAggregatesWithLiterals(),
+                new ReplaceCountInLocalRelation()
+                );
 
         Batch operators = new Batch("Operator Optimization",
                 // combining
@@ -776,6 +784,59 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    /**
+     * Any numeric aggregates (avg, min, max, sum) acting on literals are converted to an iif(count(1)=0, null, literal*count(1)) for sum,
+     * and to iif(count(1)=0,null,literal) for the other three.
+     * Additionally count(DISTINCT literal) is converted to iif(count(1)=0, 0, 1).
+     */
+    private static class ReplaceAggregatesWithLiterals extends OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan p) {
+            return p.transformExpressionsDown(e -> {
+                if (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum ||
+                    (e instanceof Count && ((Count) e).distinct())) {
+
+                    AggregateFunction a = (AggregateFunction) e;
+
+                    if (a.field().foldable()) {
+                        Expression countOne = new Count(a.source(), new Literal(Source.EMPTY, 1, a.dataType()), false);
+                        Equals countEqZero = new Equals(a.source(), countOne, new Literal(Source.EMPTY, 0, a.dataType()));
+                        Expression argument = a.field();
+                        Literal foldedArgument = new Literal(argument.source(), argument.fold(), a.dataType());
+
+                        Expression iifResult = Literal.NULL;
+                        Expression iifElseResult = foldedArgument;
+                        if (e instanceof Sum) {
+                            iifElseResult = new Mul(a.source(), countOne, foldedArgument);
+                        } else if (e instanceof Count) {
+                            iifResult =  new Literal(Source.EMPTY, 0, e.dataType());
+                            iifElseResult = new Literal(Source.EMPTY, 1, e.dataType());
+                        }
+
+                        return new Iif(a.source(), countEqZero, iifResult, iifElseResult);
+                    }
+                }
+                return e;
+            });
+        }
+    }
+
+    /**
+     * A COUNT in a local relation will always be 1.
+     */
+    private static class ReplaceCountInLocalRelation extends OptimizerRule<Aggregate> {
+
+        @Override
+        protected LogicalPlan rule(Aggregate a) {
+            boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
+            
+            return hasLocalRelation ? a.transformExpressionsDown(c -> {
+                return c instanceof Count ? new Literal(c.source(), 1, c.dataType()) : c;
+            }) : a;
+        }
+    }
+
     static class ReplaceAggsWithMatrixStats extends OptimizerBasicRule {
 
         @Override
@@ -1157,8 +1218,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } else if (n.foldable()) {
                     values.add(n.fold());
-                }
-                else {
+                } else {
                     // not everything is foldable, bail-out early
                     return values;
                 }

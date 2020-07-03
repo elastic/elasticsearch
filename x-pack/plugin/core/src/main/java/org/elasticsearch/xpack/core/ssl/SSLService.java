@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -46,6 +47,7 @@ import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -829,11 +831,21 @@ public class SSLService {
     }
 
     private boolean shouldEnableDiagnoseTrust() {
-        if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false ) {
+        // We disable the DiagnosticTrustManager in Java 8 when SunJSSE is set in FIPS 140 mode, as it doesn't allow X509TrustManager to be
+        // wrapped
+        if (inSunJsseInFipsMode()) {
+            logger.info("diagnostic messages for SSL/TLS trust cannot be enabled for SunJSSE in FIPS mode.");
+            return false;
+        } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings) && DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings) == false) {
             logger.info("diagnostic messages for SSL/TLS trust failures are not enabled in FIPS 140 mode by default.");
             return false;
         } else {
             return DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
         }
+    }
+
+    static boolean inSunJsseInFipsMode() {
+        return JavaVersion.current().getVersion().get(0) == 8 && Arrays.stream(Security.getProviders())
+            .anyMatch(provider -> provider.getName().equals("SunJSSE") && provider.getInfo().contains("FIPS mode"));
     }
 }

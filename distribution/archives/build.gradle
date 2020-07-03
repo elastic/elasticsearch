@@ -108,8 +108,8 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 tasks.withType(AbstractArchiveTask).configureEach {
   dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
-  destinationDir = file("${subdir}/build/distributions")
-  baseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
+  destinationDirectory = file("${subdir}/build/distributions")
+  archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
 Closure commonZipConfig = {
@@ -147,7 +147,7 @@ tasks.register('buildOssNoJdkWindowsZip', Zip) {
 }
 
 Closure commonTarConfig = {
-  extension = 'tar.gz'
+  archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   dirMode 0755
   fileMode 0644
@@ -353,10 +353,8 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
     MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
   }
 
-
   // The integ-test-distribution is published to maven
-  BuildPlugin.configurePomGeneration(project)
-  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'elasticsearch.publish'
 
   // make the pom file name use elasticsearch instead of the project name
   archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
@@ -364,36 +362,8 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   publishing {
     publications {
       nebula {
-        artifactId archivesBaseName
+        pom.packaging = 'zip'
         artifact(buildDist.flatMap { it.archiveFile })
-      }
-      /*
-       * HUGE HACK: the underlying maven publication library refuses to
-       * deploy any attached artifacts when the packaging type is set to
-       * 'pom'. But Sonatype's OSS repositories require source files for
-       * artifacts that are of type 'zip'. We already publish the source
-       * and javadoc for Elasticsearch under the various other subprojects.
-       * So here we create another publication using the same name that
-       * has the "real" pom, and rely on the fact that gradle will execute
-       * the publish tasks in alphabetical order. This lets us publish the
-       * zip file and even though the pom says the type is 'pom' instead of
-       * 'zip'. We cannot setup a dependency between the tasks because the
-       * publishing tasks are created *extremely* late in the configuration
-       * phase, so that we cannot get ahold of the actual task. Furthermore,
-       * this entire hack only exists so we can make publishing to maven
-       * local work, since we publish to maven central externally.
-       */
-      nebulaRealPom(MavenPublication) {
-        artifactId archivesBaseName
-        pom.packaging = 'pom'
-        pom.withXml { XmlProvider xml ->
-          Node root = xml.asNode()
-          root.appendNode('name', 'Elasticsearch')
-          root.appendNode('description', 'A Distributed RESTful Search Engine')
-          root.appendNode('url', PluginBuildPlugin.urlFromOrigin(BuildParams.gitOrigin))
-          Node scmNode = root.appendNode('scm')
-          scmNode.appendNode('url', BuildParams.gitOrigin)
-        }
       }
     }
   }

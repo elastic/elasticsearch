@@ -415,6 +415,7 @@ public class QueryPhase implements SearchPhase {
 
     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
                                             Query query, boolean hasFilterCollector) throws IOException {
+        if ((searchContext.from() + searchContext.size()) <= 0) return null;
         if (searchContext.searchAfter() != null) return null; //TODO: handle sort optimization with search after
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;

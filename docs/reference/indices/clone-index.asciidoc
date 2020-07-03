@@ -155,20 +155,20 @@ on index creation applies to the clone index action as well.
 (Required, string)
 Name of the source index to clone.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
 
 
 [[clone-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[clone-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

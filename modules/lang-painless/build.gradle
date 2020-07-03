@@ -33,16 +33,16 @@ testClusters.integTest {
 }
 
 dependencies {
-  compile 'org.antlr:antlr4-runtime:4.5.3'
-  compile 'org.ow2.asm:asm-util:7.2'
-  compile 'org.ow2.asm:asm-tree:7.2'
-  compile 'org.ow2.asm:asm-commons:7.2'
-  compile 'org.ow2.asm:asm-analysis:7.2'
-  compile 'org.ow2.asm:asm:7.2'
-  compile project('spi')
+  api 'org.antlr:antlr4-runtime:4.5.3'
+  api 'org.ow2.asm:asm-util:7.2'
+  api 'org.ow2.asm:asm-tree:7.2'
+  api 'org.ow2.asm:asm-commons:7.2'
+  api 'org.ow2.asm:asm-analysis:7.2'
+  api 'org.ow2.asm:asm:7.2'
+  api project('spi')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
@@ -68,7 +68,7 @@ task apiJavadoc(type: Javadoc) {
 }
 
 task apiJavadocJar(type: Jar) {
-  classifier = 'apiJavadoc'
+  archiveClassifier = 'apiJavadoc'
   from apiJavadoc
 }
 
@@ -193,4 +193,3 @@ task regen {
     }
   }
 }
-

@@ -1525,8 +1525,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         recoverableCommits.add(commit);
                     }
                 }
-                assert recoverableCommits.isEmpty() == false : "No commit point with translog found; " +
-                    "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
+                // We could reach here if the node is restarted multiple times after upgraded without flushing a new index commit.
+                // In this case, we can safely consider all commits as the starting commit because we have trimmed the unsafe
+                // commits in the first restart.
+                if (recoverableCommits.isEmpty()) {
+                    recoverableCommits.addAll(existingCommits);
+                }
                 startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
             } else {
                 // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.

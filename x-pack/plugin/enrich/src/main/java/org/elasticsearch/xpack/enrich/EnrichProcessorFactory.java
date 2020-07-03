@@ -38,6 +38,9 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
+        if (metadata == null) {
+            throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
+        }
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");

@@ -4,9 +4,9 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-  testCompile project(':x-pack:plugin:ccr:qa')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
 task "leader-cluster"(type: RestIntegTestTask) {

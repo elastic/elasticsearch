@@ -8,12 +8,12 @@
 
 {ilm-init} defines four index lifecycle _phases_: 
 
-* Hot: The index is actively being updated and queried.
-* Warm: The index is no longer being updated but is still being queried.
-* Cold: The index is no longer being updated and is seldom queried. The
+* **Hot**: The index is actively being updated and queried.
+* **Warm**: The index is no longer being updated but is still being queried.
+* **Cold**: The index is no longer being updated and is seldom queried. The
 information still needs to be searchable, but it's okay if those queries are
 slower.
-* Delete: The index is no longer needed and can safely be removed.
+* **Delete**: The index is no longer needed and can safely be removed.
 
 An index's _lifecycle policy_ specifies which phases 
 are applicable, what actions are performed in each phase,
@@ -35,6 +35,15 @@ the index must be older than the minimum age of the next phase.
 
 The minimum age defaults to zero, which causes {ilm-init} to move indices to the next phase
 as soon as all actions in the current phase complete. 
+
+If an index has unallocated shards and the <<cluster-health,cluster health status>> is yellow, 
+the index can still transition to the next phase according to its {ilm} policy.
+However, because {es} can only perform certain clean up tasks on a green
+cluster, there might be unexpected side effects. 
+
+To avoid increased disk usage and reliability issues,
+address any cluster health problems in a timely fashion.
+
 
 [discrete]
 [[ilm-phase-execution]]
@@ -81,7 +90,9 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate,Allocate>>
   - <<ilm-freeze,Freeze>>
+ifdef::permanently-unreleased-branch[]
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
+endif::[]
 * Delete
   - <<ilm-wait-for-snapshot-action,Wait For Snapshot>>
   - <<ilm-delete,Delete>>

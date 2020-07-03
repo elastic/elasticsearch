@@ -36,11 +36,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.After;
 import org.junit.Before;
 
@@ -240,7 +240,7 @@ public class TransformIndexerTests extends ESTestCase {
             new SettingsConfig(pageSize, null)
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final long initialPageSize = pageSize == null ? Pivot.DEFAULT_INITIAL_PAGE_SIZE : pageSize;
+        final long initialPageSize = pageSize == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : pageSize;
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
             throw new SearchPhaseExecutionException(
                 "query",

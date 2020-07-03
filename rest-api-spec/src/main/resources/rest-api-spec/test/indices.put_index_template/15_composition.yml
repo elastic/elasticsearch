@@ -14,7 +14,7 @@
               number_of_replicas: 1
             mappings:
               properties:
-                field2:
+                field1:
                   type: text
             aliases:
               aliasname:
@@ -47,9 +47,8 @@
               index.number_of_shards: 2
             mappings:
               properties:
-                field:
-                  type: keyword
-                  ignore_above: 255
+                field3:
+                  type: integer
             aliases:
               my_alias: {}
               aliasname:
@@ -78,8 +77,9 @@
   - match: {bar-baz.settings.index.number_of_shards: "2"}
   - match: {bar-baz.settings.index.number_of_replicas: "0"}
   - match: {bar-baz.settings.index.priority: "17"}
-  - match: {bar-baz.mappings.properties.field: {type: keyword, ignore_above: 255}}
+  - match: {bar-baz.mappings.properties.field1: {type: text}}
   - match: {bar-baz.mappings.properties.field2: {type: keyword}}
+  - match: {bar-baz.mappings.properties.field3: {type: integer}}
   - match: {bar-baz.mappings.properties.foo: {type: keyword}}
   - match: {bar-baz.aliases.aliasname: {filter: {match_all: {}}}}
   - match: {bar-baz.aliases.my_alias: {}}

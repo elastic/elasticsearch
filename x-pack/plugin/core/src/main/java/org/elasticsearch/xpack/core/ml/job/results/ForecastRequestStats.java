@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -90,6 +91,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
             return in.readEnum(ForecastRequestStatus.class);
         }
 
+        /**
+         * @return {@code true} if state matches any of the given {@code candidates}
+         */
+        public boolean isAnyOf(ForecastRequestStatus... candidates) {
+            return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
+        }
+
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
@@ -118,6 +127,22 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     public ForecastRequestStats(String jobId, String forecastId) {
         this.jobId = Objects.requireNonNull(jobId);
         this.forecastId = Objects.requireNonNull(forecastId);
+    }
+
+    public ForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        this.jobId = forecastRequestStats.jobId;
+        this.forecastId = forecastRequestStats.forecastId;
+        this.recordCount = forecastRequestStats.recordCount;
+        this.messages = forecastRequestStats.messages;
+        this.timestamp = forecastRequestStats.timestamp;
+        this.startTime = forecastRequestStats.startTime;
+        this.endTime = forecastRequestStats.endTime;
+        this.createTime = forecastRequestStats.createTime;
+        this.expiryTime = forecastRequestStats.expiryTime;
+        this.progress = forecastRequestStats.progress;
+        this.processingTime = forecastRequestStats.processingTime;
+        this.memoryUsage = forecastRequestStats.memoryUsage;
+        this.status = forecastRequestStats.status;
     }
 
     public ForecastRequestStats(StreamInput in) throws IOException {

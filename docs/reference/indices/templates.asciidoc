@@ -4,14 +4,14 @@
 <titleabbrev>Put index template</titleabbrev>
 ++++
 
-This documentation is about V1 (version 1) index templates, which are deprecated and will be
-replaced by V2 templates. For information about V2 templates, see <<indices-templates>>.
+This documentation is about legacy index templates, which are deprecated and will be replaced by
+composable templates. For information about composable templates, see <<indices-templates>>.
 
 [NOTE]
 ====
-In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
-takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
-and be applied.
+In {es} 7.8 composable templates were introduced. When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
 ====
 
 Creates or updates an index template.
@@ -112,7 +112,7 @@ Templates with lower `order` values are merged first.
 Templates with higher `order` values are merged later,
 overriding templates with lower values.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[put-index-template-v1-api-request-body]]
@@ -123,11 +123,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Array of wildcard expressions
 used to match the names of indices during creation.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 `version`::
 (Optional, integer)

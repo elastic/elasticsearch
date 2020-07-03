@@ -114,7 +114,7 @@
   - match: {body: null}
 
 ---
-"Simulate index matches overlapping V1 and V2 templates":
+"Simulate index matches overlapping legacy and composable templates":
   - skip:
       version: " - 7.7.99"
       reason: "simulate index template API unavailable before 7.8"

@@ -117,6 +117,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
+    public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+
     private final ClusterService clusterService;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -593,8 +595,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (newMaster) {
                     finalizeSnapshotDeletionFromPreviousMaster(event.state());
                 }
+            } else if (snapshotCompletionListeners.isEmpty() == false) {
+                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
+                // state).
+                for (Snapshot snapshot : new HashSet<>(snapshotCompletionListeners.keySet())) {
+                    if (endingSnapshots.add(snapshot)) {
+                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                    }
+                }
             }
         } catch (Exception e) {
+            assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
         }
         assert assertConsistentWithClusterState(event.state());
@@ -792,6 +804,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (ObjectCursor<String> index : entry.waitingIndices().keys()) {
                     if (event.indexRoutingTableChanged(index.value)) {
                         IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index.value);
+                        if (indexShardRoutingTable == null) {
+                            // index got removed concurrently and we have to fail WAITING state shards
+                            return true;
+                        }
                         for (ShardId shardId : entry.waitingIndices().get(index.value)) {
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
                             if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
@@ -1514,5 +1530,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     @Override
     protected void doClose() {
         clusterService.removeApplier(this);
+    }
+
+    /**
+     * Assert that no in-memory state for any running snapshot operation exists in this instance.
+     */
+    public boolean assertAllListenersResolved() {
+        synchronized (endingSnapshots) {
+            final DiscoveryNode localNode = clusterService.localNode();
+            assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots
+                    + " on [" + localNode + "]";
+            assert snapshotCompletionListeners.isEmpty() : "Found leaked snapshot completion listeners " + snapshotCompletionListeners
+                    + " on [" + localNode + "]";
+        }
+        return true;
     }
 }

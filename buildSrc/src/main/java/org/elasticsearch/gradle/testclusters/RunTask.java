@@ -99,7 +99,7 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setDataPath(getDataPath.apply(node));
                 }
                 if (debug) {
-                    logger.lifecycle("Running elasticsearch in debug mode, {} suspending until connected on debugPort {}", node, debugPort);
+                    logger.lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 }

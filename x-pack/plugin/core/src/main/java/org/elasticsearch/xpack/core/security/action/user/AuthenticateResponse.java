@@ -46,4 +46,4 @@ public class AuthenticateResponse extends ActionResponse {
         }
     }
 
-}
+    }

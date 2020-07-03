@@ -41,7 +41,7 @@ You can consult all currently applied limits with `ulimit -a`.
 
 On Linux systems, persistent limits can be set for a particular user by
 editing the `/etc/security/limits.conf` file. To set the maximum number of
-open files for the `elasticsearch` user to 65,536, add the following line to
+open files for the `elasticsearch` user to 65,535, add the following line to
 the `limits.conf` file:
 
 [source,sh]

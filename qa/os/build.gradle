@@ -22,24 +22,24 @@ plugins {
 }
 
 dependencies {
-  compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  compile "org.apache.logging.log4j:log4j-jcl:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-jcl:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
 
-  compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
-  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 tasks.named('forbiddenApisTest').configure {
@@ -52,7 +52,7 @@ tasks.test.enabled = false
 testingConventions.enabled = false
 
 // this project doesn't get published
-tasks.dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 tasks.dependenciesInfo.enabled = false
 
 tasks.thirdPartyAudit.ignoreMissingClasses()

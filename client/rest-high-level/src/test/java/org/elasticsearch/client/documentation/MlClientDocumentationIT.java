@@ -2035,7 +2035,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         MachineLearningIT.buildJob(jobId);
        {
             // tag::delete-expired-data-request
-            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest( // <1>
+               1000.0f, // <2>
+               TimeValue.timeValueHours(12) // <3>
+            );
+
             // end::delete-expired-data-request
 
             // tag::delete-expired-data-execute
@@ -3085,9 +3089,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("my-analytics-config"); // <1>
             // end::delete-data-frame-analytics-request
 
-            //tag::delete-data-frame-analytics-request-force
+            //tag::delete-data-frame-analytics-request-options
             request.setForce(false); // <1>
-            //end::delete-data-frame-analytics-request-force
+            request.setTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            //end::delete-data-frame-analytics-request-options
 
             // tag::delete-data-frame-analytics-execute
             AcknowledgedResponse response = client.machineLearning().deleteDataFrameAnalytics(request, RequestOptions.DEFAULT);

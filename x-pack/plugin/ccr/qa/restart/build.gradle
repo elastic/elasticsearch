@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(':x-pack:plugin:ccr:qa')
+  testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
 task 'leader-cluster'(type: RestIntegTestTask) {

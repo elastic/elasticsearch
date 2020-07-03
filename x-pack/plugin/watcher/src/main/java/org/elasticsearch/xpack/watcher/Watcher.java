@@ -386,7 +386,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -623,14 +623,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), null));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

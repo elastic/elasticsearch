@@ -22,16 +22,16 @@ apply plugin: 'nebula.maven-base-publish'
 group = 'org.elasticsearch.client'
 
 dependencies {
-  compile project(":server")
-  compile project(":modules:transport-netty4")
-  compile project(":modules:reindex")
-  compile project(":modules:lang-mustache")
-  compile project(":modules:percolator")
-  compile project(":modules:parent-join")
-  compile project(":modules:rank-eval")
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api project(":server")
+  api project(":modules:transport-netty4")
+  api project(":modules:reindex")
+  api project(":modules:lang-mustache")
+  api project(":modules:percolator")
+  api project(":modules:parent-join")
+  api project(":modules:rank-eval")
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 dependencyLicenses {

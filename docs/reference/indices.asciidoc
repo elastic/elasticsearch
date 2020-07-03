@@ -51,8 +51,11 @@ index settings, aliases, mappings, and index templates.
 [[index-templates]]
 === Index templates:
 * <<indices-templates>>
-* <<indices-delete-template>>
+* <<indices-put-template>>
 * <<indices-get-template>>
+* <<indices-delete-template>>
+* <<indices-component-template>>
+* <<getting-component-templates>>
 * <<indices-template-exists>>
 
 [float]

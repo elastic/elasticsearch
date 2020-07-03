@@ -22,7 +22,7 @@ PUT hockey/_bulk?refresh
 {"first":"david","last":"jones","goals":[7,19,5],"assists":[3,17,4],"gp":[26,45,34],"born":"1984/08/10"}
 {"index":{"_id":8}}
 {"first":"tj","last":"brodie","goals":[2,14,7],"assists":[8,42,30],"gp":[26,82,82],"born":"1990/06/07"}
-{"index":{"_id":39}}
+{"index":{"_id":9}}
 {"first":"mark","last":"giordano","goals":[6,30,15],"assists":[3,30,24],"gp":[26,60,63],"born":"1983/10/03"}
 {"index":{"_id":10}}
 {"first":"mikael","last":"backlund","goals":[3,15,13],"assists":[6,24,18],"gp":[26,82,82],"born":"1989/03/17"}
@@ -132,10 +132,6 @@ First, let's look at the source data for a player by submitting the following re
 ----------------------------------------------------------------
 GET hockey/_search
 {
-  "stored_fields": [
-    "_id",
-    "_source"
-  ],
   "query": {
     "term": {
       "_id": 1
@@ -189,7 +185,7 @@ Date fields are exposed as
 `ZonedDateTime`, so they support methods like `getYear`, `getDayOfWeek`
 or e.g. getting milliseconds since epoch with `getMillis`. To use these
 in a script, leave out the `get` prefix and continue with lowercasing the
-rest of the method name. For example, the following returns every hockey 
+rest of the method name. For example, the following returns every hockey
 player's birth year:
 
 [source,console]

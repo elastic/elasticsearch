@@ -37,9 +37,9 @@ POST request.
 [[docs-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
 `op_type`::
 (Optional, enum) Set to `create` to only index the document
@@ -48,19 +48,19 @@ if it does not already exist (_put if absent_). If a document with the specified
 `<index>/_create` endpoint. Valid values: `index`, `create`.
 If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-index-api-request-body]]
 ==== {api-request-body-title}

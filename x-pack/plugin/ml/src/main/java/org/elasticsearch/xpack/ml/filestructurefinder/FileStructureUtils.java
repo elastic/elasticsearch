@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.grok.Grok;
@@ -26,6 +28,7 @@ import java.util.stream.Stream;
 
 public final class FileStructureUtils {
 
+    private static final Logger logger = LogManager.getLogger(FileStructureUtils.class);
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String MAPPING_TYPE_SETTING = "type";
     public static final String MAPPING_FORMAT_SETTING = "format";
@@ -38,8 +41,9 @@ public final class FileStructureUtils {
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
-        TimeoutChecker.watchdog);
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$", TimeoutChecker.watchdog);
+        TimeoutChecker.watchdog, logger::warn);
+    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
+
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 

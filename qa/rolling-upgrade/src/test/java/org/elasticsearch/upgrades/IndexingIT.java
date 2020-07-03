@@ -77,23 +77,22 @@ public class IndexingIT extends AbstractRollingTestCase {
             {
                 Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
                 assertThat("this branch is not needed if we aren't compatible with 6.0",
-                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
                 if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                     XContentBuilder template = jsonBuilder();
                     template.startObject();
                     {
-                        template.field("index_patterns", "*");
+                        template.array("index_patterns", "test_index", "index_with_replicas", "empty_index");
                         template.startObject("settings");
                         template.field("number_of_shards", 5);
                         template.endObject();
                     }
                     template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
+                    Request createTemplate = new Request("PUT", "/_template/prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
                     client().performRequest(createTemplate);
                 }
             }
-
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);

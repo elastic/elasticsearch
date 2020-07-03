@@ -1,7 +1,7 @@
 [[modules-gateway]]
-== Local Gateway
+=== Local gateway settings
 
-The local gateway module stores the cluster state and shard data across full
+The local gateway stores the cluster state and shard data across full
 cluster restarts.
 
 The following _static_ settings, which must be set on every master node,
@@ -53,8 +53,8 @@ as long as the following conditions are met:
 
 NOTE: These settings only take effect on a full cluster restart.
 
-[[modules-gateway-dangling-indices]]
-=== Dangling indices
+[[dangling-indices]]
+==== Dangling indices
 
 When a node joins the cluster, any shards stored in its local data
 directory which do not already exist in the cluster will be imported into the

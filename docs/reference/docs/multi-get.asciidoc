@@ -58,21 +58,21 @@ or when a document in the `docs` array does not specify an index.
 [[docs-multi-get-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 [[docs-multi-get-api-request-body]]
 ==== {api-request-body-title}

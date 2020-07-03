@@ -53,7 +53,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -61,9 +60,6 @@ public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass
     public static void filterDistros() {
-        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
-        assumeFalse(System.getProperty("os.name").startsWith("Windows"));
-
         assumeTrue("only archives", distribution.isArchive());
     }
 
@@ -143,8 +139,7 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
-
+        final String gcLogName = distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
         assertThat(installation.logs.resolve(gcLogName), fileExists());
         ServerUtils.runElasticsearchTests();
 

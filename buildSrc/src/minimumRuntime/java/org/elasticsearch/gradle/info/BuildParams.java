@@ -13,14 +13,12 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 public class BuildParams {
-    private static File compilerJavaHome;
     private static File runtimeJavaHome;
     private static Boolean isRuntimeJavaHomeSet;
     private static List<JavaHome> javaVersions;
     private static JavaVersion minimumCompilerVersion;
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
-    private static JavaVersion compilerJavaVersion;
     private static JavaVersion runtimeJavaVersion;
     private static Boolean inFipsJvm;
     private static String gitRevision;
@@ -45,10 +43,6 @@ public class BuildParams {
         initializer.accept(MutableBuildParams.INSTANCE);
     }
 
-    public static File getCompilerJavaHome() {
-        return value(compilerJavaHome);
-    }
-
     public static File getRuntimeJavaHome() {
         return value(runtimeJavaHome);
     }
@@ -71,10 +65,6 @@ public class BuildParams {
 
     public static JavaVersion getGradleJavaVersion() {
         return value(gradleJavaVersion);
-    }
-
-    public static JavaVersion getCompilerJavaVersion() {
-        return value(compilerJavaVersion);
     }
 
     public static JavaVersion getRuntimeJavaVersion() {
@@ -162,10 +152,6 @@ public class BuildParams {
             });
         }
 
-        public void setCompilerJavaHome(File compilerJavaHome) {
-            BuildParams.compilerJavaHome = requireNonNull(compilerJavaHome);
-        }
-
         public void setRuntimeJavaHome(File runtimeJavaHome) {
             BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
         }
@@ -188,10 +174,6 @@ public class BuildParams {
 
         public void setGradleJavaVersion(JavaVersion gradleJavaVersion) {
             BuildParams.gradleJavaVersion = requireNonNull(gradleJavaVersion);
-        }
-
-        public void setCompilerJavaVersion(JavaVersion compilerJavaVersion) {
-            BuildParams.compilerJavaVersion = requireNonNull(compilerJavaVersion);
         }
 
         public void setRuntimeJavaVersion(JavaVersion runtimeJavaVersion) {

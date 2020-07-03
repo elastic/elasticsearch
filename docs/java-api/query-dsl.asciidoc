@@ -19,7 +19,7 @@ Note that you can easily print (aka debug) JSON generated queries using
 The `QueryBuilder` can then be used with any API that accepts a query,
 such as `count` and `search`.
 
-:query-dsl-test: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/QueryDSLDocumentationTests.java
+:query-dsl-test: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/QueryDSLDocumentationTests.java
 
 include::query-dsl/match-all-query.asciidoc[]
 

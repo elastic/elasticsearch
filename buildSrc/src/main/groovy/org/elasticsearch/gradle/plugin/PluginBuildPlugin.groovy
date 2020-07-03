@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.test.rest.RestResourcesPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -164,10 +165,10 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.dependencies {
             if (BuildParams.internal) {
                 compileOnly project.project(':server')
-                testCompile project.project(':test:framework')
+                testImplementation project.project(':test:framework')
             } else {
                 compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-                testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+                testImplementation "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
@@ -241,28 +242,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.artifacts.add('zip', bundle)
     }
 
-    /** Adds a task to move jar and associated files to a "-client" name. */
-
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
-    /** Find the reponame. */
-    static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith('https')) {
-            return origin
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin)
-        if (matcher.matches()) {
-            return "https://${matcher.group(1)}/${matcher.group(2)}"
-        } else {
-            return origin // best effort, the url doesnt really matter, it is just required by maven central
-        }
-    }
-
     /** Configure the pom for the main jar of this plugin */
-
     protected static void addNoticeGeneration(Project project, PluginPropertiesExtension extension) {
         File licenseFile = extension.licenseFile
         if (licenseFile != null) {
@@ -277,6 +257,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         if (noticeFile != null) {
             TaskProvider<NoticeTask> generateNotice = project.tasks.register('generateNotice', NoticeTask) {
                 inputFile = noticeFile
+                source(Util.getJavaMainSourceSet(project).get().allJava)
             }
             project.tasks.named('bundlePlugin').configure {
                 from(generateNotice)

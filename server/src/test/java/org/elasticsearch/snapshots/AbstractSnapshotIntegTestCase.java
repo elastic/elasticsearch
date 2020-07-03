@@ -71,6 +71,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
+    }
+
     private String skipRepoConsistencyCheckReason;
 
     @After
@@ -91,6 +100,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void disableRepoConsistencyCheck(String reason) {
         assertNotNull(reason);
         skipRepoConsistencyCheckReason = reason;
+    }
+
+    protected RepositoryData getRepositoryData(String repository) {
+        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -140,7 +153,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
-    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
         MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -209,6 +222,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static void blockDataNode(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).blockOnDataFiles(true);
+    }
+
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
@@ -221,7 +239,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);

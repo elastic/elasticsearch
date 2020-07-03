@@ -25,9 +25,9 @@ HEAD twitter/_mapping/tweet
 [[indices-types-exists-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=type]
 
 
 [[indices-types-exists-api-response-codes]]

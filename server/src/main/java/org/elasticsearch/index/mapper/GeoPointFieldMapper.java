@@ -54,7 +54,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends AbstractGeometryFieldMapper implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractGeometryFieldMapper {
     public static final String CONTENT_TYPE = "geo_point";
 
     public static class Names extends AbstractGeometryFieldMapper.Names {
@@ -147,6 +147,11 @@ public class GeoPointFieldMapper extends AbstractGeometryFieldMapper implements 
                                Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, ignoreMalformed, ignoreZValue, multiFields, copyTo);
+    }
+
+    @Override
+    public final boolean parsesArrayValue() {
+        return true;
     }
 
     @Override

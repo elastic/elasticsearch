@@ -6,17 +6,20 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
@@ -36,7 +39,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ESIntegTestCase.SuiteScopeTestCase
+@SuiteScopeTestCase
+@TestIssueLogging(
+    value = "org.elasticsearch.index:TRACE,org.elasticsearch.env:TRACE",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/56765")
 public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private static String indexName;
     private static int numShards;
@@ -390,5 +396,21 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(newResp.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(newResp.getId());
         ensureTaskRemoval(newResp.getId());
+    }
+
+    public void testSearchPhaseFailureNoCause() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest()
+            // AlreadyClosedException are ignored by the coordinating node
+            .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        assertTrue(response.isPartial());
+        assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertNotNull(response.getFailure());
+        ensureTaskNotRunning(response.getId());
     }
 }

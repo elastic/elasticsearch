@@ -36,7 +36,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.gradle.spotless" version "3.28.0" apply false
+  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -46,6 +46,8 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/fips.gradle'
+apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -53,8 +55,6 @@ allprojects {
   version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
-
-BuildPlugin.configureRepositories(project)
 
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
@@ -116,12 +116,12 @@ subprojects {
   }
 }
 
-task updateCIBwcVersions() {
+tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")
     yml.text = ""
     yml << "BWC_VERSION:\n"
-    versions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       yml << "  - \"$it\"\n"
     }
   }
@@ -150,7 +150,7 @@ allprojects {
   }
 }
 
-task verifyVersions {
+tasks.register("verifyVersions") {
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -202,7 +202,7 @@ subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
-task verifyBwcTestsEnabled {
+tasks.register("verifyBwcTestsEnabled") {
   doLast {
     if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
@@ -210,10 +210,10 @@ task verifyBwcTestsEnabled {
   }
 }
 
-task branchConsistency {
+tasks.register("branchConsistency") {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn verifyVersions, verifyBwcTestsEnabled
+  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 allprojects {
@@ -384,43 +384,6 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-// we need to add the same --debug-jvm option as
-// the real RunTask has, so we can pass it through
-class Run extends DefaultTask {
-  boolean debug = false
-
-  @Option(
-    option = "debug-jvm",
-    description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-  )
-  public void setDebug(boolean enabled) {
-    project.project(':distribution').run.debug = enabled
-  }
-
-  @Option(
-    option = "data-dir",
-    description = "Override the base data directory used by the testcluster"
-  )
-  public void setDataDir(String dataDirStr) {
-    project.project(':distribution').run.dataDir = dataDirStr
-  }
-
-  @Option(
-    option = "keystore-password",
-    description = "Set the elasticsearch keystore password"
-  )
-  public void setKeystorePassword(String password) {
-    project.project(':distribution').run.keystorePassword = password
-  }
-}
-
-task run(type: Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
-}
-
 wrapper {
   distributionType = 'ALL'
   doLast {
@@ -471,12 +434,18 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
+  apply plugin: 'elasticsearch.enforce-deprecation-use-failures'
+
   tasks.register('resolveAllDependencies') {
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      configurations.findAll {
+        it.isCanBeResolved() &&
+          it.name.equals("testCompile") == false &&
+          it.name.equals("compile") == false
+      }.each { it.resolve() }
     }
   }
 
@@ -493,7 +462,7 @@ allprojects {
     if (realTask == null) {
       return
     }
-    project.tasks.create(taskName) {
+    project.tasks.register(taskName) {
       doLast {
         println("${realTask.path} dependencies:")
         for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {

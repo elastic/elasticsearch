@@ -107,6 +107,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -1786,6 +1787,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Restarts a node.
+     */
+    public void restartNode(String nodeName) throws Exception {
+        restartNode(nodeName, EMPTY_CALLBACK);
+    }
+
+    /**
      * Restarts a node and calls the callback during restart.
      */
     public synchronized void restartNode(String nodeName, RestartCallback callback) throws Exception {
@@ -2492,14 +2500,20 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 CircuitBreaker inFlightRequestsBreaker = getInstance(CircuitBreakerService.class, nodeAndClient.name)
                     .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+                TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
                 try {
                     // see #ensureEstimatedStats()
                     assertBusy(() -> {
                         // ensure that our size accounting on transport level is reset properly
                         long bytesUsed = inFlightRequestsBreaker.getUsed();
-                        assertThat("All incoming requests on node [" + nodeAndClient.name + "] should have finished. Expected 0 but got " +
-                            bytesUsed, bytesUsed, equalTo(0L));
-                    });
+                        if (bytesUsed != 0) {
+                            String pendingTasks = taskManager.getTasks().values().stream()
+                                .map(t -> t.taskInfo(nodeAndClient.name, true).toString())
+                                .collect(Collectors.joining(",", "[", "]"));
+                            throw new AssertionError("All incoming requests on node [" + nodeAndClient.name + "] should have finished. " +
+                                "Expected 0 but got " + bytesUsed + "; pending tasks [" + pendingTasks + "]");
+                        }
+                    }, 1, TimeUnit.MINUTES);
                 } catch (Exception e) {
                     logger.error("Could not assert finished requests within timeout", e);
                     fail("Could not assert finished requests within timeout on node [" + nodeAndClient.name + "]");

@@ -9,8 +9,7 @@ your application to {es} 7.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.8.0]
-
+* <<breaking_78_aggregation_changes>>
 * <<breaking_78_mappings_changes>>
 * <<breaking_78_settings_changes>>
 
@@ -18,6 +17,28 @@ coming[7.8.0]
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_78_aggregation_changes]]
+=== Aggregation changes
+
+.Privilege `indices:admin/create` will no longer allow the auto creation of indices
+[%collapsible]
+====
+*Details*
+The privilege named `indices:admin/create` will no longer allow the auto
+creation of indices. Use `create_index` instead. {es-pull}55858[#55858]
+====
+
+.`value_count` aggregation optimization
+[%collapsible]
+====
+*Details*
+Scripts used in `value_count` will now receive a number if they are
+counting a numeric field and a `GeoPoint` if they are counting a
+`geo_point` fields.  They used to always receive the `String`
+representation of those values.  {es-pull}54854[#54854]
+====
 
 [discrete]
 [[breaking_78_mappings_changes]]
@@ -94,13 +115,13 @@ setting.
 
 [[deprecate-basic-license-feature-enabled]]
 
-.Several {xpack} settings no longer have any effect and are deprecated. 
+.Several {xpack} settings no longer have any effect and are deprecated.
 
 [%collapsible]
 ====
 *Details* +
-Basic {xpack} license features are always enabled for the {default-dist} 
-and the following settings no longer have any effect: 
+Basic {xpack} license features are always enabled for the {default-dist}
+and the following settings no longer have any effect:
 
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`

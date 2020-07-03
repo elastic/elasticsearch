@@ -156,28 +156,28 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 `refresh`::
 (Optional, boolean)
 If `true`, {es} refreshes the affected shards to make this operation visible to
 search. If `false`, do nothing with refreshes. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 [[docs-get-api-response-body]]
 ==== {api-response-body-title}

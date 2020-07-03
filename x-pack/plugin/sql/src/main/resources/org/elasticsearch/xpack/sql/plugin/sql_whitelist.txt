@@ -66,7 +66,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Conditional
 #
-  def caseFunction(java.util.List)
   def coalesce(java.util.List)
   def greatest(java.util.List)
   def least(java.util.List)

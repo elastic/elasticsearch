@@ -71,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -145,7 +146,12 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected CloseJobAction.Response closeJob(String jobId) {
+        return closeJob(jobId, false);
+    }
+
+    protected CloseJobAction.Response closeJob(String jobId, boolean force) {
         CloseJobAction.Request request = new CloseJobAction.Request(jobId);
+        request.setForce(force);
         return client().execute(CloseJobAction.INSTANCE, request).actionGet();
     }
 
@@ -269,10 +275,16 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
+        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+    }
+
+    protected void waitForecastStatus(String jobId,
+                                      String forecastId,
+                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
-            assertThat(forecastRequestStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
+            assertThat(forecastRequestStats.getStatus(), in(status));
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.junit.After;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -379,7 +379,52 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
-    private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {
+    public void testForceStopSetsForecastToFailed() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+        Job.Builder job = new Job.Builder("forecast-it-test-failed-on-force-stop");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+        String jobId = job.getId();
+      
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        List<String> data = new ArrayList<>();
+        while (timestamp < now) {
+            data.add(createJsonRecord(createRecord(timestamp, 10.0)));
+            data.add(createJsonRecord(createRecord(timestamp, 30.0)));
+            timestamp += bucketSpan.seconds();
+        }
+
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
+        flushJob(job.getId(), false);
+      
+        String forecastId = forecast(jobId, TimeValue.timeValueDays(1000), TimeValue.ZERO);
+        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.values());
+
+        closeJob(jobId, true);
+        // On force close job, it should always be at least failed or finished
+        waitForecastStatus(jobId,
+            forecastId,
+            ForecastRequestStats.ForecastRequestStatus.FAILED,
+            ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
+        assertNotNull(forecastStats);
+        if (forecastStats.getStatus().equals(ForecastRequestStats.ForecastRequestStatus.FAILED)) {
+            assertThat(forecastStats.getMessages().get(0), equalTo(JOB_FORECAST_NATIVE_PROCESS_KILLED));
+        }
+    }
+
+    private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) {
         long now = Instant.now().getEpochSecond();
         long timestamp = now - 15 * bucketSpan.seconds();
 

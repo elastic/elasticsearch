@@ -26,12 +26,8 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ilm'))
-}
-
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ilm'))
 }
 
 integTest.enabled = false

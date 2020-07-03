@@ -1132,7 +1132,7 @@ public class MetadataTests extends ESTestCase {
             .indexGraveyard(IndexGraveyardTests.createRandom())
             .version(randomNonNegativeLong())
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
-            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance());
+            .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
         DataStream randomDataStream = DataStreamTests.randomInstance();
         for (Index index : randomDataStream.getIndices()) {

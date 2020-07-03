@@ -25,9 +25,11 @@ import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
 
+    public static Setting.AffixSettingDependency TYPE_DEPENDENCY = () -> Exporter.TYPE_SETTING;
+
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
 
     public static final Setting.AffixSetting<String> TYPE_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
@@ -83,13 +85,13 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
     public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.enabled",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
      * <p>
@@ -97,7 +99,8 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting
                 .affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.blacklist",
-                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope));
+                    key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope),
+                    TYPE_DEPENDENCY);
 
     /**
      * Every {@code Exporter} allows users to use a different index time format.
@@ -109,7 +112,7 @@ public abstract class Exporter implements AutoCloseable {
                                 Exporter.INDEX_FORMAT,
                                 DateFormatter::forPattern,
                                 Property.Dynamic,
-                                Property.NodeScope));
+                                Property.NodeScope), TYPE_DEPENDENCY);
 
     private static final String INDEX_FORMAT = "yyyy.MM.dd";
 

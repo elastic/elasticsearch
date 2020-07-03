@@ -232,7 +232,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             Settings.EMPTY);
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
-        Map<String, Object> minimalConfig = new HashMap<>() {{
+        Map<String, Object> minimalConfig = new HashMap<String, Object>() {{
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
         }};
@@ -268,31 +268,12 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
 
-        Map<String, Object> mininmal = new HashMap<>() {{
+        Map<String, Object> mininmal = new HashMap<String, Object>() {{
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
         }};
 
         processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, mininmal);
-    }
-
-    public void testCreateProcessorWithDuplicateFields() {
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
-            clusterService,
-            Settings.EMPTY);
-
-        Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
-            put(InferenceProcessor.MODEL_ID, "my_model");
-            put(InferenceProcessor.TARGET_FIELD, "ml");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(),
-                Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
-        }};
-
-        Exception ex = expectThrows(Exception.class, () ->
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
-        assertThat(ex.getMessage(), equalTo("Invalid inference config. " +
-            "More than one field is configured as [warning]"));
     }
 
     public void testCreateProcessorWithDuplicateFields() {
@@ -308,13 +289,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
-            fail("should not have succeeded creating with duplicate fields");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(), equalTo("Cannot apply inference config. " +
-                "More than one field is configured as [warning]"));
-        }
+        Exception ex = expectThrows(Exception.class, () ->
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
+        assertThat(ex.getMessage(), equalTo("Invalid inference config. " +
+            "More than one field is configured as [warning]"));
     }
 
     private static ClusterState buildClusterState(Metadata metadata) {

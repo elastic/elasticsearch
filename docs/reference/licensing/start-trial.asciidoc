@@ -6,7 +6,7 @@
 <titleabbrev>Start trial</titleabbrev>
 ++++
 
-This API starts a 30-day trial license.
+Starts a 30-day trial.
 
 [float]
 ==== Request
@@ -16,13 +16,13 @@ This API starts a 30-day trial license.
 [float]
 ==== Description
 
-The `start trial` API enables you to upgrade from Basic to a 30-day trial, which
-gives access to all subscription features.
+The `start trial` API enables you to start a 30-day trial, which gives access to
+all subscription features.
 
 NOTE: You are allowed to initiate a trial only if your cluster has not already
 activated a trial for the current major product version. For example, if you
 have already activated a trial for v6.0, you cannot start a new trial until v7.0.
-You can, however, contact `info@elastic.co` to request an extended trial.
+You can, however, request an extended trial at {extendtrial}.
 
 To check the status of your trial, use <<get-trial-status>>. 
 

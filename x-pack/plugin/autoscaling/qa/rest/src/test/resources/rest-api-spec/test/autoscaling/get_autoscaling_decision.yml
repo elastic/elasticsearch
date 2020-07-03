@@ -21,7 +21,9 @@
       autoscaling.get_autoscaling_decision: {}
 
   - match: { decisions.0.my_autoscaling_policy.decision: scale_up }
-  - match: { decisions.0.my_autoscaling_policy.decisions.0.always: scale_up }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.name: always }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.type: scale_up }
+  - match: { decisions.0.my_autoscaling_policy.decisions.0.reason: always }
 
   # test cleanup
   - do:

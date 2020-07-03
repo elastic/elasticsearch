@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -499,6 +500,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
+        assert assertCacheIsEmpty(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(
             new SearchableSnapshotDirectory(
@@ -514,6 +516,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 threadPool
             )
         );
+    }
+
+    private static boolean assertCacheIsEmpty(Path cacheDir) {
+        try (DirectoryStream<Path> cacheDirStream = Files.newDirectoryStream(cacheDir)) {
+            final Set<Path> cacheFiles = new HashSet<>();
+            cacheDirStream.forEach(cacheFiles::add);
+            assert cacheFiles.isEmpty() : "should start with empty cache, but found " + cacheFiles;
+        } catch (IOException e) {
+            assert false : e;
+        }
+        return true;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

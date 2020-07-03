@@ -16,10 +16,9 @@ To use the {transforms}, you must have the
 ==== {transform-cap} nodes
 
 To use {transforms}, there must be at least one {transform} node in your cluster.
-If you want to control which nodes run {transforms}, set `node.roles` to
-`transform` on some nodes.
-
-For more information, see <<modules-node>> and <<transform-settings>>.
+If you want to control which nodes run {transforms}, add or remove `transform`
+from the `node.roles` setting on some nodes. For more information, see
+<<modules-node>> and <<transform-settings>>.
 
 [discrete]
 [[transform-privileges]]

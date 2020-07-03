@@ -20,25 +20,25 @@ POST /_dangling/<index-uuid>?accept_data_loss=true
 
 include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
 
-This API lets you import a single index into the cluster. You reference the
-index by its UUID, which you can find using the
-<<dangling-indices-list,list API>>. You can also
-<<dangling-index-delete,delete>> a dangling index.
+
+Import a single index into the cluster by referencing its UUID. Use the
+<<dangling-indices-list,List dangling indices API>> to locate the UUID of an index.
+
 
 [[dangling-index-import-api-path-params]]
 ==== {api-path-parms-title}
 
 `<index-uuid>`::
 (Required, string)
-UUID of the index to import. You can find this using the
-<<dangling-indices-list,list API>>.
+UUID of the index to import, which you can find using the
+<<dangling-indices-list,List dangling indices API>>.
 
 [[dangling-index-import-api-query-params]]
 ==== {api-query-parms-title}
 
 `accept_data_loss`::
 (Required, boolean)
-This field must be set to `true` in order to carry out the import. {es}
-does not know where the dangling index data came from, nor does it know which shard copies are fresh and which are stale,
-so it can offer no guarantees about the data being
+This field must be set to `true` to import a dangling index. Because {es}
+cannot know where the dangling index data came from or determine which shard copies are fresh and which are stale,
+it cannot guarantee the data being
 imported.

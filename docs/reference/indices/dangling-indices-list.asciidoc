@@ -25,14 +25,14 @@ this can happen if you delete more than
 `cluster.indices.tombstones.size` indices while an {es} node is offline.
 // end::dangling-index-description[]
 
-This API lets you find such indices, which you can then
+Use this API to list dangling indices, which you can then
 <<dangling-index-import,import>> or <<dangling-index-delete,delete>>.
 
 
 [[dangling-indices-list-api-example]]
 ==== {api-examples-title}
 
-The API returns a response in the following shape:
+The API returns the following response:
 
 [source,console-result]
 --------------------------------------------------

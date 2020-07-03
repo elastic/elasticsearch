@@ -58,9 +58,9 @@ NOTE: These settings only take effect on a full cluster restart.
 
 When a node joins the cluster, if it finds any shards stored in its local data
 directory that do not already exist in the cluster, it will consider those
-shards to be "dangling". You can automatically import dangling indices
-into the cluster using the following setting, however this is not safe, and
-you should use the <<dangling-indices-api,Dangling indices API>> instead.
+shards to be "dangling". Importing dangling indices
+into the cluster using `gateway.auto_import_dangling_indices` is not safe. 
+Instead, use the <<dangling-indices-api,Dangling indices API>>.
 
 `gateway.auto_import_dangling_indices`::
 

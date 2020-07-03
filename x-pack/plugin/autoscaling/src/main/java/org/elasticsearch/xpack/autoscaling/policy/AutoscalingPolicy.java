@@ -38,8 +38,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (c, name) -> {
             @SuppressWarnings("unchecked")
-            final List<Map.Entry<String, AutoscalingDeciderConfiguration>> deciders = (List<
-                Map.Entry<String, AutoscalingDeciderConfiguration>>) c[0];
+            final var deciders = (List<Map.Entry<String, AutoscalingDeciderConfiguration>>) c[0];
             return new AutoscalingPolicy(
                 name,
                 new TreeMap<>(deciders.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))

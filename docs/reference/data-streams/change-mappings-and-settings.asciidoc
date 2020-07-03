@@ -354,8 +354,8 @@ PUT /_index_template/logs_data_stream
       }
     },
     "settings": {
-      "sort.field" : [ "@timestamp"],             <1>
-      "sort.order" : [ "desc"]                    <2>
+      "sort.field": [ "@timestamp"],             <1>
+      "sort.order": [ "desc"]                    <2>
     }
   }
 }
@@ -383,9 +383,9 @@ index settings for backing indices.
 
 To reindex a data stream, first create or update an index template so that it
 contains the wanted mapping or setting changes. You can then reindex the
-existing data stream into a new one matching the template. This applies the
+existing data stream into a new stream matching the template. This applies the
 mapping and setting changes in the template to each document and backing index
-of the data stream destination. These changes also affect any future backing
+added to the new data stream. These changes also affect any future backing
 index created by the new stream.
 
 Follow these steps:
@@ -469,8 +469,8 @@ PUT /_index_template/new_logs_data_stream
       }
     },
     "settings": {
-      "sort.field" : [ "@timestamp"],          <2>
-      "sort.order" : [ "desc"]                 <3>
+      "sort.field": [ "@timestamp"],          <2>
+      "sort.order": [ "desc"]                 <3>
     }
   }
 }

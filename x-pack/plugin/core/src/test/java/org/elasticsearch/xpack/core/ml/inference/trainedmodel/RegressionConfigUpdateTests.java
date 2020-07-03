@@ -65,7 +65,7 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
     public void testInvalidResultFieldNotUnique() {
         ElasticsearchStatusException e =
             expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
-        assertEquals("Cannot apply inference config. More than one field is configured as [warning]", e.getMessage());
+        assertEquals("Invalid inference config. More than one field is configured as [warning]", e.getMessage());
     }
 
     public void testNewBuilder() {

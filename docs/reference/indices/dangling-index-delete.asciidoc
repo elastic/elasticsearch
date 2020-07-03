@@ -31,7 +31,7 @@ Deletes a dangling index by referencing its UUID. Use the
 `<index-uuid>`::
 (Required, string)
 UUID of the index to delete. You can find this using the
-<<dangling-indices-list,list dangling indices API>>.
+<<dangling-indices-list,List dangling indices API>>.
 
 [[dangling-index-delete-api-query-params]]
 ==== {api-query-parms-title}

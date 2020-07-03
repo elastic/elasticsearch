@@ -184,15 +184,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void storeFinalResponse(String docId,
                             Map<String, List<String>> responseHeaders,
                             R response,
-                            ActionListener<UpdateResponse> listener) throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-        source.put(RESULT_FIELD, encodeResponse(response));
-        UpdateRequest request = new UpdateRequest()
-            .index(index)
-            .id(docId)
-            .doc(source, XContentType.JSON);
-        client.update(request, listener);
+                            ActionListener<UpdateResponse> listener) {
+        try {
+            Map<String, Object> source = new HashMap<>();
+            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
+            source.put(RESULT_FIELD, encodeResponse(response));
+            UpdateRequest request = new UpdateRequest()
+                .index(index)
+                .id(docId)
+                .doc(source, XContentType.JSON);
+            client.update(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -214,8 +218,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public void deleteResponse(AsyncExecutionId asyncExecutionId,
                                ActionListener<DeleteResponse> listener) {
-        DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-        client.delete(request, listener);
+        try {
+            DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
+            client.delete(request, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

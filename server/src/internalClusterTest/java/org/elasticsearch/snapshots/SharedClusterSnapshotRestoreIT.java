@@ -1206,8 +1206,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(100L));
     }
 
-    public void testUnallocatedShards() throws Exception {
-        Client client = client();
+    public void testUnallocatedShards() {
+        disableRepoConsistencyCheck("This test intentionally leaves an empty repository");
 
         createRepository("test-repo", "fs", randomRepoPath());
 
@@ -1217,9 +1217,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> snapshot");
         final SnapshotException sne = expectThrows(SnapshotException.class,
-            () -> client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            () -> client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx").get());
         assertThat(sne.getMessage(), containsString("Indices don't have primary shards"));
+        assertThat(getRepositoryData("test-repo"), is(RepositoryData.EMPTY));
     }
 
     public void testDeleteSnapshot() throws Exception {

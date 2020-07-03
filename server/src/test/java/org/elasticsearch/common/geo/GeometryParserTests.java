@@ -26,11 +26,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Tests for {@link GeometryParser}
@@ -172,5 +178,25 @@ public class GeometryParserTests extends ESTestCase {
                 () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
+    }
+
+    public void testBasics() {
+        GeometryParser parser = new GeometryParser(true, randomBoolean(), randomBoolean());
+        Point expectedPoint = new Point(-122.084110, 37.386637);
+        testBasics(parser, Map.of("lat", 37.386637, "lon", -122.084110), expectedPoint);
+        testBasics(parser, "37.386637, -122.084110", expectedPoint);
+        testBasics(parser, "POINT (-122.084110 37.386637)", expectedPoint);
+        testBasics(parser, Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
+        testBasics(parser, List.of(-122.084110, 37.386637), expectedPoint);
+        testBasics(parser,
+            List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
+            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint))
+        );
+        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a point", null));
+    }
+
+    private void testBasics(GeometryParser parser, Object value, Geometry expected) {
+        Geometry geometry = parser.parseGeometry(value);
+        assertEquals(expected, geometry);
     }
 }

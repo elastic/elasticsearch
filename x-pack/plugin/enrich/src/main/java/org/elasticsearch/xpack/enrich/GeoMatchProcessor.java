@@ -8,23 +8,21 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.TemplateScript;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BiConsumer;
 
 public final class GeoMatchProcessor extends AbstractEnrichProcessor {
 
-    private ShapeRelation shapeRelation;
+    private final ShapeRelation shapeRelation;
+    private final GeometryParser parser;
+    private final GeoShapeIndexer decomposer;
 
     GeoMatchProcessor(
         String tag,
@@ -41,6 +39,8 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
     ) {
         super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
+        parser = new GeometryParser(true, true, true);
+        decomposer = new GeoShapeIndexer(true, "field");
     }
 
     /** used in tests **/
@@ -59,34 +59,14 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
     ) {
         super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
+        // TODO: What to do with orientation?
+        parser = new GeometryParser(true, true, true);
+        decomposer = new GeoShapeIndexer(true, "field");
     }
 
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
-        List<Point> points = new ArrayList<>();
-        if (fieldValue instanceof List) {
-            List<?> values = (List<?>) fieldValue;
-            if (values.size() == 2 && values.get(0) instanceof Number) {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
-                points.add(new Point(geoPoint.lon(), geoPoint.lat()));
-            } else {
-                for (Object value : values) {
-                    GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
-                    points.add(new Point(geoPoint.lon(), geoPoint.lat()));
-                }
-            }
-        } else {
-            GeoPoint geoPoint = GeoUtils.parseGeoPoint(fieldValue, true);
-            points.add(new Point(geoPoint.lon(), geoPoint.lat()));
-        }
-        final Geometry queryGeometry;
-        if (points.isEmpty()) {
-            throw new IllegalArgumentException("no geopoints found");
-        } else if (points.size() == 1) {
-            queryGeometry = points.get(0);
-        } else {
-            queryGeometry = new MultiPoint(points);
-        }
+        final Geometry queryGeometry = decomposer.prepareForIndexing(parser.parseGeometry(fieldValue));
         GeoShapeQueryBuilder shapeQuery = new GeoShapeQueryBuilder(matchField, queryGeometry);
         shapeQuery.relation(shapeRelation);
         return shapeQuery;

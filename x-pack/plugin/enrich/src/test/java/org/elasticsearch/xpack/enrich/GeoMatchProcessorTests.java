@@ -17,6 +17,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.VersionType;
@@ -52,9 +53,11 @@ public class GeoMatchProcessorTests extends ESTestCase {
         testBasicsForFieldValue("37.386637, -122.084110", expectedPoint);
         testBasicsForFieldValue("POINT (-122.084110 37.386637)", expectedPoint);
         testBasicsForFieldValue(List.of(-122.084110, 37.386637), expectedPoint);
+        testBasicsForFieldValue(Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
         testBasicsForFieldValue(
-            List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
-            new MultiPoint(List.of(expectedPoint, expectedPoint, expectedPoint))
+            List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)",
+                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637))),
+            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint))
         );
 
         testBasicsForFieldValue("not a point", null);

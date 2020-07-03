@@ -102,7 +102,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         plan = new OrderBy(defaultOrderSource, plan, orders);
 
         // add the default limit only if specified
-        Literal defaultSize = new Literal(synthetic("<default-size>"), params.fetchSize(), DataTypes.INTEGER);
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
         Source defaultLimitSource = synthetic("<default-limit>");
 
         LogicalPlan previous = plan;

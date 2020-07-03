@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
@@ -51,7 +50,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String tiebreakerField = null;
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
     private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
-    private int fetchSize = FETCH_SIZE;
+    private int size = RequestDefaults.SIZE;
+    private int fetchSize = RequestDefaults.FETCH_SIZE;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private boolean isCaseSensitive = false;
@@ -67,6 +67,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
+    static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
@@ -80,6 +81,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField EVENT_CATEGORY_FIELD = new ParseField(KEY_EVENT_CATEGORY_FIELD);
     static final ParseField IMPLICIT_JOIN_KEY_FIELD = new ParseField(KEY_IMPLICIT_JOIN_KEY_FIELD);
     static final ParseField SIZE = new ParseField(KEY_SIZE);
+    static final ParseField FETCH_SIZE = new ParseField(KEY_FETCH_SIZE);
     static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
     static final ParseField QUERY = new ParseField(KEY_QUERY);
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
@@ -102,6 +104,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         tiebreakerField = in.readOptionalString();
         eventCategoryField = in.readString();
         implicitJoinKeyField = in.readString();
+        size = in.readVInt();
         fetchSize = in.readVInt();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         query = in.readString();
@@ -148,8 +151,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("implicit join key field is null or empty", validationException);
         }
 
-        if (fetchSize <= 0) {
+        if (size <= 0) {
             validationException = addValidationError("size must be greater than 0", validationException);
+        }
+
+        if (fetchSize <= 0) {
+            validationException = addValidationError("fetch size must be greater than 0", validationException);
         }
 
         if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
@@ -173,7 +180,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
         }
-        builder.field(KEY_SIZE, fetchSize());
+        builder.field(KEY_SIZE, size());
+        builder.field(KEY_FETCH_SIZE, fetchSize());
 
         if (searchAfterBuilder != null) {
             builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
@@ -204,7 +212,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
         parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
-        parser.declareInt(EqlSearchRequest::fetchSize, SIZE);
+        parser.declareInt(EqlSearchRequest::size, SIZE);
+        parser.declareInt(EqlSearchRequest::fetchSize, FETCH_SIZE);
         parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
             ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareString(EqlSearchRequest::query, QUERY);
@@ -259,10 +268,19 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public int size() {
+        return this.size;
+    }
+
+    public EqlSearchRequest size(int size) {
+        this.size = size;
+        return this;
+    }
+
     public int fetchSize() { return this.fetchSize; }
 
-    public EqlSearchRequest fetchSize(int size) {
-        this.fetchSize = size;
+    public EqlSearchRequest fetchSize(int fetchSize) {
+        this.fetchSize = fetchSize;
         return this;
     }
 
@@ -334,6 +352,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeOptionalString(tiebreakerField);
         out.writeString(eventCategoryField);
         out.writeString(implicitJoinKeyField);
+        out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(query);
@@ -354,7 +373,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return fetchSize == that.fetchSize &&
+        return size == that.size && 
+                fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
@@ -375,6 +395,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             Arrays.hashCode(indices),
             indicesOptions,
             filter,
+            size,
             fetchSize,
             timestampField,
             tiebreakerField,

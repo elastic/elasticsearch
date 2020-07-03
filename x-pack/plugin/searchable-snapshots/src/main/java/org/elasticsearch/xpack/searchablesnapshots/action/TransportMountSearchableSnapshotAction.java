@@ -118,7 +118,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
-            .putNull(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey())
             .build();
     }
 

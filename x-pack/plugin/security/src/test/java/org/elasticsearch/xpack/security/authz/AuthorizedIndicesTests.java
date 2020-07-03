@@ -189,7 +189,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build(), true)
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new DataStream("adatastream1", createTimestampField("@timestamp"),
-                List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
+                org.elasticsearch.common.collect.List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
@@ -234,7 +234,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build(), true)
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new DataStream("adatastream1", createTimestampField("@timestamp"),
-                List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
+                org.elasticsearch.common.collect.List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);

@@ -543,8 +543,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     private void ensureStableClusterOnAllNodes(int nodeCount) {
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ensureStableCluster(nodeCount, nodeName);
-        }
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(60));
     }
 }

@@ -112,6 +112,11 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */

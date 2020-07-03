@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
@@ -123,8 +124,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             ClassificationConfigUpdate::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, RegressionConfigUpdate.NAME,
             RegressionConfigUpdate::fromXContentStrict));
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, ResultsFieldUpdate.NAME,
-            ResultsFieldUpdate::fromXContent));
 
         // Inference models
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class, Ensemble.NAME, EnsembleInferenceModel::fromXContent));
@@ -188,6 +187,10 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             ClassificationConfigUpdate.NAME.getPreferredName(), ClassificationConfigUpdate::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             RegressionConfigUpdate.NAME.getPreferredName(), RegressionConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            ResultsFieldUpdate.NAME, ResultsFieldUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            EmptyConfigUpdate.NAME, EmptyConfigUpdate::new));
 
         return namedWriteables;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -64,6 +65,11 @@ public class ECallLocal extends AExpression {
 
     public List<AExpression> getArgumentNodes() {
         return argumentNodes;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitCallLocal(this, input);
     }
 
     @Override

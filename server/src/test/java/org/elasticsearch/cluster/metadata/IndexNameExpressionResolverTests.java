@@ -1722,18 +1722,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("my-data-*").alias("my-data");
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
-            assertEquals("The provided expression [my-data-*] matches a data stream, specify the corresponding concrete indices instead.",
-                iae.getMessage());
+            assertEquals("no such index [my-data-*]", iae.getMessage());
         }
 
         {
             IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index(dataStreamName)
                 .alias("my-data");
-            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
-            assertEquals(1, indices.length);
-            assertEquals(backingIndex.getIndex().getName(), indices[0]);
+            IndexNotFoundException iae = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+            assertEquals("no such index [" + dataStreamName + "]", iae.getMessage());
         }
     }
 

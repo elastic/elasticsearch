@@ -59,8 +59,11 @@ NOTE: These settings only take effect on a full cluster restart.
 When a node joins the cluster, if it finds any shards stored in its local data
 directory that do not already exist in the cluster, it will consider those
 shards to be "dangling". Importing dangling indices
-into the cluster using `gateway.auto_import_dangling_indices` is not safe. 
-Instead, use the <<dangling-indices-api,Dangling indices API>>.
+into the cluster using `gateway.auto_import_dangling_indices` is not safe.
+Instead, use the <<dangling-indices-api,Dangling indices API>>. Neither
+mechanism provides any guarantees as to whether the imported data truly
+represents the latest state of the data when the index was still part of
+the cluster.
 
 `gateway.auto_import_dangling_indices`::
 
@@ -74,4 +77,8 @@ who lose all master nodes. For example, if a new master node were to be
 started which was unaware of the other indices in the cluster, adding the
 old nodes would cause the old indices to be imported, instead of being
 deleted. However there are several issues with automatic importing, and
-its use is strongly discouraged in favour of the dedicated API.
+its use is strongly discouraged in favour of the
+<<dangling-indices-api,dedicated API>.
+
+WARNING: Losing all master nodes is a situation that should be avoided at
+all costs, as it puts your cluster's metadata and data at risk.

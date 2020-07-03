@@ -870,7 +870,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 }
             });
         }
-        IntStream.range(0, 1000).forEach(i -> executorService.submit(() -> {}));
+        // Fill the whole queue for the crypto thread pool
+        final int queueSize = 1000;
+        IntStream.range(0, queueSize).forEach(i -> executorService.submit(() -> {}));
         readyLatch.await();
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
@@ -882,6 +884,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
             final ResponseException responseException = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
             assertThat(responseException.getMessage(), containsString("429 Too Many Requests"));
+            assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(429));
         } finally {
             blockingLatch.countDown();
         }

@@ -209,33 +209,21 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(dataStreamName).source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest(dataStreamName, "_id"));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
             IndexRequest indexRequest = new IndexRequest(dataStreamName)
                 .source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON);
-            expectFailure(dataStreamName, () -> client().index(indexRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id")
                 .doc("{}", XContentType.JSON);
-            expectFailure(dataStreamName, () -> client().update(updateRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().update(updateRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             DeleteRequest deleteRequest = new DeleteRequest(dataStreamName, "_id");
-            expectFailure(dataStreamName, () -> client().delete(deleteRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().delete(deleteRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName)
@@ -388,7 +376,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, segments(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
         verifyResolvability(dataStreamName, IndicesOptionsIntegrationIT.forceMerge(dataStreamName), false);
-        verifyResolvability(dataStreamName, validateQuery(dataStreamName), true);
+        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
@@ -423,7 +411,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
         verifyResolvability(wildcardExpression, IndicesOptionsIntegrationIT.forceMerge(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
@@ -476,7 +464,8 @@ public class DataStreamIT extends ESIntegTestCase {
             .index(dataStreamName).aliases("foo");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
-        expectFailure(dataStreamName, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        Exception e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("no such index [" + dataStreamName +"]"));
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {

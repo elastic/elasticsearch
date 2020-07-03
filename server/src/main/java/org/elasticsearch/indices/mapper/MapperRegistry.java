@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -51,7 +50,6 @@ public final class MapperRegistry {
         Map<String, MetadataFieldMapper.TypeParser> metadata6x = new LinkedHashMap<>();
         metadata6x.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
         metadata6x.putAll(metadataMapperParsers);
-        metadata6x.remove(TimestampFieldMapper.NAME);
         this.metadataMapperParsers6x = Collections.unmodifiableMap(metadata6x);
         this.fieldFilter = fieldFilter;
     }

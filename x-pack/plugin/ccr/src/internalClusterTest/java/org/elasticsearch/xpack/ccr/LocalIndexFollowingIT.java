@@ -98,7 +98,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
     }
 
     public void testWriteLimitsIncremented() throws Exception {
-        final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 

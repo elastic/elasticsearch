@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.ini4j.Config;
@@ -139,6 +140,24 @@ public class FieldConfigWriterTests extends ESTestCase {
         createFieldConfigWriter().write();
 
         verify(writer).write("detector.0.clause = metric(Integer_Value) by mlcategory categorizationfield=foo\n");
+        verifyNoMoreInteractions(writer);
+    }
+
+    public void testWrite_GivenConfigHasPerPartitionCategorization() throws IOException {
+        Detector.Builder d = new Detector.Builder("metric", "Integer_Value");
+        d.setByFieldName("mlcategory");
+        d.setPartitionFieldName("event.dataset");
+
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        builder.setCategorizationFieldName("message");
+        builder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, false));
+        analysisConfig = builder.build();
+        writer = mock(OutputStreamWriter.class);
+
+        createFieldConfigWriter().write();
+
+        verify(writer).write("detector.0.clause = metric(Integer_Value) by mlcategory partitionfield=\"event.dataset\" "
+            + "categorizationfield=message perpartitioncategorization=true\n");
         verifyNoMoreInteractions(writer);
     }
 

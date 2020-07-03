@@ -25,7 +25,7 @@ apply plugin: 'elasticsearch.rest-test'
 // TODO: this test works, but it isn't really a rest test...should we have another plugin for "non rest test that just needs N clusters?"
 
 dependencies {
-  testCompile project(path: ':client:transport', configuration: 'runtime') // randomly swapped in as a transport
+  testImplementation project(':client:transport') // randomly swapped in as a transport
 }
 
 task singleNodeIntegTest(type: RestIntegTestTask) {

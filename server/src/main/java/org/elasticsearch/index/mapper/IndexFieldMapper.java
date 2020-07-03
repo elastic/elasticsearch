@@ -19,19 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 
@@ -44,30 +43,26 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = IndexFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new IndexFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+        public Builder() {
+            super(Defaults.NAME, Defaults.FIELD_TYPE);
         }
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new IndexFieldMapper(fieldType, context.indexSettings());
+            return new IndexFieldMapper(fieldType);
         }
     }
 
@@ -80,14 +75,17 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new IndexFieldMapper(indexSettings, fieldType);
+            return new IndexFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
     static final class IndexFieldType extends ConstantFieldType {
 
-        IndexFieldType() {}
+        static final IndexFieldType INSTANCE = new IndexFieldType();
+
+        private IndexFieldType() {
+            super(NAME, Collections.emptyMap());
+        }
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);
@@ -115,21 +113,13 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
+            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
-    private IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, indexSettings);
-    }
-
-    private IndexFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    private IndexFieldMapper(FieldType fieldType) {
+        super(fieldType, IndexFieldType.INSTANCE);
     }
 
     @Override
@@ -146,10 +136,5 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
     }
 }

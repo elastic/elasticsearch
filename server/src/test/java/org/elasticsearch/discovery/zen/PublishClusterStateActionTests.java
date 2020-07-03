@@ -46,7 +46,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -76,6 +75,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -533,7 +533,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             discoveryNodesBuilder.add(createMockNode("node" + i).discoveryNode);
         }
         final int dataNodes = randomIntBetween(0, 5);
-        final Settings dataSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build();
+        final Settings dataSettings = Settings.builder().put(nonMasterNode()).build();
         for (int i = 0; i < dataNodes; i++) {
             discoveryNodesBuilder.add(createMockNode("data_" + i, dataSettings, null).discoveryNode);
         }
@@ -592,7 +592,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         final int dataNodes = randomIntBetween(0, 3); // data nodes don't matter
         for (int i = 0; i < dataNodes; i++) {
             final MockNode mockNode = createMockNode("data_" + i,
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(), null);
+                Settings.builder().put(nonMasterNode()).build(), null);
             discoveryNodesBuilder.add(mockNode.discoveryNode);
             if (randomBoolean()) {
                 // we really don't care - just chaos monkey

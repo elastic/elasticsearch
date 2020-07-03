@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -97,7 +98,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 Map<String, DocumentField> fields = readFields(in);
                 documentFields = new HashMap<>();
                 metaFields = new HashMap<>();
-                splitFieldsByMetadata(fields, documentFields, metaFields);
+                fields.forEach((fieldName, docField) ->
+                    (MapperService.META_FIELDS_BEFORE_7DOT8.contains(fieldName) ? metaFields : documentFields).put(fieldName, docField));
             }
         } else {
             metaFields = Collections.emptyMap();
@@ -363,7 +365,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 } else if (FOUND.equals(currentFieldName)) {
                     found = parser.booleanValue();
                 } else {
-                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, 
+                    metaFields.put(currentFieldName, new DocumentField(currentFieldName,
                             Collections.singletonList(parser.objectText())));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -401,10 +403,10 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     }
 
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> fields;
         int size = in.readVInt();
         if (size == 0) {
-            fields = new HashMap<>();
+            fields = emptyMap();
         } else {
             fields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
@@ -413,20 +415,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             }
         }
         return fields;
-    }
-    
-    static void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outOther,
-                                       Map<String, DocumentField> outMetadata) {
-        if (fields == null) {
-            return;
-        }
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                outOther.put(fieldEntry.getKey(), fieldEntry.getValue());                
-            }
-        }
     }
 
     @Override
@@ -446,11 +434,11 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 writeFields(out, documentFields);
                 writeFields(out, metaFields);
             } else {
-                writeFields(out, this.getFields());                
+                writeFields(out, this.getFields());
             }
         }
     }
-    
+
     private void writeFields(StreamOutput out,  Map<String, DocumentField> fields) throws IOException {
         if (fields == null) {
             out.writeVInt(0);

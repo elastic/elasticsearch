@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -83,7 +81,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     static final int CHANNELS_PER_CONNECTION = 1;
 
     private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
-    private static final Logger logger = LogManager.getLogger(ProxyConnectionStrategy.class);
 
     private final int maxNumConnections;
     private final String configuredAddress;

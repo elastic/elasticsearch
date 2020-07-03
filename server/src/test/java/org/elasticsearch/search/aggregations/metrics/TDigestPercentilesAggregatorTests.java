@@ -191,8 +191,8 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                     builder = new PercentilesAggregationBuilder("test").field("number").percentilesConfig(hdr);
                 }
 
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType.setName("number");
+                MappedFieldType fieldType
+                    = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                 TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

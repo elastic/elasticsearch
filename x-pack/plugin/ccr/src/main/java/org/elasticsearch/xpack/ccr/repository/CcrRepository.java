@@ -172,11 +172,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = response.getState().metadata().indices();
+        Metadata metadata = response.getState().metadata();
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
+        return new SnapshotInfo(snapshotId, indices, new ArrayList<>(metadata.dataStreams().keySet()), SnapshotState.SUCCESS,
+            response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override

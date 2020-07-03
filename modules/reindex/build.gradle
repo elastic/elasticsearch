@@ -49,12 +49,12 @@ test {
 }
 
 dependencies {
-  compile project(":client:rest")
-  compile project(":libs:elasticsearch-ssl-config")
+  api project(":client:rest")
+  api project(":libs:elasticsearch-ssl-config")
   // for http - testing reindex from remote
-  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testImplementation project(':modules:parent-join')
 }
 
 restResources {

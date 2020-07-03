@@ -457,7 +457,7 @@ public class AnalyticsProcessManager {
                         dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
-                dataExtractor.get().getAllExtractedFields());
+                dataExtractor.get().getExtractedFields());
         }
     }
 }

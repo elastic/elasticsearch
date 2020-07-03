@@ -21,11 +21,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 import org.hamcrest.Matchers;
@@ -34,6 +34,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -41,8 +42,13 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
+public class SparseVectorFieldMapperTests extends FieldMapperTestCase<SparseVectorFieldMapper.Builder> {
     private DocumentMapper mapper;
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    }
 
     @Before
     public void setUpMapper() throws Exception {
@@ -264,4 +270,20 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
+    @Override
+    protected SparseVectorFieldMapper.Builder newBuilder() {
+        return new SparseVectorFieldMapper.Builder("sparsevector");
+    }
+
+    @Override
+    public void testSerialization() throws IOException {
+        super.testSerialization();
+        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
+    }
+
+    @Override
+    public void testMergeConflicts() {
+        super.testMergeConflicts();
+        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
+    }
 }

@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -142,7 +142,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     new IndexNameExpressionResolver()
-                )
+                ), new WriteMemoryLimits()
             );
         }
         @Override
@@ -578,7 +578,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testFindDefaultPipelineFromV2TemplateMatch() {
         Exception exception = new Exception("fake exception");
 
-        IndexTemplateV2 t1 = new IndexTemplateV2(Collections.singletonList("missing_*"),
+        ComposableIndexTemplate t1 = new ComposableIndexTemplate(Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
             null, null, null, null, null);
 

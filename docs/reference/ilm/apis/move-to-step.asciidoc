@@ -45,7 +45,7 @@ an unexpected step into the next step.
 [[ilm-move-to-step-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[ilm-move-to-step-request-body]]

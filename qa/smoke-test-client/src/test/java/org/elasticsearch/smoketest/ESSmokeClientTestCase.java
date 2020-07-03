@@ -159,7 +159,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     }
 
     private void doClean() {
-        if (client != null) {
+        if (client != null && index != null) {
             try {
                 client.admin().indices().prepareDelete(index).get();
             } catch (Exception e) {

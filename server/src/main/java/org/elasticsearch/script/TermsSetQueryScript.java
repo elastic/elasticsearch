@@ -18,14 +18,18 @@
  */
 package org.elasticsearch.script;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 public abstract class TermsSetQueryScript {
 
@@ -33,22 +37,23 @@ public abstract class TermsSetQueryScript {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 
-    private static final Map<String, String> DEPRECATIONS;
-
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within a terms-set-query-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within a terms-set-query-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+            "doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("terms-set-query-script_doc",
+                        "Accessing variable [doc] via [params.doc] from within an terms-set-query-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("terms-set-query-script__doc",
+                        "Accessing variable [doc] via [params._doc] from within an terms-set-query-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /**
      * The generic runtime parameters for the script.
@@ -64,7 +69,7 @@ public abstract class TermsSetQueryScript {
         Map<String, Object> parameters = new HashMap<>(params);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(parameters, DEPRECATIONS, "term-set-query-script");
+        this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
     protected TermsSetQueryScript() {

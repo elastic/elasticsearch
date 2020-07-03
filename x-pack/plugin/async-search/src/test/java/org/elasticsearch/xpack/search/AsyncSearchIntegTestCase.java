@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,8 +31,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -49,8 +53,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.search.AsyncSearch.INDEX;
-import static org.elasticsearch.xpack.search.AsyncSearchMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
+import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
+import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -62,7 +66,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Collections.singletonList(new QuerySpec<>(BlockingQueryBuilder.NAME, in -> new BlockingQueryBuilder(in),
+            return Arrays.asList(
+                new QuerySpec<>(BlockingQueryBuilder.NAME, in -> new BlockingQueryBuilder(in),
+                    p -> {
+                    throw new IllegalStateException("not implemented");
+                }),
+                new QuerySpec<>(ThrowingQueryBuilder.NAME, in -> new ThrowingQueryBuilder(in),
                 p -> {
                     throw new IllegalStateException("not implemented");
                 }));
@@ -79,7 +88,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Before
     public void startMaintenanceService() {
-        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
             if (service.lifecycleState() == Lifecycle.State.STOPPED) {
                 // force the service to start again
                 service.start();
@@ -91,7 +100,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @After
     public void stopMaintenanceService() {
-        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
             service.stop();
         }
     }
@@ -103,7 +112,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, IndexLifecycle.class,
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsIndexPlugin.class, IndexLifecycle.class,
             SearchTestPlugin.class, ReindexPlugin.class);
     }
 
@@ -134,13 +143,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final ClusterStateResponse clusterState = client().admin().cluster()
             .prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return super.onNodeStopped(nodeName);
-            }
-        });
-        ensureYellow(INDEX, indexName);
+        stopMaintenanceService();
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
+        startMaintenanceService();
+        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -148,15 +154,15 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id)).get();
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id).setKeepAlive(keepAlive)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id).setKeepAlive(keepAlive)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(id)).get();
+        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
     }
 
     /**
@@ -166,7 +172,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setIndex(INDEX)
+                .setIndex(ASYNC_RESULTS_INDEX)
                 .setId(searchId.getDocId())
                 .get();
             assertFalse(resp.isExists());
@@ -252,8 +258,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 }
                 queryLatch.countDownAndReset();
                 AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncSearchAction.Request(response.getId())
-                        .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
+                    new GetAsyncResultRequest(response.getId())
+                        .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));

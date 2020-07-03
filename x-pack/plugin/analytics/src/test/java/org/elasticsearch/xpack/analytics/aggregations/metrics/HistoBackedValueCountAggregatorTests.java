@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -108,7 +109,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> indexer,
         Consumer<InternalValueCount> verify) throws IOException {
-        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType(FIELD_NAME));
+        testCase(count("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
@@ -144,6 +145,9 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.IP,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }
@@ -153,9 +157,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
         return new ValueCountAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType(String fieldName) {
-        MappedFieldType fieldType = new HistogramFieldMapper.Builder("field").fieldType();
-        fieldType.setName("field");
-        return fieldType;
+    private MappedFieldType defaultFieldType() {
+        return new HistogramFieldMapper.HistogramFieldType("field", true, Collections.emptyMap());
     }
 }

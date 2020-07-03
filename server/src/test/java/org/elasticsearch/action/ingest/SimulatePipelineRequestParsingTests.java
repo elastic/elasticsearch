@@ -47,6 +47,8 @@ import static org.elasticsearch.ingest.IngestDocument.Metadata.ROUTING;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.TYPE;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
+import static org.elasticsearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
+import static org.elasticsearch.ingest.IngestDocument.Metadata.IF_PRIMARY_TERM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,7 +65,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, null, pipelineCompoundProcessor);
         Map<String, Processor.Factory> registry =
-            Collections.singletonMap("mock_processor", (factories, tag, config) -> processor);
+            Collections.singletonMap("mock_processor", (factories, tag, description, config) -> processor);
         ingestService = mock(IngestService.class);
         when(ingestService.getPipeline(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(ingestService.getProcessorFactories()).thenReturn(registry);
@@ -150,7 +152,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE);
+            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, 
+                IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
                     Long value = randomLong();
@@ -160,6 +163,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                     String value = VersionType.toString(
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)
                     );
+                    doc.put(field.getFieldName(), value);
+                    expectedDoc.put(field.getFieldName(), value);
+                } else if (field == IF_SEQ_NO || field == IF_PRIMARY_TERM) {
+                    Long value = randomNonNegativeLong();
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else if (field == TYPE) {
@@ -230,6 +237,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(metadataMap.get(ROUTING), equalTo(expectedDocument.get(ROUTING.getFieldName())));
             assertThat(metadataMap.get(VERSION), equalTo(expectedDocument.get(VERSION.getFieldName())));
             assertThat(metadataMap.get(VERSION_TYPE), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
+            assertThat(metadataMap.get(IF_SEQ_NO), equalTo(expectedDocument.get(IF_SEQ_NO.getFieldName())));
+            assertThat(metadataMap.get(IF_PRIMARY_TERM), equalTo(expectedDocument.get(IF_PRIMARY_TERM.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 

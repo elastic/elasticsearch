@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
  * Specialization of {@link IndexFieldData} for histograms.
@@ -28,15 +29,22 @@ import org.elasticsearch.index.Index;
 public abstract class IndexHistogramFieldData implements IndexFieldData<LeafHistogramFieldData> {
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public IndexHistogramFieldData(Index index, String fieldName) {
+    public IndexHistogramFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
         this.index = index;
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override

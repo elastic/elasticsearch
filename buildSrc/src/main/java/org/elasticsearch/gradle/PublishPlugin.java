@@ -24,6 +24,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import groovy.util.Node;
 import groovy.util.NodeList;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -50,6 +51,7 @@ public class PublishPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply("nebula.maven-base-publish");
+        project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
 
         configureJavadocJar(project);
         configureSourcesJar(project);

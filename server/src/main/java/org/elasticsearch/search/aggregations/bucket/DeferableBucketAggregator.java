@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -68,16 +67,6 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
             collectors.add(recordingWrapper);
         }
         collectableSubAggregators = MultiBucketCollector.wrap(collectors);
-    }
-
-    public static boolean descendsFromGlobalAggregator(Aggregator parent) {
-        while (parent != null) {
-            if (parent.getClass() == GlobalAggregator.class) {
-                return true;
-            }
-            parent = parent.parent();
-        }
-        return false;
     }
 
     public DeferringBucketCollector getDeferringCollector() {

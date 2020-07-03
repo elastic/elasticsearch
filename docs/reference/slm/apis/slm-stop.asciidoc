@@ -31,12 +31,12 @@ You can manually trigger snapshots with the <<slm-api-execute-lifecycle>> even i
 
 The API returns a response as soon as the request is acknowledged, but 
 the plugin might continue to run until in-progress operations complete and it can be safely stopped. 
-This conversation was marked as resolved by debadair
+
 Use the  <<slm-api-get-status>> to see if {slm-init} is running. 
 
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[slm-api-stop-example]]
 ==== {api-examples-title}

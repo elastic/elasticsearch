@@ -19,6 +19,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -86,10 +87,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             templates.addAll(
                 Arrays.asList(
                     NotificationsIndex.NOTIFICATIONS_INDEX,
-                    MlMetaIndex.INDEX_NAME,
+                    MlMetaIndex.indexName(),
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     TransformInternalIndexConstants.AUDIT_INDEX,
                     TransformInternalIndexConstants.LATEST_INDEX_NAME
                 ));
@@ -123,6 +124,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             final Map<String, Object> settings = new HashMap<>();
             settings.put("xpack.monitoring.collection.enabled", true);
             settings.put("xpack.monitoring.collection.interval", "1s");
+            settings.put("xpack.monitoring.exporters._local.type", "local");
             settings.put("xpack.monitoring.exporters._local.enabled", true);
 
             awaitCallApi("cluster.put_settings", emptyMap(),

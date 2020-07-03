@@ -19,11 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -32,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -180,11 +188,70 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    public void testRolloverWithIndexSettingsWithoutPrefix() throws Exception {
+        Alias testAlias = new Alias("test_alias");
+        boolean explicitWriteIndex = randomBoolean();
+        if (explicitWriteIndex) {
+            testAlias.writeIndex(true);
+        }
+        assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
+        index("test_index-2", "_doc", "1", "field", "value");
+        flush("test_index-2");
+        final Settings settings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
+            .settings(settings).alias(new Alias("extra_alias")).get();
+        assertThat(response.getOldIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetadata oldIndex = state.metadata().index("test_index-2");
+        final IndexMetadata newIndex = state.metadata().index("test_index-000003");
+        assertThat(newIndex.getNumberOfShards(), equalTo(1));
+        assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
+        assertTrue(newIndex.getAliases().containsKey("test_alias"));
+        assertTrue(newIndex.getAliases().containsKey("extra_alias"));
+        if (explicitWriteIndex) {
+            assertFalse(oldIndex.getAliases().get("test_alias").writeIndex());
+            assertTrue(newIndex.getAliases().get("test_alias").writeIndex());
+        } else {
+            assertFalse(oldIndex.getAliases().containsKey("test_alias"));
+        }
+    }
+
     public void testRolloverDryRun() throws Exception {
+        if (randomBoolean()) {
+            PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
+                .preparePutTemplate("test_index")
+                .setPatterns(Collections.singletonList("test_index-*"))
+                .setOrder(-1)
+                .setSettings(Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all"));
+            assertAcked(putTemplate.get());
+        }
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
         index("test_index-1", "type1", "1", "field", "value");
         flush("test_index-1");
+        ensureGreen();
+        Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
+
+        MockLogAppender appender = new MockLogAppender();
+        appender.start();
+        appender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no related message logged on dry run",
+                AllocationService.class.getName(), Level.INFO, "*test_index*")
+        );
+        Loggers.addAppender(allocationServiceLogger, appender);
+
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
+
+        appender.assertAllExpectationsMatched();
+        appender.stop();
+        Loggers.removeAppender(allocationServiceLogger, appender);
+
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));
         assertThat(response.isDryRun(), equalTo(true));

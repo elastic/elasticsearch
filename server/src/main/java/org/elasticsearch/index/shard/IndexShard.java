@@ -46,6 +46,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -213,6 +214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final SearchOperationListener searchOperationListener;
 
     private final GlobalCheckpointListeners globalCheckpointListeners;
+    private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -234,7 +236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
     @Nullable
-    private RecoveryState recoveryState;
+    private volatile RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -338,6 +340,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
+        this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
         this.replicationTracker = new ReplicationTracker(
                 shardId,
                 aId,
@@ -347,7 +350,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
-                this::getSafeCommitInfo);
+                this::getSafeCommitInfo,
+                pendingReplicationActions);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -609,7 +613,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
 
-        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
+        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false && state() == IndexShardState.STARTED) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
             final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
             shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
@@ -1029,7 +1033,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public StoreStats storeStats() {
         try {
-            return store.stats();
+            final RecoveryState recoveryState = this.recoveryState;
+            final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+            return store.stats(bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
             throw new ElasticsearchException("io exception while building 'store stats'", e);
@@ -1350,7 +1356,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
                     indexShardOperationPermits.close();
                 }
             }
@@ -1423,14 +1429,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("skip local recovery as failed to find the safe commit", e);
             return UNASSIGNED_SEQ_NO;
         }
-        if (safeCommit.isPresent() == false) {
-            logger.trace("skip local recovery as no safe commit found");
-            return UNASSIGNED_SEQ_NO;
-        }
-        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
         try {
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            if (safeCommit.isPresent() == false) {
+                logger.trace("skip local recovery as no safe commit found");
+                return UNASSIGNED_SEQ_NO;
+            }
+            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
                 logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                     safeCommit.get(), globalCheckpoint);
@@ -2386,7 +2392,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public ReplicationGroup getReplicationGroup() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getReplicationGroup();
+        ReplicationGroup replicationGroup = replicationTracker.getReplicationGroup();
+        // PendingReplicationActions is dependent on ReplicationGroup. Every time we expose ReplicationGroup,
+        // ensure PendingReplicationActions is updated with the newest version to prevent races.
+        pendingReplicationActions.accept(replicationGroup);
+        return replicationGroup;
+    }
+
+    /**
+     * Returns the pending replication actions for the shard.
+     *
+     * @return the pending replication actions
+     */
+    public PendingReplicationActions getPendingReplicationActions() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        return pendingReplicationActions;
     }
 
     /**

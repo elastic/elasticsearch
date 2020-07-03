@@ -1,10 +1,12 @@
+[role="xpack"]
+[testenv="basic"]
 [[eql-function-ref]]
 == EQL function reference
 ++++
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 {es} supports the following EQL functions:
 

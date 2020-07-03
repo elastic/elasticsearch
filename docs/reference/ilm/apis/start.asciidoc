@@ -32,7 +32,7 @@ necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 [[ilm-start-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-start-example]]
 ==== {api-examples-title}

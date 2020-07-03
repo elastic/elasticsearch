@@ -28,12 +28,13 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
@@ -44,10 +45,17 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     private final int minSegmentSize;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName,
-            IndexFieldDataCache cache, CircuitBreakerService breakerService,
-            double minFrequency, double maxFrequency, int minSegmentSize) {
-        super(indexSettings, fieldName, cache);
+    protected AbstractIndexOrdinalsFieldData(
+        IndexSettings indexSettings,
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexFieldDataCache cache,
+        CircuitBreakerService breakerService,
+        double minFrequency,
+        double maxFrequency,
+        int minSegmentSize
+    ) {
+        super(indexSettings, fieldName, valuesSourceType, cache);
         this.breakerService = breakerService;
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;

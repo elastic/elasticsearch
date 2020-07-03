@@ -52,6 +52,9 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             EqlSearchRequest.timestampField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
+            EqlSearchRequest.tiebreakerField(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
             EqlSearchRequest.searchAfter(randomArray(1, 4, Object[]::new, () -> randomAlphaOfLength(3)));
         }
         if (randomBoolean()) {
@@ -75,6 +78,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
         assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
+        assertThat(serverInstance.tiebreakerField(), equalTo(clientTestInstance.tiebreakerField()));
         assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));
         assertThat(serverInstance.query(), equalTo(clientTestInstance.query()));
         assertThat(serverInstance.searchAfter(), equalTo(clientTestInstance.searchAfter()));

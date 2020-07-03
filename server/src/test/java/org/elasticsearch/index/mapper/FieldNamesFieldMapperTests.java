@@ -54,7 +54,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("_field_names");
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
-            if (field.fieldType() instanceof FieldNamesFieldMapper.FieldNamesFieldType) {
+            if (field.name().equals(FieldNamesFieldMapper.Defaults.NAME)) {
                 result.add(field.stringValue());
             }
         }
@@ -80,10 +80,11 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
-        assertFalse(fieldNamesMapper.fieldType().tokenized());
-        assertFalse(fieldNamesMapper.fieldType().stored());
-        assertTrue(fieldNamesMapper.fieldType().omitNorms());
+
+        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType.indexOptions());
+        assertFalse(fieldNamesMapper.fieldType.tokenized());
+        assertFalse(fieldNamesMapper.fieldType.stored());
+        assertTrue(fieldNamesMapper.fieldType.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
@@ -155,13 +156,13 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapperEnabled
+            = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
         assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }

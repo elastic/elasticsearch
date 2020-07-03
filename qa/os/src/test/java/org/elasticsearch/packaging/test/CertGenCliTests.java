@@ -25,7 +25,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -41,19 +40,15 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileUtils.escapePath;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assume.assumeTrue;
 
 public class CertGenCliTests extends PackagingTestCase {
-    private static final Path instancesFile = getTempDir().resolve("instances.yml");
-    private static final Path certificatesFile = getTempDir().resolve("certificates.zip");
+    private static final Path instancesFile = getRootTempDir().resolve("instances.yml");
+    private static final Path certificatesFile = getRootTempDir().resolve("certificates.zip");
 
     @Before
     public void filterDistros() {
-        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
-        Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"));
-
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }

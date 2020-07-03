@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -42,12 +43,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_all";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new AllFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
@@ -56,7 +56,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         private boolean disableExplicit = false;
 
         public Builder(MappedFieldType existing) {
-            super(NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+            super(NAME, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -67,7 +67,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
         @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(fieldType, context.indexSettings(), disableExplicit);
+            return new AllFieldMapper(disableExplicit);
         }
     }
 
@@ -93,13 +93,13 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new AllFieldMapper(indexSettings, Defaults.FIELD_TYPE, false);
+            return new AllFieldMapper(false);
         }
     }
 
     static final class AllFieldType extends StringFieldType {
         AllFieldType() {
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         protected AllFieldType(AllFieldType ref) {
@@ -124,12 +124,8 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     private final boolean disableExplicit;
 
-    private AllFieldMapper(Settings indexSettings, MappedFieldType existing, boolean disableExplicit) {
-        this(existing.clone(), indexSettings, disableExplicit);
-    }
-
-    private AllFieldMapper(MappedFieldType fieldType, Settings indexSettings, boolean disableExplicit) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    private AllFieldMapper(boolean disableExplicit) {
+        super(Defaults.FIELD_TYPE, new AllFieldType());
         this.disableExplicit = disableExplicit;
     }
 

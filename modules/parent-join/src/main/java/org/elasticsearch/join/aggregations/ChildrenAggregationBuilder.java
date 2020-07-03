@@ -42,8 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ChildrenAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ChildrenAggregationBuilder> {
+public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<ChildrenAggregationBuilder> {
 
     public static final String NAME = "children";
 

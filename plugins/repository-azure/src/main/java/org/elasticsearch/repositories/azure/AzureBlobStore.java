@@ -22,7 +22,9 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.OperationContext;
+import com.microsoft.azure.storage.RequestCompletedEvent;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
+import com.microsoft.azure.storage.StorageEvent;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
@@ -68,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -85,6 +88,12 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
 
+    private final Stats stats = new Stats();
+
+    private final Consumer<HttpURLConnection> getMetricsCollector;
+    private final Consumer<HttpURLConnection> listMetricsCollector;
+    private final Consumer<HttpURLConnection> uploadMetricsCollector;
+
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
@@ -95,6 +104,35 @@ public class AzureBlobStore implements BlobStore {
         final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
         final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
         this.service.refreshAndClearCache(newSettings);
+        this.getMetricsCollector = (httpURLConnection) -> {
+            if (httpURLConnection.getRequestMethod().equals("HEAD")) {
+                stats.headOperations.incrementAndGet();
+                return;
+            }
+            assert httpURLConnection.getRequestMethod().equals("GET");
+
+            stats.getOperations.incrementAndGet();
+        };
+        this.listMetricsCollector = (httpURLConnection) -> {
+            assert httpURLConnection.getRequestMethod().equals("GET");
+            stats.listOperations.incrementAndGet();
+        };
+        this.uploadMetricsCollector = (httpURLConnection -> {
+           assert httpURLConnection.getRequestMethod().equals("PUT");
+            String queryParams = httpURLConnection.getURL().getQuery();
+            if (queryParams != null && isBlockUpload(queryParams)) {
+                stats.putBlockOperations.incrementAndGet();
+            } else {
+                stats.putOperations.incrementAndGet();
+            }
+        });
+    }
+
+    private boolean isBlockUpload(String queryParams) {
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        return (queryParams.contains("comp=block") && queryParams.contains("blockid="))
+            || queryParams.contains("comp=blocklist");
     }
 
     @Override
@@ -122,7 +160,7 @@ public class AzureBlobStore implements BlobStore {
     public void close() {
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, StorageException, IOException {
+    public boolean blobExists(String blob) throws URISyntaxException, StorageException {
         // Container name must be lower case.
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -132,7 +170,7 @@ public class AzureBlobStore implements BlobStore {
         });
     }
 
-    public void deleteBlob(String blob) throws URISyntaxException, StorageException, IOException {
+    public void deleteBlob(String blob) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -147,6 +185,7 @@ public class AzureBlobStore implements BlobStore {
     public DeleteResult deleteBlobDirectory(String path, Executor executor)
             throws URISyntaxException, StorageException, IOException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext context = hookMetricCollector(client.v2().get(), listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         final AtomicLong outstanding = new AtomicLong(1L);
@@ -154,7 +193,8 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong blobsDeleted = new AtomicLong();
         final AtomicLong bytesDeleted = new AtomicLong();
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true,
+                EnumSet.noneOf(BlobListingDetails.class), null, context)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = blobItem.getUri().getPath().substring(1 + container.length() + 1);
@@ -203,26 +243,28 @@ public class AzureBlobStore implements BlobStore {
 
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext context = hookMetricCollector(client.v2().get(), getMetricsCollector);
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
-            blockBlobReference.openInputStream(position, length, null, null, client.v2().get()));
+            blockBlobReference.openInputStream(position, length, null, null, context));
         return giveSocketPermissionsToStream(is);
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix)
-        throws URISyntaxException, StorageException, IOException {
+        throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
         final Map<String, BlobMetadata> blobsBuilder = new HashMap<String, BlobMetadata>();
         final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext context = hookMetricCollector(client.v2().get(), listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
         SocketAccess.doPrivilegedVoidException(() -> {
             for (final ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
-                enumBlobListingDetails, null, client.v2().get())) {
+                enumBlobListingDetails, null, context)) {
                 final URI uri = blobItem.getUri();
                 logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
@@ -239,15 +281,16 @@ public class AzureBlobStore implements BlobStore {
         return MapBuilder.newMapBuilder(blobsBuilder).immutableMap();
     }
 
-    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException, IOException {
+    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
         final Set<String> blobsBuilder = new HashSet<String>();
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext context = hookMetricCollector(client.v2().get(), listMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final String keyPath = path.buildAsString();
         final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
 
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false, enumBlobListingDetails, null, client.v2().get())) {
+            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false, enumBlobListingDetails, null, context)) {
                 if (blobItem instanceof CloudBlobDirectory) {
                     final URI uri = blobItem.getUri();
                     logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
@@ -270,13 +313,14 @@ public class AzureBlobStore implements BlobStore {
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext operationContext = hookMetricCollector(client().v2().get(), uploadMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
         try {
             final AccessCondition accessCondition =
                 failIfAlreadyExists ? AccessCondition.generateIfNotExistsCondition() : AccessCondition.generateEmptyCondition();
             SocketAccess.doPrivilegedVoidException(() ->
-                blob.upload(inputStream, blobSize, accessCondition, service.getBlobRequestOptionsForWriteBlob(), client.v2().get()));
+                blob.upload(inputStream, blobSize, accessCondition, service.getBlobRequestOptionsForWriteBlob(), operationContext));
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
@@ -289,6 +333,19 @@ public class AzureBlobStore implements BlobStore {
 
     private Tuple<CloudBlobClient, Supplier<OperationContext>> client() {
         return service.client(clientName);
+    }
+
+    private OperationContext hookMetricCollector(OperationContext context, Consumer<HttpURLConnection> metricCollector) {
+        context.getRequestCompletedEventHandler().addListener(new StorageEvent<RequestCompletedEvent>() {
+            @Override
+            public void eventOccurred(RequestCompletedEvent eventArg) {
+                int statusCode = eventArg.getRequestResult().getStatusCode();
+                if (statusCode < 300) {
+                    metricCollector.accept((HttpURLConnection) eventArg.getConnectionObject());
+                }
+            }
+        });
+        return context;
     }
 
     static InputStream giveSocketPermissionsToStream(final InputStream stream) {
@@ -308,5 +365,33 @@ public class AzureBlobStore implements BlobStore {
                 return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
             }
         };
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
+    }
+
+    private static class Stats {
+
+        private final AtomicLong getOperations = new AtomicLong();
+
+        private final AtomicLong listOperations = new AtomicLong();
+
+        private final AtomicLong headOperations = new AtomicLong();
+
+        private final AtomicLong putOperations = new AtomicLong();
+
+        private final AtomicLong putBlockOperations = new AtomicLong();
+
+        private Map<String, Long> toMap() {
+            return org.elasticsearch.common.collect.Map.of(
+                "GET", getOperations.get(),
+                "LIST", listOperations.get(),
+                "HEAD", headOperations.get(),
+                "PUT", putOperations.get(),
+                "PUT_BLOCK", putBlockOperations.get()
+            );
+        }
     }
 }

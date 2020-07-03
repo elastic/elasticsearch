@@ -89,7 +89,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         threadPool = new TestThreadPool(getClass().getName());
-        circuitBreakerService = new HierarchyCircuitBreakerService(settings, clusterSettings);
+        circuitBreakerService = new HierarchyCircuitBreakerService(settings, Collections.emptyList(), clusterSettings);
         settingsA = Settings.builder().put("node.name", "TS_A").put(settings).build();
         serviceA = build(settingsA, version0);
         nodeA = serviceA.getLocalDiscoNode();

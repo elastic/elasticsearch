@@ -25,8 +25,8 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless')
-  compile project(':libs:elasticsearch-grok')
-  compile project(':libs:elasticsearch-dissect')
+  api project(':libs:elasticsearch-grok')
+  api project(':libs:elasticsearch-dissect')
 }
 
 restResources {
@@ -40,3 +40,16 @@ testClusters.integTest {
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module project(':modules:lang-mustache').tasks.bundlePlugin.archiveFile
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  // from log4j
+  'org.osgi.framework.AdaptPermission',
+  'org.osgi.framework.AdminPermission',
+  'org.osgi.framework.Bundle',
+  'org.osgi.framework.BundleActivator',
+  'org.osgi.framework.BundleContext',
+  'org.osgi.framework.BundleEvent',
+  'org.osgi.framework.SynchronousBundleListener',
+  'org.osgi.framework.wiring.BundleWire',
+  'org.osgi.framework.wiring.BundleWiring'
+)

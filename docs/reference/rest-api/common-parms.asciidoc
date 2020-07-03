@@ -216,11 +216,12 @@ tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard
-expressions can expand to. Valid values are:
+(Optional, string) Controls what kind of indices that wildcard expressions can
+expand to. Multiple values are accepted when separated by a comma, as in
+`open,hidden`. Valid values are:
 
 `all`::
-Expand to open and closed indices.
+Expand to open and closed indices, including <<index-hidden,hidden indices>>.
 
 `open`::
 Expand only to open indices.
@@ -229,7 +230,8 @@ Expand only to open indices.
 Expand only to closed indices.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
+Expansion of wildcards will include <<index-hidden,hidden indices>>.
+Must be combined with `open`, `closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.
@@ -450,8 +452,8 @@ end::index-total[]
 tag::bulk-index[]
 `_index`::
 (Optional, string)
-The name of the target index.
-Required if not specified as a path parameter.
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
 end::bulk-index[]
 
 tag::index-metric[]
@@ -693,6 +695,7 @@ Defines how to group the data. More than one grouping can be defined
 * <<_terms,Terms>>
 * <<_histogram,Histogram>>
 * <<_date_histogram,Date histogram>>
+* <<_geotile_grid,Geotile Grid>>
 --
 end::pivot-group-by[]
 
@@ -865,14 +868,26 @@ end::source[]
 
 tag::source_excludes[]
 `_source_excludes`::
-(Optional, string) A list of fields to exclude from the returned `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to exclude from
+the response.
++
+You can also use this parameter to exclude fields from the subset specified in
+`_source_includes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_excludes[]
 
 tag::source_includes[]
 `_source_includes`::
-(Optional, string) A list of fields to extract and return from the `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to
+include in the response.
++
+If this parameter is specified, only these source fields are returned. You can
+exclude fields from this subset using the `_source_excludes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_includes[]
 
 tag::source-transforms[]
@@ -947,7 +962,7 @@ end::transform-settings[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
-throttles the {transform} by adding a wait time between search requests. The 
+throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
@@ -965,7 +980,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 
@@ -1030,7 +1045,7 @@ information for all {transforms}.
 end::transform-id-wildcard[]
 
 tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For 
+The number of times the {transform} has been triggered by the scheduler. For
 example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

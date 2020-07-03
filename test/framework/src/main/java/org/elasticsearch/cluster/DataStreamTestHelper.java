@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,7 @@ public final class DataStreamTestHelper {
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, generation))
+        return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
@@ -50,5 +51,9 @@ public final class DataStreamTestHelper {
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
+    }
+
+    public static DataStream.TimestampField createTimestampField(String fieldName) {
+        return new DataStream.TimestampField(fieldName, Map.of("type", "date"));
     }
 }

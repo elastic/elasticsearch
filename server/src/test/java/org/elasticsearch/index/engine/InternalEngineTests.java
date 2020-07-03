@@ -772,6 +772,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (Engine recoveringEngine = new InternalEngine(engine.config())) {
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            recoveringEngine.refresh("test");
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
                 searcher.search(new MatchAllDocsQuery(), collector);
@@ -840,6 +841,7 @@ public class InternalEngineTests extends EngineTestCase {
             initialEngine.close();
             recoveringEngine = new InternalEngine(initialEngine.config());
             recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+            recoveringEngine.refresh("test");
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), docs);
                 assertEquals(docs, topDocs.totalHits.value);
@@ -1166,13 +1168,13 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(inSync ? 3L : 2L));
 
         engine.flush(true, true);
-        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(4L));
-        assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(inSync ? 4L : 2L));
+        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(inSync ? 3L : 2L));
 
         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
         engine.flush(true, true);
-        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(5L));
-        assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(5L));
+        assertThat(engine.getTranslog().currentFileGeneration(), equalTo(3L));
+        assertThat(engine.getTranslog().getMinFileGeneration(), equalTo(3L));
     }
 
     public void testSyncTranslogConcurrently() throws Exception {
@@ -3143,11 +3145,10 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(flush ? 1 : 2, translogHandler.appliedOperations());
         engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(doc), primaryTerm.get()));
         if (randomBoolean()) {
-            engine.refresh("test");
-        } else {
             engine.close();
             engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         }
+        engine.refresh("test");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), numDocs);
             assertThat(topDocs.totalHits.value, equalTo((long) numDocs));
@@ -3209,7 +3210,7 @@ public class InternalEngineTests extends EngineTestCase {
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
-        assertVisibleCount(engine, numDocs, false);
+        assertVisibleCount(engine, numDocs, true);
     }
 
     public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
@@ -4984,6 +4985,8 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Engine.IndexCommitRef snapshot;
+        final boolean closeSnapshotBeforeEngine = randomBoolean();
         try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
             int numDocs = between(1, 20);
             for (int i = 0; i < numDocs; i++) {
@@ -4994,7 +4997,6 @@ public class InternalEngineTests extends EngineTestCase {
             }
             final boolean flushFirst = randomBoolean();
             final boolean safeCommit = randomBoolean();
-            final Engine.IndexCommitRef snapshot;
             if (safeCommit) {
                 snapshot = engine.acquireSafeIndexCommit();
             } else {
@@ -5011,10 +5013,17 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
-            snapshot.close();
-            // check it's clean up
-            engine.flush(true, true);
-            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+
+            if (closeSnapshotBeforeEngine) {
+                snapshot.close();
+                // check it's clean up
+                engine.flush(true, true);
+                assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+            }
+        }
+
+        if (closeSnapshotBeforeEngine == false) {
+            snapshot.close(); // shouldn't throw AlreadyClosedException
         }
     }
 

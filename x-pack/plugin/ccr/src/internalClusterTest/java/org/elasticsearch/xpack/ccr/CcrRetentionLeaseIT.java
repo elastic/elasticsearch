@@ -603,7 +603,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 // we assert that retention leases are being advanced
                 assertThat(
                         retentionLease.retainingSequenceNumber(),
-                        equalTo(leaderGlobalCheckpoints.get(shardsStats.get(i).getShardRouting().id())));
+                        equalTo(leaderGlobalCheckpoints.get(shardsStats.get(i).getShardRouting().id()) + 1));
             }
         });
     }

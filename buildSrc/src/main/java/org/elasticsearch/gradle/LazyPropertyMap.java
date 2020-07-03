@@ -146,11 +146,13 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
             this.normalization = normalization;
         }
 
+        @Input
         public PropertyNormalization getNormalization() {
             return normalization;
         }
 
         @Override
+        @Input
         public String getName() {
             return getKey().toString();
         }

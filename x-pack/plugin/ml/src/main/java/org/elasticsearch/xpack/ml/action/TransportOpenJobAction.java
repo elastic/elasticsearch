@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -41,6 +42,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -57,6 +59,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -132,11 +135,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
-            return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndex.configIndexName()};
+            return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), MlMetaIndex.indexName(),
+                MlConfigIndex.indexName()};
         }
-        return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), resultsIndex, MlMetaIndex.INDEX_NAME,
-            AnomalyDetectorsIndex.configIndexName()};
+        return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), resultsIndex, MlMetaIndex.indexName(),
+            MlConfigIndex.indexName()};
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(String resultsWriteIndex, ClusterState clusterState,
@@ -213,7 +216,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         OpenJobAction.JobParams jobParams = request.getJobParams();
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
 
             // Clear job finished time once the job is started and respond
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
@@ -346,6 +349,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final MlMemoryTracker memoryTracker;
         private final Client client;
         private final IndexNameExpressionResolver expressionResolver;
+        private final JobResultsProvider jobResultsProvider;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
@@ -361,6 +365,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.client = Objects.requireNonNull(client);
             this.expressionResolver = Objects.requireNonNull(expressionResolver);
+            this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
@@ -438,6 +443,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             jobTask.autodetectProcessManager = autodetectProcessManager;
             JobTaskState jobTaskState = (JobTaskState) state;
             JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
+            jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
+                r -> runJob(jobTask, jobState, params),
+                e -> {
+                    logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
+                    runJob(jobTask, jobState, params);
+                }
+            ));
+        }
+
+        private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {
             // If the job is closing, simply stop and return
             if (JobState.CLOSING.equals(jobState)) {
                 // Mark as completed instead of using `stop` as stop assumes native processes have started
@@ -459,22 +474,22 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                         executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
-                                response -> task.markAsCompleted(),
+                                response -> jobTask.markAsCompleted(),
                                 e -> {
                                     logger.error("error finalizing job [" + jobId + "]", e);
                                     Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                                     if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
-                                        task.markAsCompleted();
+                                        jobTask.markAsCompleted();
                                     } else {
-                                        task.markAsFailed(e);
+                                        jobTask.markAsFailed(e);
                                     }
                                 }
                             ));
                     } else {
-                        task.markAsCompleted();
+                        jobTask.markAsCompleted();
                     }
                 } else {
-                    task.markAsFailed(e2);
+                    jobTask.markAsFailed(e2);
                 }
             });
         }

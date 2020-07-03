@@ -18,6 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
@@ -43,7 +44,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -386,7 +386,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, clusterService::state);
 
         // schedulers
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
@@ -542,7 +542,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.allocatedProcessors(settings));
+        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
     }
 
     static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {
@@ -623,14 +623,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5)));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6)));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), null));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

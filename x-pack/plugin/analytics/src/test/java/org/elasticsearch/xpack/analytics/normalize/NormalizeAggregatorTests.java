@@ -150,18 +150,12 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
             }
 
             // setup mapping
-            DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.Builder("_name").fieldType();
-            dateFieldType.setHasDocValues(true);
-            dateFieldType.setName(DATE_FIELD);
-            MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            valueFieldType.setHasDocValues(true);
-            valueFieldType.setName(VALUE_FIELD);
-            MappedFieldType termFieldType = new KeywordFieldMapper.KeywordFieldType();
-            termFieldType.setName(TERM_FIELD);
-            termFieldType.setHasDocValues(true);
+            DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+            MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
+            MappedFieldType termFieldType = new KeywordFieldMapper.KeywordFieldType(TERM_FIELD);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 InternalAggregation internalAggregation = searchAndReduce(indexSearcher, query, aggBuilder, dateFieldType,
                     valueFieldType, termFieldType);
                 aggAssertion.accept(internalAggregation);

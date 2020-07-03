@@ -449,7 +449,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(numShardsRun, greaterThan(0));
     }
 
-    public void testInitMapWithParams() {
+    public void testInitMutatesParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
 

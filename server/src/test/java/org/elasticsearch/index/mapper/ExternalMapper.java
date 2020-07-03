@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -27,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -36,7 +36,9 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -69,7 +71,7 @@ public class ExternalMapper extends FieldMapper {
         private String mapperName;
 
         public Builder(String name, String generatedValue, String mapperName) {
-            super(name, new ExternalFieldType(), new ExternalFieldType());
+            super(name, new FieldType());
             this.builder = this;
             this.stringBuilder = new TextFieldMapper.Builder(name).store(false);
             this.generatedValue = generatedValue;
@@ -93,10 +95,13 @@ public class ExternalMapper extends FieldMapper {
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
 
-            setupFieldType(context);
+            return new ExternalMapper(name, buildFullName(context), fieldType, generatedValue, mapperName, binMapper, boolMapper,
+                pointMapper, shapeMapper, stringMapper, multiFieldsBuilder.build(this, context), copyTo, true);
+        }
 
-            return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper,
-                shapeMapper, stringMapper, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+        @Override
+        public Builder index(boolean index) {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -121,7 +126,9 @@ public class ExternalMapper extends FieldMapper {
 
     static class ExternalFieldType extends TermBasedFieldType {
 
-        ExternalFieldType() {}
+        ExternalFieldType(String name, boolean indexed, boolean hasDocValues) {
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
 
         protected ExternalFieldType(ExternalFieldType ref) {
             super(ref);
@@ -156,12 +163,12 @@ public class ExternalMapper extends FieldMapper {
     private AbstractShapeGeometryFieldMapper shapeMapper;
     private FieldMapper stringMapper;
 
-    public ExternalMapper(String simpleName, MappedFieldType fieldType,
+    public ExternalMapper(String simpleName, String contextName, FieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings,
-                          MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
+                          AbstractShapeGeometryFieldMapper shapeMapper, FieldMapper stringMapper,
+                          MultiFields multiFields, CopyTo copyTo, boolean indexed) {
+        super(simpleName, fieldType, new ExternalFieldType(contextName, indexed, false), multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;
@@ -207,44 +214,13 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        // ignore this for now
-    }
-
-    @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        ExternalMapper update = (ExternalMapper) super.updateFieldType(fullNameToFieldType);
-        MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
-        BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
-        BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
-        GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
-        AbstractShapeGeometryFieldMapper shapeMapperUpdate =
-            (AbstractShapeGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
-        TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
-        if (update == this
-                && multiFieldsUpdate == multiFields
-                && binMapperUpdate == binMapper
-                && boolMapperUpdate == boolMapper
-                && pointMapperUpdate == pointMapper
-                && shapeMapperUpdate == shapeMapper
-                && stringMapperUpdate == stringMapper) {
-            return this;
-        }
-        if (update == this) {
-            update = (ExternalMapper) clone();
-        }
-        update.multiFields = multiFieldsUpdate;
-        update.binMapper = binMapperUpdate;
-        update.boolMapper = boolMapperUpdate;
-        update.pointMapper = pointMapperUpdate;
-        update.shapeMapper = shapeMapperUpdate;
-        update.stringMapper = stringMapperUpdate;
-        return update;
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

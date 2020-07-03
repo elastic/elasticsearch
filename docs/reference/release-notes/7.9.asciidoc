@@ -1,0 +1,24 @@
+[[release-notes-7.9.0]]
+== {es} version 7.9.0
+
+Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
+
+[[breaking-7.9.0]]
+[float]
+=== Breaking changes
+
+Script Cache::
+* Script cache size and rate limiting are per-context {es-pull}55753[#55753] (issue: {es-issue}50152[#50152])
+
+Field capabilities API::
+* Constant_keyword fields are now described by their family type `keyword` instead of `constant_keyword` {es-pull}58483[#58483] (issue: {es-issue}53175[#53175])
+
+Snapshot restore throttling::
+* Restoring from a snapshot (which is a particular form of recovery) is now
+  properly taking recovery throttling into account (i.e. the
+  `indices.recovery.max_bytes_per_sec` setting).
+  The `max_restore_bytes_per_sec` setting is also now defaulting to
+  unlimited, whereas previously it was set to `40mb`, which is the
+  default that's used for `indices.recovery.max_bytes_per_sec`. This means
+  that no behavioral change will be observed by clusters where the recovery
+  and restore settings had not been adapted from the defaults. {es-pull}58658[#58658]

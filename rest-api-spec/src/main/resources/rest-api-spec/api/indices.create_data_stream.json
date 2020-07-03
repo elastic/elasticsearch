@@ -24,8 +24,7 @@
     "params":{
     },
     "body":{
-      "description":"The data stream definition",
-      "required":true
+      "description":"The data stream definition"
     }
   }
 }

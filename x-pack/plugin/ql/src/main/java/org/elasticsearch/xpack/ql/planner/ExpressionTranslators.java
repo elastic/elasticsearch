@@ -217,7 +217,7 @@ public final class ExpressionTranslators {
 
         public static void checkBinaryComparison(BinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
-                         "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                         "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                          bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
                          Expressions.name(bc.right()), bc.symbol());
         }
@@ -385,8 +385,8 @@ public final class ExpressionTranslators {
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
-                if (sw.isCaseSensitive() && sw.field() instanceof FieldAttribute && sw.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.field()).exactAttribute());
+                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
                     return new PrefixQuery(f.source(), targetFieldName, pattern);

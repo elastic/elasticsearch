@@ -96,7 +96,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "wait_master.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope)
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY
     );
 
     private final Client client;
@@ -460,7 +460,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                                           final AtomicInteger pendingResponses) {
         final XPackClient xpackClient = new XPackClient(client);
         final WatcherClient watcher = xpackClient.watcher();
-        final boolean canAddWatches = licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canAddWatches = licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS);
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
             final String uniqueWatchId = ClusterAlertsUtil.createUniqueWatchId(clusterService, watchId);

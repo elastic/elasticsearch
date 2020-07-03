@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-kuromoji:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-kuromoji:${versions.lucene}"
 }
 
 restResources {
@@ -32,7 +32,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 

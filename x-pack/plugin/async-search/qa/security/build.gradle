@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('async-search'), configuration: 'runtime')
-  testCompile project(':x-pack:plugin:async-search:qa')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('async-search'))
+  testImplementation project(':x-pack:plugin:async-search:qa')
 }
 
 testClusters.integTest {

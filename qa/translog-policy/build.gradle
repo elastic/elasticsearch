@@ -1,0 +1,108 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.TestDistribution
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+
+boolean isDefaultDistro = System.getProperty('tests.distribution', 'oss') == 'default'
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+  if (bwcVersion.before('6.3.0') && isDefaultDistro) {
+    // explicitly running restart on the current node does not work in step 2
+    // below when plugins are installed, wihch is the case for x-pack as a plugin
+    // prior to 6.3.0
+    continue
+  }
+  String baseName = "v${bwcVersion}"
+
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      setting 'http.content_type.required', 'true'
+    }
+  }
+
+  tasks.register("${baseName}#Step1OldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    systemProperty 'tests.test_step', 'step1'
+    systemProperty 'tests.is_old_cluster', 'true'
+  }
+
+  tasks.register("${baseName}#Step2OldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#Step1OldClusterTest"
+    doFirst {
+      testClusters."${baseName}".fullRestart()
+    }
+    systemProperty 'tests.test_step', 'step2'
+    systemProperty 'tests.is_old_cluster', 'true'
+  }
+
+  tasks.register("${baseName}#Step3NewClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#Step2OldClusterTest"
+    doFirst {
+      testClusters."${baseName}".goToNextVersion()
+    }
+    systemProperty 'tests.test_step', 'step3'
+    systemProperty 'tests.is_old_cluster', 'false'
+  }
+
+  tasks.register("${baseName}#Step4NewClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#Step3NewClusterTest"
+    doFirst {
+      testClusters."${baseName}".fullRestart()
+    }
+    systemProperty 'tests.test_step', 'step4'
+    systemProperty 'tests.is_old_cluster', 'false'
+  }
+
+  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', oldVersion
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#Step4NewClusterTest")
+  }
+}
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

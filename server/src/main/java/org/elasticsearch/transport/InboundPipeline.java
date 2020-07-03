@@ -46,7 +46,7 @@ public class InboundPipeline implements Releasable {
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
     private Exception uncaughtException;
-    private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
+    private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,

@@ -368,7 +368,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         };
     }
 
-    private static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
+    public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         CheckedConsumer<Integer, InterruptedException> sleeper = millis -> {};
         ThreadPool tp = mock(ThreadPool.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,

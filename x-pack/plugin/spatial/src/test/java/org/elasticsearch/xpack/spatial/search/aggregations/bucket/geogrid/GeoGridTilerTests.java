@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
@@ -478,9 +479,9 @@ public class GeoGridTilerTests extends ESTestCase {
             numBytes = values.getValuesBytes();
         }
 
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        service.registerBreaker(new BreakerSettings("limited", numBytes - 1, 1.0));
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            Collections.singletonList(new BreakerSettings("limited", numBytes - 1, 1.0)),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         CircuitBreaker limitedBreaker = service.getBreaker("limited");
 
         Consumer<Long> circuitBreakerConsumer = (l) -> limitedBreaker.addEstimateBytesAndMaybeBreak(l, "agg");

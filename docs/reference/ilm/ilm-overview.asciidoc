@@ -11,22 +11,22 @@ You can create and apply {ilm-cap} ({ilm-init}) policies to automatically manage
 according to your performance, resiliency, and retention requirements. 
 Index lifecycle policies can trigger actions such as:
 
-* **Rollover** - 
+* **Rollover**: 
 include::../glossary.asciidoc[tag=rollover-def-short]
-* **Shrink** - 
+* **Shrink**: 
 include::../glossary.asciidoc[tag=shrink-def-short]
-* **Force merge** - 
+* **Force merge**: 
 include::../glossary.asciidoc[tag=force-merge-def-short]
-* **Freeze** -
+* **Freeze**:
 include::../glossary.asciidoc[tag=freeze-def-short]
-* **Delete** - Permanently remove an index, including all of its data and metadata.
+* **Delete**: Permanently remove an index, including all of its data and metadata.
 
 {ilm-init} makes it easier to manage indices in hot-warm-cold architectures,
 which are common when you're working with time-series data such as logs and metrics.
 
 You can specify:
 
-* The maximum size, number of documents, or age at which you want to roll over to a new index.
+* The maximum shard size, number of documents, or age at which you want to roll over to a new index.
 * The point at which the index is no longer being updated and the number of
 primary shards can be reduced.
 * When to force a merge to permanently remove documents marked for deletion.

@@ -105,7 +105,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
         SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
-        assertThat(disabledRegistry.getTemplateConfigs(), hasSize(0));
+        assertThat(disabledRegistry.getLegacyTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -119,7 +119,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLegacyTemplateConfigs().size())));
 
         calledTimes.set(0);
 
@@ -233,7 +233,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLegacyTemplateConfigs().size())));
     }
 
     public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
@@ -244,7 +244,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLegacyTemplateConfigs().size())));
     }
 
 

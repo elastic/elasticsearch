@@ -27,6 +27,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A request to cancel tasks
@@ -88,5 +89,15 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     public boolean waitForCompletion() {
         return waitForCompletion;
+    }
+
+    @Override
+    public String getDescription() {
+        return "reason[" + reason +
+            "], waitForCompletion[" + waitForCompletion +
+            "], taskId[" + getTaskId() +
+            "], parentTaskId[" + getParentTaskId() +
+            "], nodes" + Arrays.toString(getNodes()) +
+            ", actions" + Arrays.toString(getActions());
     }
 }

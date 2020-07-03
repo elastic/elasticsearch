@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,8 +41,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -60,15 +60,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public static final String NAME = SourceFieldMapper.NAME;
         public static final boolean ENABLED = true;
 
-        public static final MappedFieldType FIELD_TYPE = new SourceFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
 
@@ -82,7 +79,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private String[] excludes = null;
 
         public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder enabled(boolean enabled) {
@@ -102,7 +99,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(enabled, includes, excludes, context.indexSettings());
+            return new SourceFieldMapper(enabled, includes, excludes);
         }
     }
 
@@ -143,13 +140,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SourceFieldMapper(indexSettings);
+            return new SourceFieldMapper();
         }
     }
 
     static final class SourceFieldType extends MappedFieldType {
 
-        SourceFieldType() {}
+        public static final SourceFieldType INSTANCE = new SourceFieldType();
+
+        private SourceFieldType() {
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        }
 
         protected SourceFieldType(SourceFieldType ref) {
             super(ref);
@@ -184,17 +185,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
 
-    private SourceFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED, null, null, indexSettings);
+    private SourceFieldMapper() {
+        this(Defaults.ENABLED, null, null);
     }
 
-    private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes, Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE.clone(), Defaults.FIELD_TYPE, indexSettings); // Only stored.
+    private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
+        super(Defaults.FIELD_TYPE, SourceFieldType.INSTANCE); // Only stored.
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
+        this.filter = enabled && filtered && fieldType.stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }
 
@@ -246,7 +247,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (enabled && fieldType().stored() && originalSource != null) {
+        if (enabled && fieldType.stored() && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
@@ -301,9 +302,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) other;
         if (this.enabled != sourceMergeWith.enabled) {
             conflicts.add("Cannot update enabled setting for [_source]");
         }
@@ -313,8 +313,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
             conflicts.add("Cannot update excludes setting for [_source]");
         }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
     }
+
 }

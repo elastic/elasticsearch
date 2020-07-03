@@ -63,9 +63,7 @@ public class LegacyGetActionIT extends ESIntegTestCase {
                     .setStoredFields("field1")
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
             assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-            assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
             assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
         }
 
@@ -78,9 +76,7 @@ public class LegacyGetActionIT extends ESIntegTestCase {
                     .setRouting("1")
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
             assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-            assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
             assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
         }
     }

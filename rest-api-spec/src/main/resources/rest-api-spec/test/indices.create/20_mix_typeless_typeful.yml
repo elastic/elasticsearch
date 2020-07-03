@@ -20,7 +20,7 @@
 
  - do:
       allowed_warnings:
-          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
+          - "index [test-1] matches multiple legacy templates [global, test_template], composable templates will only match a single template"
       indices.create:
           index: test-1
           body:
@@ -60,8 +60,8 @@
 
  - do:
       allowed_warnings:
-          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
-      indices.create: 
+          - "index [test-1] matches multiple legacy templates [global, test_template], composable templates will only match a single template"
+      indices.create:
           include_type_name: true
           index: test-1
           body:
@@ -128,7 +128,7 @@
 
  - do:
       allowed_warnings:
-          - "index [test-1] matches multiple v1 templates [global, test_template], v2 index templates will only match a single index template"
+          - "index [test-1] matches multiple legacy templates [global, test_template], composable templates will only match a single template"
       index:
           index: test-1
           body: { bar: 42 }

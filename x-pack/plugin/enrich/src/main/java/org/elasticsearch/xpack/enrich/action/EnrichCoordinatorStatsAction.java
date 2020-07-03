@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -20,7 +22,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -35,7 +39,11 @@ import java.util.List;
 public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorStatsAction.Response> {
 
     public static final EnrichCoordinatorStatsAction INSTANCE = new EnrichCoordinatorStatsAction();
-    public static final String NAME = "cluster:admin/xpack/enrich/coordinator_stats";
+    public static final String NAME = "cluster:monitor/xpack/enrich/coordinator_stats";
+    /**
+     * The BWC_NAME was used up to 7.8.x
+     */
+    public static final String BWC_NAME = "cluster:admin/xpack/enrich/coordinator_stats";
 
     private EnrichCoordinatorStatsAction() {
         super(NAME, Response::new);
@@ -133,6 +141,24 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
                 NodeResponse.class
             );
             this.coordinator = coordinator;
+            transportService.registerRequestHandler(
+                EnrichCoordinatorStatsAction.BWC_NAME + "[n]",
+                ThreadPool.Names.SAME,
+                NodeRequest::new,
+                (NodeRequest request, TransportChannel channel, Task task) -> channel.sendResponse(nodeOperation(request, task))
+            );
+            transportService.registerRequestHandler(
+                EnrichCoordinatorStatsAction.BWC_NAME,
+                ThreadPool.Names.SAME,
+                false,
+                true,
+                Request::new,
+                (final Request request, final TransportChannel channel, Task task) -> execute(
+                    task,
+                    request,
+                    new ChannelActionListener<>(channel, EnrichCoordinatorStatsAction.BWC_NAME, request)
+                )
+            );
         }
 
         @Override
@@ -160,6 +186,11 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         protected NodeResponse nodeOperation(NodeRequest request) {
             DiscoveryNode node = clusterService.localNode();
             return new NodeResponse(node, coordinator.getStats(node.getId()));
+        }
+
+        @Override
+        protected String getTransportNodeAction(DiscoveryNode node) {
+            return node.getVersion().before(Version.V_7_9_0) ? BWC_NAME + "[n]" : transportNodeAction;
         }
     }
 

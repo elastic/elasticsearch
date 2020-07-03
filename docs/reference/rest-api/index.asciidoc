@@ -17,6 +17,7 @@ endif::[]
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
+* <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
@@ -31,7 +32,9 @@ endif::[]
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
+ifdef::permanently-unreleased-branch[]
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
+endif::[]
 * <<security-api,Security APIs>>
 * <<snapshot-restore-apis,Snapshot and restore APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
@@ -47,6 +50,7 @@ endif::[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
@@ -61,7 +65,9 @@ include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
+ifdef::permanently-unreleased-branch[]
 include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
+endif::[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
 include::{es-repo-dir}/slm/apis/slm-api.asciidoc[]

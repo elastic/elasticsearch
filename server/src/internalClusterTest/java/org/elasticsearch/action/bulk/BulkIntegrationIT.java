@@ -24,13 +24,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -38,10 +39,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -65,6 +67,7 @@ import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.generateMapping;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -219,18 +222,16 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testMixedAutoCreate() {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
-
-        PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
+    public void testMixedAutoCreate() throws Exception {
+        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
-            new IndexTemplateV2(
+            new ComposableIndexTemplate(
                 Collections.singletonList("logs-foo*"),
-                new Template(settings, null, null),
+                new Template(null, new CompressedXContent(generateMapping("@timestamp")), null),
                 null, null, null, null,
-                new IndexTemplateV2.DataStreamTemplate("@timestamp"))
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
         );
-        client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
@@ -274,8 +275,10 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo2"));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo3"));
 
-        DeleteIndexTemplateV2Action.Request deleteTemplateRequest = new DeleteIndexTemplateV2Action.Request("*");
-        client().execute(DeleteIndexTemplateV2Action.INSTANCE, deleteTemplateRequest).actionGet();
+        DeleteDataStreamAction.Request deleteDSReq = new DeleteDataStreamAction.Request("*");
+        client().execute(DeleteDataStreamAction.INSTANCE, deleteDSReq).actionGet();
+        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
 
     public void testAutoCreateV1TemplateNoDataStream() {

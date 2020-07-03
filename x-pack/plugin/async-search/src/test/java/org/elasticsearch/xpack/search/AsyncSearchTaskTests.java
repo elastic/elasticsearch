@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -51,13 +52,13 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     private AsyncSearchTask createAsyncSearchTask() {
-        return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
+        return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
@@ -214,6 +215,26 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
+    }
+
+    public void testFatalFailureWithNoCause() throws InterruptedException {
+        AsyncSearchTask task = createAsyncSearchTask();
+        AsyncSearchTask.Listener listener = task.getSearchProgressActionListener();
+        int numShards = randomIntBetween(0, 10);
+        List<SearchShard> shards = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        List<SearchShard> skippedShards = new ArrayList<>();
+        int numSkippedShards = randomIntBetween(0, 10);
+        for (int i = 0; i < numSkippedShards; i++) {
+            skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        int totalShards = numShards + numSkippedShards;
+        task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
+
+        listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+        assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true);
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,

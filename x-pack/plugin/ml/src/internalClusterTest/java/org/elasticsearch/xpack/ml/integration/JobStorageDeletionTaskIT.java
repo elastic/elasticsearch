@@ -200,7 +200,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
     }
 
     private void createBuckets(String jobId, int from, int count) {
-        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId, () -> true);
+        JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId);
         for (int i = from; i <= count + from; ++i) {
             Bucket bucket = new Bucket(jobId, new Date(bucketSpan * i), bucketSpan);
             builder.persistBucket(bucket);

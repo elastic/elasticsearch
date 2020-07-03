@@ -8,10 +8,10 @@ import java.nio.file.Files
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(":plugins:repository-gcs")
-  testCompile project(":test:framework")
-  testCompile project(':x-pack:snapshot-tool')
-  testCompile files(project(':x-pack:snapshot-tool').sourceSets.test.output)
+  api project(":plugins:repository-gcs")
+  testImplementation project(":test:framework")
+  testImplementation project(':x-pack:snapshot-tool')
+  testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }
 
 test.enabled = false
@@ -27,7 +27,7 @@ String gcsBucket = System.getenv("google_storage_bucket")
 String gcsBasePath = System.getenv("google_storage_base_path")
 
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-  gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
+  gcsServiceAccount = new File(project(':plugins:repository-gcs').buildDir,
     'generated-resources/service_account_test.json').path
   gcsBucket = 'bucket_test'
   gcsBasePath = 'integration_test'
@@ -41,7 +41,7 @@ def encodedCredentials = {
   Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
 }
 
-task thirdPartyTest(type: Test) {
+task gcsThirdPartyTest(type: Test) {
   include '**/GCSCleanupTests.class'
 
   systemProperty 'tests.security.manager', false
@@ -52,7 +52,7 @@ task thirdPartyTest(type: Test) {
 }
 
 if (useGCSFixture) {
-  thirdPartyTest.enabled = false;
+  gcsThirdPartyTest.enabled = false;
   testingConventions.enabled = false;
   /*
 
@@ -85,4 +85,4 @@ if (useGCSFixture) {
   */
 }
 
-check.dependsOn(thirdPartyTest)
+check.dependsOn(gcsThirdPartyTest)

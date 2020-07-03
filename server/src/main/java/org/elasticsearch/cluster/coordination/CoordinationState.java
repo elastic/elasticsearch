@@ -505,7 +505,12 @@ public class CoordinationState {
                     metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
                 }
                 metadataBuilder.clusterUUIDCommitted(true);
-                logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
+
+                if (lastAcceptedState.term() != ZEN1_BWC_TERM) {
+                    // Zen1 masters never publish a committed cluster UUID so if we logged this it'd happen on on every update. Let's just
+                    // not log it at all in a 6.8/7.x rolling upgrade.
+                    logger.info("cluster UUID set to [{}]", lastAcceptedState.metadata().clusterUUID());
+                }
             }
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());

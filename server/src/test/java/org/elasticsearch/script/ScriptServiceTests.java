@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,23 +38,19 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING;
-import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
+import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
-import static org.elasticsearch.script.ScriptService.USE_CONTEXT_RATE_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -100,7 +96,7 @@ public class ScriptServiceTests extends ESTestCase {
             }
 
             @Override
-            StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(String id) {
                 //mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
@@ -110,8 +106,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testMaxCompilationRateSetting() throws Exception {
-        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
-        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertThat(new ScriptCache.CompilationRate("10/1m"), is(new ScriptCache.CompilationRate(10, TimeValue.timeValueMinutes(1))));
+        assertThat(new ScriptCache.CompilationRate("10/60s"), is(new ScriptCache.CompilationRate(10, TimeValue.timeValueMinutes(1))));
         assertException("10/m", IllegalArgumentException.class, "failed to parse [m]");
         assertException("6/1.6m", IllegalArgumentException.class, "failed to parse [1.6m], fractional time values are not supported");
         assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");
@@ -131,7 +127,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private void assertException(String rate, Class<? extends Exception> clazz, String message) {
-        Exception e = expectThrows(clazz, () -> MAX_COMPILATION_RATE_FUNCTION.apply(rate));
+        Exception e = expectThrows(clazz, () -> new ScriptCache.CompilationRate(rate));
         assertThat(e.getMessage(), is(message));
     }
 
@@ -233,26 +229,31 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testCompilationStatsOnCacheHit() throws IOException {
-        Settings.Builder builder = Settings.builder();
-        builder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
+        Settings.Builder builder = Settings.builder()
+            .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1)
+            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "2/1m");
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
         ScriptContext<?> context = randomFrom(contexts.values());
         scriptService.compile(script, context);
         scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), randomFrom(contexts.values()));
+        ScriptContext<?> ctx = randomFrom(contexts.values());
+        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCompilations());
+        assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         Settings.Builder builder = Settings.builder();
         builder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
+        builder.put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m");
         buildScriptService(builder.build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
@@ -260,6 +261,8 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(2L, scriptService.cacheStats().getGeneralStats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
         assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCacheEvictions());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     public void testContextCacheStats() throws IOException {
@@ -273,7 +276,6 @@ public class ScriptServiceTests extends ESTestCase {
             ".max_compilations_rate] setting"
         );
         buildScriptService(Settings.builder()
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), 1)
             .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), aRate)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), 2)
@@ -382,6 +384,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testConflictContextSettings() throws IOException {
         IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(Settings.builder()
+                .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
                 .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("field").getKey(), 123).build());
         });
         assertEquals("Context cache settings [script.context.field.cache_max_size] requires " +
@@ -391,6 +394,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(Settings.builder()
+                .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
                 .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("ingest").getKey(), "5m").build());
         });
 
@@ -401,6 +405,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(Settings.builder()
+                .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("score").getKey(), "50/5m").build());
         });
 
@@ -414,7 +419,8 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("ingest").getKey(), "5m")
                 .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("field").getKey(), 123)
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("score").getKey(), "50/5m")
-                .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY).build());
+                .build());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     public void testFallbackContextSettings() {
@@ -429,7 +435,7 @@ public class ScriptServiceTests extends ESTestCase {
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), cacheSizeBackup)
             .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("foo").getKey(), cacheSizeFoo)
-            .put(ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackup)
+            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), cacheExpireBackup)
             .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").getKey(), cacheExpireFoo)
             .build();
 
@@ -438,6 +444,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(cacheExpireFooParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
         assertEquals(cacheExpireBackupParsed, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_CACHE_SIZE_SETTING, SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
 
     public void testUseContextSettingValue() {
@@ -454,67 +461,42 @@ public class ScriptServiceTests extends ESTestCase {
         });
 
         assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [use-context]", illegal.getMessage());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
-    public void testCacheHolderGeneralConstructor() {
+    public void testCacheHolderGeneralConstructor() throws IOException {
         String compilationRate = "77/5m";
-        Tuple<Integer, TimeValue> rate = ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(compilationRate);
-        boolean compilationLimitsEnabled = true;
-        ScriptService.CacheHolder holder = new ScriptService.CacheHolder(
-            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate).build(),
-            Collections.unmodifiableSet(Collections.singleton(newContext("foo"))),
-            compilationLimitsEnabled
+        buildScriptService(
+            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate).build()
         );
+
+        ScriptService.CacheHolder holder = scriptService.cacheHolder.get();
 
         assertNotNull(holder.general);
         assertNull(holder.contextCache);
-        assertEquals(holder.general.rate, rate);
-
-        compilationLimitsEnabled = false;
-        holder = new ScriptService.CacheHolder(
-            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate).build(),
-            new HashSet<>(Collections.singleton(newContext("foo"))),
-            compilationLimitsEnabled
-        );
-
-        assertNotNull(holder.general);
-        assertNull(holder.contextCache);
-        assertEquals(holder.general.rate, new Tuple<>(0, TimeValue.ZERO));
+        assertEquals(holder.general.rate, new ScriptCache.CompilationRate(compilationRate));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
-    public void testCacheHolderContextConstructor() {
-        String fooCompilationRate = "77/5m";
-        String barCompilationRate = "78/6m";
-        boolean compilationLimitsEnabled = true;
+    public void testCacheHolderContextConstructor() throws IOException {
+        String a = randomFrom(contexts.keySet());
+        String b = randomValueOtherThan(a, () -> randomFrom(contexts.keySet()));
+        String aCompilationRate = "77/5m";
+        String bCompilationRate = "78/6m";
 
-        Settings s = Settings.builder()
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("foo").getKey(), fooCompilationRate)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("bar").getKey(), barCompilationRate)
-            .build();
-        Collection<ScriptContext<?>> contexts = new HashSet<>(Arrays.asList(newContext("foo"), newContext("bar"),
-                                                                            newContext("baz")));
-        ScriptService.CacheHolder holder = new ScriptService.CacheHolder(s, contexts, compilationLimitsEnabled);
+        buildScriptService(Settings.builder()
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(a).getKey(), aCompilationRate)
+            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(b).getKey(), bCompilationRate)
+            .build());
 
-        assertNull(holder.general);
-        assertNotNull(holder.contextCache);
-        assertEquals(3, holder.contextCache.size());
-        assertEquals(contexts.stream().map(c -> c.name).collect(Collectors.toSet()), holder.contextCache.keySet());
+        assertNull(scriptService.cacheHolder.get().general);
+        assertNotNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(fooCompilationRate), holder.contextCache.get("foo").get().rate);
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(barCompilationRate), holder.contextCache.get("bar").get().rate);
-        assertEquals(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getDefault(Settings.EMPTY),
-                     holder.contextCache.get("baz").get().rate);
-
-        Tuple<Integer, TimeValue> zero = new Tuple<>(0, TimeValue.ZERO);
-        compilationLimitsEnabled = false;
-        holder = new ScriptService.CacheHolder(s, contexts, compilationLimitsEnabled);
-
-        assertNotNull(holder.contextCache);
-        assertEquals(3, holder.contextCache.size());
-        assertEquals(zero, holder.contextCache.get("foo").get().rate);
-        assertEquals(zero, holder.contextCache.get("bar").get().rate);
-        assertEquals(zero, holder.contextCache.get("baz").get().rate);
+        assertEquals(new ScriptCache.CompilationRate(aCompilationRate),
+                     scriptService.cacheHolder.get().contextCache.get(a).get().rate);
+        assertEquals(new ScriptCache.CompilationRate(bCompilationRate),
+                     scriptService.cacheHolder.get().contextCache.get(b).get().rate);
     }
 
     public void testCompilationRateUnlimitedContextOnly() throws IOException {
@@ -533,155 +515,155 @@ public class ScriptServiceTests extends ESTestCase {
                  ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
             .build());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
-    public void testCacheHolderChangeSettings() {
-        String fooCompilationRate = "77/5m";
-        String barCompilationRate = "78/6m";
+    public void testDisableCompilationRateSetting() throws IOException {
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            buildScriptService(Settings.builder()
+                .put("script.context.ingest.max_compilations_rate", "76/10m")
+                .put("script.context.field.max_compilations_rate", "77/10m")
+                .put("script.disable_max_compilations_rate", true)
+                .build());
+        });
+        assertEquals("Cannot set custom context compilation rates [script.context.field.max_compilations_rate, " +
+                "script.context.ingest.max_compilations_rate] if compile rates disabled via " +
+                "[script.disable_max_compilations_rate]",
+            illegal.getMessage());
+
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            buildScriptService(Settings.builder()
+                .put("script.disable_max_compilations_rate", true)
+                .put("script.max_compilations_rate", "76/10m")
+                .build());
+        });
+        assertEquals("Cannot set custom general compilation rates [script.max_compilations_rate] " +
+                "to [76/10m] if compile rates disabled via [script.disable_max_compilations_rate]",
+                illegal.getMessage());
+
+        buildScriptService(Settings.builder()
+            .put("script.disable_max_compilations_rate", true)
+            .build());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
+    }
+
+    public void testCacheHolderChangeSettings() throws IOException {
+        Set<String> contextNames = contexts.keySet();
+        String a = randomFrom(contextNames);
+        String aRate = "77/5m";
+        String b = randomValueOtherThan(a, () -> randomFrom(contextNames));
+        String bRate = "78/6m";
+        String c = randomValueOtherThanMany(s -> a.equals(s) || b.equals(s), () -> randomFrom(contextNames));
         String compilationRate = "77/5m";
-        Tuple<Integer, TimeValue> generalRate = MAX_COMPILATION_RATE_FUNCTION.apply(compilationRate);
+        ScriptCache.CompilationRate generalRate = new ScriptCache.CompilationRate(compilationRate);
 
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate)
             .build();
-        Collection<ScriptContext<?>> contexts = new HashSet<>(Arrays.asList(newContext("foo"), newContext("bar"),
-                                                                            newContext("baz"), newContext("qux")));
-        ScriptService.CacheHolder holder = new ScriptService.CacheHolder(s, contexts, true);
 
-        assertNotNull(holder.general);
-        assertNull(holder.contextCache);
-        assertEquals(generalRate, holder.general.rate);
+        buildScriptService(s);
 
-        holder = holder.withUpdatedCacheSettings(Settings.builder()
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("foo").getKey(), fooCompilationRate)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("bar").getKey(), barCompilationRate)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("qux").getKey(),
-                 ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
-            .build()
+        assertNotNull(scriptService.cacheHolder.get().general);
+        // Set should not throw when using general cache
+        scriptService.cacheHolder.get().set(c, scriptService.contextCache(s, contexts.get(c)));
+        assertNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(generalRate, scriptService.cacheHolder.get().general.rate);
+
+        scriptService.setCacheHolder(Settings.builder()
+                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(a).getKey(), aRate)
+                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(b).getKey(), bRate)
+                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(c).getKey(),
+                     ScriptService.UNLIMITED_COMPILATION_RATE_KEY)
+                .build()
         );
 
-        assertNull(holder.general);
-        assertNotNull(holder.contextCache);
-        assertEquals(4, holder.contextCache.size());
-        assertEquals(contexts.stream().map(c -> c.name).collect(Collectors.toSet()), holder.contextCache.keySet());
-
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(fooCompilationRate), holder.contextCache.get("foo").get().rate);
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(barCompilationRate), holder.contextCache.get("bar").get().rate);
-        assertEquals(ScriptCache.UNLIMITED_COMPILATION_RATE, holder.contextCache.get("qux").get().rate);
-        assertEquals(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getDefault(Settings.EMPTY),
-            holder.contextCache.get("baz").get().rate);
-
-        holder.updateContextSettings(Settings.builder()
-                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("bar").getKey(), fooCompilationRate).build(),
-                newContext("bar")
+        assertNull(scriptService.cacheHolder.get().general);
+        assertNotNull(scriptService.cacheHolder.get().contextCache);
+        // get of missing context should be null
+        assertNull(scriptService.cacheHolder.get().get(
+            randomValueOtherThanMany(contexts.keySet()::contains, () -> randomAlphaOfLength(8)))
         );
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(fooCompilationRate), holder.contextCache.get("bar").get().rate);
+        assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        holder = holder.withUpdatedCacheSettings(s);
-        assertNotNull(holder.general);
-        assertNull(holder.contextCache);
-        assertEquals(generalRate, holder.general.rate);
+        String d = randomValueOtherThanMany(Arrays.asList(a, b, c)::contains, () -> randomFrom(contextNames));
+        assertEquals(new ScriptCache.CompilationRate(aRate),
+                     scriptService.cacheHolder.get().contextCache.get(a).get().rate);
+        assertEquals(new ScriptCache.CompilationRate(bRate),
+                     scriptService.cacheHolder.get().contextCache.get(b).get().rate);
+        assertEquals(ScriptCache.UNLIMITED_COMPILATION_RATE,
+                     scriptService.cacheHolder.get().contextCache.get(c).get().rate);
 
-        holder = holder.withUpdatedCacheSettings(
-            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), barCompilationRate).build()
+        scriptService.cacheHolder.get().set(b, scriptService.contextCache(Settings.builder()
+                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(b).getKey(), aRate).build(),
+            contexts.get(b)));
+        assertEquals(new ScriptCache.CompilationRate(aRate),
+                     scriptService.cacheHolder.get().contextCache.get(b).get().rate);
+
+        scriptService.setCacheHolder(s);
+        assertNotNull(scriptService.cacheHolder.get().general);
+        assertNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(generalRate, scriptService.cacheHolder.get().general.rate);
+
+        scriptService.setCacheHolder(
+            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), bRate).build()
         );
 
-        assertNotNull(holder.general);
-        assertNull(holder.contextCache);
-        assertEquals(MAX_COMPILATION_RATE_FUNCTION.apply(barCompilationRate), holder.general.rate);
+        assertNotNull(scriptService.cacheHolder.get().general);
+        assertNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(new ScriptCache.CompilationRate(bRate), scriptService.cacheHolder.get().general.rate);
 
-        ScriptService.CacheHolder update = holder.withUpdatedCacheSettings(
-            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), barCompilationRate).build()
+        ScriptService.CacheHolder holder = scriptService.cacheHolder.get();
+        scriptService.setCacheHolder(
+            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), bRate).build()
         );
-        assertSame(holder, update);
+        assertEquals(holder, scriptService.cacheHolder.get());
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
-    public void testFallbackToContextDefaults() {
-        Tuple<Integer, TimeValue> contextDefaultRate = new Tuple<>(randomIntBetween(10, 1024),
-                                                                   TimeValue.timeValueMinutes(randomIntBetween(10, 200)));
-        String name = "foo";
-        ScriptContext<?> foo = new ScriptContext<>(name,
-                                                   ScriptContextTests.DummyScript.Factory.class,
-                                                   randomIntBetween(1, 1024),
-                                                   TimeValue.timeValueMinutes(randomIntBetween(10, 200)),
-                                                   contextDefaultRate);
-
-
-        int generalCacheSize = randomIntBetween(1, 1024);
-        TimeValue generalExpire = TimeValue.timeValueMinutes(randomIntBetween(10, 200));
-
+    public void testFallbackToContextDefaults() throws IOException {
         String contextRateStr = randomIntBetween(10, 1024) + "/" +  randomIntBetween(10, 200) + "m";
-        Tuple<Integer, TimeValue>  contextRate = MAX_COMPILATION_RATE_FUNCTION.apply(contextRateStr);
+        ScriptCache.CompilationRate contextRate = new ScriptCache.CompilationRate(contextRateStr);
         int contextCacheSize = randomIntBetween(1, 1024);
         TimeValue contextExpire = TimeValue.timeValueMinutes(randomIntBetween(10, 200));
 
+        buildScriptService(
+            Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "75/5m").build()
+        );
+
+        String name = "ingest";
+
         // Use context specific
-        ScriptService.CacheHolder contextCache = new ScriptService.CacheHolder(
-            Settings.builder()
-            .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextCacheSize)
-            .put(SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextExpire)
-            .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextRateStr)
-            .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), generalCacheSize)
-            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalExpire)
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
-            .build(),
-            Arrays.asList(foo),
-            true);
+        scriptService.setCacheHolder(Settings.builder()
+                .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextCacheSize)
+                .put(SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextExpire)
+                .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(name).getKey(), contextRateStr)
+                .build()
+        );
 
-        assertNotNull(contextCache.contextCache);
-        assertNotNull(contextCache.contextCache.get(name));
-        assertNotNull(contextCache.contextCache.get(name).get());
+        ScriptService.CacheHolder holder = scriptService.cacheHolder.get();
+        assertNotNull(holder.contextCache);
+        assertNotNull(holder.contextCache.get(name));
+        assertNotNull(holder.contextCache.get(name).get());
 
-        assertEquals(contextRate, contextCache.contextCache.get(name).get().rate);
-        assertEquals(contextCacheSize, contextCache.contextCache.get(name).get().cacheSize);
-        assertEquals(contextExpire, contextCache.contextCache.get(name).get().cacheExpire);
+        assertEquals(contextRate, holder.contextCache.get(name).get().rate);
+        assertEquals(contextCacheSize, holder.contextCache.get(name).get().cacheSize);
+        assertEquals(contextExpire, holder.contextCache.get(name).get().cacheExpire);
 
-        // Fallback to general
-        contextCache = new ScriptService.CacheHolder(
-            Settings.builder()
-            .put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), generalCacheSize)
-            .put(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey(), generalExpire)
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
-            .build(),
-            Arrays.asList(foo),
-            true);
-
-        assertNotNull(contextCache.contextCache);
-        assertNotNull(contextCache.contextCache.get(name));
-        assertNotNull(contextCache.contextCache.get(name).get());
-
-        assertEquals(contextDefaultRate, contextCache.contextCache.get(name).get().rate);
-        assertEquals(generalCacheSize, contextCache.contextCache.get(name).get().cacheSize);
-        assertEquals(generalExpire, contextCache.contextCache.get(name).get().cacheExpire);
-
+        ScriptContext<?> ingest = contexts.get(name);
         // Fallback to context defaults
-        contextCache = new ScriptService.CacheHolder(
-            Settings.builder()
-            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
-            .build(),
-            Arrays.asList(foo),
-            true);
+        buildScriptService(Settings.EMPTY);
 
-        assertNotNull(contextCache.contextCache);
-        assertNotNull(contextCache.contextCache.get(name));
-        assertNotNull(contextCache.contextCache.get(name).get());
+        holder = scriptService.cacheHolder.get();
+        assertNotNull(holder.contextCache);
+        assertNotNull(holder.contextCache.get(name));
+        assertNotNull(holder.contextCache.get(name).get());
 
-        assertEquals(contextDefaultRate, contextCache.contextCache.get(name).get().rate);
-        assertEquals(foo.cacheSizeDefault, contextCache.contextCache.get(name).get().cacheSize);
-        assertEquals(foo.cacheExpireDefault, contextCache.contextCache.get(name).get().cacheExpire);
+        assertEquals(ingest.maxCompilationRateDefault, holder.contextCache.get(name).get().rate.asTuple());
+        assertEquals(ingest.cacheSizeDefault, holder.contextCache.get(name).get().cacheSize);
+        assertEquals(ingest.cacheExpireDefault, holder.contextCache.get(name).get().cacheExpire);
 
-        // Use context specific for ingest
-        contextCache = new ScriptService.CacheHolder(
-            Settings.builder()
-                .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
-                .build(),
-            Arrays.asList(foo, IngestScript.CONTEXT, IngestConditionalScript.CONTEXT),
-            true);
-        assertEquals(new Tuple<>(375, TimeValue.timeValueMinutes(5)),
-                     contextCache.contextCache.get("ingest").get().rate);
-        assertEquals(200, contextCache.contextCache.get("ingest").get().cacheSize);
-        assertEquals(TimeValue.timeValueMillis(0), contextCache.contextCache.get("ingest").get().cacheExpire);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
@@ -699,9 +681,5 @@ public class ScriptServiceTests extends ESTestCase {
                 scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
                 notNullValue()
         );
-    }
-
-    ScriptContext<ScriptContextTests.DummyScript.Factory> newContext(String name) {
-        return new ScriptContext<>(name, ScriptContextTests.DummyScript.Factory.class);
     }
 }

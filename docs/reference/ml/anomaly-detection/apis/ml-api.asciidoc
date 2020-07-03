@@ -48,11 +48,6 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-preview-datafeed,Preview {dfeed}>>
 * <<ml-update-datafeed,Update {dfeed}>>
 
-[discrete]
-[[ml-api-job-endpoint]]
-=== Jobs
-
-See <<ml-api-anomaly-job-endpoint>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]

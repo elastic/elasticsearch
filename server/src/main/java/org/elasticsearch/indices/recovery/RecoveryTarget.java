@@ -73,6 +73,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final MultiFileWriter multiFileWriter;
+    private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
 
@@ -118,6 +119,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      */
     public RecoveryTarget retryCopy() {
         return new RecoveryTarget(indexShard, sourceNode, listener);
+    }
+
+    public ActionListener<Void> markRequestReceivedAndCreateListener(long requestSeqNo, ActionListener<Void> listener) {
+        return requestTracker.markReceivedAndCreateListener(requestSeqNo, listener);
     }
 
     public long recoveryId() {
@@ -283,6 +288,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            state().getIndex().setFileDetailsComplete(); // ops-based recoveries don't send the file details
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
             return null;
@@ -398,6 +404,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             for (int i = 0; i < phase1FileNames.size(); i++) {
                 index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);
             }
+            index.setFileDetailsComplete();
             state().getTranslog().totalOperations(totalTranslogOps);
             state().getTranslog().totalOperationsOnStart(totalTranslogOps);
             return null;

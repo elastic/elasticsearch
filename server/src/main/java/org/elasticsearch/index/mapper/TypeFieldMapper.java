@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -37,7 +38,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
@@ -46,10 +46,10 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,17 +67,18 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new TypeFieldType();
-
+        public static final FieldType FIELD_TYPE = new FieldType();
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
+        }
+
+        public static final FieldType NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);
+        static {
+            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         }
     }
 
@@ -91,13 +92,16 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new TypeFieldMapper(indexSettings, fieldType);
+            return new TypeFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
     public static final class TypeFieldType extends StringFieldType {
 
-        TypeFieldType() {
+        public static final TypeFieldType INSTANCE = new TypeFieldType();
+
+        private TypeFieldType() {
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected TypeFieldType(TypeFieldType ref) {
@@ -117,12 +121,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
-            return new ConstantIndexFieldData.Builder(typeFunction);
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return new ConstantIndexFieldData.Builder(typeFunction, CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -285,20 +284,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TypeFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
-        this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
-             indexSettings);
-    }
-
-    private TypeFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
-    }
-
-    private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
-        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        defaultFieldType.setIndexOptions(IndexOptions.NONE);
-        defaultFieldType.setHasDocValues(false);
-        return defaultFieldType;
+    private TypeFieldMapper(FieldType fieldType) {
+        super(fieldType, new TypeFieldType());
     }
 
     @Override
@@ -313,10 +300,10 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }
-        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
+        context.doc().add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType));
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }
@@ -332,8 +319,4 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
-    }
 }

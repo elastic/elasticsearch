@@ -21,7 +21,6 @@ package org.elasticsearch.search.sort;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -53,9 +51,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -411,7 +409,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 throw new QueryShardException(context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
             }
-            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
+            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
@@ -441,7 +439,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.indexOptions() == IndexOptions.NONE) {
+        if (fieldType.isSearchable() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -487,7 +485,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
+            if (fieldData instanceof IndexNumericFieldData == false) {
+                throw new QueryShardException(context,
+                    "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
+            }
+            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null), bucketSize, extra);
@@ -564,7 +566,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.fieldMapper(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE)) {
+        if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {

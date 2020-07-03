@@ -7,16 +7,38 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MapHelperTests extends ESTestCase {
+
+    public void testCollapseFields() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("a", Collections.singletonMap("b.c", 1));
+        map.put("d", Collections.singletonMap("e", Collections.singletonMap("f", 2)));
+        map.put("g.h.i", 3);
+        {
+           assertThat(MapHelper.dotCollapse(map, Collections.emptyList()), is(anEmptyMap()));
+        }
+        {
+            Map<String, Object> collapsed = MapHelper.dotCollapse(map, Arrays.asList("a.b.c", "d.e.f", "g.h.i", "m.i.s.s.i.n.g"));
+            assertThat(collapsed, hasEntry("a.b.c", 1));
+            assertThat(collapsed, hasEntry("d.e.f", 2));
+            assertThat(collapsed, hasEntry("g.h.i", 3));
+            assertThat(collapsed, not(hasKey("m.i.s.s.i.n.g")));
+        }
+    }
 
     public void testAbsolutePathStringAsKey() {
         String path = "a.b.c.d";

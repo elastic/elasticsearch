@@ -23,8 +23,8 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime') // for http
-  testCompile project(path: ':plugins:transport-nio', configuration: 'runtime') // for http
+  testImplementation project(path: ':modules:transport-netty4') // for http
+  testImplementation project(path: ':plugins:transport-nio') // for http
 }
 
 integTest.runner {

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -83,7 +84,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
-        return new MlDailyMaintenanceService(threadPool, client, clusterService, mlAssignmentNotifier, () -> {
+        return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
                 latch.countDown();
                 return TimeValue.timeValueMillis(100);
             });

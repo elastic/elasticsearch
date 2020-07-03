@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2.DataStreamTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
@@ -124,7 +124,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                     if (dataStreamTemplate != null) {
                         CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
-                            request.index(), dataStreamTemplate.getTimestampField(), request.masterNodeTimeout(), request.timeout());
+                            request.index(), request.masterNodeTimeout(), request.timeout());
                         ClusterState clusterState =  metadataCreateDataStreamService.createDataStream(createRequest, currentState);
                         indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
                         return clusterState;
@@ -149,9 +149,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
     static DataStreamTemplate resolveAutoCreateDataStream(CreateIndexRequest request, Metadata metadata) {
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, request.index(), false);
         if (v2Template != null) {
-            IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
-            if (indexTemplateV2.getDataStreamTemplate() != null) {
-                return indexTemplateV2.getDataStreamTemplate();
+            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+            if (composableIndexTemplate.getDataStreamTemplate() != null) {
+                return composableIndexTemplate.getDataStreamTemplate();
             }
         }
 

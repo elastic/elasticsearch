@@ -36,7 +36,7 @@ For more information, see
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 [[ml-get-calendar-event-request-body]]
 ==== {api-request-body-title}
@@ -62,7 +62,7 @@ following properties:
 
 `calendar_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `description`::
 (string) A description of the scheduled event.

@@ -11,9 +11,13 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetTime;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+
+import static org.elasticsearch.xpack.sql.util.DateUtils.EPOCH;
 
 public class DateTimeTestUtils {
 
@@ -42,6 +46,22 @@ public class DateTimeTestUtils {
 
     public static OffsetTime time(int hour, int minute, int second, int nano) {
         return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneOffset offset) {
+        return OffsetTime.of(hour, minute, second, nano, offset);
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneOffset offset, ZoneId zoneId) {
+        OffsetTime ot = OffsetTime.of(hour, minute, second, nano, offset);
+        LocalDateTime ldt = ot.atDate(EPOCH).toLocalDateTime();
+        return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano, ZoneId zoneId) {
+        LocalTime lt = LocalTime.of(hour, minute, second, nano);
+        LocalDateTime ldt = lt.atDate(EPOCH);
+        return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
 
     static ZonedDateTime nowWithMillisResolution() {

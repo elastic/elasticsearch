@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -59,6 +60,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
+
     private static ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -129,7 +133,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest() {}
 
     public UpdateRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         type = in.readString();
         id = in.readString();
@@ -143,7 +151,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest(in);
+            doc = new IndexRequest(shardId, in);
         }
         if (in.getVersion().before(Version.V_7_0_0)) {
             String[] fields = in.readOptionalStringArray();
@@ -153,7 +161,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
+            upsertRequest = new IndexRequest(shardId, in);
         }
         docAsUpsert = in.readBoolean();
         if (in.getVersion().before(Version.V_7_0_0)) {
@@ -872,6 +880,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        doWrite(out, false);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        doWrite(out, true);
+    }
+
+    private void doWrite(StreamOutput out, boolean thin) throws IOException {
         waitForActiveShards.writeTo(out);
         // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
         // So we use the type accessor method here to make the type non-null (will default it to "_doc").
@@ -897,7 +915,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.index(index);
             doc.type(type);
             doc.id(id);
-            doc.writeTo(out);
+            if (thin) {
+                doc.writeThin(out);
+            } else {
+                doc.writeTo(out);
+            }
         }
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalStringArray(null);
@@ -911,7 +933,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.index(index);
             upsertRequest.type(type);
             upsertRequest.id(id);
-            upsertRequest.writeTo(out);
+            if (thin) {
+                upsertRequest.writeThin(out);
+            } else {
+                upsertRequest.writeTo(out);
+            }
         }
         out.writeBoolean(docAsUpsert);
         if (out.getVersion().before(Version.V_7_0_0)) {
@@ -987,5 +1013,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
         res.append(", detect_noop[").append(detectNoop).append("]");
         return res.append("}").toString();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long childRequestBytes = 0;
+        if (doc != null) {
+            childRequestBytes += doc.ramBytesUsed();
+        }
+        if (upsertRequest != null) {
+            childRequestBytes += upsertRequest.ramBytesUsed();
+        }
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
     }
 }

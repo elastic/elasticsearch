@@ -30,6 +30,7 @@ import org.apache.lucene.analysis.tokenattributes.BytesTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -58,8 +59,8 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -68,18 +69,21 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
 
+import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
@@ -97,9 +101,14 @@ public class TextFieldMapper extends FieldMapper {
         public static final int INDEX_PREFIX_MIN_CHARS = 2;
         public static final int INDEX_PREFIX_MAX_CHARS = 5;
 
-        public static final MappedFieldType FIELD_TYPE = new TextFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.freeze();
         }
 
@@ -115,15 +124,17 @@ public class TextFieldMapper extends FieldMapper {
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
         private int minPrefixChars = -1;
         private int maxPrefixChars = -1;
+        private boolean fielddata = false;
+        private boolean indexPhrases = false;
+        private boolean eagerGlobalOrdinals = false;
+        private double fielddataMinFreq = Defaults.FIELDDATA_MIN_FREQUENCY;
+        private double fielddataMaxFreq = Defaults.FIELDDATA_MAX_FREQUENCY;
+        private int fielddataMinSegSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
+        protected SimilarityProvider similarity;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
-        }
-
-        @Override
-        public TextFieldType fieldType() {
-            return (TextFieldType) super.fieldType();
         }
 
         public Builder positionIncrementGap(int positionIncrementGap) {
@@ -135,13 +146,17 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder fielddata(boolean fielddata) {
-            fieldType().setFielddata(fielddata);
+            this.fielddata = fielddata;
             return builder;
         }
 
         public Builder indexPhrases(boolean indexPhrases) {
-            fieldType().setIndexPhrases(indexPhrases);
+            this.indexPhrases = indexPhrases;
             return builder;
+        }
+
+        public void similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
         }
 
         @Override
@@ -153,14 +168,14 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             return builder;
         }
 
         public Builder fielddataFrequencyFilter(double minFreq, double maxFreq, int minSegmentSize) {
-            fieldType().setFielddataMinFrequency(minFreq);
-            fieldType().setFielddataMaxFrequency(maxFreq);
-            fieldType().setFielddataMinSegmentSize(minSegmentSize);
+            this.fielddataMinFreq = minFreq;
+            this.fielddataMaxFreq = maxFreq;
+            this.fielddataMinSegSize = minSegmentSize;
             return builder;
         }
 
@@ -180,63 +195,83 @@ public class TextFieldMapper extends FieldMapper {
             return this;
         }
 
+        private TextFieldType buildFieldType(BuilderContext context) {
+            TextFieldType ft
+                = new TextFieldType(buildFullName(context), fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer, meta);
+            ft.setIndexAnalyzer(indexAnalyzer);
+            ft.setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            if (fielddata) {
+                ft.setFielddata(true);
+                ft.setFielddataMinFrequency(fielddataMinFreq);
+                ft.setFielddataMaxFrequency(fielddataMaxFreq);
+                ft.setFielddataMinSegmentSize(fielddataMinSegSize);
+            }
+            return ft;
+        }
+
+        private PrefixFieldMapper buildPrefixMapper(BuilderContext context, TextFieldType tft) {
+            if (minPrefixChars == -1) {
+                return null;
+            }
+            if (indexed == false) {
+                throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
+            }
+            /*
+             * Mappings before v7.2.1 use {@link Builder#name} instead of {@link Builder#fullName}
+             * to build prefix field names so we preserve the name that was used at creation time
+             * even if it is different from the expected one (in case the field is nested under an object
+             * or a multi-field). This way search will continue to work on old indices and new indices
+             * will use the expected full name.
+             */
+            String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
+            // Copy the index options of the main field to allow phrase queries on
+            // the prefix field.
+            FieldType pft = new FieldType(fieldType);
+            pft.setOmitNorms(true);
+            if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                // frequencies are not needed because prefix queries always use a constant score
+                pft.setIndexOptions(IndexOptions.DOCS);
+            } else {
+                pft.setIndexOptions(fieldType.indexOptions());
+            }
+            if (fieldType.storeTermVectorOffsets()) {
+                pft.setStoreTermVectorOffsets(true);
+            }
+            PrefixFieldType prefixFieldType = new PrefixFieldType(tft, fullName + "._index_prefix",
+                minPrefixChars, maxPrefixChars, pft.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0);
+            prefixFieldType.setAnalyzer(indexAnalyzer);
+            return new PrefixFieldMapper(pft, prefixFieldType);
+        }
+
+        private PhraseFieldMapper buildPhraseMapper(BuilderContext context, TextFieldType parent) {
+            if (indexPhrases == false) {
+                return null;
+            }
+            if (indexed == false) {
+                throw new IllegalArgumentException("Cannot set index_phrases on unindexed field [" + name() + "]");
+            }
+            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
+            }
+            FieldType phraseFieldType = new FieldType(fieldType);
+            return new PhraseFieldMapper(phraseFieldType, new PhraseFieldType(parent));
+        }
+
         @Override
-        public TextFieldMapper build(BuilderContext context) {
+        public FieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");
                 }
-                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
+                indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionIncrementGap);
+                searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionIncrementGap);
+                searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap);
             }
-            setupFieldType(context);
-            PrefixFieldMapper prefixMapper = null;
-            if (minPrefixChars != -1) {
-                /**
-                 * Mappings before v7.2.1 use {@link Builder#name} instead of {@link Builder#fullName}
-                 * to build prefix field names so we preserve the name that was used at creation time
-                 * even if it is different from the expected one (in case the field is nested under an object
-                 * or a multi-field). This way search will continue to work on old indices and new indices
-                 * will use the expected full name.
-                 **/
-                String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
-                PrefixFieldType prefixFieldType =
-                    new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
-                fieldType().setPrefixFieldType(prefixFieldType);
-                if (fieldType().isSearchable() == false) {
-                    throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
-                }
-                // Copy the index options of the main field to allow phrase queries on
-                // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-                }
-                if (fieldType.storeTermVectorOffsets()) {
-                    prefixFieldType.setStoreTermVectorOffsets(true);
-                }
-                prefixFieldType.setAnalyzer(fieldType.indexAnalyzer());
-                prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
-            }
-            if (fieldType().indexPhrases) {
-                if (fieldType().isSearchable() == false) {
-                    throw new IllegalArgumentException("Cannot set index_phrases on unindexed field [" + name() + "]");
-                }
-                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                    throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
-                }
-            }
-            return new TextFieldMapper(
-                    name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            TextFieldType tft = buildFieldType(context);
+            return new TextFieldMapper(name,
+                    fieldType, tft, positionIncrementGap, buildPrefixMapper(context, tft), buildPhraseMapper(context, tft),
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -244,14 +279,14 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(fieldName);
-            builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
-            builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
-            parseTextField(builder, fieldName, node, parserContext);
+            builder.indexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
+            builder.searchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
+            builder.searchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
+                checkNull(propName, propNode);
                 if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
                     builder.positionIncrementGap(newPositionIncrementGap);
@@ -282,8 +317,13 @@ public class TextFieldMapper extends FieldMapper {
                 } else if (propName.equals("index_phrases")) {
                     builder.indexPhrases(XContentMapValues.nodeBooleanValue(propNode, "index_phrases"));
                     iterator.remove();
+                } else if (propName.equals("similarity")) {
+                    SimilarityProvider similarityProvider = TypeParsers.resolveSimilarity(parserContext, fieldName, propNode.toString());
+                    builder.similarity(similarityProvider);
+                    iterator.remove();
                 }
             }
+            parseTextField(builder, fieldName, node, parserContext);
             return builder;
         }
     }
@@ -338,18 +378,8 @@ public class TextFieldMapper extends FieldMapper {
         final TextFieldType parent;
 
         PhraseFieldType(TextFieldType parent) {
-            setTokenized(true);
-            setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            if (parent.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-            }
-            if (parent.storeTermVectorOffsets()) {
-                setStoreTermVectors(true);
-                setStoreTermVectorPositions(true);
-                setStoreTermVectorOffsets(true);
-            }
+            super(parent.name() + FAST_PHRASE_SUFFIX, true, false, parent.getTextSearchInfo(), Collections.emptyMap());
             setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer().analyzer());
-            setName(parent.name() + FAST_PHRASE_SUFFIX);
             this.parent = parent;
         }
 
@@ -377,22 +407,20 @@ public class TextFieldMapper extends FieldMapper {
 
         final int minChars;
         final int maxChars;
-        final String parentField;
+        final TextFieldType parentField;
+        final boolean hasPositions;
 
-        PrefixFieldType(String parentField, String name, int minChars, int maxChars) {
-            setTokenized(true);
-            setOmitNorms(true);
-            setIndexOptions(IndexOptions.DOCS);
-            setName(name);
+        PrefixFieldType(TextFieldType parentField, String name, int minChars, int maxChars, boolean hasPositions) {
+            super(name, true, false, parentField.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
+            this.hasPositions = hasPositions;
         }
 
-        PrefixFieldType setAnalyzer(NamedAnalyzer delegate) {
+        void setAnalyzer(NamedAnalyzer delegate) {
             setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
                 new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars)));
-            return this;
         }
 
         boolean accept(int length) {
@@ -421,11 +449,14 @@ public class TextFieldMapper extends FieldMapper {
             query.setRewriteMethod(method);
             return new BooleanQuery.Builder()
                 .add(query, BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
         }
 
         public IntervalsSource intervals(BytesRef term) {
+            if (hasPositions == false) {
+                throw new IllegalArgumentException("Cannot create intervals over a field [" + name() + "] without indexed positions");
+            }
             if (term.length > maxChars) {
                 return Intervals.prefix(term);
             }
@@ -442,7 +473,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public PrefixFieldType clone() {
-            return new PrefixFieldType(parentField, name(), minChars, maxChars);
+            return new PrefixFieldType(parentField, name(), minChars, maxChars, hasPositions);
         }
 
         @Override
@@ -478,13 +509,18 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PhraseFieldMapper extends FieldMapper {
 
-        PhraseFieldMapper(PhraseFieldType fieldType, Settings indexSettings) {
-            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
+            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
         protected void parseCreateField(ParseContext context) throws IOException {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -495,17 +531,22 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final class PrefixFieldMapper extends FieldMapper {
 
-        protected PrefixFieldMapper(PrefixFieldType fieldType, Settings indexSettings) {
-            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
+            super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         }
 
         void addField(ParseContext context, String value) {
-            context.doc().add(new Field(fieldType().name(), value, fieldType()));
+            context.doc().add(new Field(fieldType().name(), value, fieldType));
         }
 
         @Override
         protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -527,13 +568,28 @@ public class TextFieldMapper extends FieldMapper {
         private int fielddataMinSegmentSize;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
+        private final FieldType indexedFieldType;
 
-        public TextFieldType() {
-            setTokenized(true);
+        public TextFieldType(String name, FieldType indexedFieldType, SimilarityProvider similarity, NamedAnalyzer searchAnalyzer,
+                             NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+            super(name, indexedFieldType.indexOptions() != IndexOptions.NONE, false,
+                new TextSearchInfo(indexedFieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
+            this.indexedFieldType = indexedFieldType;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
             fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
             fielddataMinSegmentSize = Defaults.FIELDDATA_MIN_SEGMENT_SIZE;
+        }
+
+        public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
+            super(name, indexed, false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER), meta);
+            this.indexedFieldType = Defaults.FIELD_TYPE;
+            fielddata = false;
+        }
+
+        public TextFieldType(String name) {
+            this(name, Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         }
 
         protected TextFieldType(TextFieldType ref) {
@@ -546,6 +602,7 @@ public class TextFieldMapper extends FieldMapper {
             if (ref.prefixFieldType != null) {
                 this.prefixFieldType = ref.prefixFieldType.clone();
             }
+            this.indexedFieldType = ref.indexedFieldType;
         }
 
         @Override
@@ -578,7 +635,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public void setFielddata(boolean fielddata) {
-            checkIfFrozen();
             this.fielddata = fielddata;
         }
 
@@ -587,7 +643,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public void setFielddataMinFrequency(double fielddataMinFrequency) {
-            checkIfFrozen();
             this.fielddataMinFrequency = fielddataMinFrequency;
         }
 
@@ -596,7 +651,6 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public void setFielddataMaxFrequency(double fielddataMaxFrequency) {
-            checkIfFrozen();
             this.fielddataMaxFrequency = fielddataMaxFrequency;
         }
 
@@ -605,17 +659,14 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public void setFielddataMinSegmentSize(int fielddataMinSegmentSize) {
-            checkIfFrozen();
             this.fielddataMinSegmentSize = fielddataMinSegmentSize;
         }
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
-            checkIfFrozen();
             this.prefixFieldType = prefixFieldType;
         }
 
         void setIndexPhrases(boolean indexPhrases) {
-            checkIfFrozen();
             this.indexPhrases = indexPhrases;
         }
 
@@ -647,7 +698,7 @@ public class TextFieldMapper extends FieldMapper {
             if (prefixFieldType != null
                     && value.length() >= prefixFieldType.minChars
                     && value.length() <= prefixFieldType.maxChars
-                    && prefixFieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                    && prefixFieldType.getTextSearchInfo().hasPositions()) {
 
                 return new FieldMaskingSpanQuery(new SpanTermQuery(new Term(prefixFieldType.name(), indexedValueForSearch(value))), name());
             } else {
@@ -660,7 +711,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            if (omitNorms()) {
+            if (indexedFieldType.omitNorms()) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());
@@ -670,11 +721,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
                                          NamedAnalyzer analyzer, boolean prefix) throws IOException {
-            if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+            if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
             if (analyzer == null) {
-                analyzer = searchAnalyzer();
+                analyzer = getTextSearchInfo().getSearchAnalyzer();
             }
             if (prefix) {
                 BytesRef normalizedTerm = analyzer.normalize(name(), text);
@@ -683,7 +734,7 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 return Intervals.prefix(normalizedTerm);
             }
-            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);
         }
 
@@ -762,53 +813,37 @@ public class TextFieldMapper extends FieldMapper {
                     + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
-            return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+            return new PagedBytesIndexFieldData.Builder(
+                fielddataMinFrequency,
+                fielddataMaxFrequency,
+                fielddataMinSegmentSize,
+                CoreValuesSourceType.BYTES
+            );
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            TextFieldType tft = (TextFieldType) other;
-            if (tft.indexPhrases != this.indexPhrases) {
-                conflicts.add("mapper [" + name() + "] has different [index_phrases] values");
-            }
-            if (Objects.equals(this.prefixFieldType, tft.prefixFieldType) == false) {
-                if (this.prefixFieldType == null) {
-                    conflicts.add("mapper [" + name()
-                        + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
-                }
-                else if (tft.prefixFieldType == null) {
-                    conflicts.add("mapper [" + name()
-                        + "] has different [index_prefixes] settings, cannot change from enabled to disabled");
-                }
-                else {
-                    conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
-                }
-            }
-        }
     }
 
-    private int positionIncrementGap;
+    private final int positionIncrementGap;
     private PrefixFieldMapper prefixFieldMapper;
     private PhraseFieldMapper phraseFieldMapper;
 
-    protected TextFieldMapper(String simpleName, TextFieldType fieldType, MappedFieldType defaultFieldType,
+    protected TextFieldMapper(String simpleName, FieldType fieldType, TextFieldType mappedFieldType,
                                 int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                                PhraseFieldMapper phraseFieldMapper,
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
-        assert fieldType.hasDocValues() == false;
-        if (fieldType().indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
+        assert mappedFieldType.hasDocValues() == false;
+        if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
         this.positionIncrementGap = positionIncrementGap;
         this.prefixFieldMapper = prefixFieldMapper;
-        this.phraseFieldMapper = fieldType.indexPhrases ? new PhraseFieldMapper(new PhraseFieldType(fieldType), indexSettings) : null;
+        this.phraseFieldMapper = phraseFieldMapper;
+        if (prefixFieldMapper != null) {
+            mappedFieldType.setPrefixFieldType((PrefixFieldType)prefixFieldMapper.mappedFieldType);
+        }
+        mappedFieldType.setIndexPhrases(phraseFieldMapper != null);
     }
 
     @Override
@@ -833,17 +868,17 @@ public class TextFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType());
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
-            if (fieldType().omitNorms()) {
+            if (fieldType.omitNorms()) {
                 createFieldNamesField(context);
             }
             if (prefixFieldMapper != null) {
                 prefixFieldMapper.addField(context, value);
             }
             if (phraseFieldMapper != null) {
-                context.doc().add(new Field(phraseFieldMapper.fieldType.name(), value, phraseFieldMapper.fieldType));
+                context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
     }
@@ -869,34 +904,23 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
-        if (mapper.prefixFieldMapper != null) {
-            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        TextFieldMapper mw = (TextFieldMapper) other;
+        if (Objects.equals(mw.fieldType().getTextSearchInfo().getSimilarity(),
+            this.fieldType().getTextSearchInfo().getSimilarity()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity] settings");
         }
-        if (mapper.phraseFieldMapper != null) {
-            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
+        if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {
+            conflicts.add("mapper [" + name() + "] has different [index_phrases] settings");
         }
-        return mapper;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        TextFieldMapper mw = (TextFieldMapper) mergeWith;
-
+        if (Objects.equals(mw.fieldType().prefixFieldType, this.fieldType().prefixFieldType) == false) {
+            conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
+        }
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
-        } else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
-                + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
-
         if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
             this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
-        } else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
-                + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
     }
 
@@ -906,15 +930,37 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
+        if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+            builder.field("term_vector", termVectorOptionsToString(fieldType));
+        }
+        if (includeDefaults || fieldType.omitNorms()) {
+            builder.field("norms", fieldType.omitNorms() == false);
+        }
         doXContentAnalyzers(builder, includeDefaults);
-
-        if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+        if (fieldType().getTextSearchInfo().getSimilarity() != null) {
+            builder.field("similarity", fieldType().getTextSearchInfo().getSimilarity().name());
+        } else if (includeDefaults) {
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
+        }
+        if (includeDefaults || fieldType().eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
+        }
+        if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
         }
 
-        if (includeDefaults || fieldType().fielddata() != ((TextFieldType) defaultFieldType).fielddata()) {
+        if (includeDefaults || fieldType().fielddata() != false) {
             builder.field("fielddata", fieldType().fielddata());
         }
         if (fieldType().fielddata()) {

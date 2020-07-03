@@ -2,7 +2,7 @@
 == Painless contexts
 
 A Painless script is evaluated within a context. Each context has values that
-are available as local variables, a whitelist that controls the available
+are available as local variables, an allowlist that controls the available
 classes, and the methods and fields within those classes (API), and
 if and what type of value is returned.
 

@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
@@ -215,8 +216,9 @@ class S3Repository extends BlobStoreRepository {
             final RepositoryMetadata metadata,
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
-            final ClusterService clusterService) {
-        super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService);
+            final ClusterService clusterService,
+            final RecoverySettings recoverySettings) {
+        super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService, recoverySettings);
         this.service = service;
 
         this.repositoryMetadata = metadata;

@@ -98,9 +98,11 @@ second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. By default, up to 15 inline scripts per
-minute will be compiled. You can change this setting dynamically by setting
-`script.max_compilations_rate`.
+`circuit_breaking_exception` error. By default, up to 75 scripts per
+5 minutes will be compiled for most contexts and 375 scripts per 5 minutes
+for `ingest` contexts. You can change these settings dynamically by setting
+`script.context.$CONTEXT.max_compilations_rate` e.g.,
+`script.context.field.max_compilations_rate=100/10m`.
 
 ========================================
 
@@ -134,6 +136,14 @@ The same script in the normal form:
 
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
+
+If the {es} {security-features} are enabled, you must have the following
+privileges to create, retrieve, and delete stored scripts:
+
+* cluster: `all` or `manage`
+
+For more information, see <<security-privileges>>.
+
 
 [float]
 ==== Request examples
@@ -233,9 +243,17 @@ templating language]. See <<search-template>> for more information and examples.
 
 All scripts are cached by default so that they only need to be recompiled
 when updates occur. By default, scripts do not have a time-based expiration, but
-you can change this behavior by using the `script.cache.expire` setting.
-You can configure the size of this cache by using the `script.cache.max_size` setting.
-By default, the cache size is `100`.
+you can configure the size of this cache using the
+`script.context.$CONTEXT.cache_expire` setting.
+By default, the cache size is `100` for all contexts except the `ingest` and the
+`processor_conditional` context, where it is `200`.
+
+|====
+| Context | Default Cache Size
+| `ingest`  | 200
+| `processor_conditional` | 200
+| default | 100
+|====
 
 NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft

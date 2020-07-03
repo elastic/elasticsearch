@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -136,7 +137,7 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible("*", authorizedIndex, indicesOptions, metadata)) {
+                        if (isIndexVisible("*", authorizedIndex, indicesOptions, metadata, indicesRequest.includeDataStreams())) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -151,7 +152,7 @@ class IndicesAndAliasesResolver {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
                 List<String> replaced = replaceWildcardsWithAuthorizedIndices(split.getLocal(), indicesOptions, metadata,
-                        authorizedIndices, replaceWildcards);
+                        authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
                 if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
@@ -277,7 +278,7 @@ class IndicesAndAliasesResolver {
 
     static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
-                || request instanceof GraphExploreRequest;
+                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, Metadata metadata) {
@@ -343,7 +344,8 @@ class IndicesAndAliasesResolver {
 
     //TODO Investigate reusing code from vanilla es to resolve index names and wildcards
     private List<String> replaceWildcardsWithAuthorizedIndices(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
-                                                               List<String> authorizedIndices, boolean replaceWildcards) {
+                                                               List<String> authorizedIndices, boolean replaceWildcards,
+                                                               boolean includeDataStreams) {
         //the order matters when it comes to exclusions
         List<String> finalIndices = new ArrayList<>();
         boolean wildcardSeen = false;
@@ -365,7 +367,7 @@ class IndicesAndAliasesResolver {
                     // continue
                     aliasOrIndex = dateMathName;
                 } else if (authorizedIndices.contains(dateMathName) &&
-                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metadata, true)) {
+                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
                     if (minus) {
                         finalIndices.remove(dateMathName);
                     } else {
@@ -383,7 +385,7 @@ class IndicesAndAliasesResolver {
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : authorizedIndices) {
                     if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) &&
-                        isIndexVisible(aliasOrIndex, authorizedIndex, indicesOptions, metadata)) {
+                        isIndexVisible(aliasOrIndex, authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
                         resolvedIndices.add(authorizedIndex);
                     }
                 }
@@ -418,13 +420,17 @@ class IndicesAndAliasesResolver {
         return finalIndices;
     }
 
-    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, false);
+    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
+                                          boolean includeDataStreams) {
+        return isIndexVisible(expression, index, indicesOptions, metadata, includeDataStreams, false);
     }
 
     private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                          boolean dateMathExpression) {
+                                          boolean includeDataStreams, boolean dateMathExpression) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        if (indexAbstraction == null) {
+            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
+        }
         final boolean isHidden = indexAbstraction.isHidden();
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
@@ -439,12 +445,7 @@ class IndicesAndAliasesResolver {
             }
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
-            if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
-                return true;
-            } else {
-                return false;
-            }
+            return includeDataStreams;
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);

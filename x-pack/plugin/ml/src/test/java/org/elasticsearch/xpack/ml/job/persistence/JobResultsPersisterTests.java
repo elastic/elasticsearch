@@ -108,7 +108,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
         bucket.setRecords(Collections.singletonList(record));
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistBucket(bucket).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -159,7 +159,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         typicals.add(998765.3);
         r1.setTypical(typicals);
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistRecords(records).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -194,7 +194,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistInfluencers(influencers).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
 
         verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 
@@ -217,13 +217,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID, () -> true);
+        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
         builder.persistInfluencers(influencers).executeRequest();
         assertEquals(0, builder.getBulkRequest().numberOfActions());
     }
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {
-        JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo", () -> true);
+        JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             bulkBuilder.persistModelPlot(modelPlot);
@@ -240,7 +240,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         TimingStats timingStats =
             new TimingStats(
                 "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
-        persister.bulkPersisterBuilder(JOB_ID, () -> true).persistTimingStats(timingStats).executeRequest();
+        persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();

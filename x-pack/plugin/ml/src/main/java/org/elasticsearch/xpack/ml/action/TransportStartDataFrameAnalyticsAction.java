@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -156,7 +157,7 @@ public class TransportStartDataFrameAnalyticsAction
     @Override
     protected void masterOperation(StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -640,7 +641,7 @@ public class TransportStartDataFrameAnalyticsAction
             List<String> unavailableIndices =
                 verifyIndicesPrimaryShardsAreActive(clusterState,
                     resolver,
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     MlStatsIndex.indexPattern(),
                     AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {

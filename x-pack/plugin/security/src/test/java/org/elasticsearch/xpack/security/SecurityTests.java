@@ -164,7 +164,6 @@ public class SecurityTests extends ESTestCase {
         assertEquals("Realm type [" + FileRealmSettings.TYPE + "] is already registered", e.getMessage());
     }
 
-
     public void testAuditEnabled() throws Exception {
         Settings settings = Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build();
         Collection<Object> components = createComponents(settings);

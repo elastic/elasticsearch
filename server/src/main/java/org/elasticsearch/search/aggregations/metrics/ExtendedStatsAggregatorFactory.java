@@ -24,9 +24,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -61,20 +60,21 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.format(), searchContext, parent, sigma, metadata);
+        return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
-        if (valuesSource instanceof Numeric == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+            ExtendedStatsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected ExtendedStatsAggregatorProvider, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new ExtendedStatsAggregator(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, metadata);
+        return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
     }
 }

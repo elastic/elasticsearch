@@ -11,21 +11,12 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -37,16 +28,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalDouble;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.decodeFeatureImportances;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.transformFeatureImportance;
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
@@ -135,67 +120,8 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config, Map<String, String> featureDecoderMap) {
-        if (config.isTargetTypeSupported(targetType) == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
-        }
-        double[][] inferenceResults = new double[this.models.size()][];
-        List<Map<String, double[]>> featureInfluence = new ArrayList<>();
-        int i = 0;
-        NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
-        for (TrainedModel model : models) {
-            InferenceResults result = model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
-            assert result instanceof RawInferenceResults;
-            RawInferenceResults inferenceResult = (RawInferenceResults) result;
-            inferenceResults[i++] = inferenceResult.getValue();
-            if (config.requestingImportance()) {
-                featureInfluence.add(inferenceResult.getFeatureImportance());
-            }
-        }
-        double[] processed = outputAggregator.processValues(inferenceResults);
-        return buildResults(processed,
-            decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)),
-            config);
-    }
-
-    @Override
     public TargetType targetType() {
         return targetType;
-    }
-
-    private InferenceResults buildResults(double[] processedInferences,
-                                          Map<String, double[]> featureInfluence,
-                                          InferenceConfig config) {
-        // Indicates that the config is useless and the caller just wants the raw value
-        if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(
-                new double[] {outputAggregator.aggregate(processedInferences)},
-                featureInfluence);
-        }
-        switch(targetType) {
-            case REGRESSION:
-                return new RegressionInferenceResults(outputAggregator.aggregate(processedInferences),
-                    config,
-                    transformFeatureImportance(featureInfluence, null));
-            case CLASSIFICATION:
-                ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                assert classificationWeights == null || processedInferences.length == classificationWeights.length;
-                // Adjust the probabilities according to the thresholds
-                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
-                    processedInferences,
-                    classificationLabels,
-                    classificationWeights,
-                    classificationConfig.getNumTopClasses(),
-                    classificationConfig.getPredictionFieldType());
-                return new ClassificationInferenceResults((double)topClasses.v1(),
-                    classificationLabel(topClasses.v1(), classificationLabels),
-                    topClasses.v2(),
-                    transformFeatureImportance(featureInfluence, classificationLabels),
-                    config);
-            default:
-                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on ensemble model");
-        }
     }
 
     @Override
@@ -311,30 +237,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         assert avg.isPresent() : "unexpected null when calculating number of operations";
         // Average operations for each model and the operations required for processing and aggregating with the outputAggregator
         return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
-    }
-
-    @Override
-    public boolean supportsFeatureImportance() {
-        return models.stream().allMatch(TrainedModel::supportsFeatureImportance);
-    }
-
-    Map<String, double[]> featureImportance(Map<String, Object> fields) {
-        return featureImportance(fields, Collections.emptyMap());
-    }
-
-    @Override
-    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
-        Map<String, double[]> collapsed = mergeFeatureImportances(models.stream()
-            .map(trainedModel -> trainedModel.featureImportance(fields, Collections.emptyMap()))
-            .collect(Collectors.toList()));
-        return decodeFeatureImportances(featureDecoder, collapsed);
-    }
-
-    private static Map<String, double[]> mergeFeatureImportances(List<Map<String, double[]>> featureImportances) {
-        return featureImportances.stream()
-            .collect(HashMap::new,
-                (a, b) -> b.forEach((k, v) -> a.merge(k, v, InferenceHelpers::sumDoubleArrays)),
-                Map::putAll);
     }
 
     public static Builder builder() {

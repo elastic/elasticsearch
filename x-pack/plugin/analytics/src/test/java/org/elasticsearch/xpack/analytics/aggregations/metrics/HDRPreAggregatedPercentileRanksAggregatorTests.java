@@ -36,6 +36,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -90,8 +91,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
             PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
                     .field("field")
                     .method(PercentilesMethod.HDR);
-            MappedFieldType fieldType = new HistogramFieldMapper.Builder("field").fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", true, Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

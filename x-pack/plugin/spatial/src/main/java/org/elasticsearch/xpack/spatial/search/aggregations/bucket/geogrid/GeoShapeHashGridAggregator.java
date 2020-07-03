@@ -18,8 +18,8 @@ import java.util.Map;
 public class GeoShapeHashGridAggregator extends GeoHashGridAggregator {
     public GeoShapeHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, int requiredSize,
                                       int shardSize, SearchContext aggregationContext, Aggregator parent,
-                                      Map<String, Object> metadata) throws IOException {
-        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, metadata);
+                                      boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, collectsFromSingleBucket, metadata);
     }
 
     /**

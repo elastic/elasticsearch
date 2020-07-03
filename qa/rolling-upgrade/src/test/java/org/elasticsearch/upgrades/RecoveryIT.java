@@ -799,10 +799,4 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
     }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
-    }
 }

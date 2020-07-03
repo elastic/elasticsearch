@@ -21,7 +21,6 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
@@ -291,7 +290,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static void createSnapshot(RestHighLevelClient client, String repoName, String name, String index) throws IOException {
-        client.snapshot().create(new CreateSnapshotRequest(repoName, name).waitForCompletion(true).indices(index), RequestOptions.DEFAULT);
+        final Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + name);
+        createSnapshotRequest.addParameter("wait_for_completion", "true");
+        createSnapshotRequest.setJsonEntity("{ \"indices\" : \"" + index + "\"}");
+        final Response response = client.getLowLevelClient().performRequest(createSnapshotRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }
 
     private void createIndex(RestHighLevelClient client, String name, int shards) throws IOException {

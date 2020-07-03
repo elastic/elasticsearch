@@ -54,7 +54,11 @@ public class SourceLookup implements Map {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    // Scripting requires this method to be public. Using source()
+    // is not possible because certain checks use source == null as
+    // as a determination if source is enabled/disabled, but it should
+    // never be a null Map for scripting even when disabled.
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }

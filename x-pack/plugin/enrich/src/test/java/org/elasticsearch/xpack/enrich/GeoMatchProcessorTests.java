@@ -69,6 +69,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
         MockSearchFunction mockSearch = mockedSearchFunction(mapOf("key", mapOf("shape", "object", "zipcode", 94040)));
         GeoMatchProcessor processor = new GeoMatchProcessor(
             "_tag",
+            null,
             mockSearch,
             "_name",
             str("location"),

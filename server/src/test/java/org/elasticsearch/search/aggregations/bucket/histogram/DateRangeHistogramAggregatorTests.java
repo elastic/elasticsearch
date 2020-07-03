@@ -97,8 +97,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field(fieldName)
                 .calendarInterval(DateHistogramInterval.MONTH);
 
-            MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
-            fieldType.setName(fieldName);
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -663,8 +662,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
                           Consumer<DateHistogramAggregationBuilder> configure,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalDateHistogram> verify) throws IOException {
-        MappedFieldType fieldType = new RangeFieldMapper.Builder(FIELD_NAME, RangeType.DATE).fieldType();
-        fieldType.setName(FIELD_NAME);
+        MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(FIELD_NAME, RangeFieldMapper.Defaults.DATE_FORMATTER);
         final DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name").field(FIELD_NAME);
         if (configure != null) {
             configure.accept(aggregationBuilder);

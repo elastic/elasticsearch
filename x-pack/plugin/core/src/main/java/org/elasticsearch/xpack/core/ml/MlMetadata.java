@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -42,7 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
@@ -315,12 +315,9 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
-                DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
-                Map<String, String> securityHeaders = headers.entrySet().stream()
-                        .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                builder.setHeaders(securityHeaders);
-                datafeedConfig = builder.build();
+                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig)
+                    .setHeaders(filterSecurityHeaders(headers))
+                    .build();
             }
 
             datafeeds.put(datafeedConfig.getId(), datafeedConfig);

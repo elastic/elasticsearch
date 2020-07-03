@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -199,8 +197,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     };
 
     static final int CHANNELS_PER_CONNECTION = 6;
-
-    private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());

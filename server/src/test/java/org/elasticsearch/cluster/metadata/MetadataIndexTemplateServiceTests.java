@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -283,7 +285,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\"}"),
             ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
-        expectThrows(MapperParsingException.class,
+        expectThrows(Exception.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2));
 
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\":\"invalid\"}"),
@@ -307,19 +309,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = metadataIndexTemplateService.addComponentTemplate(state, true, "foo", componentTemplate);
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
-        IndexTemplateV2 firstGlobalIndexTemplate =
-            new IndexTemplateV2(org.elasticsearch.common.collect.List.of("*"), template, org.elasticsearch.common.collect.List.of("foo"),
-                1L, null, null, null);
+        ComposableIndexTemplate firstGlobalIndexTemplate =
+                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
+                        org.elasticsearch.common.collect.List.of("foo"), 1L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
-        IndexTemplateV2 secondGlobalIndexTemplate =
-            new IndexTemplateV2(org.elasticsearch.common.collect.List.of("*"), template, org.elasticsearch.common.collect.List.of("foo"),
-                2L, null, null, null);
+        ComposableIndexTemplate secondGlobalIndexTemplate =
+                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"), template,
+                        org.elasticsearch.common.collect.List.of("foo"), 2L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
-        IndexTemplateV2 fooPatternIndexTemplate =
-            new IndexTemplateV2(org.elasticsearch.common.collect.List.of("foo-*"), template, org.elasticsearch.common.collect.List.of(
-                "foo"), 3L, null, null, null);
+        ComposableIndexTemplate fooPatternIndexTemplate =
+                new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("foo-*"), template,
+                        org.elasticsearch.common.collect.List.of("foo"), 3L, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "foopatternindextemplate", fooPatternIndexTemplate);
 
         // update the component template to set the index.hidden setting
@@ -340,15 +342,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddIndexTemplateV2() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
 
-        IndexTemplateV2 newTemplate = randomValueOtherThanMany(t -> Objects.equals(template.priority(), t.priority()),
-            IndexTemplateV2Tests::randomInstance);
+        ComposableIndexTemplate newTemplate = randomValueOtherThanMany(t -> Objects.equals(template.priority(), t.priority()),
+            ComposableIndexTemplateTests::randomInstance);
 
         final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -362,7 +364,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testUpdateIndexTemplateV2() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -370,8 +372,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
-        template = new IndexTemplateV2(patterns, template.template(), template.composedOf(), template.priority(), template.version(),
-            template.metadata(), null);
+        template = new ComposableIndexTemplate(patterns, template.template(), template.composedOf(), template.priority(),
+            template.version(), template.metadata(), null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -379,7 +381,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveIndexTemplateV2() throws Exception {
-        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         IndexTemplateMissingException e = expectThrows(IndexTemplateMissingException.class,
             () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "foo"));
@@ -408,7 +410,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("foo-bar-*", "eggplant"),
+            null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -444,8 +447,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
 
-        IndexTemplateV2 globalIndexTemplate = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("*"), null,
-            org.elasticsearch.common.collect.List.of("ct-with-index-hidden-setting"), null, null, null, null);
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"),
+            null, org.elasticsearch.common.collect.List.of("ct-with-index-hidden-setting"), null, null, null, null);
 
         expectThrows(InvalidIndexTemplateException.class, () ->
             metadataIndexTemplateService.putIndexTemplateV2("testing", true, "template-referencing-ct-with-hidden-index-setting",
@@ -469,16 +472,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testPuttingV1StarTemplateGeneratesWarning() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("foo-bar-*", "eggplant"),
+            null, null, null, null, null, null);
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [*, baz] matching patterns from existing " +
-            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [*, baz] matching patterns from existing " +
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
@@ -489,16 +493,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      */
     public void testPuttingV1NonStarTemplateGeneratesWarning() throws Exception {
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("foo-bar-*", "eggplant"),
+            null, null, null, null, null, null);
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
         MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]);" +
-            " this template [v1-template] may be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]);" +
+            " this template [v1-template] may be ignored in favor of a composable template at index creation time");
     }
 
     /**
@@ -518,7 +523,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("foo-bar-*", "eggplant"),
+            null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -534,9 +540,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         req.patterns(Arrays.asList("fo*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
-            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
@@ -558,7 +564,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null, null);
+        ComposableIndexTemplate v2Template = new ComposableIndexTemplate(Arrays.asList("foo-bar-*", "eggplant"),
+            null, null, null, null, null, null);
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
 
         assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
@@ -575,17 +582,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final ClusterState finalState = state;
         MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); " +
-            "this template [v1-template] may be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); " +
+            "this template [v1-template] may be ignored in favor of a composable template at index creation time");
     }
 
     public void testPuttingOverlappingV2Template() throws Exception {
         {
-            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, 1L, null, null, null);
+            ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("egg*", "baz"),
+                null, null, 1L, null, null, null);
             MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
             ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
-            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 1L, null, null, null);
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Arrays.asList("abc", "baz*"),
+                null, null, 1L, null, null, null);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
@@ -594,10 +603,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("egg*", "baz"), null, null, null, null, null, null);
+            ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("egg*", "baz"),
+                null, null, null, null, null, null);
             MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
             ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
-            IndexTemplateV2 newTemplate = new IndexTemplateV2(Arrays.asList("abc", "baz*"), null, null, 0L, null, null, null);
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Arrays.asList("abc", "baz*"),
+                null, null, 0L, null, null, null);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate));
             assertThat(e.getMessage(), equalTo("index template [foo2] has index patterns [abc, baz*] matching patterns from existing " +
@@ -613,11 +624,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it =
-            new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), null, 1L, null, null);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
+                null, Collections.singletonList("ct"), null, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 =
-            new IndexTemplateV2(Collections.singletonList("in*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(Collections.singletonList("in*"),
+                null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean());
@@ -632,11 +643,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        IndexTemplateV2 it =
-            new IndexTemplateV2(Collections.singletonList("i*"), null, Collections.singletonList("ct"), 0L, 1L, null, null);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
+                null, Collections.singletonList("ct"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        IndexTemplateV2 it2 =
-            new IndexTemplateV2(Collections.singletonList("*"), null, Collections.singletonList("ct"), 10L, 2L, null, null);
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(Collections.singletonList("*"),
+                null, Collections.singletonList("ct"), 10L, 2L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
@@ -648,11 +659,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         Template templateWithHiddenSetting = new Template(builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
         try {
             // add an invalid global template that specifies the `index.hidden` setting
-            IndexTemplateV2 invalidGlobalTemplate = new IndexTemplateV2(org.elasticsearch.common.collect.List.of("*"),
+            ComposableIndexTemplate invalidGlobalTemplate = new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of("*"),
                 templateWithHiddenSetting, org.elasticsearch.common.collect.List.of("ct"), 5L, 1L, null, null);
-            Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(IndexTemplateV2Metadata.TYPE,
-                new IndexTemplateV2Metadata(org.elasticsearch.common.collect.Map.of("invalid_global_template", invalidGlobalTemplate)))
-                .build();
+            Metadata invalidGlobalTemplateMetadata = Metadata.builder().putCustom(ComposableIndexTemplateMetadata.TYPE,
+                    new ComposableIndexTemplateMetadata(org.elasticsearch.common.collect.Map.of("invalid_global_template",
+                                    invalidGlobalTemplate))).build();
 
             MetadataIndexTemplateService.findV2Template(invalidGlobalTemplateMetadata, "index-name", false);
             fail("expecting an exception as the matching global template is invalid");
@@ -662,7 +673,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testResolveMappings() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
+    public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
@@ -684,7 +696,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "    }"), null), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
             new Template(null,
                 new CompressedXContent("{\n" +
                     "    \"properties\": {\n" +
@@ -696,7 +708,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -728,6 +740,67 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 Collections.singletonMap("field", Collections.singletonMap("type", "keyword"))))));
     }
 
+    public void testResolveMappings() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"keyword\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "ct_high", ct1);
+        state = service.addComponentTemplate(state, true, "ct_low", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null,
+                new CompressedXContent("{\n" +
+                    "    \"properties\": {\n" +
+                    "      \"field3\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }"), null),
+            Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(3));
+        List<Map<String, Object>> parsedMappings = mappings.stream()
+            .map(m -> {
+                try {
+                    return MapperService.parseMapping(new NamedXContentRegistry(Collections.emptyList()), m.string());
+                } catch (Exception e) {
+                    logger.error(e);
+                    fail("failed to parse mappings: " + m.string());
+                    return null;
+                }
+            })
+            .collect(Collectors.toList());
+
+        assertThat(parsedMappings.get(0),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field2", Collections.singletonMap("type", "text"))))));
+        assertThat(parsedMappings.get(1),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field1", Collections.singletonMap("type", "keyword"))))));
+        assertThat(parsedMappings.get(2),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field3", Collections.singletonMap("type", "integer"))))));
+    }
+
     public void testResolveSettings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -744,7 +817,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null, null), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
             new Template(Settings.builder()
                 .put("index.blocks.write", false)
                 .put("index.number_of_shards", 3)
@@ -775,7 +848,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, a2), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        IndexTemplateV2 it = new IndexTemplateV2(Collections.singletonList("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Collections.singletonList("i*"),
             new Template(null, null, a3),
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -787,7 +860,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAddInvalidTemplate() throws Exception {
-        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("a"), null,
             Arrays.asList("good", "bad"), null, null, null);
         ComponentTemplate ct = new ComponentTemplate(new Template(Settings.EMPTY, null, null), null, null);
 
@@ -820,7 +893,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveComponentTemplateInUse() throws Exception {
-        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("a"), null,
             Collections.singletonList("ct"), null, null, null);
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
@@ -854,6 +927,149 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]"));
     }
 
+    /**
+     * Tests that we check that settings/mappings/etc are valid even after template composition,
+     * when adding/updating a composable index template
+     */
+    public void  testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"object\",\n" +
+                "          \"properties\": {\n" +
+                "            \"foo\": {\n" +
+                "              \"type\": \"integer\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "c1", ct1);
+        state = service.addComponentTemplate(state, true, "c2", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null, new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null),
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it));
+
+        assertThat(e.getMessage(),
+            matchesRegex("composable template \\[my-template\\] template after composition with component templates .+ is invalid"));
+
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(),
+            containsString("invalid composite mappings for [my-template]"));
+
+        assertNotNull(e.getCause().getCause());
+        assertThat(e.getCause().getCause().getMessage(),
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
+    }
+
+    /**
+     * Tests that we check that settings/mappings/etc are valid even after template composition,
+     * when updating a component template
+     */
+    public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"object\",\n" +
+                "          \"properties\": {\n" +
+                "            \"foo\": {\n" +
+                "              \"type\": \"integer\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "c1", ct1);
+        state = service.addComponentTemplate(state, true, "c2", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null, null, null),
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null);
+
+        // Great, the templates aren't invalid
+        state = service.addIndexTemplateV2(state, randomBoolean(), "my-template", it);
+
+        ComponentTemplate changedCt2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> service.addComponentTemplate(finalState, false, "c2", changedCt2));
+
+        assertThat(e.getMessage(),
+            containsString("updating component template [c2] results in invalid " +
+                "composable template [my-template] after templates are merged"));
+
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(),
+            containsString("invalid composite mappings for [my-template]"));
+
+        assertNotNull(e.getCause().getCause());
+        assertThat(e.getCause().getCause().getMessage(),
+            containsString("can't merge a non object mapping [field2] with an object mapping"));
+    }
+
+    public void testPutExistingComponentTemplateIsNoop() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+        ComponentTemplate componentTemplate = ComponentTemplateTests.randomInstance();
+        state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
+
+        assertNotNull(state.metadata().componentTemplates().get("foo"));
+
+        assertThat(metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate), equalTo(state));
+    }
+
+    public void testPutExistingComposableTemplateIsNoop() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+
+        assertThat(metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template), equalTo(state));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -861,12 +1077,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000)),
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
                 Collections.emptyList(),
-                true);
+                true
+        );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
@@ -916,22 +1134,24 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 indicesService,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000)),
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
                 Collections.emptyList(),
-                true);
+                true
+        );
         return new MetadataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 
     @SuppressWarnings("unchecked")
-    public static void assertTemplatesEqual(IndexTemplateV2 actual, IndexTemplateV2 expected) {
-        IndexTemplateV2 actualNoTemplate = new IndexTemplateV2(actual.indexPatterns(), null,
+    public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
+        ComposableIndexTemplate actualNoTemplate = new ComposableIndexTemplate(actual.indexPatterns(), null,
             actual.composedOf(), actual.priority(), actual.version(), actual.metadata(), actual.getDataStreamTemplate());
-        IndexTemplateV2 expectedNoTemplate = new IndexTemplateV2(expected.indexPatterns(), null,
+        ComposableIndexTemplate expectedNoTemplate = new ComposableIndexTemplate(expected.indexPatterns(), null,
             expected.composedOf(), expected.priority(), expected.version(), expected.metadata(), expected.getDataStreamTemplate());
 
         assertThat(actualNoTemplate, equalTo(expectedNoTemplate));

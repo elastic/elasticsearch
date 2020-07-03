@@ -72,8 +72,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     private String repository;
 
     private String[] indices = EMPTY_ARRAY;
-
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenHidden();
 
     private boolean partial = false;
 

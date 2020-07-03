@@ -116,18 +116,8 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("warm").getKey()), 30, TimeUnit.SECONDS);
 
         // Check index is allocated on integTest-1 and integTest-2 as per policy_2
-        Request getSettingsRequest = new Request("GET", "/" + indexName + "/_settings");
-        Response getSettingsResponse = client().performRequest(getSettingsRequest);
-        assertOK(getSettingsResponse);
-        Map<String, Object> getSettingsResponseMap = entityAsMap(getSettingsResponse);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indexSettings = (Map<String, Object>) ((Map<String, Object>) getSettingsResponseMap.get(indexName))
-                .get("settings");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> routingSettings = (Map<String, Object>) ((Map<String, Object>) indexSettings.get("index")).get("routing");
-        @SuppressWarnings("unchecked")
-        String includesAllocation = (String) ((Map<String, Object>) ((Map<String, Object>) routingSettings.get("allocation"))
-                .get("include")).get("_name");
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(indexName);
+        String includesAllocation = (String) indexSettings.get("index.routing.allocation.include._name");
         assertEquals("integTest-1,integTest-2", includesAllocation);
     }
 

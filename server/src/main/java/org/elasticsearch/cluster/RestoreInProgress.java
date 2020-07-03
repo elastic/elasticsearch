@@ -52,6 +52,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     public static final String TYPE = "restore";
 
+    public static final RestoreInProgress EMPTY = new RestoreInProgress(ImmutableOpenMap.of());
+
     private final ImmutableOpenMap<String, Entry> entries;
 
     /**
@@ -118,7 +120,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         }
 
         public RestoreInProgress build() {
-            return new RestoreInProgress(entries.build());
+            return entries.isEmpty() ? EMPTY : new RestoreInProgress(entries.build());
         }
     }
 

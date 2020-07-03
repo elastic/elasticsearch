@@ -69,6 +69,7 @@ import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -96,6 +97,7 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -107,6 +109,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -135,6 +138,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -250,6 +254,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ClusterService clusterService;
 
+    private final RecoverySettings recoverySettings;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -287,14 +293,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RepositoryMetadata metadata,
         final boolean compress,
         final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService) {
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
         this.compress = compress;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
+        this.recoverySettings = recoverySettings;
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
+        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
@@ -413,21 +421,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (bestEffortConsistency) {
-            long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
-            }
-            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries());
             }
-            final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
-                bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries());
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
@@ -1038,6 +1043,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         executor.execute(ActionRunnable.supply(allMetaListener, () -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+                    new ArrayList<>(clusterMetadata.dataStreams().keySet()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
             snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
@@ -1225,7 +1231,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     loaded = repositoryDataFromCachedEntry(cached);
                 } else {
                     loaded = getRepositoryData(genToLoad);
-                    cacheRepositoryData(loaded);
+                    // We can cache in the most recent version here without regard to the actual repository metadata version since we're
+                    // only caching the information that we just wrote and thus won't accidentally cache any information that isn't safe
+                    cacheRepositoryData(loaded, true);
                 }
                 listener.onResponse(loaded);
                 return;
@@ -1260,16 +1268,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * modification can lead to moving from a higher {@code N} to a lower {@code N} value which mean we can't safely assume that a given
      * generation will always contain the same {@link RepositoryData}.
      *
-     * @param updated RepositoryData to cache if newer than the cache contents
+     * @param updated        RepositoryData to cache if newer than the cache contents
+     * @param writeShardGens whether to cache shard generation values
      */
-    private void cacheRepositoryData(RepositoryData updated) {
+    private void cacheRepositoryData(RepositoryData updated, boolean writeShardGens) {
         if (cacheRepositoryData && bestEffortConsistency == false) {
             final BytesReference serialized;
             BytesStreamOutput out = new BytesStreamOutput();
             try {
                 try (StreamOutput tmp = CompressorFactory.COMPRESSOR.streamOutput(out);
                      XContentBuilder builder = XContentFactory.jsonBuilder(tmp)) {
-                    updated.snapshotsToXContent(builder, true);
+                    updated.snapshotsToXContent(builder, writeShardGens);
                 }
                 serialized = out.bytes();
                 final int len = serialized.length();
@@ -1303,7 +1312,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return RepositoryData.snapshotsFromXContent(
             XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
-                CompressorFactory.COMPRESSOR.streamInput(cacheEntry.v2().streamInput())), cacheEntry.v1());
+                CompressorFactory.COMPRESSOR.streamInput(cacheEntry.v2().streamInput())), cacheEntry.v1(), false);
     }
 
     private RepositoryException corruptedStateException(@Nullable Exception cause) {
@@ -1368,7 +1377,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, blob)) {
-                return RepositoryData.snapshotsFromXContent(parser, indexGen);
+                return RepositoryData.snapshotsFromXContent(parser, indexGen, true);
             }
         } catch (IOException ioe) {
             if (bestEffortConsistency) {
@@ -1555,7 +1564,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         final RepositoryData writtenRepositoryData = filteredRepositoryData.withGenId(newGen);
-                        cacheRepositoryData(writtenRepositoryData);
+                        cacheRepositoryData(writtenRepositoryData, writeShardGens);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
@@ -1659,7 +1668,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
-            final String generation = snapshotStatus.generation();
+            final String generation = ShardGenerations.fixShardGeneration(snapshotStatus.generation());
             logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Set<String> blobs;
@@ -1701,10 +1710,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // in the commit with files already in the repository
             if (filesFromSegmentInfos == null) {
                 indexCommitPointFiles = new ArrayList<>();
-                store.incRef();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try {
+                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                     try {
                         logger.trace(
@@ -1714,13 +1722,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                     }
-                } finally {
-                    store.decRef();
                 }
                 for (String fileName : fileNames) {
                     if (snapshotStatus.isAborted()) {
                         logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                        throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                        throw new AbortedSnapshotException();
                     }
 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
@@ -1762,6 +1768,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
             } else {
+                for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesFromSegmentInfos) {
+                    indexTotalNumberOfFiles++;
+                    indexTotalFileSize += fileInfo.length();
+                }
                 indexCommitPointFiles = filesFromSegmentInfos;
             }
 
@@ -1837,24 +1847,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, workers, allFilesUploadedListener);
             for (int i = 0; i < workers; ++i) {
-                executor.execute(ActionRunnable.run(filesListener, () -> {
-                    BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
-                    if (snapshotFileInfo != null) {
-                        store.incRef();
-                        try {
-                            do {
-                                snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                                snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
-                            } while (snapshotFileInfo != null);
-                        } finally {
-                            store.decRef();
-                        }
-                    }
-                }));
+                executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, filesListener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private void executeOneFileSnapshot(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus,
+                                        BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot, Executor executor,
+                                        ActionListener<Void> listener) throws InterruptedException {
+        final ShardId shardId = store.shardId();
+        final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
+        if (snapshotFileInfo == null) {
+            listener.onResponse(null);
+        } else {
+            executor.execute(ActionRunnable.wrap(listener, l -> {
+                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l);
+                }
+            }));
+        }
+    }
+
+    private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
+        if (store.tryIncRef() == false) {
+            if (snapshotStatus.isAborted()) {
+                throw new AbortedSnapshotException();
+            } else {
+                assert false : "Store should not be closed concurrently unless snapshot is aborted";
+                throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
+            }
+        }
+        return store::decRef;
     }
 
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
@@ -1894,18 +1920,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             fileQueueListener(files, workers, ActionListener.map(listener, v -> null));
                         // restore the files from the snapshot to the Lucene store
                         for (int i = 0; i < workers; ++i) {
-                            executor.execute(ActionRunnable.run(allFilesListener, () -> {
-                                store.incRef();
-                                try {
-                                    BlobStoreIndexShardSnapshot.FileInfo fileToRecover;
-                                    while ((fileToRecover = files.poll(0L, TimeUnit.MILLISECONDS)) != null) {
-                                        restoreFile(fileToRecover, store);
-                                    }
-                                } finally {
-                                    store.decRef();
-                                }
-                            }));
+                            try {
+                                executeOneFileRestore(files, allFilesListener);
+                            } catch (Exception e) {
+                                allFilesListener.onFailure(e);
+                            }
                         }
+                    }
+                }
+
+                private void executeOneFileRestore(BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files,
+                                                   ActionListener<Void> allFilesListener) throws InterruptedException {
+                    final BlobStoreIndexShardSnapshot.FileInfo fileToRecover = files.poll(0L, TimeUnit.MILLISECONDS);
+                    if (fileToRecover == null) {
+                        allFilesListener.onResponse(null);
+                    } else {
+                        executor.execute(ActionRunnable.wrap(allFilesListener, filesListener -> {
+                            store.incRef();
+                            try {
+                                restoreFile(fileToRecover, store);
+                            } finally {
+                                store.decRef();
+                            }
+                            executeOneFileRestore(files, filesListener);
+                        }));
                     }
                 }
 
@@ -1961,16 +1999,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, @Nullable RateLimiter rateLimiter, CounterMetric metric) {
-        return rateLimiter == null ? stream : new RateLimitingInputStream(stream, rateLimiter, metric::inc);
+    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
     }
 
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimit(stream, restoreRateLimiter, restoreRateLimitingTimeInNanos);
+        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
+            recoverySettings::rateLimiter, restoreRateLimitingTimeInNanos);
     }
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
     }
 
     @Override
@@ -2108,6 +2147,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private Tuple<BlobStoreIndexShardSnapshots, String> buildBlobStoreIndexShardSnapshots(Set<String> blobs,
                                                                                           BlobContainer shardContainer,
                                                                                           @Nullable String generation) throws IOException {
+        assert ShardGenerations.fixShardGeneration(generation) == generation
+                : "Generation must not be numeric but received [" + generation + "]";
         if (generation != null) {
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
@@ -2132,8 +2173,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream().anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX)
                                                                               || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
-            throw new IllegalStateException(
-                "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
+            logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
         }
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
@@ -2169,7 +2209,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (snapshotStatus.isAborted()) {
                             logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId,
                                 snapshotId, fileInfo.physicalName());
-                            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                            throw new AbortedSnapshotException();
                         }
                     }
                 };

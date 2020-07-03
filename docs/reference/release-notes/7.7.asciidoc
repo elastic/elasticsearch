@@ -1,3 +1,135 @@
+[[release-notes-7.7.1]]
+== {es} version 7.7.1
+
+Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
+
+[[enhancement-7.7.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Remove synthetic role names of API keys as they confuse users {es-pull}56005[#56005]
+
+Features/ILM+SLM::
+* ILM: Add cluster update timeout on step retry {es-pull}54878[#54878]
+
+SQL::
+* Change error message for comparison against fields in filtering {es-pull}57126[#57126] (issue: {es-issue}57005[#57005])
+
+[[bug-7.7.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Expose idp.metadata.http.refresh for SAML realm {es-pull}56354[#56354]
+* Fix concurrent refresh of tokens {es-pull}55114[#55114] (issue: {es-issue}54289[#54289])
+
+CCR::
+* Retry follow task when remote connection queue full {es-pull}55314[#55314]
+
+Cluster Coordination::
+* Fix the problem of recovering twice when perform a full cluster restart(#55564) {es-pull}55780[#55780] (issue: {es-issue}55564[#55564])
+
+Discovery-Plugins::
+* Hide c.a.a.p.i.BasicProfileConfigFileLoader noise {es-pull}56346[#56346] (issues: {es-issue}20313[#20313], {es-issue}56333[#56333])
+
+Engine::
+* Ensure no circular reference in translog tragic exception {es-pull}55959[#55959] (issue: {es-issue}55893[#55893])
+* Update translog policy before the next safe commit {es-pull}54839[#54839] (issue: {es-issue}52223[#52223])
+
+Features/CAT APIs::
+* Handle exceptions when building _cat/indices response {es-pull}56993[#56993] (issue: {es-issue}56816[#56816])
+
+Features/Features::
+* 7.x only REST specification fixes {es-pull}56736[#56736] (issue: {es-issue}55984[#55984])
+
+Features/ILM+SLM::
+* Fix Missing IgnoredUnavailable Flag in 7.x SLM Retention Task {es-pull}56616[#56616]
+
+Features/Indices APIs::
+* Allow removing replicas setting on closed indices {es-pull}56680[#56680] (issues: {es-issue}56656[#56656], {es-issue}56675[#56675])
+* Allow removing index.number_of_replicas setting {es-pull}56656[#56656] (issue: {es-issue}56501[#56501])
+
+Features/Ingest::
+* Fix enrich coordinator to reject documents instead of deadlocking {es-pull}56247[#56247] (issue: {es-issue}55634[#55634])
+* EnrichProcessorFactory should not throw NPE if missing metadata {es-pull}55977[#55977]
+* Prevent stack overflow for numerous grok patterns. {es-pull}55899[#55899]
+* Fix empty_value handling in CsvProcessor {es-pull}55649[#55649] (issue: {es-issue}55643[#55643])
+
+Features/Java High Level REST Client::
+* Honor IndicesOptions in HLRC putMapping request {es-pull}57118[#57118] (issue: {es-issue}57045[#57045])
+
+Features/Monitoring::
+* Fix incorrect log warning when exporting monitoring via HTTP without authentication {es-pull}56958[#56958] (issue: {es-issue}56810[#56810])
+* Ensure that the monitoring export exceptions are logged. {es-pull}56237[#56237]
+
+Features/Watcher::
+* Ensure that .watcher-history-11* template is in installed prior to use {es-pull}56734[#56734] (issue: {es-issue}56732[#56732])
+* Fix smtp.ssl.trust setting for watcher email {es-pull}56090[#56090] (issues: {es-issue}45272[#45272], {es-issue}52153[#52153])
+
+Infra/Core::
+* Prevent unexpected native controller output hanging the process {es-pull}56491[#56491] (issue: {es-issue}56366[#56366])
+* Add method to check if object is generically writeable in stream {es-pull}54936[#54936] (issue: {es-issue}54708[#54708])
+
+Infra/Logging::
+* SlowLoggers using single logger {es-pull}56708[#56708] (issue: {es-issue}56171[#56171])
+
+Machine Learning::
+* Fix background persistence of categorizer state. {ml-pull}1137[#1137] (issue: {ml-issue}1136[#1136])
+* Fix classification job failures when number of classes in configuration differs from the number of classes present in the training data. {ml-pull}1144[#1144]
+* Fix underlying cause for "Failed to calculate splitting significance" log errors. {ml-pull}1157[#1157]
+* Fix possible root cause for "Bad variance scale nan" log errors. {ml-pull}1225[#1225]
+* Change data frame analytics instrumentation timestamp resolution to milliseconds. {ml-pull}1237[#1237]
+* Fix "autodetect process stopped unexpectedly: Fatal error: 'terminate called after throwing an instance of 'std::bad_function_call'". {ml-pull}1246[#1246] (issue: {ml-issue}1245[#1245])
+* Fix monitoring if orphaned anomaly detector persistent tasks exist {es-pull}57235[#57235] (issue: {es-issue}51888[#51888])
+* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {es-pull}57041[#57041] (issue: {es-issue}47103[#47103])
+* Ensure class is represented when its cardinality is low {es-pull}56783[#56783]
+* Use non-zero timeout when force stopping DF analytics {es-pull}56423[#56423]
+* Reduce InferenceProcessor.Factory log spam by not parsing pipelines {es-pull}56020[#56020] (issue: {es-issue}55985[#55985])
+* Audit when unassigned datafeeds are stopped {es-pull}55656[#55656] (issue: {es-issue}55521[#55521])
+
+Network::
+* Fix use of password protected PKCS#8 keys for SSL {es-pull}55457[#55457] (issue: {es-issue}8[#8])
+* Add support for more named curves {es-pull}55179[#55179] (issue: {es-issue}55031[#55031])
+
+Recovery::
+* Fix trimUnsafeCommits for indices created before 6.2 {es-pull}57187[#57187] (issue: {es-issue}57091[#57091])
+
+SQL::
+* Fix unecessary evaluation for CASE/IIF {es-pull}57159[#57159] (issue: {es-issue}49672[#49672])
+* JDBC: fix access to the Manifest for non-entry JAR URLs {es-pull}56797[#56797] (issue: {es-issue}56759[#56759])
+* Fix JDBC url pattern in docs and error message {es-pull}56612[#56612] (issue: {es-issue}56476[#56476])
+* Fix serialization of JDBC prep statement date/time params {es-pull}56492[#56492] (issue: {es-issue}56084[#56084])
+* Fix issue with date range queries and timezone {es-pull}56115[#56115] (issue: {es-issue}56049[#56049])
+* SubSelect unresolved bugfix {es-pull}55956[#55956]
+
+Search::
+* Don't run sort optimization on size=0 {es-pull}57044[#57044] (issue: {es-issue}56923[#56923])
+* Fix `bool` query behaviour on null value {es-pull}56817[#56817] (issue: {es-issue}56812[#56812])
+* Fix validate query listener invocation bug {es-pull}56157[#56157]
+* Async Search: correct shards counting {es-pull}55758[#55758]
+* For constant_keyword, make sure exists query handles missing values. {es-pull}55757[#55757] (issue: {es-issue}53545[#53545])
+* Fix (de)serialization of async search failures {es-pull}55688[#55688]
+* Fix expiration time in async search response {es-pull}55435[#55435]
+* Return true for can_match on idle search shards {es-pull}55428[#55428] (issues: {es-issue}27500[#27500], {es-issue}50043[#50043])
+
+Snapshot/Restore::
+* Fix NPE in Partial Snapshot Without Global State {es-pull}55776[#55776] (issue: {es-issue}50234[#50234])
+* Fix Path Style Access Setting Priority {es-pull}55439[#55439] (issue: {es-issue}55407[#55407])
+
+[[upgrade-7.7.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to Jackson 2.10.4 {es-pull}56188[#56188] (issue: {es-issue}56071[#56071])
+
+Infra/Packaging::
+* Upgrade bundled jdk to 14.0.1 {es-pull}57233[#57233]
+
+SQL::
+* Update the JLine dependency to 3.14.1 {es-pull}57111[#57111] (issue: {es-issue}57076[#57076])
+
 [[release-notes-7.7.0]]
 == {es} version 7.7.0
 
@@ -8,20 +140,20 @@ Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 === Breaking changes
 
 Highlighting::
-* Highlighters skip ignored keyword values {pull}53408[#53408] (issue: {issue}43800[#43800])
+* Highlighters skip ignored keyword values {es-pull}53408[#53408] (issue: {es-issue}43800[#43800])
 
 Infra/Core::
-* Remove DEBUG-level default logging from actions {pull}51459[#51459] (issue: {issue}51198[#51198])
+* Remove DEBUG-level default logging from actions {es-pull}51459[#51459] (issue: {es-issue}51198[#51198])
 
 Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time and
   results in a deprecation warning for indices created in Elasticsearch 7.7.0 and later.
-  (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233] (issues: {issue}17411[#17411], {issue}24419[#24419])
+  (e.g. incorrect analyzer settings or unknown field types). {es-pull}51233[#51233] (issues: {es-issue}17411[#17411], {es-issue}24419[#24419])
 
 Search::
-* Make range query rounding consistent {pull}50237[#50237] (issue: {issue}50009[#50009])
+* Make range query rounding consistent {es-pull}50237[#50237] (issue: {es-issue}50009[#50009])
 * Pipeline aggregation validation errors that used to return HTTP
-  500s/Internal Server Errors now return 400/Bad Request {pull}53669[#53669].
+  500s/Internal Server Errors now return 400/Bad Request {es-pull}53669[#53669].
   As a bonus we now return a list of validation errors rather than returning
   the first one we encounter.
 
@@ -32,13 +164,13 @@ Search::
 === Breaking Java changes
 
 Infra/Core::
-* Fix ActionListener.map exception handling {pull}50886[#50886]
+* Fix ActionListener.map exception handling {es-pull}50886[#50886]
 
 Machine Learning::
-* Add expected input field type to trained model config {pull}53083[#53083]
+* Add expected input field type to trained model config {es-pull}53083[#53083]
 
 Transform::
-* Enhance the output of preview to return full destination index details {pull}53572[#53572]
+* Enhance the output of preview to return full destination index details {es-pull}53572[#53572]
 
 
 
@@ -47,33 +179,33 @@ Transform::
 === Deprecations
 
 Allocation::
-* Deprecated support for delaying state recovery pending master nodes {pull}53646[#53646] (issue: {issue}51806[#51806])
+* Deprecated support for delaying state recovery pending master nodes {es-pull}53646[#53646] (issue: {es-issue}51806[#51806])
 
 Authentication::
-* Add warnings for invalid realm order config (#51195) {pull}51515[#51515]
-* Deprecate timeout.tcp_read AD/LDAP realm setting {pull}47305[#47305] (issue: {issue}46028[#46028])
+* Add warnings for invalid realm order config (#51195) {es-pull}51515[#51515]
+* Deprecate timeout.tcp_read AD/LDAP realm setting {es-pull}47305[#47305] (issue: {es-issue}46028[#46028])
 
 Engine::
-* Deprecate translog retention settings {pull}51588[#51588] (issues: {issue}45473[#45473], {issue}50775[#50775])
+* Deprecate translog retention settings {es-pull}51588[#51588] (issues: {es-issue}45473[#45473], {es-issue}50775[#50775])
 
 Features/Features::
-* Add cluster.remote.connect to deprecation info API {pull}54142[#54142] (issue: {issue}53924[#53924])
+* Add cluster.remote.connect to deprecation info API {es-pull}54142[#54142] (issue: {es-issue}53924[#53924])
 
 Infra/Core::
-* Add deprecation check for listener thread pool {pull}53438[#53438] (issues: {issue}53049[#53049], {issue}53317[#53317])
-* Deprecate the logstash enabled setting {pull}53367[#53367]
-* Deprecate the listener thread pool {pull}53266[#53266] (issue: {issue}53049[#53049])
-* Deprecate creation of dot-prefixed index names except for hidden and system indices {pull}49959[#49959]
+* Add deprecation check for listener thread pool {es-pull}53438[#53438] (issues: {es-issue}53049[#53049], {es-issue}53317[#53317])
+* Deprecate the logstash enabled setting {es-pull}53367[#53367]
+* Deprecate the listener thread pool {es-pull}53266[#53266] (issue: {es-issue}53049[#53049])
+* Deprecate creation of dot-prefixed index names except for hidden and system indices {es-pull}49959[#49959]
 
 Infra/REST API::
-* Deprecate undocumented alternatives to the nodes hot threads API (#52640) {pull}52930[#52930] (issue: {issue}52640[#52640])
+* Deprecate undocumented alternatives to the nodes hot threads API (#52640) {es-pull}52930[#52930] (issue: {es-issue}52640[#52640])
 
 Machine Learning::
-* Renaming inference processor field field_mappings to new name field_map {pull}53433[#53433]
+* Renaming inference processor field field_mappings to new name field_map {es-pull}53433[#53433]
 
 Search::
-* Emit deprecation warning when TermsLookup contains a type {pull}53731[#53731] (issue: {issue}41059[#41059])
-* Deprecate BoolQueryBuilder's mustNot field {pull}53125[#53125]
+* Emit deprecation warning when TermsLookup contains a type {es-pull}53731[#53731] (issue: {es-issue}41059[#41059])
+* Deprecate BoolQueryBuilder's mustNot field {es-pull}53125[#53125]
 
 
 
@@ -82,47 +214,47 @@ Search::
 === New features
 
 Aggregations::
-* Preserve metric types in top_metrics {pull}53288[#53288]
-* Support multiple metrics in `top_metrics` agg {pull}52965[#52965] (issue: {issue}51813[#51813])
-* Add size support to `top_metrics` {pull}52662[#52662] (issue: {issue}51813[#51813])
-* HLRC support for string_stats {pull}52163[#52163]
-* Add Boxplot Aggregation {pull}51948[#51948] (issue: {issue}33112[#33112])
+* Preserve metric types in top_metrics {es-pull}53288[#53288]
+* Support multiple metrics in `top_metrics` agg {es-pull}52965[#52965] (issue: {es-issue}51813[#51813])
+* Add size support to `top_metrics` {es-pull}52662[#52662] (issue: {es-issue}51813[#51813])
+* HLRC support for string_stats {es-pull}52163[#52163]
+* Add Boxplot Aggregation {es-pull}51948[#51948] (issue: {es-issue}33112[#33112])
 
 Analysis::
-* Add nori_number token filter in analysis-nori {pull}53583[#53583]
+* Add nori_number token filter in analysis-nori {es-pull}53583[#53583]
 
 Authentication::
-* Create API Key on behalf of other user {pull}52886[#52886] (issue: {issue}48716[#48716])
+* Create API Key on behalf of other user {es-pull}52886[#52886] (issue: {es-issue}48716[#48716])
 
 Geo::
-* Add support for distance queries on shape queries {pull}53468[#53468]
-* Add support for distance queries on geo_shape queries {pull}53466[#53466] (issues: {issue}13351[#13351], {issue}39237[#39237])
-* Add support for multipoint shape queries {pull}52564[#52564] (issue: {issue}52133[#52133])
-* Add support for multipoint geoshape queries {pull}52133[#52133] (issue: {issue}37318[#37318])
+* Add support for distance queries on shape queries {es-pull}53468[#53468]
+* Add support for distance queries on geo_shape queries {es-pull}53466[#53466] (issues: {es-issue}13351[#13351], {es-issue}39237[#39237])
+* Add support for multipoint shape queries {es-pull}52564[#52564] (issue: {es-issue}52133[#52133])
+* Add support for multipoint geoshape queries {es-pull}52133[#52133] (issue: {es-issue}37318[#37318])
 
 Infra/Core::
-* Implement hidden indices {pull}50452[#50452] (issues: {issue}50251[#50251], {issue}50665[#50665], {issue}50762[#50762])
+* Implement hidden indices {es-pull}50452[#50452] (issues: {es-issue}50251[#50251], {es-issue}50665[#50665], {es-issue}50762[#50762])
 
 Infra/Packaging::
-* Introduce aarch64 packaging {pull}53914[#53914]
+* Introduce aarch64 packaging {es-pull}53914[#53914]
 
 Machine Learning::
-* Implement ILM policy for .ml-state* indices {pull}52356[#52356] (issue: {issue}29938[#29938])
+* Implement ILM policy for .ml-state* indices {es-pull}52356[#52356] (issue: {es-issue}29938[#29938])
 * Add instrumentation to report statistics related to {dfanalytics-jobs} such as
 progress, memory usage, etc. {ml-pull}906[#906]
 * Multiclass classification {ml-pull}1037[#1037]
 
 Mapping::
-* Introduce a `constant_keyword` field. {pull}49713[#49713]
+* Introduce a `constant_keyword` field. {es-pull}49713[#49713]
 
 SQL::
-* Add `constant_keyword` support {pull}53241[#53241] (issue: {issue}53016[#53016])
-* Add optimisations for not-equalities {pull}51088[#51088] (issue: {issue}49637[#49637])
-* Add support for passing query parameters in REST API calls {pull}51029[#51029] (issue: {issue}42916[#42916])
+* Add `constant_keyword` support {es-pull}53241[#53241] (issue: {es-issue}53016[#53016])
+* Add optimisations for not-equalities {es-pull}51088[#51088] (issue: {es-issue}49637[#49637])
+* Add support for passing query parameters in REST API calls {es-pull}51029[#51029] (issue: {es-issue}42916[#42916])
 
 Search::
-* Add a cluster setting to disallow expensive queries {pull}51385[#51385] (issue: {issue}29050[#29050])
-* Add new x-pack endpoints to track the progress of a search asynchronously {pull}49931[#49931] (issue: {issue}49091[#49091])
+* Add a cluster setting to disallow expensive queries {es-pull}51385[#51385] (issue: {es-issue}29050[#29050])
+* Add new x-pack endpoints to track the progress of a search asynchronously {es-pull}49931[#49931] (issue: {es-issue}49091[#49091])
 
 
 
@@ -131,163 +263,163 @@ Search::
 === Enhancements
 
 Aggregations::
-* Fixed rewrite of time zone without DST {pull}54398[#54398]
-* Try to save memory on aggregations {pull}53793[#53793]
-* Speed up partial reduce of terms aggregations {pull}53216[#53216] (issue: {issue}51857[#51857])
-* Simplify SiblingPipelineAggregator {pull}53144[#53144]
-* Add histogram field type support to boxplot aggs {pull}52265[#52265] (issues: {issue}33112[#33112], {issue}52233[#52233])
-* Percentiles aggregation validation checks for range {pull}51871[#51871] (issue: {issue}51808[#51808])
-* Begin moving date_histogram to offset rounding (take two) {pull}51271[#51271] (issues: {issue}50609[#50609], {issue}50873[#50873])
-* Password-protected Keystore Feature Branch PR {pull}51123[#51123] (issues: {issue}32691[#32691], {issue}49340[#49340])
-* Implement top_metrics agg {pull}51155[#51155] (issue: {issue}48069[#48069])
-* Bucket aggregation circuit breaker optimization. {pull}46751[#46751]
+* Fixed rewrite of time zone without DST {es-pull}54398[#54398]
+* Try to save memory on aggregations {es-pull}53793[#53793]
+* Speed up partial reduce of terms aggregations {es-pull}53216[#53216] (issue: {es-issue}51857[#51857])
+* Simplify SiblingPipelineAggregator {es-pull}53144[#53144]
+* Add histogram field type support to boxplot aggs {es-pull}52265[#52265] (issues: {es-issue}33112[#33112], {es-issue}52233[#52233])
+* Percentiles aggregation validation checks for range {es-pull}51871[#51871] (issue: {es-issue}51808[#51808])
+* Begin moving date_histogram to offset rounding (take two) {es-pull}51271[#51271] (issues: {es-issue}50609[#50609], {es-issue}50873[#50873])
+* Password-protected Keystore Feature Branch PR {es-pull}51123[#51123] (issues: {es-issue}32691[#32691], {es-issue}49340[#49340])
+* Implement top_metrics agg {es-pull}51155[#51155] (issue: {es-issue}48069[#48069])
+* Bucket aggregation circuit breaker optimization. {es-pull}46751[#46751]
 
 Analysis::
-* Removes old Lucene's experimental flag from analyzer documentations {pull}53217[#53217]
+* Removes old Lucene's experimental flag from analyzer documentations {es-pull}53217[#53217]
 
 Authentication::
-* Add exception metadata for disabled features {pull}52811[#52811] (issues: {issue}47759[#47759], {issue}52311[#52311], {issue}55255[#55255])
-* Validate role templates before saving role mapping {pull}52636[#52636] (issue: {issue}48773[#48773])
-* Add support for secondary authentication {pull}52093[#52093]
-* Expose API key name to the ingest pipeline {pull}51305[#51305] (issues: {issue}46847[#46847], {issue}49106[#49106])
-* Disallow Password Change when authenticated by Token {pull}49694[#49694] (issue: {issue}48752[#48752])
+* Add exception metadata for disabled features {es-pull}52811[#52811] (issues: {es-issue}47759[#47759], {es-issue}52311[#52311], {es-issue}55255[#55255])
+* Validate role templates before saving role mapping {es-pull}52636[#52636] (issue: {es-issue}48773[#48773])
+* Add support for secondary authentication {es-pull}52093[#52093]
+* Expose API key name to the ingest pipeline {es-pull}51305[#51305] (issues: {es-issue}46847[#46847], {es-issue}49106[#49106])
+* Disallow Password Change when authenticated by Token {es-pull}49694[#49694] (issue: {es-issue}48752[#48752])
 
 Authorization::
-* Allow kibana_system to create and invalidate API keys on behalf of other users {pull}53824[#53824] (issue: {issue}48716[#48716])
-* Add "grant_api_key" cluster privilege {pull}53527[#53527] (issues: {issue}48716[#48716], {issue}52886[#52886])
-* Giving kibana user privileges to create custom link index {pull}53221[#53221] (issue: {issue}59305[#59305])
-* Allow kibana to collect APM telemetry in background task {pull}52917[#52917] (issue: {issue}50757[#50757])
-* Add the new 'maintenance' privilege containing 4 actions (#29998) {pull}50643[#50643]
+* Allow kibana_system to create and invalidate API keys on behalf of other users {es-pull}53824[#53824] (issue: {es-issue}48716[#48716])
+* Add "grant_api_key" cluster privilege {es-pull}53527[#53527] (issues: {es-issue}48716[#48716], {es-issue}52886[#52886])
+* Giving kibana user privileges to create custom link index {es-pull}53221[#53221] (issue: {es-issue}59305[#59305])
+* Allow kibana to collect APM telemetry in background task {es-pull}52917[#52917] (issue: {es-issue}50757[#50757])
+* Add the new 'maintenance' privilege containing 4 actions (#29998) {es-pull}50643[#50643]
 
 Cluster Coordination::
-* Describe STALE_STATE_CONFIG in ClusterFormationFH {pull}53878[#53878] (issue: {issue}53734[#53734])
+* Describe STALE_STATE_CONFIG in ClusterFormationFH {es-pull}53878[#53878] (issue: {es-issue}53734[#53734])
 
 Distributed::
-* Introduce formal role for remote cluster client {pull}53924[#53924]
-* Shortcut query phase using the results of other shards {pull}51852[#51852] (issues: {issue}49601[#49601], {issue}51708[#51708])
-* Flush instead of synced-flush inactive shards {pull}49126[#49126] (issues: {issue}31965[#31965], {issue}48430[#48430])
+* Introduce formal role for remote cluster client {es-pull}53924[#53924]
+* Shortcut query phase using the results of other shards {es-pull}51852[#51852] (issues: {es-issue}49601[#49601], {es-issue}51708[#51708])
+* Flush instead of synced-flush inactive shards {es-pull}49126[#49126] (issues: {es-issue}31965[#31965], {es-issue}48430[#48430])
 
 Engine::
-* Restore off-heap loading for term dictionary in ReadOnlyEngine {pull}53713[#53713] (issues: {issue}43158[#43158], {issue}51247[#51247])
-* Separate translog from index deletion conditions {pull}52556[#52556]
-* Always rewrite search shard request outside of the search thread pool {pull}51708[#51708] (issue: {issue}49601[#49601])
-* Move the terms index of `_id` off-heap. {pull}52405[#52405] (issue: {issue}42838[#42838])
-* Cache completion stats between refreshes {pull}51991[#51991] (issue: {issue}51915[#51915])
-* Use local checkpoint to calculate min translog gen for recovery {pull}51905[#51905] (issue: {issue}49970[#49970])
+* Restore off-heap loading for term dictionary in ReadOnlyEngine {es-pull}53713[#53713] (issues: {es-issue}43158[#43158], {es-issue}51247[#51247])
+* Separate translog from index deletion conditions {es-pull}52556[#52556]
+* Always rewrite search shard request outside of the search thread pool {es-pull}51708[#51708] (issue: {es-issue}49601[#49601])
+* Move the terms index of `_id` off-heap. {es-pull}52405[#52405] (issue: {es-issue}42838[#42838])
+* Cache completion stats between refreshes {es-pull}51991[#51991] (issue: {es-issue}51915[#51915])
+* Use local checkpoint to calculate min translog gen for recovery {es-pull}51905[#51905] (issue: {es-issue}49970[#49970])
 
 Features/CAT APIs::
-* /_cat/shards support path stats {pull}53461[#53461]
-* Allow _cat indices & aliases to use indices options {pull}53248[#53248] (issue: {issue}52304[#52304])
+* /_cat/shards support path stats {es-pull}53461[#53461]
+* Allow _cat indices & aliases to use indices options {es-pull}53248[#53248] (issue: {es-issue}52304[#52304])
 
 Features/Features::
-* Enable deprecation checks for removed settings {pull}53317[#53317]
+* Enable deprecation checks for removed settings {es-pull}53317[#53317]
 
 Features/ILM+SLM::
-* Use Priority.IMMEDIATE for stop ILM cluster update {pull}54909[#54909]
-* Add cluster update timeout on step retry {pull}54878[#54878]
-* Hide ILM & SLM history aliases {pull}53564[#53564]
-* Avoid race condition in ILMHistorySotre {pull}53039[#53039] (issues: {issue}50353[#50353], {issue}52853[#52853])
-* Make FreezeStep retryable {pull}52540[#52540]
-* Make DeleteStep retryable {pull}52494[#52494]
-* Allow forcemerge in the hot phase for ILM policies {pull}52073[#52073] (issue: {issue}43165[#43165])
-* Stop policy on last PhaseCompleteStep instead of TerminalPolicyStep {pull}51631[#51631] (issue: {issue}48431[#48431])
-* Convert ILM and SLM histories into hidden indices {pull}51456[#51456]
-* Make UpdateSettingsStep retryable {pull}51235[#51235] (issues: {issue}44135[#44135], {issue}48183[#48183])
-* Expose master timeout for ILM actions {pull}51130[#51130] (issue: {issue}44136[#44136])
-* Wait for active shards on rolled index in a separate step {pull}50718[#50718] (issues: {issue}44135[#44135], {issue}48183[#48183])
-* Adding best_compression {pull}49974[#49974]
+* Use Priority.IMMEDIATE for stop ILM cluster update {es-pull}54909[#54909]
+* Add cluster update timeout on step retry {es-pull}54878[#54878]
+* Hide ILM & SLM history aliases {es-pull}53564[#53564]
+* Avoid race condition in ILMHistorySotre {es-pull}53039[#53039] (issues: {es-issue}50353[#50353], {es-issue}52853[#52853])
+* Make FreezeStep retryable {es-pull}52540[#52540]
+* Make DeleteStep retryable {es-pull}52494[#52494]
+* Allow forcemerge in the hot phase for ILM policies {es-pull}52073[#52073] (issue: {es-issue}43165[#43165])
+* Stop policy on last PhaseCompleteStep instead of TerminalPolicyStep {es-pull}51631[#51631] (issue: {es-issue}48431[#48431])
+* Convert ILM and SLM histories into hidden indices {es-pull}51456[#51456]
+* Make UpdateSettingsStep retryable {es-pull}51235[#51235] (issues: {es-issue}44135[#44135], {es-issue}48183[#48183])
+* Expose master timeout for ILM actions {es-pull}51130[#51130] (issue: {es-issue}44136[#44136])
+* Wait for active shards on rolled index in a separate step {es-pull}50718[#50718] (issues: {es-issue}44135[#44135], {es-issue}48183[#48183])
+* Adding best_compression {es-pull}49974[#49974]
 
 Features/Indices APIs::
-* Add IndexTemplateV2 to MetaData {pull}53753[#53753] (issue: {issue}53101[#53101])
-* Add ComponentTemplate to MetaData {pull}53290[#53290] (issue: {issue}53101[#53101])
+* Add IndexTemplateV2 to MetaData {es-pull}53753[#53753] (issue: {es-issue}53101[#53101])
+* Add ComponentTemplate to MetaData {es-pull}53290[#53290] (issue: {es-issue}53101[#53101])
 
 Features/Ingest::
-* Reduce log level for pipeline failure {pull}54097[#54097] (issue: {issue}51459[#51459])
-* Support array for all string ingest processors {pull}53343[#53343] (issue: {issue}51087[#51087])
-* Add empty_value parameter to CSV processor {pull}51567[#51567]
-* Add pipeline name to ingest metadata {pull}50467[#50467] (issue: {issue}42106[#42106])
+* Reduce log level for pipeline failure {es-pull}54097[#54097] (issue: {es-issue}51459[#51459])
+* Support array for all string ingest processors {es-pull}53343[#53343] (issue: {es-issue}51087[#51087])
+* Add empty_value parameter to CSV processor {es-pull}51567[#51567]
+* Add pipeline name to ingest metadata {es-pull}50467[#50467] (issue: {es-issue}42106[#42106])
 
 Features/Java High Level REST Client::
-* SourceExists HLRC uses GetSourceRequest instead of GetRequest {pull}51789[#51789] (issue: {issue}50885[#50885])
-* Add async_search.submit to HLRC {pull}53592[#53592] (issue: {issue}49091[#49091])
-* Add Get Source API to the HLRC {pull}50885[#50885] (issue: {issue}47678[#47678])
+* SourceExists HLRC uses GetSourceRequest instead of GetRequest {es-pull}51789[#51789] (issue: {es-issue}50885[#50885])
+* Add async_search.submit to HLRC {es-pull}53592[#53592] (issue: {es-issue}49091[#49091])
+* Add Get Source API to the HLRC {es-pull}50885[#50885] (issue: {es-issue}47678[#47678])
 
 Features/Monitoring::
-* Secure password for monitoring HTTP exporter {pull}50919[#50919] (issue: {issue}50197[#50197])
-* Validate SSL settings at parse time {pull}49196[#49196] (issue: {issue}47711[#47711])
+* Secure password for monitoring HTTP exporter {es-pull}50919[#50919] (issue: {es-issue}50197[#50197])
+* Validate SSL settings at parse time {es-pull}49196[#49196] (issue: {es-issue}47711[#47711])
 
 Features/Watcher::
-* Make watch history indices hidden {pull}52962[#52962] (issue: {issue}50251[#50251])
-* Upgrade to the latest OWASP HTML sanitizer {pull}50765[#50765] (issue: {issue}50395[#50395])
+* Make watch history indices hidden {es-pull}52962[#52962] (issue: {es-issue}50251[#50251])
+* Upgrade to the latest OWASP HTML sanitizer {es-pull}50765[#50765] (issue: {es-issue}50395[#50395])
 
 Infra/Core::
-* Enable helpful null pointer exceptions {pull}54853[#54853]
-* Allow keystore add to handle multiple settings {pull}54229[#54229] (issue: {issue}54191[#54191])
-* Report parser name and location in XContent deprecation warnings {pull}53805[#53805]
-* Report parser name and location in XContent deprecation warnings {pull}53752[#53752]
-* Deprecate all variants of a ParseField with no replacement {pull}53722[#53722]
-* Allow specifying an exclusive set of fields on ObjectParser {pull}52893[#52893]
-* Support joda style date patterns in 7.x {pull}52555[#52555]
-* Implement hidden aliases {pull}52547[#52547] (issue: {issue}52304[#52304])
-* Allow ObjectParsers to specify required sets of fields {pull}49661[#49661] (issue: {issue}48824[#48824])
+* Enable helpful null pointer exceptions {es-pull}54853[#54853]
+* Allow keystore add to handle multiple settings {es-pull}54229[#54229] (issue: {es-issue}54191[#54191])
+* Report parser name and location in XContent deprecation warnings {es-pull}53805[#53805]
+* Report parser name and location in XContent deprecation warnings {es-pull}53752[#53752]
+* Deprecate all variants of a ParseField with no replacement {es-pull}53722[#53722]
+* Allow specifying an exclusive set of fields on ObjectParser {es-pull}52893[#52893]
+* Support joda style date patterns in 7.x {es-pull}52555[#52555]
+* Implement hidden aliases {es-pull}52547[#52547] (issue: {es-issue}52304[#52304])
+* Allow ObjectParsers to specify required sets of fields {es-pull}49661[#49661] (issue: {es-issue}48824[#48824])
 
 Infra/Logging::
-* Capture stdout and stderr to log4j log {pull}50259[#50259] (issue: {issue}50156[#50156])
+* Capture stdout and stderr to log4j log {es-pull}50259[#50259] (issue: {es-issue}50156[#50156])
 
 Infra/Packaging::
-* Use AdoptOpenJDK API to Download JDKs {pull}55127[#55127] (issue: {issue}55125[#55125])
-* Introduce aarch64 Docker image {pull}53936[#53936] (issue: {issue}53914[#53914])
-* Introduce jvm.options.d for customizing JVM options {pull}51882[#51882] (issue: {issue}51626[#51626])
+* Use AdoptOpenJDK API to Download JDKs {es-pull}55127[#55127] (issue: {es-issue}55125[#55125])
+* Introduce aarch64 Docker image {es-pull}53936[#53936] (issue: {es-issue}53914[#53914])
+* Introduce jvm.options.d for customizing JVM options {es-pull}51882[#51882] (issue: {es-issue}51626[#51626])
 
 Infra/Plugins::
-* Allow sha512 checksum without filename for maven plugins {pull}52668[#52668] (issue: {issue}52413[#52413])
+* Allow sha512 checksum without filename for maven plugins {es-pull}52668[#52668] (issue: {es-issue}52413[#52413])
 
 Infra/Scripting::
-* Scripting: Context script cache unlimited compile {pull}53769[#53769] (issue: {issue}50152[#50152])
-* Scripting: Increase ingest script cache defaults {pull}53765[#53765] (issue: {issue}50152[#50152])
-* Scripting: Per-context script cache, default off (#52855) {pull}53756[#53756] (issues: {issue}50152[#50152], {issue}52855[#52855])
-* Scripting: Per-context script cache, default off {pull}52855[#52855] (issue: {issue}50152[#50152])
-* Improve Painless compilation performance for nested conditionals {pull}52056[#52056]
-* Scripting: Add char position of script errors {pull}51069[#51069] (issue: {issue}50993[#50993])
+* Scripting: Context script cache unlimited compile {es-pull}53769[#53769] (issue: {es-issue}50152[#50152])
+* Scripting: Increase ingest script cache defaults {es-pull}53765[#53765] (issue: {es-issue}50152[#50152])
+* Scripting: Per-context script cache, default off (#52855) {es-pull}53756[#53756] (issues: {es-issue}50152[#50152], {es-issue}52855[#52855])
+* Scripting: Per-context script cache, default off {es-pull}52855[#52855] (issue: {es-issue}50152[#50152])
+* Improve Painless compilation performance for nested conditionals {es-pull}52056[#52056]
+* Scripting: Add char position of script errors {es-pull}51069[#51069] (issue: {es-issue}50993[#50993])
 
 Infra/Settings::
-* Allow keystore add-file to handle multiple settings {pull}54240[#54240] (issue: {issue}54191[#54191])
-* Settings: AffixSettings as validator dependencies {pull}52973[#52973] (issue: {issue}52933[#52933])
+* Allow keystore add-file to handle multiple settings {es-pull}54240[#54240] (issue: {es-issue}54191[#54191])
+* Settings: AffixSettings as validator dependencies {es-pull}52973[#52973] (issue: {es-issue}52933[#52933])
 
 License::
-* Simplify ml license checking with XpackLicenseState internals {pull}52684[#52684] (issue: {issue}52115[#52115])
-* License removal leads back to a basic license {pull}52407[#52407] (issue: {issue}45022[#45022])
-* Refactor license checking {pull}52118[#52118] (issue: {issue}51864[#51864])
-* Add enterprise mode and refactor {pull}51864[#51864] (issue: {issue}51081[#51081])
+* Simplify ml license checking with XpackLicenseState internals {es-pull}52684[#52684] (issue: {es-issue}52115[#52115])
+* License removal leads back to a basic license {es-pull}52407[#52407] (issue: {es-issue}45022[#45022])
+* Refactor license checking {es-pull}52118[#52118] (issue: {es-issue}51864[#51864])
+* Add enterprise mode and refactor {es-pull}51864[#51864] (issue: {es-issue}51081[#51081])
 
 Machine Learning::
-* Stratified cross validation split for classification {pull}54087[#54087]
-* Data frame analytics data counts {pull}53998[#53998]
-* Verify that the field is aggregatable before attempting cardinality aggregation {pull}53874[#53874] (issue: {issue}53876[#53876])
-* Adds multi-class feature importance support {pull}53803[#53803]
-* Data frame analytics analysis stats {pull}53788[#53788]
-* Add a model memory estimation endpoint for anomaly detection {pull}53507[#53507] (issue: {issue}53219[#53219])
-* Adds new default_field_map field to trained models {pull}53294[#53294]
-* Improve DF analytics audits and logging {pull}53179[#53179]
-* Add indices_options to datafeed config and update {pull}52793[#52793] (issue: {issue}48056[#48056])
-* Parse and report memory usage for DF Analytics {pull}52778[#52778]
-* Adds the class_assignment_objective parameter to classification {pull}52763[#52763] (issue: {issue}52427[#52427])
-* Add reason to DataFrameAnalyticsTask updateState log message {pull}52659[#52659] (issue: {issue}52654[#52654])
-* Add support for multi-value leaves to the tree model {pull}52531[#52531]
-* Make ml internal indices hidden {pull}52423[#52423] (issue: {issue}52420[#52420])
-* Add _cat/ml/data_frame/analytics API {pull}52260[#52260] (issue: {issue}51413[#51413])
-* Adds feature importance option to inference processor {pull}52218[#52218]
-* Switch poor categorization audit warning to use status field {pull}52195[#52195] (issues: {issue}50749[#50749], {issue}51146[#51146], {issue}51879[#51879])
-* Retry persisting DF Analytics results {pull}52048[#52048]
-* Improve multiline_start_pattern for CSV in find_file_structure {pull}51737[#51737]
-* Add _cat/ml/trained_models API {pull}51529[#51529] (issue: {issue}51414[#51414])
-* Add GET _cat/ml/datafeeds {pull}51500[#51500] (issue: {issue}51411[#51411])
-* Use CSV ingest processor in find_file_structure ingest pipeline {pull}51492[#51492] (issue: {issue}56038[#56038])
-* Add _cat/ml/anomaly_detectors API {pull}51364[#51364]
-* Add tags url param to GET {pull}51330[#51330]
-* Add parsers for inference configuration classes {pull}51300[#51300]
-* Make datafeeds work with nanosecond time fields {pull}51180[#51180] (issue: {issue}49889[#49889])
-* Adds support for a global calendars {pull}50372[#50372] (issue: {issue}45013[#45013])
+* Stratified cross validation split for classification {es-pull}54087[#54087]
+* Data frame analytics data counts {es-pull}53998[#53998]
+* Verify that the field is aggregatable before attempting cardinality aggregation {es-pull}53874[#53874] (issue: {es-issue}53876[#53876])
+* Adds multi-class feature importance support {es-pull}53803[#53803]
+* Data frame analytics analysis stats {es-pull}53788[#53788]
+* Add a model memory estimation endpoint for anomaly detection {es-pull}53507[#53507] (issue: {es-issue}53219[#53219])
+* Adds new default_field_map field to trained models {es-pull}53294[#53294]
+* Improve DF analytics audits and logging {es-pull}53179[#53179]
+* Add indices_options to datafeed config and update {es-pull}52793[#52793] (issue: {es-issue}48056[#48056])
+* Parse and report memory usage for DF Analytics {es-pull}52778[#52778]
+* Adds the class_assignment_objective parameter to classification {es-pull}52763[#52763] (issue: {es-issue}52427[#52427])
+* Add reason to DataFrameAnalyticsTask updateState log message {es-pull}52659[#52659] (issue: {es-issue}52654[#52654])
+* Add support for multi-value leaves to the tree model {es-pull}52531[#52531]
+* Make ml internal indices hidden {es-pull}52423[#52423] (issue: {es-issue}52420[#52420])
+* Add _cat/ml/data_frame/analytics API {es-pull}52260[#52260] (issue: {es-issue}51413[#51413])
+* Adds feature importance option to inference processor {es-pull}52218[#52218]
+* Switch poor categorization audit warning to use status field {es-pull}52195[#52195] (issues: {es-issue}50749[#50749], {es-issue}51146[#51146], {es-issue}51879[#51879])
+* Retry persisting DF Analytics results {es-pull}52048[#52048]
+* Improve multiline_start_pattern for CSV in find_file_structure {es-pull}51737[#51737]
+* Add _cat/ml/trained_models API {es-pull}51529[#51529] (issue: {es-issue}51414[#51414])
+* Add GET _cat/ml/datafeeds {es-pull}51500[#51500] (issue: {es-issue}51411[#51411])
+* Use CSV ingest processor in find_file_structure ingest pipeline {es-pull}51492[#51492] (issue: {es-issue}56038[#56038])
+* Add _cat/ml/anomaly_detectors API {es-pull}51364[#51364]
+* Add tags url param to GET {es-pull}51330[#51330]
+* Add parsers for inference configuration classes {es-pull}51300[#51300]
+* Make datafeeds work with nanosecond time fields {es-pull}51180[#51180] (issue: {es-issue}49889[#49889])
+* Adds support for a global calendars {es-pull}50372[#50372] (issue: {es-issue}45013[#45013])
 * Speed up computation of feature importance
 {ml-pull}1005[1005]
 * Improve initialization of learn rate for better and more stable results in
@@ -295,7 +427,7 @@ regression and classification {ml-pull}948[#948]
 * Add number of processed training samples to the definition of decision tree
 nodes {ml-pull}991[#991]
 * Add new model_size_stats fields to instrument categorization
-{ml-pull}948[#948], {pull}51879[#51879] (issue: {issue}50794[#50749])
+{ml-pull}948[#948], {es-pull}51879[#51879] (issue: {es-issue}50794[#50749])
 * Improve upfront memory estimation for all data frame analyses, which were
 higher than necessary. This will improve the allocation of data frame analyses
 to cluster nodes {ml-pull}1003[#1003]
@@ -315,79 +447,79 @@ regression model training {ml-pull}1034[#1034]
 {ml-pull}1098[#1098]
 
 Mapping::
-* Wildcard field - add normalizer support {pull}53851[#53851]
-* Append index name for the source of the cluster put-mapping task {pull}52690[#52690]
+* Wildcard field - add normalizer support {es-pull}53851[#53851]
+* Append index name for the source of the cluster put-mapping task {es-pull}52690[#52690]
 
 Network::
-* Give helpful message on remote connections disabled {pull}53690[#53690]
-* Add server name to remote info API {pull}53634[#53634]
-* Log when probe succeeds but full connection fails {pull}51304[#51304]
-* Encrypt generated key with AES {pull}51019[#51019] (issue: {issue}50843[#50843])
+* Give helpful message on remote connections disabled {es-pull}53690[#53690]
+* Add server name to remote info API {es-pull}53634[#53634]
+* Log when probe succeeds but full connection fails {es-pull}51304[#51304]
+* Encrypt generated key with AES {es-pull}51019[#51019] (issue: {es-issue}50843[#50843])
 
 Ranking::
-* Adds recall@k metric to rank eval API {pull}52577[#52577] (issue: {issue}51676[#51676])
+* Adds recall@k metric to rank eval API {es-pull}52577[#52577] (issue: {es-issue}51676[#51676])
 
 SQL::
-* JDBC debugging enhancement {pull}53880[#53880]
-* Transfer version compatibility decision to the server {pull}53082[#53082] (issue: {issue}52766[#52766])
-* Use a proper error message for queries directed at empty mapping indices {pull}52967[#52967] (issue: {issue}52865[#52865])
-* Use calendar_interval of 1d for HISTOGRAMs with 1 DAY intervals {pull}52749[#52749] (issue: {issue}52713[#52713])
-* Use a calendar interval for histograms over 1 month intervals {pull}52586[#52586] (issue: {issue}51538[#51538])
-* Make parsing of date more lenient {pull}52137[#52137] (issue: {issue}49379[#49379])
-* Enhance timestamp escaped literal parsing {pull}52097[#52097] (issue: {issue}46069[#46069])
-* Handle uberjar scenario where the ES jdbc driver file is bundled in another jar {pull}51856[#51856] (issue: {issue}50201[#50201])
-* Verify Full-Text Search functions not allowed in SELECT {pull}51568[#51568] (issue: {issue}47446[#47446])
-* Extend the optimisations for equalities {pull}50792[#50792] (issue: {issue}49637[#49637])
-* Add trace logging for search responses coming from server {pull}50530[#50530]
-* Extend DATE_TRUNC to also operate on intervals(elastic - #46632 ) {pull}47720[#47720] (issue: {issue}46632[#46632])
+* JDBC debugging enhancement {es-pull}53880[#53880]
+* Transfer version compatibility decision to the server {es-pull}53082[#53082] (issue: {es-issue}52766[#52766])
+* Use a proper error message for queries directed at empty mapping indices {es-pull}52967[#52967] (issue: {es-issue}52865[#52865])
+* Use calendar_interval of 1d for HISTOGRAMs with 1 DAY intervals {es-pull}52749[#52749] (issue: {es-issue}52713[#52713])
+* Use a calendar interval for histograms over 1 month intervals {es-pull}52586[#52586] (issue: {es-issue}51538[#51538])
+* Make parsing of date more lenient {es-pull}52137[#52137] (issue: {es-issue}49379[#49379])
+* Enhance timestamp escaped literal parsing {es-pull}52097[#52097] (issue: {es-issue}46069[#46069])
+* Handle uberjar scenario where the ES jdbc driver file is bundled in another jar {es-pull}51856[#51856] (issue: {es-issue}50201[#50201])
+* Verify Full-Text Search functions not allowed in SELECT {es-pull}51568[#51568] (issue: {es-issue}47446[#47446])
+* Extend the optimisations for equalities {es-pull}50792[#50792] (issue: {es-issue}49637[#49637])
+* Add trace logging for search responses coming from server {es-pull}50530[#50530]
+* Extend DATE_TRUNC to also operate on intervals(elastic - #46632 ) {es-pull}47720[#47720] (issue: {es-issue}46632[#46632])
 
 Search::
-* HLRC: Don't send defaults for SubmitAsyncSearchRequest {pull}54200[#54200]
-* Reduce performance impact of ExitableDirectoryReader {pull}53978[#53978] (issues: {issue}52822[#52822], {issue}53166[#53166], {issue}53496[#53496])
-* Add heuristics to compute pre_filter_shard_size when unspecified {pull}53873[#53873] (issue: {issue}39835[#39835])
-* Add async_search get and delete APIs to HLRC {pull}53828[#53828] (issue: {issue}49091[#49091])
-* Increase step between checks for cancellation {pull}53712[#53712] (issues: {issue}52822[#52822], {issue}53496[#53496])
-* Refine SearchProgressListener internal API {pull}53373[#53373]
-* Check for query cancellation during rewrite {pull}53166[#53166] (issue: {issue}52822[#52822])
-* Implement Cancellable DirectoryReader {pull}52822[#52822]
-* Address MinAndMax generics warnings {pull}52642[#52642] (issue: {issue}49092[#49092])
-* Clarify when shard iterators get sorted {pull}52633[#52633]
-* Generalize how queries on `_index` are handled at rewrite time {pull}52486[#52486] (issues: {issue}49254[#49254], {issue}49713[#49713])
-* Remove the query builder serialization from QueryShardException message {pull}51885[#51885] (issues: {issue}48910[#48910], {issue}51843[#51843])
-* Short circuited to MatchNone for non-participating  slice {pull}51207[#51207]
-* Add "did you mean" to unknown queries {pull}51177[#51177]
-* Exclude unmapped fields during max clause limit checking for querying {pull}49523[#49523] (issue: {issue}49002[#49002])
+* HLRC: Don't send defaults for SubmitAsyncSearchRequest {es-pull}54200[#54200]
+* Reduce performance impact of ExitableDirectoryReader {es-pull}53978[#53978] (issues: {es-issue}52822[#52822], {es-issue}53166[#53166], {es-issue}53496[#53496])
+* Add heuristics to compute pre_filter_shard_size when unspecified {es-pull}53873[#53873] (issue: {es-issue}39835[#39835])
+* Add async_search get and delete APIs to HLRC {es-pull}53828[#53828] (issue: {es-issue}49091[#49091])
+* Increase step between checks for cancellation {es-pull}53712[#53712] (issues: {es-issue}52822[#52822], {es-issue}53496[#53496])
+* Refine SearchProgressListener internal API {es-pull}53373[#53373]
+* Check for query cancellation during rewrite {es-pull}53166[#53166] (issue: {es-issue}52822[#52822])
+* Implement Cancellable DirectoryReader {es-pull}52822[#52822]
+* Address MinAndMax generics warnings {es-pull}52642[#52642] (issue: {es-issue}49092[#49092])
+* Clarify when shard iterators get sorted {es-pull}52633[#52633]
+* Generalize how queries on `_index` are handled at rewrite time {es-pull}52486[#52486] (issues: {es-issue}49254[#49254], {es-issue}49713[#49713])
+* Remove the query builder serialization from QueryShardException message {es-pull}51885[#51885] (issues: {es-issue}48910[#48910], {es-issue}51843[#51843])
+* Short circuited to MatchNone for non-participating  slice {es-pull}51207[#51207]
+* Add "did you mean" to unknown queries {es-pull}51177[#51177]
+* Exclude unmapped fields during max clause limit checking for querying {es-pull}49523[#49523] (issue: {es-issue}49002[#49002])
 
 Security::
-* Add error message in JSON response {pull}54389[#54389]
+* Add error message in JSON response {es-pull}54389[#54389]
 
 Snapshot/Restore::
-* Use Azure Bulk Deletes in Azure Repository {pull}53919[#53919] (issue: {issue}53865[#53865])
-* Only link fd* files during source-only snapshot {pull}53463[#53463] (issue: {issue}50231[#50231])
-* Add Blob Download Retries to GCS Repository {pull}52479[#52479] (issues: {issue}46589[#46589], {issue}52319[#52319])
-* Better Incrementality for Snapshots of Unchanged Shards {pull}52182[#52182]
-* Add Region and Signer Algorithm Overrides to S3 Repos {pull}52112[#52112] (issue: {issue}51861[#51861])
-* Allow Parallel Snapshot Restore And Delete {pull}51608[#51608] (issue: {issue}41463[#41463])
+* Use Azure Bulk Deletes in Azure Repository {es-pull}53919[#53919] (issue: {es-issue}53865[#53865])
+* Only link fd* files during source-only snapshot {es-pull}53463[#53463] (issue: {es-issue}50231[#50231])
+* Add Blob Download Retries to GCS Repository {es-pull}52479[#52479] (issues: {es-issue}46589[#46589], {es-issue}52319[#52319])
+* Better Incrementality for Snapshots of Unchanged Shards {es-pull}52182[#52182]
+* Add Region and Signer Algorithm Overrides to S3 Repos {es-pull}52112[#52112] (issue: {es-issue}51861[#51861])
+* Allow Parallel Snapshot Restore And Delete {es-pull}51608[#51608] (issue: {es-issue}41463[#41463])
 
 Store::
-* HybridDirectory should mmap postings. {pull}52641[#52641]
+* HybridDirectory should mmap postings. {es-pull}52641[#52641]
 
 Transform::
-* Transition Transforms to using hidden indices for notifcations index {pull}53773[#53773] (issue: {issue}53762[#53762])
-* Add processing stats to record the time spent for processing results {pull}53770[#53770]
-* Create GET _cat/transforms API Issue {pull}53643[#53643] (issue: {issue}51412[#51412])
-* Add support for script in group_by {pull}53167[#53167] (issue: {issue}43152[#43152])
-* Implement node.transform to control where to run a transform {pull}52712[#52712] (issues: {issue}48734[#48734], {issue}50033[#50033], {issue}52200[#52200])
-* Add support for filter aggregation {pull}52483[#52483] (issue: {issue}52151[#52151])
-* Provide exponential_avg* stats for batch transforms {pull}52041[#52041] (issue: {issue}52037[#52037])
-* Improve irrecoverable error detection - part 2 {pull}52003[#52003] (issue: {issue}51820[#51820])
-* Mark transform API's stable {pull}51862[#51862]
-* Improve irrecoverable error detection {pull}51820[#51820] (issue: {issue}50135[#50135])
-* Add support for percentile aggs {pull}51808[#51808] (issue: {issue}51663[#51663])
-* Disallow fieldnames with a dot at start and/or end {pull}51369[#51369]
-* Avoid mapping problems with index templates {pull}51368[#51368] (issue: {issue}51321[#51321])
-* Handle permanent bulk indexing errors {pull}51307[#51307] (issue: {issue}50122[#50122])
-* Improve force stop robustness in case of an error {pull}51072[#51072]
+* Transition Transforms to using hidden indices for notifcations index {es-pull}53773[#53773] (issue: {es-issue}53762[#53762])
+* Add processing stats to record the time spent for processing results {es-pull}53770[#53770]
+* Create GET _cat/transforms API Issue {es-pull}53643[#53643] (issue: {es-issue}51412[#51412])
+* Add support for script in group_by {es-pull}53167[#53167] (issue: {es-issue}43152[#43152])
+* Implement node.transform to control where to run a transform {es-pull}52712[#52712] (issues: {es-issue}48734[#48734], {es-issue}50033[#50033], {es-issue}52200[#52200])
+* Add support for filter aggregation {es-pull}52483[#52483] (issue: {es-issue}52151[#52151])
+* Provide exponential_avg* stats for batch transforms {es-pull}52041[#52041] (issue: {es-issue}52037[#52037])
+* Improve irrecoverable error detection - part 2 {es-pull}52003[#52003] (issue: {es-issue}51820[#51820])
+* Mark transform API's stable {es-pull}51862[#51862]
+* Improve irrecoverable error detection {es-pull}51820[#51820] (issue: {es-issue}50135[#50135])
+* Add support for percentile aggs {es-pull}51808[#51808] (issue: {es-issue}51663[#51663])
+* Disallow fieldnames with a dot at start and/or end {es-pull}51369[#51369]
+* Avoid mapping problems with index templates {es-pull}51368[#51368] (issue: {es-issue}51321[#51321])
+* Handle permanent bulk indexing errors {es-pull}51307[#51307] (issue: {es-issue}50122[#50122])
+* Improve force stop robustness in case of an error {es-pull}51072[#51072]
 
 
 
@@ -396,149 +528,149 @@ Transform::
 === Bug fixes
 
 Aggregations::
-* Fix date_nanos in composite aggs {pull}53315[#53315] (issue: {issue}53168[#53168])
-* Fix composite agg sort bug {pull}53296[#53296] (issue: {issue}52480[#52480])
-* Decode max and min optimization more carefully {pull}52336[#52336] (issue: {issue}52220[#52220])
-* Fix a DST error in date_histogram {pull}52016[#52016] (issue: {issue}50265[#50265])
-* Use #name() instead of #simpleName() when generating doc values {pull}51920[#51920] (issues: {issue}50307[#50307], {issue}51847[#51847])
-* Fix a sneaky bug in rare_terms {pull}51868[#51868] (issue: {issue}51020[#51020])
-* Support time_zone on composite's date_histogram {pull}51172[#51172] (issues: {issue}45199[#45199], {issue}45200[#45200])
+* Fix date_nanos in composite aggs {es-pull}53315[#53315] (issue: {es-issue}53168[#53168])
+* Fix composite agg sort bug {es-pull}53296[#53296] (issue: {es-issue}52480[#52480])
+* Decode max and min optimization more carefully {es-pull}52336[#52336] (issue: {es-issue}52220[#52220])
+* Fix a DST error in date_histogram {es-pull}52016[#52016] (issue: {es-issue}50265[#50265])
+* Use #name() instead of #simpleName() when generating doc values {es-pull}51920[#51920] (issues: {es-issue}50307[#50307], {es-issue}51847[#51847])
+* Fix a sneaky bug in rare_terms {es-pull}51868[#51868] (issue: {es-issue}51020[#51020])
+* Support time_zone on composite's date_histogram {es-pull}51172[#51172] (issues: {es-issue}45199[#45199], {es-issue}45200[#45200])
 
 Allocation::
-* Improve performance of shards limits decider {pull}53577[#53577] (issue: {issue}53559[#53559])
+* Improve performance of shards limits decider {es-pull}53577[#53577] (issue: {es-issue}53559[#53559])
 
 Analysis::
-* Mask wildcard query special characters on keyword queries {pull}53127[#53127] (issue: {issue}46300[#46300])
-* Fix caching for PreConfiguredTokenFilter {pull}50912[#50912] (issue: {issue}50734[#50734])
+* Mask wildcard query special characters on keyword queries {es-pull}53127[#53127] (issue: {es-issue}46300[#46300])
+* Fix caching for PreConfiguredTokenFilter {es-pull}50912[#50912] (issue: {es-issue}50734[#50734])
 
 Audit::
-* Logfile audit settings validation {pull}52537[#52537] (issues: {issue}47038[#47038], {issue}47711[#47711], {issue}52357[#52357])
+* Logfile audit settings validation {es-pull}52537[#52537] (issues: {es-issue}47038[#47038], {es-issue}47711[#47711], {es-issue}52357[#52357])
 
 Authentication::
-* Fix responses for the token APIs {pull}54532[#54532] (issue: {issue}53323[#53323])
-* Fix potential bug in concurrent token refresh support {pull}53668[#53668]
-* Respect runas realm for ApiKey security operations {pull}52178[#52178] (issue: {issue}51975[#51975])
-* Preserve ApiKey credentials for async verification {pull}51244[#51244]
-* Don't fallback to anonymous for tokens/apikeys {pull}51042[#51042] (issue: {issue}50171[#50171])
-* Fail gracefully on invalid token strings {pull}51014[#51014]
+* Fix responses for the token APIs {es-pull}54532[#54532] (issue: {es-issue}53323[#53323])
+* Fix potential bug in concurrent token refresh support {es-pull}53668[#53668]
+* Respect runas realm for ApiKey security operations {es-pull}52178[#52178] (issue: {es-issue}51975[#51975])
+* Preserve ApiKey credentials for async verification {es-pull}51244[#51244]
+* Don't fallback to anonymous for tokens/apikeys {es-pull}51042[#51042] (issue: {es-issue}50171[#50171])
+* Fail gracefully on invalid token strings {es-pull}51014[#51014]
 
 Authorization::
-* Explicitly require that delegate API keys have no privileges {pull}53647[#53647]
-* Allow _rollup_search with read privilege {pull}52043[#52043] (issue: {issue}50245[#50245])
+* Explicitly require that delegate API keys have no privileges {es-pull}53647[#53647]
+* Allow _rollup_search with read privilege {es-pull}52043[#52043] (issue: {es-issue}50245[#50245])
 
 CCR::
-* Clear recent errors when auto-follow successfully {pull}54997[#54997]
-* Put CCR tasks on (data && remote cluster clients) {pull}54146[#54146] (issue: {issue}53924[#53924])
-* Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
-* Fix shard follow task cleaner under security {pull}52347[#52347] (issues: {issue}44702[#44702], {issue}51971[#51971])
+* Clear recent errors when auto-follow successfully {es-pull}54997[#54997]
+* Put CCR tasks on (data && remote cluster clients) {es-pull}54146[#54146] (issue: {es-issue}53924[#53924])
+* Handle no such remote cluster exception in ccr {es-pull}53415[#53415] (issue: {es-issue}53225[#53225])
+* Fix shard follow task cleaner under security {es-pull}52347[#52347] (issues: {es-issue}44702[#44702], {es-issue}51971[#51971])
 
 CRUD::
-* Force execution of finish shard bulk request {pull}51957[#51957] (issue: {issue}51904[#51904])
-* Block too many concurrent mapping updates {pull}51038[#51038] (issue: {issue}50670[#50670])
-* Return 429 status code when there's a read_only cluster block {pull}50166[#50166] (issue: {issue}49393[#49393])
+* Force execution of finish shard bulk request {es-pull}51957[#51957] (issue: {es-issue}51904[#51904])
+* Block too many concurrent mapping updates {es-pull}51038[#51038] (issue: {es-issue}50670[#50670])
+* Return 429 status code when there's a read_only cluster block {es-pull}50166[#50166] (issue: {es-issue}49393[#49393])
 
 Cluster Coordination::
-* Use special XContent registry for node tool {pull}54050[#54050] (issue: {issue}53549[#53549])
-* Allow static cluster.max_voting_config_exclusions {pull}53717[#53717] (issue: {issue}53455[#53455])
-* Allow joining node to trigger term bump {pull}53338[#53338] (issue: {issue}53271[#53271])
-* Ignore timeouts with single-node discovery {pull}52159[#52159]
+* Use special XContent registry for node tool {es-pull}54050[#54050] (issue: {es-issue}53549[#53549])
+* Allow static cluster.max_voting_config_exclusions {es-pull}53717[#53717] (issue: {es-issue}53455[#53455])
+* Allow joining node to trigger term bump {es-pull}53338[#53338] (issue: {es-issue}53271[#53271])
+* Ignore timeouts with single-node discovery {es-pull}52159[#52159]
 
 Distributed::
-* Execute retention lease syncs under system context {pull}53838[#53838] (issues: {issue}48430[#48430], {issue}53751[#53751])
-* Exclude nested documents in LuceneChangesSnapshot {pull}51279[#51279]
+* Execute retention lease syncs under system context {es-pull}53838[#53838] (issues: {es-issue}48430[#48430], {es-issue}53751[#53751])
+* Exclude nested documents in LuceneChangesSnapshot {es-pull}51279[#51279]
 
 Engine::
-* Update translog policy before the next safe commit {pull}54839[#54839] (issue: {issue}52223[#52223])
-* Fix doc_stats and segment_stats of ReadOnlyEngine {pull}53345[#53345] (issues: {issue}51303[#51303], {issue}51331[#51331])
-* Do not wrap soft-deletes reader for segment stats {pull}51331[#51331] (issues: {issue}51192[#51192], {issue}51303[#51303])
-* Account soft-deletes in FrozenEngine {pull}51192[#51192] (issue: {issue}50775[#50775])
+* Update translog policy before the next safe commit {es-pull}54839[#54839] (issue: {es-issue}52223[#52223])
+* Fix doc_stats and segment_stats of ReadOnlyEngine {es-pull}53345[#53345] (issues: {es-issue}51303[#51303], {es-issue}51331[#51331])
+* Do not wrap soft-deletes reader for segment stats {es-pull}51331[#51331] (issues: {es-issue}51192[#51192], {es-issue}51303[#51303])
+* Account soft-deletes in FrozenEngine {es-pull}51192[#51192] (issue: {es-issue}50775[#50775])
 * Fixed an index corruption bug that would occur when applying deletes or updates on an index after it has been shrunk. More details can be found on the https://issues.apache.org/jira/browse/LUCENE-9300[corresponding issue].
 
 Features/CAT APIs::
-* Cat tasks output should respect time display settings {pull}54536[#54536]
-* Fix NPE in RestPluginsAction {pull}52620[#52620] (issue: {issue}45321[#45321])
+* Cat tasks output should respect time display settings {es-pull}54536[#54536]
+* Fix NPE in RestPluginsAction {es-pull}52620[#52620] (issue: {es-issue}45321[#45321])
 
 Features/ILM+SLM::
-* Ensure error handler is called during SLM retention callback failure {pull}55252[#55252] (issue: {issue}55217[#55217])
-* Ignore ILM indices in the TerminalPolicyStep {pull}55184[#55184] (issue: {issue}51631[#51631])
-* Disallow negative TimeValues {pull}53913[#53913] (issue: {issue}54041[#54041])
-* Fix null config in SnapshotLifecyclePolicy.toRequest {pull}53328[#53328] (issues: {issue}44465[#44465], {issue}53171[#53171])
-* Freeze step retry when not acknowledged {pull}53287[#53287]
-* Make the set-single-node-allocation retryable {pull}52077[#52077] (issue: {issue}43401[#43401])
-* Fix the init step to actually be retryable {pull}52076[#52076]
+* Ensure error handler is called during SLM retention callback failure {es-pull}55252[#55252] (issue: {es-issue}55217[#55217])
+* Ignore ILM indices in the TerminalPolicyStep {es-pull}55184[#55184] (issue: {es-issue}51631[#51631])
+* Disallow negative TimeValues {es-pull}53913[#53913] (issue: {es-issue}54041[#54041])
+* Fix null config in SnapshotLifecyclePolicy.toRequest {es-pull}53328[#53328] (issues: {es-issue}44465[#44465], {es-issue}53171[#53171])
+* Freeze step retry when not acknowledged {es-pull}53287[#53287]
+* Make the set-single-node-allocation retryable {es-pull}52077[#52077] (issue: {es-issue}43401[#43401])
+* Fix the init step to actually be retryable {es-pull}52076[#52076]
 
 Features/Indices APIs::
-* Read the index.number_of_replicas from template so that wait_for_active_shards is interpreted correctly {pull}54231[#54231]
+* Read the index.number_of_replicas from template so that wait_for_active_shards is interpreted correctly {es-pull}54231[#54231]
 
 Features/Ingest::
-* Fix ingest pipeline _simulate api with empty docs never returns a response {pull}52937[#52937] (issue: {issue}52833[#52833])
-* Handle errors when evaluating if conditions in processors {pull}52543[#52543] (issue: {issue}52339[#52339])
-* Fix delete enrich policy bug {pull}52179[#52179] (issue: {issue}51228[#51228])
-* Fix ignore_missing in CsvProcessor {pull}51600[#51600]
-* Missing suffix for German Month "Juli" in Grok Pattern MONTH  {pull}51591[#51591] (issue: {issue}51579[#51579])
-* Don't overwrite target field with SetSecurityUserProcessor {pull}51454[#51454] (issue: {issue}51428[#51428])
+* Fix ingest pipeline _simulate api with empty docs never returns a response {es-pull}52937[#52937] (issue: {es-issue}52833[#52833])
+* Handle errors when evaluating if conditions in processors {es-pull}52543[#52543] (issue: {es-issue}52339[#52339])
+* Fix delete enrich policy bug {es-pull}52179[#52179] (issue: {es-issue}51228[#51228])
+* Fix ignore_missing in CsvProcessor {es-pull}51600[#51600]
+* Missing suffix for German Month "Juli" in Grok Pattern MONTH  {es-pull}51591[#51591] (issue: {es-issue}51579[#51579])
+* Don't overwrite target field with SetSecurityUserProcessor {es-pull}51454[#51454] (issue: {es-issue}51428[#51428])
 
 Features/Java High Level REST Client::
-* Add unsupported parameters to HLRC search request {pull}53745[#53745]
-* Fix AbstractBulkByScrollRequest slices parameter via Rest {pull}53068[#53068] (issue: {issue}53044[#53044])
-* Send the fields param via body instead of URL params (elastic#42232) {pull}48840[#48840] (issues: {issue}42232[#42232], {issue}42877[#42877])
+* Add unsupported parameters to HLRC search request {es-pull}53745[#53745]
+* Fix AbstractBulkByScrollRequest slices parameter via Rest {es-pull}53068[#53068] (issue: {es-issue}53044[#53044])
+* Send the fields param via body instead of URL params (elastic#42232) {es-pull}48840[#48840] (issues: {es-issue}42232[#42232], {es-issue}42877[#42877])
 
 Features/Java Low Level REST Client::
-* Fix roles parsing in client nodes sniffer {pull}52888[#52888] (issue: {issue}52864[#52864])
+* Fix roles parsing in client nodes sniffer {es-pull}52888[#52888] (issue: {es-issue}52864[#52864])
 
 Features/Monitoring::
-* Fix NPE in cluster state collector for monitoring {pull}52371[#52371] (issue: {issue}52317[#52317])
+* Fix NPE in cluster state collector for monitoring {es-pull}52371[#52371] (issue: {es-issue}52317[#52317])
 
 Features/Stats::
-* Switch to AtomicLong for "IngestCurrent" metric to prevent negative values {pull}52581[#52581] (issues: {issue}52406[#52406], {issue}52411[#52411])
+* Switch to AtomicLong for "IngestCurrent" metric to prevent negative values {es-pull}52581[#52581] (issues: {es-issue}52406[#52406], {es-issue}52411[#52411])
 
 Features/Watcher::
-* Disable Watcher script optimization for stored scripts {pull}53497[#53497] (issue: {issue}40212[#40212])
-* The watcher indexing listener didn't handle document level exceptions. {pull}51466[#51466] (issue: {issue}32299[#32299])
+* Disable Watcher script optimization for stored scripts {es-pull}53497[#53497] (issue: {es-issue}40212[#40212])
+* The watcher indexing listener didn't handle document level exceptions. {es-pull}51466[#51466] (issue: {es-issue}32299[#32299])
 
 Geo::
-* Handle properly indexing rectangles that crosses the dateline {pull}53810[#53810]
+* Handle properly indexing rectangles that crosses the dateline {es-pull}53810[#53810]
 
 Highlighting::
-* Fix highlighter support in PinnedQuery and added test {pull}53716[#53716] (issue: {issue}53699[#53699])
+* Fix highlighter support in PinnedQuery and added test {es-pull}53716[#53716] (issue: {es-issue}53699[#53699])
 
 Infra/Core::
-* Make feature usage version aware {pull}55246[#55246] (issues: {issue}44589[#44589], {issue}55248[#55248])
-* Avoid StackOverflowError if write circular reference exception {pull}54147[#54147] (issue: {issue}53589[#53589])
-* Fix Joda compatibility in stream protocol {pull}53823[#53823] (issue: {issue}53586[#53586])
-* Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
-* Ignore virtual ethernet devices that disappear {pull}51581[#51581] (issue: {issue}49914[#49914])
-* Fix ingest timezone logic {pull}51215[#51215] (issue: {issue}51108[#51108])
+* Make feature usage version aware {es-pull}55246[#55246] (issues: {es-issue}44589[#44589], {es-issue}55248[#55248])
+* Avoid StackOverflowError if write circular reference exception {es-pull}54147[#54147] (issue: {es-issue}53589[#53589])
+* Fix Joda compatibility in stream protocol {es-pull}53823[#53823] (issue: {es-issue}53586[#53586])
+* Avoid self-suppression on grouped action listener {es-pull}53262[#53262] (issue: {es-issue}53174[#53174])
+* Ignore virtual ethernet devices that disappear {es-pull}51581[#51581] (issue: {es-issue}49914[#49914])
+* Fix ingest timezone logic {es-pull}51215[#51215] (issue: {es-issue}51108[#51108])
 
 Infra/Logging::
-* Fix LoggingOutputStream to work on windows {pull}51779[#51779] (issue: {issue}51532[#51532])
+* Fix LoggingOutputStream to work on windows {es-pull}51779[#51779] (issue: {es-issue}51532[#51532])
 
 Infra/Packaging::
-* Handle special characters and spaces in JAVA_HOME path in elasticsearch-service.bat {pull}52676[#52676]
-* Limit _FILE env var support to specific vars {pull}52525[#52525] (issue: {issue}52503[#52503])
-* Always set default ES_PATH_CONF for package scriptlets {pull}51827[#51827] (issues: {issue}50246[#50246], {issue}50631[#50631])
+* Handle special characters and spaces in JAVA_HOME path in elasticsearch-service.bat {es-pull}52676[#52676]
+* Limit _FILE env var support to specific vars {es-pull}52525[#52525] (issue: {es-issue}52503[#52503])
+* Always set default ES_PATH_CONF for package scriptlets {es-pull}51827[#51827] (issues: {es-issue}50246[#50246], {es-issue}50631[#50631])
 
 Infra/Plugins::
-* Ensure only plugin REST tests are run for plugins {pull}53184[#53184] (issues: {issue}52114[#52114], {issue}53183[#53183])
+* Ensure only plugin REST tests are run for plugins {es-pull}53184[#53184] (issues: {es-issue}52114[#52114], {es-issue}53183[#53183])
 
 Machine Learning::
-* Fix node serialization on GET df-nalytics stats without id {pull}54808[#54808] (issue: {issue}54807[#54807])
-* Allow force stopping failed and stopping DF analytics {pull}54650[#54650]
-* Take more care that normalize processes use unique named pipes {pull}54636[#54636] (issue: {issue}43830[#43830])
-* Do not fail Evaluate API when the actual and predicted fields' types differ {pull}54255[#54255] (issue: {issue}54079[#54079])
-* Get ML filters size should default to 100 {pull}54207[#54207] (issues: {issue}39976[#39976], {issue}54206[#54206])
-* Introduce a "starting" datafeed state for lazy jobs {pull}53918[#53918] (issue: {issue}53763[#53763])
-* Only retry persistence failures when the failure is intermittent and stop retrying when analytics job is stopping {pull}53725[#53725] (issue: {issue}53687[#53687])
-* Fix number inference models returned in x-pack info API {pull}53540[#53540]
-* Make classification evaluation metrics work when there is field mapping type mismatch {pull}53458[#53458] (issue: {issue}53485[#53485])
-* Perform evaluation in multiple steps when necessary {pull}53295[#53295]
-* Specifying missing_field_value value and using it instead of empty_string {pull}53108[#53108] (issue: {issue}1034[#1034])
-* Use event.timezone in ingest pipeline from find_file_structure {pull}52720[#52720] (issue: {issue}9458[#9458])
-* Better error when persistent task assignment disabled {pull}52014[#52014] (issue: {issue}51956[#51956])
-* Fix possible race condition starting datafeed {pull}51646[#51646] (issues: {issue}50886[#50886], {issue}51302[#51302])
-* Fix possible race condition when starting datafeed {pull}51302[#51302] (issue: {issue}51285[#51285])
-* Address two edge cases for categorization.GrokPatternCreator#findBestGrokMatchFromExamples {pull}51168[#51168]
-* Calculate results and snapshot retention using latest bucket timestamps {pull}51061[#51061]
+* Fix node serialization on GET df-nalytics stats without id {es-pull}54808[#54808] (issue: {es-issue}54807[#54807])
+* Allow force stopping failed and stopping DF analytics {es-pull}54650[#54650]
+* Take more care that normalize processes use unique named pipes {es-pull}54636[#54636] (issue: {es-issue}43830[#43830])
+* Do not fail Evaluate API when the actual and predicted fields' types differ {es-pull}54255[#54255] (issue: {es-issue}54079[#54079])
+* Get ML filters size should default to 100 {es-pull}54207[#54207] (issues: {es-issue}39976[#39976], {es-issue}54206[#54206])
+* Introduce a "starting" datafeed state for lazy jobs {es-pull}53918[#53918] (issue: {es-issue}53763[#53763])
+* Only retry persistence failures when the failure is intermittent and stop retrying when analytics job is stopping {es-pull}53725[#53725] (issue: {es-issue}53687[#53687])
+* Fix number inference models returned in x-pack info API {es-pull}53540[#53540]
+* Make classification evaluation metrics work when there is field mapping type mismatch {es-pull}53458[#53458] (issue: {es-issue}53485[#53485])
+* Perform evaluation in multiple steps when necessary {es-pull}53295[#53295]
+* Specifying missing_field_value value and using it instead of empty_string {es-pull}53108[#53108] (issue: {es-issue}1034[#1034])
+* Use event.timezone in ingest pipeline from find_file_structure {es-pull}52720[#52720] (issue: {es-issue}9458[#9458])
+* Better error when persistent task assignment disabled {es-pull}52014[#52014] (issue: {es-issue}51956[#51956])
+* Fix possible race condition starting datafeed {es-pull}51646[#51646] (issues: {es-issue}50886[#50886], {es-issue}51302[#51302])
+* Fix possible race condition when starting datafeed {es-pull}51302[#51302] (issue: {es-issue}51285[#51285])
+* Address two edge cases for categorization.GrokPatternCreator#findBestGrokMatchFromExamples {es-pull}51168[#51168]
+* Calculate results and snapshot retention using latest bucket timestamps {es-pull}51061[#51061]
 * Use largest ordered subset of categorization tokens for category reverse
 search regex {ml-pull}970[#970] (issue: {ml-issue}949[#949])
 * Account for the data frame's memory when estimating the peak memory used by
@@ -547,67 +679,67 @@ classification and regression model training {ml-pull}996[#996]
 max_trees {ml-pull}1047[#1047]
 
 Mapping::
-* Throw better exception on wrong `dynamic_templates` syntax {pull}51783[#51783] (issue: {issue}51486[#51486])
+* Throw better exception on wrong `dynamic_templates` syntax {es-pull}51783[#51783] (issue: {es-issue}51486[#51486])
 
 Network::
-* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
-* Allow proxy mode server name to be updated {pull}54107[#54107]
-* Invoke response handler on failure to send {pull}53631[#53631]
-* Do not log no-op reconnections at DEBUG {pull}53469[#53469]
-* Fix RemoteConnectionManager size() method {pull}52823[#52823] (issue: {issue}52029[#52029])
-* Remove seeds dependency for remote cluster settings {pull}52796[#52796]
-* Add host address to BindTransportException message {pull}51269[#51269] (issue: {issue}48001[#48001])
+* Add support for more named curves {es-pull}55179[#55179] (issue: {es-issue}55031[#55031])
+* Allow proxy mode server name to be updated {es-pull}54107[#54107]
+* Invoke response handler on failure to send {es-pull}53631[#53631]
+* Do not log no-op reconnections at DEBUG {es-pull}53469[#53469]
+* Fix RemoteConnectionManager size() method {es-pull}52823[#52823] (issue: {es-issue}52029[#52029])
+* Remove seeds dependency for remote cluster settings {es-pull}52796[#52796]
+* Add host address to BindTransportException message {es-pull}51269[#51269] (issue: {es-issue}48001[#48001])
 
 Percolator::
-* Test percolate queries using `NOW` and sorting {pull}52758[#52758] (issues: {issue}52618[#52618], {issue}52748[#52748])
-* Don't index ranges including `NOW` in percolator {pull}52748[#52748] (issue: {issue}52617[#52617])
+* Test percolate queries using `NOW` and sorting {es-pull}52758[#52758] (issues: {es-issue}52618[#52618], {es-issue}52748[#52748])
+* Don't index ranges including `NOW` in percolator {es-pull}52748[#52748] (issue: {es-issue}52617[#52617])
 
 Reindex::
-* Negative TimeValue fix {pull}54057[#54057] (issue: {issue}53913[#53913])
-* Allow comma separated source indices {pull}52044[#52044] (issue: {issue}51949[#51949])
+* Negative TimeValue fix {es-pull}54057[#54057] (issue: {es-issue}53913[#53913])
+* Allow comma separated source indices {es-pull}52044[#52044] (issue: {es-issue}51949[#51949])
 
 SQL::
-* Fix ODBC metadata for DATE & TIME data types {pull}55316[#55316] (issue: {issue}41086[#41086])
-* Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
-* Add support for index aliases for SYS COLUMNS command {pull}53525[#53525] (issue: {issue}31609[#31609])
-* Fix issue with LIKE/RLIKE as painless script {pull}53495[#53495] (issue: {issue}53486[#53486])
-* Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
-* Fix sql cli sourcing of x-pack-env {pull}52613[#52613] (issue: {issue}47803[#47803])
-* Supplement input checks on received request parameters {pull}52229[#52229]
-* Fix issue with timezone when paginating {pull}52101[#52101] (issue: {issue}51258[#51258])
-* Fix ORDER BY on aggregates and GROUPed BY fields {pull}51894[#51894] (issue: {issue}50355[#50355])
-* Fix milliseconds handling in intervals {pull}51675[#51675] (issue: {issue}41635[#41635])
-* Fix ORDER BY YEAR() function {pull}51562[#51562] (issue: {issue}51224[#51224])
-* Change the way unsupported data types fields are handled {pull}50823[#50823]
-* Selecting a literal from grouped by query generates error {pull}41964[#41964] (issues: {issue}41413[#41413], {issue}41951[#41951])
+* Fix ODBC metadata for DATE & TIME data types {es-pull}55316[#55316] (issue: {es-issue}41086[#41086])
+* Fix NPE for parameterized LIKE/RLIKE {es-pull}53573[#53573] (issue: {es-issue}53557[#53557])
+* Add support for index aliases for SYS COLUMNS command {es-pull}53525[#53525] (issue: {es-issue}31609[#31609])
+* Fix issue with LIKE/RLIKE as painless script {es-pull}53495[#53495] (issue: {es-issue}53486[#53486])
+* Fix column size for IP data type {es-pull}53056[#53056] (issue: {es-issue}52762[#52762])
+* Fix sql cli sourcing of x-pack-env {es-pull}52613[#52613] (issue: {es-issue}47803[#47803])
+* Supplement input checks on received request parameters {es-pull}52229[#52229]
+* Fix issue with timezone when paginating {es-pull}52101[#52101] (issue: {es-issue}51258[#51258])
+* Fix ORDER BY on aggregates and GROUPed BY fields {es-pull}51894[#51894] (issue: {es-issue}50355[#50355])
+* Fix milliseconds handling in intervals {es-pull}51675[#51675] (issue: {es-issue}41635[#41635])
+* Fix ORDER BY YEAR() function {es-pull}51562[#51562] (issue: {es-issue}51224[#51224])
+* Change the way unsupported data types fields are handled {es-pull}50823[#50823]
+* Selecting a literal from grouped by query generates error {es-pull}41964[#41964] (issues: {es-issue}41413[#41413], {es-issue}41951[#41951])
 
 Search::
-* Improve robustness of Query Result serializations {pull}54692[#54692] (issue: {issue}54665[#54665])
-* Fix Term Vectors with artificial docs and keyword fields {pull}53504[#53504] (issue: {issue}53494[#53494])
-* Fix concurrent requests race over scroll context limit {pull}53449[#53449]
-* Fix pre-sorting of shards in the can_match phase {pull}53397[#53397]
-* Fix potential NPE in FuzzyTermsEnum {pull}53231[#53231] (issue: {issue}52894[#52894])
-* Fix inaccurate total hit count in _search/template api {pull}53155[#53155] (issue: {issue}52801[#52801])
-* Harden search context id {pull}53143[#53143]
-* Correct boost in `script_score` query and error on negative scores {pull}52478[#52478] (issue: {issue}48465[#48465])
+* Improve robustness of Query Result serializations {es-pull}54692[#54692] (issue: {es-issue}54665[#54665])
+* Fix Term Vectors with artificial docs and keyword fields {es-pull}53504[#53504] (issue: {es-issue}53494[#53494])
+* Fix concurrent requests race over scroll context limit {es-pull}53449[#53449]
+* Fix pre-sorting of shards in the can_match phase {es-pull}53397[#53397]
+* Fix potential NPE in FuzzyTermsEnum {es-pull}53231[#53231] (issue: {es-issue}52894[#52894])
+* Fix inaccurate total hit count in _search/template api {es-pull}53155[#53155] (issue: {es-issue}52801[#52801])
+* Harden search context id {es-pull}53143[#53143]
+* Correct boost in `script_score` query and error on negative scores {es-pull}52478[#52478] (issue: {es-issue}48465[#48465])
 
 Snapshot/Restore::
-* Exclude Snapshot Shard Status Update Requests from Circuit Breaker {pull}55376[#55376] (issue: {issue}54714[#54714])
-* Fix Snapshot Completion Listener Lost on Master Failover {pull}54286[#54286]
-* Fix Non-Verbose Snapshot List Missing Empty Snapshots {pull}52433[#52433]
-* Fix Inconsistent Shard Failure Count in Failed Snapshots {pull}51416[#51416] (issue: {issue}47550[#47550])
-* Fix Overly Aggressive Request DeDuplication {pull}51270[#51270] (issue: {issue}51253[#51253])
+* Exclude Snapshot Shard Status Update Requests from Circuit Breaker {es-pull}55376[#55376] (issue: {es-issue}54714[#54714])
+* Fix Snapshot Completion Listener Lost on Master Failover {es-pull}54286[#54286]
+* Fix Non-Verbose Snapshot List Missing Empty Snapshots {es-pull}52433[#52433]
+* Fix Inconsistent Shard Failure Count in Failed Snapshots {es-pull}51416[#51416] (issue: {es-issue}47550[#47550])
+* Fix Overly Aggressive Request DeDuplication {es-pull}51270[#51270] (issue: {es-issue}51253[#51253])
 
 Store::
-* Fix synchronization in ByteSizeCachingDirectory {pull}52512[#52512]
+* Fix synchronization in ByteSizeCachingDirectory {es-pull}52512[#52512]
 
 Transform::
-* Fixing naming in HLRC and _cat to match API content {pull}54300[#54300] (issue: {issue}53946[#53946])
-* Transform optmize date histogram {pull}54068[#54068] (issue: {issue}54254[#54254])
-* Add version guards around Transform hidden index settings {pull}54036[#54036] (issue: {issue}53931[#53931])
-* Fix NPE in derive stats if shouldStopAtNextCheckpoint is set {pull}52940[#52940]
-* Fix mapping deduction for scaled_float {pull}51990[#51990] (issue: {issue}51780[#51780])
-* Fix stats can return old state information if security is enabled {pull}51732[#51732] (issue: {issue}51728[#51728])
+* Fixing naming in HLRC and _cat to match API content {es-pull}54300[#54300] (issue: {es-issue}53946[#53946])
+* Transform optmize date histogram {es-pull}54068[#54068] (issue: {es-issue}54254[#54254])
+* Add version guards around Transform hidden index settings {es-pull}54036[#54036] (issue: {es-issue}53931[#53931])
+* Fix NPE in derive stats if shouldStopAtNextCheckpoint is set {es-pull}52940[#52940]
+* Fix mapping deduction for scaled_float {es-pull}51990[#51990] (issue: {es-issue}51780[#51780])
+* Fix stats can return old state information if security is enabled {es-pull}51732[#51732] (issue: {es-issue}51728[#51728])
 
 
 
@@ -616,29 +748,29 @@ Transform::
 === Upgrades
 
 Authentication::
-* Update oauth2-oidc-sdk to 7.0 {pull}52489[#52489] (issue: {issue}48409[#48409])
+* Update oauth2-oidc-sdk to 7.0 {es-pull}52489[#52489] (issue: {es-issue}48409[#48409])
 
 Engine::
-* Upgrade to lucene 8.5.0 release {pull}54077[#54077]
-* Upgrade to final lucene 8.5.0 snapshot {pull}53293[#53293]
-* Upgrade to Lucene 8.5.0-snapshot-c4475920b08 {pull}52950[#52950]
+* Upgrade to lucene 8.5.0 release {es-pull}54077[#54077]
+* Upgrade to final lucene 8.5.0 snapshot {es-pull}53293[#53293]
+* Upgrade to Lucene 8.5.0-snapshot-c4475920b08 {es-pull}52950[#52950]
 
 Features/Ingest::
-* Upgrade Tika to 1.24 {pull}54130[#54130] (issue: {issue}52402[#52402])
+* Upgrade Tika to 1.24 {es-pull}54130[#54130] (issue: {es-issue}52402[#52402])
 
 Infra/Core::
-* Upgrade the bundled JDK to JDK 14 {pull}53748[#53748] (issue: {issue}53575[#53575])
-* Upgrade to Jackson 2.10.3 {pull}53523[#53523] (issues: {issue}27032[#27032], {issue}45225[#45225])
-* Update jackson-databind to 2.8.11.6 {pull}53522[#53522] (issue: {issue}45225[#45225])
+* Upgrade the bundled JDK to JDK 14 {es-pull}53748[#53748] (issue: {es-issue}53575[#53575])
+* Upgrade to Jackson 2.10.3 {es-pull}53523[#53523] (issues: {es-issue}27032[#27032], {es-issue}45225[#45225])
+* Update jackson-databind to 2.8.11.6 {es-pull}53522[#53522] (issue: {es-issue}45225[#45225])
 
 Infra/Packaging::
-* Upgrade the bundled JDK to JDK 13.0.2 {pull}51511[#51511]
+* Upgrade the bundled JDK to JDK 13.0.2 {es-pull}51511[#51511]
 
 Security::
-* Update BouncyCastle to 1.64 {pull}52185[#52185]
+* Update BouncyCastle to 1.64 {es-pull}52185[#52185]
 
 Snapshot/Restore::
-* Upgrade GCS Dependency to 1.106.0 {pull}54092[#54092]
-* Upgrade to AWS SDK 1.11.749 {pull}53962[#53962] (issue: {issue}53191[#53191])
-* Upgrade to Azure SDK 8.6.2 {pull}53865[#53865]
-* Upgrade GCS SDK to 1.104.0 {pull}52839[#52839]
+* Upgrade GCS Dependency to 1.106.0 {es-pull}54092[#54092]
+* Upgrade to AWS SDK 1.11.749 {es-pull}53962[#53962] (issue: {es-issue}53191[#53191])
+* Upgrade to Azure SDK 8.6.2 {es-pull}53865[#53865]
+* Upgrade GCS SDK to 1.104.0 {es-pull}52839[#52839]

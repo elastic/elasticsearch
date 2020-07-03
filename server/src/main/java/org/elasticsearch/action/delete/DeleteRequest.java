@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -53,6 +54,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DeleteRequest.class);
+
     private static final ShardId NO_SHARD_ID = null;
 
     // Set to null initially so we can know to override in bulk requests that have a default type.
@@ -66,7 +69,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public DeleteRequest(StreamInput in) throws IOException {
-        super(in);
+        this(null, in);
+    }
+
+    public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -301,8 +308,18 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing());
@@ -325,5 +342,10 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String toString() {
         return "delete {[" + index + "][" + type() + "][" + id + "]}";
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id);
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +31,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -143,7 +144,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
+            DiscoveryNode.isRemoteClusterClient(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -155,7 +156,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
+        if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
@@ -193,9 +194,18 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
         transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
-            final TransformConfig config = configAndVersion.v1();
+            final TransformConfig oldConfig = configAndVersion.v1();
+            final TransformConfig config = TransformConfig.rewriteForUpdate(oldConfig);
+
             // If it is a noop don't bother even writing the doc, save the cycles, just return here.
-            if (update.isNoop(config)) {
+            // skip when:
+            // - config is in the latest index
+            // - rewrite did not change the config
+            // - update is not making any changes
+            if (config.getVersion() != null
+                && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
+                && config.equals(oldConfig)
+                && update.isNoop(config)) {
                 listener.onResponse(new Response(config));
                 return;
             }
@@ -213,8 +223,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 if (transformTask != null
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)
-                ) {
+                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
                     request.setNodes(transformTask.getExecutorNode());
                     updateListener = ActionListener.wrap(updateResponse -> {
                         request.setConfig(updateResponse.getConfig());
@@ -358,6 +367,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             String[] src = indexNameExpressionResolver.concreteIndexNames(
                 clusterState,
                 IndicesOptions.lenientExpandOpen(),
+                true,
                 config.getSource().getIndex()
             );
             // If we are running, we should verify that the destination index exists and create it if it does not

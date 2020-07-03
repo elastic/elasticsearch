@@ -41,14 +41,14 @@ IMPORTANT: This API returns a maximum of 10,000 jobs.
 
 `<job_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
 
 [[ml-get-job-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 [[ml-get-job-results]]
 ==== {api-response-body-title}
@@ -73,7 +73,7 @@ value.
 
 `model_snapshot_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-get-job-response-codes]]
 ==== {api-response-codes-title}

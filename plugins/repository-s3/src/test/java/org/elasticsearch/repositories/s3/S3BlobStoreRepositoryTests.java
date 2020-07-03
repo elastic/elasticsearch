@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -115,6 +117,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return org.elasticsearch.common.collect.List.of("GET", "LIST", "POST", "PUT");
     }
 
     @Override
@@ -195,8 +202,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService) {
-            return new S3Repository(metadata, registry, service, clusterService) {
+                                                ClusterService clusterService, RecoverySettings recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -279,12 +286,22 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String request) {
+        public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("POST");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
             }
+        }
+
+        private boolean isMultiPartUpload(String request) {
+            return Regex.simpleMatch("POST /*/*?uploads", request) ||
+                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
+                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }

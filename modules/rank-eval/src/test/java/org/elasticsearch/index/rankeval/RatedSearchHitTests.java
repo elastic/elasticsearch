@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.OptionalInt;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class RatedSearchHitTests extends ESTestCase {
 
@@ -76,8 +75,7 @@ public class RatedSearchHitTests extends ESTestCase {
         RatedSearchHit testItem = randomRatedSearchHit();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

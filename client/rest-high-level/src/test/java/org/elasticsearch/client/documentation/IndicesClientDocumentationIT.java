@@ -66,24 +66,24 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
-import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -95,7 +95,7 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -2371,15 +2371,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             Template template = new Template(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build(),
                 new CompressedXContent("{ \"properties\": { \"message\": { \"type\": \"text\" } } }"),
                 null);
-            PutIndexTemplateV2Request putRequest = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest putRequest = new PutComposableIndexTemplateRequest()
                 .name("my-template")
-                .indexTemplate(new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null));
+                .indexTemplate(
+                    new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null)
+                );
             assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 
         // tag::get-index-templates-v2-request
-        GetIndexTemplateV2Request request = new GetIndexTemplateV2Request("my-template"); // <1>
-        request = new GetIndexTemplateV2Request("my-*"); // <2>
+        GetComposableIndexTemplateRequest request = new GetComposableIndexTemplateRequest("my-template"); // <1>
+        request = new GetComposableIndexTemplateRequest("my-*"); // <2>
         // end::get-index-templates-v2-request
 
         // tag::get-index-templates-v2-request-masterTimeout
@@ -2388,21 +2390,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-templates-v2-request-masterTimeout
 
         // tag::get-index-templates-v2-execute
-        GetIndexTemplatesV2Response getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
+        GetComposableIndexTemplatesResponse getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
         // end::get-index-templates-v2-execute
 
         // tag::get-index-templates-v2-response
-        Map<String, IndexTemplateV2> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        Map<String, ComposableIndexTemplate> templates = getTemplatesResponse.getIndexTemplates(); // <1>
         // end::get-index-templates-v2-response
 
         assertThat(templates.size(), is(1));
         assertThat(templates.get("my-template"), is(notNullValue()));
 
         // tag::get-index-templates-v2-execute-listener
-        ActionListener<GetIndexTemplatesV2Response> listener =
-            new ActionListener<GetIndexTemplatesV2Response>() {
+        ActionListener<GetComposableIndexTemplatesResponse> listener =
+            new ActionListener<GetComposableIndexTemplatesResponse>() {
                 @Override
-                public void onResponse(GetIndexTemplatesV2Response response) {
+                public void onResponse(GetComposableIndexTemplatesResponse response) {
                     // <1>
                 }
 
@@ -2429,28 +2431,27 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-index-template-v2-request
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template"); // <1>
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
-            request.indexTemplate(indexTemplateV2);
-
+            ComposableIndexTemplate composableIndexTemplate =
+                new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request
         }
 
         {
             // tag::put-index-template-v2-request-settings
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             Settings settings = Settings.builder() // <1>
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 1)
                 .build();
             Template template = new Template(settings, null, null); // <2>
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null); // <3>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                template, null, null, null, null); // <3>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-settings
@@ -2465,12 +2466,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 "    }\n" +
                 "  }\n" +
                 "}"; // <1>
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null); // <3>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                template, null, null, null, null); // <3>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-mappings-json
@@ -2478,7 +2479,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-index-template-v2-request-aliases
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build(); // <1>
             AliasMetadata placeholderAlias = AliasMetadata.builder("{index}_alias").searchRouting("xyz").build(); // <2>
@@ -2486,9 +2487,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             aliases.put("twitter_alias", twitterAlias);
             aliases.put("{index}_alias", placeholderAlias);
             Template template = new Template(null, null, aliases); // <3>
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null);
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                template, null, null, null, null); // <4>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-aliases
@@ -2501,11 +2502,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 RequestOptions.DEFAULT);
 
             // tag::put-index-template-v2-request-component-template
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, Arrays.asList("ct1"), null, null, null); // <1>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate =
+                    new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"), null,
+                            Collections.singletonList("ct1"), null, null, null); // <1>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-component-template
@@ -2513,11 +2515,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-index-template-v2-request-priority
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, null, 20L, null, null); // <1>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                null, null, 20L, null, null); // <1>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-priority
@@ -2525,11 +2527,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-index-template-v2-request-version
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, null, null, 3L, null); // <1>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                null, null, null, 3L, null); // <1>
+            request.indexTemplate(composableIndexTemplate);
 
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
             // end::put-index-template-v2-request-version
@@ -2582,16 +2584,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testDeleteIndexTemplateV2() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                null, null, null, null, null); // <2>
+            request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
 
         // tag::delete-index-template-v2-request
-        DeleteIndexTemplateV2Request deleteRequest = new DeleteIndexTemplateV2Request("my-template"); // <1>
+        DeleteComposableIndexTemplateRequest deleteRequest = new DeleteComposableIndexTemplateRequest("my-template"); // <1>
         // end::delete-index-template-v2-request
 
         // tag::delete-index-template-v2-request-masterTimeout
@@ -2608,11 +2610,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertThat(acknowledged, equalTo(true));
 
         {
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), null, null, null, null, null); // <2>
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                null, null, null, null, null); // <2>
+            request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2645,24 +2647,24 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+            PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template"); // <1>
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
-            IndexTemplateV2 indexTemplateV2 =
-                new IndexTemplateV2(Arrays.asList("pattern-1", "log-*"), template, null, null, null, null);
-            request.indexTemplate(indexTemplateV2);
+            ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("pattern-1", "log-*"),
+                template, null, null, null, null);
+            request.indexTemplate(composableIndexTemplate);
             assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
 
         // tag::simulate-index-template-request
         SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("log-000001"); // <1>
-        PutIndexTemplateV2Request newIndexTemplateRequest = new PutIndexTemplateV2Request()
+        PutComposableIndexTemplateRequest newIndexTemplateRequest = new PutComposableIndexTemplateRequest()
             .name("used-for-simulation");
         Settings settings = Settings.builder().put("index.number_of_shards", 6).build();
         Template template = new Template(settings, null, null); // <2>
-        IndexTemplateV2 indexTemplateV2 =
-            new IndexTemplateV2(Arrays.asList("log-*"), template, null, 90L, null, null);
-        newIndexTemplateRequest.indexTemplate(indexTemplateV2);
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(Arrays.asList("log-*"),
+            template, null, 90L, null, null);
+        newIndexTemplateRequest.indexTemplate(composableIndexTemplate);
 
         simulateRequest.indexTemplateV2Request(newIndexTemplateRequest); // <2>
         // end::simulate-index-template-request

@@ -172,10 +172,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);
 
-    /**
-     * Update the field type of this mapper. This is necessary because some mapping updates
-     * can modify mappings across several types. This method must return a copy of the mapper
-     * so that the current mapper is not modified.
-     */
-    public abstract Mapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType);
 }

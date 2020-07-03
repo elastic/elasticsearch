@@ -74,7 +74,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(TrainedModelConfig.DECOMPRESS_DEFINITION);
+        return org.elasticsearch.common.collect.Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, TrainedModelConfig.FOR_EXPORT);
     }
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {

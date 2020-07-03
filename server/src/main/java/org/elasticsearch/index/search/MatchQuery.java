@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -358,10 +357,6 @@ public class MatchQuery {
         }
     }
 
-    private boolean hasPositions(MappedFieldType fieldType) {
-        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
-    }
-
     class MatchQueryBuilder extends QueryBuilder {
         private final MappedFieldType fieldType;
 
@@ -373,7 +368,7 @@ public class MatchQuery {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (hasPositions(fieldType)) {
+            if (fieldType.getTextSearchInfo().hasPositions()) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
@@ -845,7 +840,7 @@ public class MatchQuery {
         }
 
         private void checkForPositions(String field) {
-            if (hasPositions(fieldType) == false) {
+            if (fieldType.getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }

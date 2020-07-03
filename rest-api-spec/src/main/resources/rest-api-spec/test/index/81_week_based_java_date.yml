@@ -1,8 +1,8 @@
 ---
-"Index java 8 date without timezone":
+"Index java 8 week based date":
 
   - skip:
-      version: " - 6.7.99"
+      version: " - 6.8.10"
       reason: fixed in 6.8.11
 
   - do:

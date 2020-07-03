@@ -432,7 +432,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     String msg = "Detected a problem with your setup of machine learning, the state index alias ["
                         + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         + "] exists as index but must be an alias.";
-                    logger.error("[{}] {}", jobId, msg, e);
+                    logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
                     auditor.error(jobId, msg);
                     setJobState(jobTask, JobState.FAILED, msg, e2 -> closeHandler.accept(e, true));
                 } else {

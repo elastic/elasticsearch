@@ -33,7 +33,7 @@ import static org.elasticsearch.common.Strings.isNullOrEmpty;
  * the data stream if necessary. The writing of messages can be toggled using the
  * {@link #WRITE_DEPRECATION_LOGS_TO_INDEX} setting.
  */
-public class DeprecationIndexingService implements ClusterStateListener {
+public class DeprecationIndexingService implements ClusterStateListener, DeprecatedLogHandler {
     private static final Logger LOGGER = LogManager.getLogger(DeprecationIndexingService.class);
 
     private static final String DATA_STREAM_NAME = "logs-deprecation-elasticsearch";
@@ -61,16 +61,18 @@ public class DeprecationIndexingService implements ClusterStateListener {
 
     /**
      * Indexes a deprecation message.
-     * @param key       the key that was used to determine if this deprecation should have been be logged.
-     *                  Useful when aggregating the recorded messages.
-     * @param message   the message to log
-     * @param xOpaqueId the associated "X-Opaque-ID" header value if any, or <code>null</code>
-     * @param params    parameters to the message, if any
+     * @param key          the key that was used to determine if this deprecation should have been be logged.
+     *                     Useful when aggregating the recorded messages.
+     * @param esLogMessage the message to log
      */
-    public void writeMessage(String key, String message, String xOpaqueId, Object[] params) {
+    public void log(String key, ESLogMessage esLogMessage) {
         if (this.isEnabled == false) {
             return;
         }
+
+        String message = esLogMessage.getMessagePattern();
+        String xOpaqueId = HeaderWarning.getXOpaqueId();
+        Object[] params = esLogMessage.getArguments();
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("@timestamp", Instant.now().toString());

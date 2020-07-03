@@ -37,15 +37,11 @@ import java.security.PrivilegedAction;
  * <p>
  * TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
  */
-class ThrottlingAndHeaderWarningLogger {
+class HeaderWarningLogger implements DeprecatedLogHandler {
     private final Logger logger;
-    private final RateLimiter rateLimiter;
-    private final DeprecationIndexingService indexingService;
 
-    ThrottlingAndHeaderWarningLogger(Logger logger, DeprecationIndexingService indexingService) {
+    HeaderWarningLogger(Logger logger) {
         this.logger = logger;
-        this.rateLimiter = new RateLimiter();
-        this.indexingService = indexingService;
     }
 
     /**
@@ -55,21 +51,12 @@ class ThrottlingAndHeaderWarningLogger {
      * @param key     the key used to determine if this message should be logged
      * @param message the message to log
      */
-    void throttleLogAndAddWarning(final String key, ESLogMessage message) {
+    @Override
+    public void log(final String key, ESLogMessage message) {
         String messagePattern = message.getMessagePattern();
         Object[] arguments = message.getArguments();
         HeaderWarning.addWarning(messagePattern, arguments);
 
-        String xOpaqueId = HeaderWarning.getXOpaqueId();
-        this.rateLimiter.limit(xOpaqueId + key, () -> {
-            log(message);
-            if (indexingService != null) {
-                indexingService.writeMessage(key, messagePattern, xOpaqueId, arguments);
-            }
-        });
-    }
-
-    private void log(Message message) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override

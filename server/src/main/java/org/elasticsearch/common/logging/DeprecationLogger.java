@@ -23,6 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
  * for deprecation logger. For instance <code>new DeprecationLogger("org.elasticsearch.test.SomeClass")</code> will
@@ -34,11 +37,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  * <code>X-Opaque-Id</code>. This allows to throttle deprecations per client usage.
  * <code>deprecationLogger.deprecate("key","message {}", "param");</code>
  *
- * @see ThrottlingAndHeaderWarningLogger for throttling and header warnings implementation details
+ * @see HeaderWarningLogger for throttling and header warnings implementation details
  */
 public class DeprecationLogger {
-    private static DeprecationIndexingService indexingService;
-    private final ThrottlingAndHeaderWarningLogger deprecationLogger;
+    private static final List<DeprecatedLogHandler> additionalHandlers = new ArrayList<>();
+
+    private final List<DeprecatedLogHandler> handlers;
+    private final RateLimiter rateLimiter;
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -47,7 +52,10 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        deprecationLogger = new ThrottlingAndHeaderWarningLogger(deprecatedLoggerName(parentLogger.getName()), indexingService);
+        this.handlers = new ArrayList<>(additionalHandlers);
+        this.rateLimiter = new RateLimiter();
+
+        handlers.add(new HeaderWarningLogger(deprecatedLoggerName(parentLogger.getName())));
     }
 
     public static DeprecationLogger getLogger(Class<?> aClass) {
@@ -80,12 +88,12 @@ public class DeprecationLogger {
         HeaderWarning.removeThreadContext(threadContext);
     }
 
-    public static void setIndexingService(DeprecationIndexingService indexingService) {
-        DeprecationLogger.indexingService = indexingService;
+    public static void addHandler(DeprecatedLogHandler handler) {
+        DeprecationLogger.additionalHandlers.add(handler);
     }
 
-    public static void removeIndexingService() {
-        DeprecationLogger.indexingService = null;
+    public static void removeHandler(DeprecatedLogHandler handler) {
+        DeprecationLogger.additionalHandlers.remove(handler);
     }
 
     /**
@@ -102,10 +110,13 @@ public class DeprecationLogger {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
             String opaqueId = HeaderWarning.getXOpaqueId();
-            ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
-            deprecationLogger.throttleLogAndAddWarning(key, deprecationMessage);
+            rateLimiter.limit(opaqueId + key, () -> {
+                ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
+                for (DeprecatedLogHandler handler : handlers) {
+                    handler.log(key, deprecationMessage);
+                }
+            });
             return this;
         }
-
     }
 }

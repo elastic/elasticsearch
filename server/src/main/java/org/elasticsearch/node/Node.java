@@ -391,8 +391,8 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             final DeprecationIndexingService deprecationIndexingService = new DeprecationIndexingService(clusterService, client);
-            DeprecationLogger.setIndexingService(deprecationIndexingService);
-            resourcesToClose.add(DeprecationLogger::removeIndexingService);
+            DeprecationLogger.addHandler(deprecationIndexingService);
+            resourcesToClose.add(() -> DeprecationLogger.removeHandler(deprecationIndexingService));
 
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);

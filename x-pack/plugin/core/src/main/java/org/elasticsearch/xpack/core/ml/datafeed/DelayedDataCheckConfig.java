@@ -37,7 +37,7 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
             "delayed_data_check_config", ignoreUnknownFields, a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1]));
 
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-        parser.declareStringField(
+        parser.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, CHECK_WINDOW.getPreferredName()),
             CHECK_WINDOW);

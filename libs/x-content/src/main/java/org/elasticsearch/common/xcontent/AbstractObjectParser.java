@@ -223,25 +223,16 @@ public abstract class AbstractObjectParser<Value, Context> {
                 field, ValueType.INT_OR_NULL);
     }
 
+    public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
+        declareField(consumer, XContentParser::text, field, ValueType.STRING);
+    }
+
     /**
      * Declare a field of type {@code T} parsed from string and converted to {@code T} using provided function.
      * Throws if the next token is not a string.
      */
-    public <T> void declareStringField(BiConsumer<Value, T> consumer, Function<String, T> fromStringFunction, ParseField field) {
-        declareField(
-            consumer,
-            p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return fromStringFunction.apply(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            },
-            field,
-            ValueType.STRING);
-    }
-
-    public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
-        declareField(consumer, XContentParser::text, field, ValueType.STRING);
+    public <T> void declareString(BiConsumer<Value, T> consumer, Function<String, T> fromStringFunction, ParseField field) {
+        declareField(consumer, p -> fromStringFunction.apply(p.text()), field, ValueType.STRING);
     }
 
     public void declareStringOrNull(BiConsumer<Value, String> consumer, ParseField field) {

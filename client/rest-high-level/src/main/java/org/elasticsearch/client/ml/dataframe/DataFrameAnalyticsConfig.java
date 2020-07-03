@@ -78,7 +78,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
             ValueType.VALUE);
-        PARSER.declareStringField(Builder::setVersion, Version::fromString, VERSION);
+        PARSER.declareString(Builder::setVersion, Version::fromString, VERSION);
         PARSER.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
     }
 

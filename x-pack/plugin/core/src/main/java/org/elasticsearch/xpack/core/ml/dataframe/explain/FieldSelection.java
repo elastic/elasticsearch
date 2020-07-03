@@ -54,7 +54,7 @@ public class FieldSelection implements ToXContentObject, Writeable {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), MAPPING_TYPES);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_INCLUDED);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_REQUIRED);
-        PARSER.declareStringField(ConstructingObjectParser.optionalConstructorArg(), FeatureType::fromString, FEATURE_TYPE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FeatureType::fromString, FEATURE_TYPE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 

@@ -47,7 +47,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             Fields.TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
-        parser.declareStringField(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
         parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
         return parser;
     }

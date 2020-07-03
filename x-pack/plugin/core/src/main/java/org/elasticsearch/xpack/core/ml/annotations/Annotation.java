@@ -104,8 +104,8 @@ public class Annotation implements ToXContentObject, Writeable {
         STRICT_PARSER.declareField(Builder::setModifiedTime,
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
         STRICT_PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
-        STRICT_PARSER.declareStringField(Builder::setType, Type::fromString, TYPE);
-        STRICT_PARSER.declareStringField(Builder::setEvent, Event::fromString, EVENT);
+        STRICT_PARSER.declareString(Builder::setType, Type::fromString, TYPE);
+        STRICT_PARSER.declareString(Builder::setEvent, Event::fromString, EVENT);
         STRICT_PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
         STRICT_PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
         STRICT_PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);

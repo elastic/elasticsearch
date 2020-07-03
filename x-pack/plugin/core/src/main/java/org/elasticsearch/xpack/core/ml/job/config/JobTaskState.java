@@ -36,7 +36,7 @@ public class JobTaskState implements PersistentTaskState {
                     args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
 
     static {
-        PARSER.declareStringField(constructorArg(), JobState::fromString, STATE);
+        PARSER.declareString(constructorArg(), JobState::fromString, STATE);
         PARSER.declareLong(constructorArg(), ALLOCATION_ID);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }

@@ -41,8 +41,8 @@ public class ChunkingConfig implements ToXContentObject {
         "chunking_config", true, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
 
     static {
-        PARSER.declareStringField(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
-        PARSER.declareStringField(
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
+        PARSER.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
             TIME_SPAN_FIELD);

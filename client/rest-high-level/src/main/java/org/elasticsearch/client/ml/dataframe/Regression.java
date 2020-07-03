@@ -86,7 +86,7 @@ public class Regression implements DataFrameAnalysis {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
-        PARSER.declareStringField(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
+        PARSER.declareString(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
     }
 

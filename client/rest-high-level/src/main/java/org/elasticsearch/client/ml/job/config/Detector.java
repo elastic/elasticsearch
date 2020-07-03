@@ -83,7 +83,7 @@ public class Detector implements ToXContentObject {
         PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
         PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         PARSER.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-        PARSER.declareStringField(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
+        PARSER.declareString(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
         PARSER.declareObjectArray(Builder::setRules, (p, c) -> DetectionRule.PARSER.apply(p, c).build(), CUSTOM_RULES_FIELD);
         PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
     }

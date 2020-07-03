@@ -51,7 +51,7 @@ public class FilterRef implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
-        PARSER.declareStringField(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
     }
 
     private final String filterId;

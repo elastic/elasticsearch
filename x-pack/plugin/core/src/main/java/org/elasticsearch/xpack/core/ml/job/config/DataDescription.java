@@ -131,8 +131,8 @@ public class DataDescription implements ToXContentObject, Writeable {
         parser.declareString(Builder::setFormat, FORMAT_FIELD);
         parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
         parser.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
-        parser.declareStringField(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD);
-        parser.declareStringField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD);
+        parser.declareString(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD);
+        parser.declareString(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD);
 
         return parser;
     }

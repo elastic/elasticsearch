@@ -45,7 +45,7 @@ public class FilterRef implements ToXContentObject, Writeable {
             ignoreUnknownFields, a -> new FilterRef((String) a[0], (FilterType) a[1]));
 
         parser.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
-        parser.declareStringField(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);
 
         return parser;
     }

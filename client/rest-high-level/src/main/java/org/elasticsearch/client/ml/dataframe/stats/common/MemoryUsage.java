@@ -48,7 +48,7 @@ public class MemoryUsage implements ToXContentObject {
             TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
-        PARSER.declareStringField(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
     }
 

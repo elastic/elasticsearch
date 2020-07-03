@@ -92,7 +92,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 CREATE_TIME,
                 ObjectParser.ValueType.VALUE);
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
-            parser.declareStringField(Builder::setVersion, Version::fromString, VERSION);
+            parser.declareString(Builder::setVersion, Version::fromString, VERSION);
         }
         return parser;
     }

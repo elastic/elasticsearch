@@ -38,7 +38,7 @@ public abstract class AbstractAuditMessage implements ToXContentObject {
 
         PARSER.declareString(optionalConstructorArg(), resourceField);
         PARSER.declareString(constructorArg(), MESSAGE);
-        PARSER.declareStringField(constructorArg(), Level::fromString, LEVEL);
+        PARSER.declareString(constructorArg(), Level::fromString, LEVEL);
         PARSER.declareField(constructorArg(),
             p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,

@@ -39,8 +39,8 @@ public class RuleCondition implements ToXContentObject {
             a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
 
     static {
-        PARSER.declareStringField(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);
-        PARSER.declareStringField(ConstructingObjectParser.constructorArg(), Operator::fromString, Operator.OPERATOR_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Operator::fromString, Operator.OPERATOR_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
     }
 

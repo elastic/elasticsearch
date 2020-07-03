@@ -331,26 +331,20 @@ public class ObjectParserTests extends ESTestCase {
                 test = value;
             }
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"FOO\" }");
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
-        objectParser.declareString((struct, value) -> struct.set(TestEnum.valueOf(value)), new ParseField("test"));
-        TestStruct s = objectParser.parse(parser, new TestStruct(), null);
-        assertEquals(s.test, TestEnum.FOO);
-    }
-
-    public void testDeclareStringField_ParseEnumFromString() throws IOException {
-        class TestStruct {
-            public TestEnum test;
-
-            public void set(TestEnum value) {
-                test = value;
-            }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"FOO\" }");
+            ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
+            objectParser.declareString((struct, value) -> struct.set(TestEnum.valueOf(value)), new ParseField("test"));
+            TestStruct s = objectParser.parse(parser, new TestStruct(), null);
+            assertEquals(s.test, TestEnum.FOO);
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"FOO\" }");
-        ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
-        objectParser.declareStringField((struct, value) -> struct.set(value), TestEnum::valueOf, new ParseField("test"));
-        TestStruct s = objectParser.parse(parser, new TestStruct(), null);
-        assertEquals(s.test, TestEnum.FOO);
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"FOO\" }");
+            ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
+            objectParser.declareString((struct, value) -> struct.set(value), TestEnum::valueOf, new ParseField("test"));
+            TestStruct s = objectParser.parse(parser, new TestStruct(), null);
+            assertEquals(s.test, TestEnum.FOO);
+        }
     }
 
     public void testAllVariants() throws IOException {

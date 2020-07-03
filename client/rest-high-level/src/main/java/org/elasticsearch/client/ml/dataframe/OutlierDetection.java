@@ -55,7 +55,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     static {
         PARSER.declareInt(Builder::setNNeighbors, N_NEIGHBORS);
-        PARSER.declareStringField(Builder::setMethod, Method::fromString, METHOD);
+        PARSER.declareString(Builder::setMethod, Method::fromString, METHOD);
         PARSER.declareDouble(Builder::setFeatureInfluenceThreshold, FEATURE_INFLUENCE_THRESHOLD);
         PARSER.declareBoolean(Builder::setComputeFeatureInfluence, COMPUTE_FEATURE_INFLUENCE);
         PARSER.declareDouble(Builder::setOutlierFraction, OUTLIER_FRACTION);

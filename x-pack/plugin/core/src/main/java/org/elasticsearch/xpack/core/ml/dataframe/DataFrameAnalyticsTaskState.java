@@ -36,7 +36,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
                 a -> new DataFrameAnalyticsTaskState((DataFrameAnalyticsState) a[0], (long) a[1], (String) a[2]));
 
     static {
-        PARSER.declareStringField(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsState::fromString, STATE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsState::fromString, STATE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), ALLOCATION_ID);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }

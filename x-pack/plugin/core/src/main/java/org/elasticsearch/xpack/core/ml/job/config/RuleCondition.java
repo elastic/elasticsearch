@@ -32,8 +32,8 @@ public class RuleCondition implements ToXContentObject, Writeable {
         ConstructingObjectParser<RuleCondition, Void> parser = new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),
             ignoreUnknownFields, a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
 
-        parser.declareStringField(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);
-        parser.declareStringField(ConstructingObjectParser.constructorArg(), Operator::fromString, Operator.OPERATOR_FIELD);
+        parser.declareString(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);
+        parser.declareString(ConstructingObjectParser.constructorArg(), Operator::fromString, Operator.OPERATOR_FIELD);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
 
         return parser;

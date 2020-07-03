@@ -69,7 +69,7 @@ public class DataFrameAnalyticsStats {
 
     static {
         PARSER.declareString(constructorArg(), ID);
-        PARSER.declareStringField(constructorArg(), DataFrameAnalyticsState::fromString, STATE);
+        PARSER.declareString(constructorArg(), DataFrameAnalyticsState::fromString, STATE);
         PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
         PARSER.declareObjectArray(optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS);
         PARSER.declareObject(optionalConstructorArg(), DataCounts.PARSER, DATA_COUNTS);

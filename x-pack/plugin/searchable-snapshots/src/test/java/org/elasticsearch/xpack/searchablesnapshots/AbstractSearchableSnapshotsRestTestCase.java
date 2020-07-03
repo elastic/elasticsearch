@@ -197,9 +197,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             clearCache(restoredIndexName);
 
-            final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
-
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 

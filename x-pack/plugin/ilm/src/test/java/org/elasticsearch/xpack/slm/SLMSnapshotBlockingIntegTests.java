@@ -257,18 +257,9 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    public void testBasicFailureRetention() throws Exception {
-        testUnsuccessfulSnapshotRetention(false);
-    }
-
     public void testBasicPartialRetention() throws Exception {
-        testUnsuccessfulSnapshotRetention(true);
-    }
-
-    private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";
-        final SnapshotState expectedUnsuccessfulState = partialSuccess ? SnapshotState.PARTIAL : SnapshotState.FAILED;
         // Setup
         createAndPopulateIndex(indexName);
 
@@ -276,7 +267,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         initializeRepo(REPO);
 
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
-            partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
+            true, new SnapshotRetentionConfiguration(null, 1, 2));
 
         // Create a failed snapshot
         AtomicReference<String> failedSnapshotName = new AtomicReference<>();
@@ -303,13 +294,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             failedSnapshotName.set(snapshotFuture.get().getSnapshotName());
             assertNotNull(failedSnapshotName.get());
 
-            logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), expectedUnsuccessfulState);
+            logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), SnapshotState.PARTIAL);
             assertBusy(() -> {
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
                     SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
-                    assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
+                    assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
                 } catch (SnapshotMissingException ex) {
                     logger.info("failed to find snapshot {}, retrying", failedSnapshotName);
                     throw new AssertionError(ex);
@@ -357,14 +348,14 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
-            assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
+            assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
         }
 
         // Run retention again and make sure the failure was deleted
         {
             logger.info("--> executing SLM retention");
             assertAcked(client().execute(ExecuteSnapshotRetentionAction.INSTANCE, new ExecuteSnapshotRetentionAction.Request()).get());
-            logger.info("--> waiting for {} snapshot [{}] to be deleted", expectedUnsuccessfulState, failedSnapshotName.get());
+            logger.info("--> waiting for {} snapshot [{}] to be deleted", SnapshotState.PARTIAL, failedSnapshotName.get());
             assertBusy(() -> {
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
@@ -374,7 +365,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     // This is what we want to happen
                 }
                 logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",
-                    expectedUnsuccessfulState, failedSnapshotName.get(), successfulSnapshotName.get());
+                    SnapshotState.PARTIAL, failedSnapshotName.get(), successfulSnapshotName.get());
                 GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                     .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).get();
                 SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);

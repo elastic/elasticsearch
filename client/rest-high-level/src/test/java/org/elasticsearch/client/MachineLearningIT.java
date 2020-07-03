@@ -143,7 +143,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.PseudoHuberMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -1859,7 +1859,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     predictedRegression,
                     new MeanSquaredErrorMetric(),
                     new MeanSquaredLogarithmicErrorMetric(1.0),
-                    new PseudoHuberMetric(1.0),
+                    new HuberMetric(1.0),
                     new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
@@ -1869,16 +1869,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
-        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+        assertThat(mseResult.getValue(), closeTo(0.061000000, 1e-9));
 
         MeanSquaredLogarithmicErrorMetric.Result msleResult =
             evaluateDataFrameResponse.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME);
         assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicErrorMetric.NAME));
-        assertThat(msleResult.getError(), closeTo(0.02759231770210426, 1e-9));
+        assertThat(msleResult.getValue(), closeTo(0.02759231770210426, 1e-9));
 
-        PseudoHuberMetric.Result pseudoHuberResult = evaluateDataFrameResponse.getMetricByName(PseudoHuberMetric.NAME);
-        assertThat(pseudoHuberResult.getMetricName(), equalTo(PseudoHuberMetric.NAME));
-        assertThat(pseudoHuberResult.getValue(), closeTo(0.029669771640929276, 1e-9));
+        HuberMetric.Result huberResult = evaluateDataFrameResponse.getMetricByName(HuberMetric.NAME);
+        assertThat(huberResult.getMetricName(), equalTo(HuberMetric.NAME));
+        assertThat(huberResult.getValue(), closeTo(0.029669771640929276, 1e-9));
 
         RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
         assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));

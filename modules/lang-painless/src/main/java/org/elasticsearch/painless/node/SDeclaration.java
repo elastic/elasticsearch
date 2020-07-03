@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.ScriptScope;
@@ -57,6 +58,11 @@ public class SDeclaration extends AStatement {
 
     public AExpression getValueNode() {
         return valueNode;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclaration(this, input);
     }
 
     @Override

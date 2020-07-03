@@ -478,14 +478,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private Index[] resolveLocalIndices(OriginalIndices localIndices,
-                                IndicesOptions indicesOptions,
                                 ClusterState clusterState,
                                 SearchTimeProvider timeProvider) {
         if (localIndices == null) {
             return Index.EMPTY_ARRAY; //don't search on any local index (happens when only remote indices were specified)
         }
-        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, true,
-            timeProvider.getAbsoluteStartMillis(), localIndices.indices());
+        return indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
     }
 
     private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest,
@@ -514,7 +512,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, localIndices.indices(),
                 localShardIterators.size() + remoteShardIterators.size());
         } else {
-            final Index[] indices = resolveLocalIndices(localIndices, searchRequest.indicesOptions(), clusterState, timeProvider);
+            final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
                 searchRequest.indices());
             routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);

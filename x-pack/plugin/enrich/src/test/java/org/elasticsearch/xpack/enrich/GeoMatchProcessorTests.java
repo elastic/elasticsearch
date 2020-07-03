@@ -54,8 +54,12 @@ public class GeoMatchProcessorTests extends ESTestCase {
         testBasicsForFieldValue(List.of(-122.084110, 37.386637), expectedPoint);
         testBasicsForFieldValue(Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
         testBasicsForFieldValue(
-            List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)",
-                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637))),
+            List.of(
+                List.of(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)",
+                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637))
+            ),
             new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint))
         );
 

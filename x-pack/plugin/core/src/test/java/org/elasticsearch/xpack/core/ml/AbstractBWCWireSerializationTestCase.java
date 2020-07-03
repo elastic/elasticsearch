@@ -45,9 +45,29 @@ public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> 
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             for (Version bwcVersion : bwcVersions()) {
-                assertBwcSerialization(testInstance, bwcVersion);
+                if (isCompatible(testInstance, bwcVersion)) {
+                    assertBwcSerialization(testInstance, bwcVersion);
+                }
             }
         }
+    }
+
+    /**
+     * For the rare occasions where there is no backwards compatibility between
+     * the specific instance and BWC version override this method to check
+     * compatibility before asserting the BWC serialization.
+     *
+     * The reason for incompatibility may be that earlier node versions are not
+     * aware of certain features and there is higher level logic to prevent
+     * streaming to those earlier nodes or the serialization code throws.
+     * The randomly constructed instance may contain those incompatible features.
+     *
+     * @param instance Test instance
+     * @param version BWC version
+     * @return True if {@code instance} has wire compatibility with {@code version}
+     */
+    protected boolean isCompatible(T instance, Version version) {
+        return true;
     }
 
     /**

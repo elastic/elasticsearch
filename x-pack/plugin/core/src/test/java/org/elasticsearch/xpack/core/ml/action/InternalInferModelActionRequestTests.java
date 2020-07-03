@@ -75,6 +75,16 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
     }
 
     @Override
+    protected boolean isCompatible(Request instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            boolean isSupportedType = instance.getUpdate() instanceof RegressionConfigUpdate ||
+                instance.getUpdate() instanceof ClassificationConfigUpdate;
+            return isSupportedType;
+        }
+        return true;
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     protected Request mutateInstanceForVersion(Request instance, Version version) {
         if (version.before(Version.V_7_8_0)) {

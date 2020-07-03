@@ -107,10 +107,7 @@ increase it if you expect nodes to be absent from the cluster and miss more
 than 500 deletes. We think that is rare, thus the default. Tombstones don't take
 up much space, but we also think that a number like 50,000 is probably too big.
 
-If {es} encounters index data that is absent from the current cluster
-state, those indices are considered to be dangling. For example,
-this can happen if you delete more than
-`cluster.indices.tombstones.size` indices while an {es} node is offline.
+include::{es-repo-dir}/indices/dangling-indices-list.asciidoc[tag=dangling-index-description]
 You can use the <<dangling-indices-api,Dangling indices API>> to manage
 this situation.
 

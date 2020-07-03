@@ -152,18 +152,25 @@ The response shows the index settings, mappings, and aliases applied by the `fin
     "settings" : {
       "index" : {
         "number_of_shards" : "2",
-        "number_of_replicas" : "0" 
+        "number_of_replicas" : "0"
       }
     },
     "mappings" : {
       "properties" : {
         "@timestamp" : {
-          "type" : "date"         
+          "type" : "date"
         }
       }
     },
     "aliases" : { }
   },
-  "overlapping" : [ ]
+  "overlapping" : [
+    {
+      "name" : "template_1",
+      "index_patterns" : [
+        "myindex*"
+      ]
+    }
+  ]
 }
 ---------------------------------------------------------

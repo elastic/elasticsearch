@@ -291,7 +291,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
             fail("should not have succeeded creating with duplicate fields");
         } catch (Exception ex) {
-            assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
+            assertThat(ex.getMessage(), equalTo("Cannot apply inference config. " +
                 "More than one field is configured as [warning]"));
         }
     }

@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 /**
  * Factory for creating the runtime instance for a function given the configuration
  */
-public class FunctionFactory {
+public final class FunctionFactory {
+
+    private FunctionFactory() {}
 
     /**
      * Creates the function instance given the transform configuration

@@ -21,8 +21,18 @@ setup:
             body:   { id: 172, foo: bar, age: 24 }
 
   - do:
+      indices.create:
+        index:  test2
+
+  - do:
+      index:
+        index:  test2
+        id:     45
+        body:   { id: 45, foo: bar, age: 19 }
+
+  - do:
       indices.refresh:
-        index: test
+        index: "test*"
 
 ---
 "search context":
@@ -120,6 +130,42 @@ setup:
 
   - match: {hits.total: 3}
   - length: {hits.hits: 0 }
+
+  - do:
+      close_search_context:
+        body:
+          id: "$search_context_id"
+
+---
+"Search context with wildcard":
+  - skip:
+      version: " - 7.9.99"
+      reason: "search context is introduced in 8.0"
+  - do:
+      open_search_context:
+        index: "t*"
+        keep_alive: 5m
+  - set: {id: search_context_id}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 2
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc }]
+          search_context:
+            id: "$search_context_id"
+            keep_alive: 1m
+
+  - match: {hits.total: 4 }
+  - length: {hits.hits: 2 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._id: "172" }
+  - match: {hits.hits.1._index: test2 }
+  - match: {hits.hits.1._id: "45" }
 
   - do:
       close_search_context:

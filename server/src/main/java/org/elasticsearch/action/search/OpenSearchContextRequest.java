@@ -36,8 +36,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenSearchContextRequest extends ActionRequest implements IndicesRequest {
-    private final String[] indices;
+public final class OpenSearchContextRequest extends ActionRequest implements IndicesRequest.Replaceable {
+    private String[] indices;
     private final IndicesOptions indicesOptions;
     private final TimeValue keepAlive;
 
@@ -91,6 +91,12 @@ public final class OpenSearchContextRequest extends ActionRequest implements Ind
     @Override
     public String[] indices() {
         return indices;
+    }
+
+    @Override
+    public OpenSearchContextRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
     }
 
     @Override

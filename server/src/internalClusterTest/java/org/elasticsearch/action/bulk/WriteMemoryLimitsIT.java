@@ -72,6 +72,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
         return 1;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58983")
     public void testWriteBytesAreIncremented() throws Exception {
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

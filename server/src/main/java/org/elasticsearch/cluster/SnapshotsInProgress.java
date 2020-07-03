@@ -154,7 +154,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Entry withRepoGen(long newRepoGen) {
             assert newRepoGen > repositoryStateId : "Updated repository generation [" + newRepoGen
-                    + "] must be higher then current generation [" + repositoryStateId + "]";
+                    + "] must be higher than current generation [" + repositoryStateId + "]";
             return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, newRepoGen, shards, failure,
                     userMetadata, version);
         }
@@ -396,7 +396,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * A shard is defined as actively executing if it either is in a state that may write to the repository
          * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING}.
          */
-        public boolean isAssigned() {
+        public boolean isActive() {
             return state == ShardState.INIT || state == ShardState.ABORTED || state == ShardState.WAITING;
         }
 
@@ -481,7 +481,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         final Map<String, Set<ShardId>> assignedShardsByRepo = new HashMap<>();
         for (Entry entry : entries) {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-                if (shard.value.isAssigned()) {
+                if (shard.value.isActive()) {
                     assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
                             "Found duplicate shard assignments in " + entries;
                 }

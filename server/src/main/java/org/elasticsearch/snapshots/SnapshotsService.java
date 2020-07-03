@@ -1353,31 +1353,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     updatedSnapshots = snapshots;
                 }
                 // add the snapshot deletion to the cluster state
-                SnapshotDeletionsInProgress.Entry replacedEntry = deletionsInProgress.getEntries().stream().filter(entry ->
+                final SnapshotDeletionsInProgress.Entry replacedEntry = deletionsInProgress.getEntries().stream().filter(entry ->
                         entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.WAITING)
                         .findFirst().orElse(null);
                 if (replacedEntry == null) {
                     final Optional<SnapshotDeletionsInProgress.Entry> foundDuplicate =
-                            deletionsInProgress.getEntries().stream().filter(entry ->
-                                    entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.STARTED
-                                            && entry.getSnapshots().containsAll(snapshotIds)).findFirst();
+                        deletionsInProgress.getEntries().stream().filter(entry ->
+                            entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.STARTED
+                                && entry.getSnapshots().containsAll(snapshotIds)).findFirst();
                     if (foundDuplicate.isPresent()) {
                         newDelete = foundDuplicate.get();
                         reusedExistingDelete = true;
                         return currentState;
                     }
-                }
-                if (replacedEntry == null) {
                     newDelete = new SnapshotDeletionsInProgress.Entry(
                         snapshotIds,
                         repoName,
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
-                            updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository())).noneMatch(
-                                    SnapshotsService::isWritingToRepository)
-                                    && deletionsInProgress.getEntries().stream().noneMatch(entry ->
-                                    repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.STARTED)
-                                    ? SnapshotDeletionsInProgress.State.STARTED : SnapshotDeletionsInProgress.State.WAITING);
+                        updatedSnapshots.entries().stream().filter(entry -> repoName.equals(entry.repository())).noneMatch(
+                            SnapshotsService::isWritingToRepository)
+                            && deletionsInProgress.getEntries().stream().noneMatch(entry ->
+                            repoName.equals(entry.repository()) && entry.state() == SnapshotDeletionsInProgress.State.STARTED)
+                            ? SnapshotDeletionsInProgress.State.STARTED : SnapshotDeletionsInProgress.State.WAITING);
                 } else {
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
                 }
@@ -1425,7 +1423,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return true;
         }
         for (ObjectCursor<ShardSnapshotStatus> value : entry.shards().values()) {
-            if (value.value.isAssigned()) {
+            if (value.value.isActive()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
@@ -1617,6 +1615,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param e exception that caused us to realize we are not master any longer
      */
     private void failAllListenersOnMasterFailOver(Exception e) {
+        logger.debug("Failing all snapshot operation listeners because this node is not master any longer", e);
         synchronized (currentlyFinalizing) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
@@ -1636,6 +1635,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 assert false :
                         new AssertionError("Modifying snapshot state should only ever fail because we failed to publish new state", e);
+                logger.error("Unexpected failure during cluster state update", e);
             }
             currentlyFinalizing.clear();
         }
@@ -1923,7 +1923,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 continue;
             }
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                if (shard.value.isAssigned()) {
+                if (shard.value.isActive()) {
                     inProgressShards.add(shard.key);
                 }
             }
@@ -2217,14 +2217,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.debug(
+            logger.info(
                     () -> new ParameterizedMessage("Failed to remove all snapshot tasks for repo [{}] from cluster state", repository), e);
             failAllListenersOnMasterFailOver(e);
         }
 
         @Override
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            logger.trace("Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners", repository);
+            logger.warn(() ->
+                new ParameterizedMessage("Removed all snapshot tasks for repository [{}] from cluster state, now failing listeners",
+                    repository), failure);
             synchronized (currentlyFinalizing) {
                 Tuple<SnapshotsInProgress.Entry, Metadata> finalization;
                 while ((finalization = repositoryOperations.pollFinalization(repository)) != null) {

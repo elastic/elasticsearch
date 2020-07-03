@@ -22,8 +22,6 @@ package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 import com.tdunning.math.stats.Centroid;
 import com.tdunning.math.stats.TDigest;
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -37,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -61,30 +60,33 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {0, 1.2, 10, 12, 24})));
             w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {5.3, 6, 6, 20})));
-            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30, 90})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30})));
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field(FIELD_NAME)
                     .interval(5);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
-                assertEquals(7, histogram.getBuckets().size());
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+                assertEquals(9, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(0d, histogram.getBuckets().get(1).getKey());
-                assertEquals(3, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5d, histogram.getBuckets().get(2).getKey());
+                assertEquals(-5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(2).getKey());
                 assertEquals(3, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(10d, histogram.getBuckets().get(3).getKey());
-                assertEquals(4, histogram.getBuckets().get(3).getDocCount());
-                assertEquals(20d, histogram.getBuckets().get(4).getKey());
-                assertEquals(2, histogram.getBuckets().get(4).getDocCount());
-                assertEquals(30d, histogram.getBuckets().get(5).getKey());
-                assertEquals(1, histogram.getBuckets().get(5).getDocCount());
-                assertEquals(90d, histogram.getBuckets().get(6).getKey());
-                assertEquals(1, histogram.getBuckets().get(6).getDocCount());
-
+                assertEquals(5d, histogram.getBuckets().get(3).getKey());
+                assertEquals(3, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(4).getKey());
+                assertEquals(4, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(15d, histogram.getBuckets().get(5).getKey());
+                assertEquals(0, histogram.getBuckets().get(5).getDocCount());
+                assertEquals(20d, histogram.getBuckets().get(6).getKey());
+                assertEquals(2, histogram.getBuckets().get(6).getDocCount());
+                assertEquals(25d, histogram.getBuckets().get(7).getKey());
+                assertEquals(0, histogram.getBuckets().get(7).getDocCount());
+                assertEquals(30d, histogram.getBuckets().get(8).getKey());
+                assertEquals(1, histogram.getBuckets().get(8).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -103,7 +105,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 .minDocCount(2);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(0d, histogram.getBuckets().get(0).getKey());
                 assertEquals(3, histogram.getBuckets().get(0).getDocCount());
@@ -114,6 +116,100 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(20d, histogram.getBuckets().get(3).getKey());
                 assertEquals(2, histogram.getBuckets().get(3).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testRandomOffset() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            // Note, these values are carefully chosen to ensure that no matter what offset we pick, no two can end up in the same bucket
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {3.2, 9.3})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+
+            final double offset = randomDouble();
+            final double interval = 5;
+            final double expectedOffset = offset % interval;
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field(FIELD_NAME)
+                .interval(interval)
+                .offset(offset)
+                .minDocCount(1);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+
+                assertEquals(3, histogram.getBuckets().size());
+                assertEquals(-10 + expectedOffset, histogram.getBuckets().get(0).getKey());
+                assertEquals(1, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals(expectedOffset, histogram.getBuckets().get(1).getKey());
+                assertEquals(2, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals(5 + expectedOffset, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testExtendedBounds() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-4.5, 4.3})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field(FIELD_NAME)
+                .interval(5)
+                .extendedBounds(-12, 13);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME));
+                assertEquals(6, histogram.getBuckets().size());
+                assertEquals(-15d, histogram.getBuckets().get(0).getKey());
+                assertEquals(0, histogram.getBuckets().get(0).getDocCount());
+                assertEquals(-10d, histogram.getBuckets().get(1).getKey());
+                assertEquals(0, histogram.getBuckets().get(1).getDocCount());
+                assertEquals(-5d, histogram.getBuckets().get(2).getKey());
+                assertEquals(2, histogram.getBuckets().get(2).getDocCount());
+                assertEquals(0d, histogram.getBuckets().get(3).getKey());
+                assertEquals(2, histogram.getBuckets().get(3).getDocCount());
+                assertEquals(5d, histogram.getBuckets().get(4).getKey());
+                assertEquals(0, histogram.getBuckets().get(4).getDocCount());
+                assertEquals(10d, histogram.getBuckets().get(5).getKey());
+                assertEquals(0, histogram.getBuckets().get(5).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    /**
+     * Test that sub-aggregations are not supported
+     * @throws Exception
+     */
+    public void testSubAggs() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-4.5, 4.3})));
+            w.addDocument(singleton(getDocValue(FIELD_NAME, new double[] {-5, 3.2 })));
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field(FIELD_NAME)
+                .interval(5)
+                .extendedBounds(-12, 13)
+                .subAggregation(new TopHitsAggregationBuilder("top_hits"));
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                IllegalStateException e = expectThrows(IllegalStateException.class,
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME))
+                );
+
+                assertEquals("Histogram aggregation on histogram fields does not support sub-aggregations", e.getMessage());
             }
         }
     }

@@ -32,7 +32,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.locationtech.spatial4j.io.GeohashUtils;
 
 import java.io.IOException;
 import java.text.ParseException;

@@ -777,7 +777,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             if (NESTED_FIELD.equals(dependentVariable) == false) {
                 source.addAll(Arrays.asList(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
-            source.addAll(List.of("time", "2020-12-12"));
+            source.addAll(Arrays.asList("time", "2020-12-12"));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }

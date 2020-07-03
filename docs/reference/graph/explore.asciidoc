@@ -1,10 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[graph-explore-api]]
-== Explore API
+== Graph explore API
+++++
+<titleabbrev>Graph explore</titleabbrev>
+++++
 
-The Graph explore API enables you to extract and summarize information about
-the documents and terms in your Elasticsearch index.
+The graph explore API enables you to extract and summarize information about
+the documents and terms in an {es} data stream or index.
 
 The easiest way to understand the behaviour of this API is to use the
 Graph UI to explore connections. You can view the most recent request submitted
@@ -18,7 +21,7 @@ For additional information about working with the explore API, see the Graph
 [float]
 === Request
 
-`POST <index>/_graph/explore`
+`POST <target>/_graph/explore`
 
 [float]
 === Description
@@ -287,7 +290,7 @@ the term was first encountered.
 properties are indexed into the vertices array and indicate which vertex term led
 to the other as part of exploration. The `doc_count` value indicates how many
 documents in the sample set contain this pairing of terms (this is
-not a global count for all documents in the index).
+not a global count for all documents in the data stream or index).
 
 [float]
 [[optional-controls]]

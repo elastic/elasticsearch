@@ -57,11 +57,8 @@ index settings, aliases, mappings, and index templates.
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-template-exists>>
-
-[float]
-[[component-template-apis]]
-=== Component templates:
-* <<indices-component-template>>
+* <<indices-simulate-index>>
+* <<indices-simulate-template>>
 
 [float]
 [[monitoring]]
@@ -145,6 +142,10 @@ include::indices/refresh.asciidoc[]
 include::indices/rollover-index.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
+
+include::indices/simulate-index.asciidoc[]
+
+include::indices/simulate-template.asciidoc[]
 
 include::indices/split-index.asciidoc[]
 

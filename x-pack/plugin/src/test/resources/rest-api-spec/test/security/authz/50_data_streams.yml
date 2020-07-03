@@ -1,0 +1,149 @@
+---
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "data_stream_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["simple*"], "privileges": ["read", "write", "view_index_metadata"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "data_stream_role" ],
+            "full_name" : "user with privileges on data streams but not backing indices"
+          }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "data_stream_role"
+        ignore: 404
+
+---
+"Test backing indices inherit parent data stream privileges":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      index:
+        index:  simple-data-stream1
+        id:       1
+        op_type:  create
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
+
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+  - do: # superuser
+      indices.refresh:
+        index: simple-data-stream1
+
+  # should succeed since the search request is on the data stream itself
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: simple-data-stream1
+
+  - match: { hits.total: 1 }
+
+  # should succeed since the backing index inherits the data stream's privileges
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: .ds-simple-data-stream1-000001
+
+  - match: { hits.total: 1 }
+
+  # should succeed since the backing index inherits the data stream's privileges
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  .ds-simple-data-stream1-000001
+        id: 1
+        if_seq_no: $seqno
+        if_primary_term: $primary_term
+        op_type:  index
+        body:   { foo: bar2, "@timestamp": "2020-12-12" }
+
+  - match: { _version: 2 }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Test that requests not supporting data streams do not include data streams among authorized indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create:
+        index: simple-index
+        body:
+          aliases:
+            simple-alias: {}
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get_alias:
+        name: simple*
+
+  - match: {simple-index.aliases.simple-alias: {}}
+  - is_false: simple-data-stream1
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged

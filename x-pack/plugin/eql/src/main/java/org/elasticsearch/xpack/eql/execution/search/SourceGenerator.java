@@ -59,11 +59,13 @@ public abstract class SourceGenerator {
         sorting(container, source);
         source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
-        // add size and from
-        source.size(container.limit().absLimit());
-        // this should be added only for event queries
-        if (container.limit().offset > 0) {
-            source.from(container.limit().offset);
+        if (container.limit() != null) {
+            // add size and from
+            source.size(container.limit().absLimit());
+            // this should be added only for event queries
+            if (container.limit().offset > 0) {
+                source.from(container.limit().offset);
+            }
         }
 
         return source;

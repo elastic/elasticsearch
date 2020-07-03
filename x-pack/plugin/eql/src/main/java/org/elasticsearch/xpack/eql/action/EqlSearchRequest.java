@@ -155,8 +155,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("size must be greater than 0", validationException);
         }
 
-        if (fetchSize <= 0) {
-            validationException = addValidationError("fetch size must be greater than 0", validationException);
+        if (fetchSize < 2) {
+            validationException = addValidationError("fetch size must be greater than 1", validationException);
         }
 
         if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {

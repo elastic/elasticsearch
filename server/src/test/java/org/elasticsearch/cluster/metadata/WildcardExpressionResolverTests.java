@@ -236,13 +236,11 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
             // data streams are not included but expression matches the data stream
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                () -> resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*")));
-            assertThat(illegalArgumentException.getMessage(), is("The provided expression [foo_*] matches a data stream, specify the " +
-                "corresponding concrete indices instead."));
+            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "foo_foo", "bar_index"));
 
             // data streams are not included and expression doesn't match the data steram
-            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("bar_*"));
+            indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("bar_*"));
             assertThat(indices, containsInAnyOrder("bar_bar", "bar_index"));
         }
 

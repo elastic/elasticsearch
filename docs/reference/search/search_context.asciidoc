@@ -83,14 +83,29 @@ GET /_nodes/stats/indices/search
 
 Search contexts are automatically closed when the `keep_alive` has
 been elapsed. However keeping search contexts has a cost, as discussed in the
-<<search-context-keep-alive,previous section>> so search contexts should be
-explicitly closed as soon as they are no longer used in search requests.
+<<search-context-keep-alive,previous section>>. Search contexts should be closed
+as soon as they are no longer used in search requests.
 
 [source,console]
 ---------------------------------------
 DELETE /_search_context
 {
-    "id" : "46ToAwMDaWR4BXV1aWQxAgEJY2x1c3Rlcl94Bm5vZGVfMQFhAAAAAAAAAAEDaWR5BXV1aWQyKgEJY2x1c3Rlcl95Bm5vZGVfMgFiAAAAAAAAAAwDaWR5BXV1aWQyKwAGbm9kZV8zAWMAAAAAAAAAKgIFdXVpZDIAAAV1dWlkMQAA"
+    "id" : "x9mtAwMDaWR4BXV1aWQxAgAGbm9kZV8xAWEAAAAAAAAAAQNpZHkFdXVpZDIqAAZub2RlXzIBYgAAAAAAAAAMA2lkeQV1dWlkMisABm5vZGVfMwFjAAAAAAAAACoBBXV1aWQyAAA="
 }
 ---------------------------------------
 // TEST[catch:missing]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "succeeded": true, <1>
+   "num_freed": 3     <2>
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"succeeded": true/"succeeded": $body.succeeded/]
+// TESTRESPONSE[s/"num_freed": 3/"num_freed": $body.num_freed/]
+
+<1> If true, all search contexts associated with the given id are successfully closed
+<2> The number of search contexts have been successfully closed

@@ -726,7 +726,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, includeDataStreams);
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
+                    false, includeDataStreams);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

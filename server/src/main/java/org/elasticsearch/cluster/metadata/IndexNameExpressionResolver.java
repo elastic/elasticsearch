@@ -72,28 +72,16 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
-        return concreteIndexNames(state, request, false);
-    }
-
-    public String[] concreteIndexNames(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
-        Context context = new Context(state, request.indicesOptions(), false, false, includeDataStreams);
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams());
         return concreteIndexNames(context, request.indices());
-    }
-
-    /**
-     * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
-     * are encapsulated in the specified request.
-     */
-    public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
-        return concreteIndices(state, request, false);
     }
 
     /**
      * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request and resolves data streams.
      */
-    public Index[] concreteIndices(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
-        Context context = new Context(state, request.indicesOptions(), false, false, includeDataStreams);
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams());
         return concreteIndices(context, request.indices());
     }
 
@@ -115,10 +103,14 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, indexExpressions);
     }
 
-    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams,
-                                       String... indexExpressions) {
+    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
         Context context = new Context(state, options, false, false, includeDataStreams);
         return concreteIndexNames(context, indexExpressions);
+    }
+
+    public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
+        Context context = new Context(state, options, false, false, request.includeDataStreams());
+        return concreteIndexNames(context, request.indices());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
@@ -155,20 +147,18 @@ public class IndexNameExpressionResolver {
     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
-     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
-     * @param options           defines how the aliases or indices need to be resolved to concrete indices
-     * @param startTime         The start of the request where concrete indices is being invoked for
-     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @param state      the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param startTime  The start of the request where concrete indices is being invoked for
+     * @param request    request containing expressions that can be resolved to alias, index, or data stream names.
      * @return the resolved concrete indices based on the cluster state, indices options and index expressions
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options in the context don't allow such a case.
      */
-    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean includeDataStreams, long startTime,
-                                   String... indexExpressions) {
-        Context context = new Context(state, options, startTime, false, false, includeDataStreams);
-        return concreteIndices(context, indexExpressions);
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams());
+        return concreteIndices(context, request.indices());
     }
 
     String[] concreteIndexNames(Context context, String... indexExpressions) {
@@ -344,15 +334,14 @@ public class IndexNameExpressionResolver {
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
      * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
-     * @param includeDataStreams Whether data streams should be included in the evaluation.
      * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
      * @return the write index obtained as a result of the index resolution
      */
-    public Index concreteWriteIndex(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+    public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
         if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
             throw new IllegalArgumentException("indices request must specify a single index expression");
         }
-        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, includeDataStreams);
+        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false, request.includeDataStreams());
     }
 
     /**

@@ -147,6 +147,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     public TimeValue timeout() {
         return timeout;
     }

@@ -44,10 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -192,6 +191,42 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
         assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
         assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+    }
+
+    public void testBackingIndexIsNotRenamedWhenRestoringDataStream() {
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        expectThrows(SnapshotRestoreException.class, () -> client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get());
+
+        // delete data stream
+        client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).actionGet();
+
+        // restore data stream attempting to rename the backing index
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setRenamePattern(DS_BACKING_INDEX_NAME)
+            .setRenameReplacement("new_index_name")
+            .get();
+
+        assertThat(restoreSnapshotResponse.status(), is(RestStatus.OK));
+
+        GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request("ds");
+        GetDataStreamAction.Response response = client.admin().indices().getDataStreams(getDSRequest).actionGet();
+        assertThat(response.getDataStreams().get(0).getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
     }
 
     public void testWildcards() throws Exception {

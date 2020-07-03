@@ -18,7 +18,7 @@
   - match: { "acknowledged": true }
 
   - do:
-      autoscaling.get_autoscaling_decision
+      autoscaling.get_autoscaling_decision: {}
 
   - match: { decisions.0.my_autoscaling_policy.decision: scale_up }
   - match: { decisions.0.my_autoscaling_policy.decisions.0.always: scale_up }

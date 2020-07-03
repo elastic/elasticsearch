@@ -240,7 +240,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(null, request, SearchAction.NAME);
         List<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, requestInfo, metadata.getIndicesLookup());
-        assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1"));
+        assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
         assertFalse(list.contains("bbbbb"));
         assertFalse(list.contains("ba"));
         assertThat(list, not(contains(internalSecurityIndex)));

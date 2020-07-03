@@ -69,6 +69,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -159,6 +160,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
+    /**
+     * Setting that specifies the maximum number of allow concurrent snapshot create and delete operations in the
+     * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
+     * {@link SnapshotsInProgress#entries()} and {@link SnapshotDeletionsInProgress#getEntries()}.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING =
+        Setting.intSetting("snapshot.max_concurrent_operations", 10, 1, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+    private volatile int maxConcurrentOperations;
+
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                             RepositoriesService repositoriesService, TransportService transportService, ActionFilters actionFilters) {
         this.clusterService = clusterService;
@@ -173,6 +184,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (DiscoveryNode.isMasterNode(settings)) {
             // addLowPriorityApplier to make sure that Repository will be created before snapshot
             clusterService.addLowPriorityApplier(this);
+            maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+                i -> maxConcurrentOperations = i);
         }
     }
 
@@ -221,7 +235,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
                 }
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 if (runningSnapshots.stream().anyMatch(s -> {
                     final Snapshot running = s.snapshot();
@@ -231,10 +245,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name is already in-progress");
                 }
                 validate(repositoryName, snapshotName, currentState);
-                final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
-                SnapshotDeletionsInProgress deletionsInProgress =
+                final boolean concurrentOperationsAllowed = currentState.nodes().getMinNodeVersion().onOrAfter(FULL_CONCURRENCY_VERSION);
+                final SnapshotDeletionsInProgress deletionsInProgress =
                         currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
-                if (deletionsInProgress.hasDeletionsInProgress() && minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
+                if (deletionsInProgress.hasDeletionsInProgress() && concurrentOperationsAllowed == false) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                         "cannot snapshot while a snapshot deletion is in-progress in [" + deletionsInProgress + "]");
                 }
@@ -247,10 +261,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Fail if there are any concurrently running snapshots. The only exception to this being a snapshot in INIT state from a
                 // previous master that we can simply ignore and remove from the cluster state because we would clean it up from the
                 // cluster state anyway in #applyClusterState.
-                if (minNodeVersion.before(FULL_CONCURRENCY_VERSION)
-                        && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
+                if (concurrentOperationsAllowed == false && runningSnapshots.stream().anyMatch(entry -> entry.state() != State.INIT)) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
                 }
+                ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
@@ -316,6 +330,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private void ensureBelowConcurrencyLimit(String repository, String name, SnapshotsInProgress snapshotsInProgress,
+                                             SnapshotDeletionsInProgress deletionsInProgress) {
+        final int inProgressOperations = snapshotsInProgress.entries().size() + deletionsInProgress.getEntries().size();
+        final int maxOps = maxConcurrentOperations;
+        if (inProgressOperations >= maxOps) {
+            throw new ConcurrentSnapshotExecutionException(repository, name,
+                "Cannot start another operation, already running [" + inProgressOperations + "] operations and the current" +
+                    " limit for concurrent snapshot operations is set to [" + maxOps + "]");
+        }
     }
 
     /**
@@ -1299,7 +1324,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletionsInProgress =
+                final SnapshotDeletionsInProgress deletionsInProgress =
                         currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
                 final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
                 if (minNodeVersion.before(FULL_CONCURRENCY_VERSION)) {
@@ -1366,6 +1391,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         reusedExistingDelete = true;
                         return currentState;
                     }
+                    ensureBelowConcurrencyLimit(repoName, snapshotIds.get(0).getName(), snapshots, deletionsInProgress);
                     newDelete = new SnapshotDeletionsInProgress.Entry(
                         snapshotIds,
                         repoName,
@@ -1379,10 +1405,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 } else {
                     newDelete = replacedEntry.withAddedSnapshots(snapshotIds);
                 }
-                if (replacedEntry != null) {
-                    deletionsInProgress = deletionsInProgress.withRemovedEntry(replacedEntry.uuid());
-                }
-                return updateWithSnapshots(currentState, updatedSnapshots, deletionsInProgress.withAddedEntry(newDelete));
+                return updateWithSnapshots(currentState, updatedSnapshots,
+                    (replacedEntry == null ? deletionsInProgress : deletionsInProgress.withRemovedEntry(replacedEntry.uuid()))
+                        .withAddedEntry(newDelete));
             }
 
             @Override

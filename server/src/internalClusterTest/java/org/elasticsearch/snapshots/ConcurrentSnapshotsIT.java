@@ -75,6 +75,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1082,6 +1083,58 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final RepositoryData repositoryData = getRepositoryData(otherRepoName);
         assertThat(repositoryData.getSnapshotIds(), hasSize(countOtherRepo + 2));
+    }
+
+    public void testConcurrentOperationsLimit() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepoPath());
+        createIndexWithContent("index-test");
+
+        final int limitToTest = randomIntBetween(1, 3);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
+            SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest).build()).get());
+
+        final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
+        blockNodeOnAnyFiles(repoName, masterName);
+        int blockedSnapshots = 0;
+        boolean blockedDelete = false;
+        final List<ActionFuture<CreateSnapshotResponse>> snapshotFutures = new ArrayList<>();
+        ActionFuture<AcknowledgedResponse> deleteFuture = null;
+        for (int i = 0; i < limitToTest; ++i) {
+            if (blockedDelete || randomBoolean()) {
+                snapshotFutures.add(startFullSnapshot(repoName, "snap-" + i));
+                ++blockedSnapshots;
+            } else {
+                blockedDelete = true;
+                deleteFuture = startDelete(repoName, randomFrom(snapshotNames));
+            }
+        }
+        awaitNSnapshotsInProgress(blockedSnapshots);
+        if (blockedDelete) {
+            awaitNDeletionsInProgress(1);
+        }
+        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+
+        final String expectedFailureMessage = "Cannot start another operation, already running [" + limitToTest +
+            "] operations and the current limit for concurrent snapshot operations is set to [" + limitToTest + "]";
+        final ConcurrentSnapshotExecutionException csen1 = expectThrows(ConcurrentSnapshotExecutionException.class,
+            () -> client().admin().cluster().prepareCreateSnapshot(repoName, "expected-to-fail").execute().actionGet());
+        assertThat(csen1.getMessage(), containsString(expectedFailureMessage));
+        if (blockedDelete == false || limitToTest == 1) {
+            final ConcurrentSnapshotExecutionException csen2 = expectThrows(ConcurrentSnapshotExecutionException.class,
+                () -> client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute().actionGet());
+            assertThat(csen2.getMessage(), containsString(expectedFailureMessage));
+        }
+
+        unblockNode(repoName, masterName);
+        if (deleteFuture != null) {
+            assertAcked(deleteFuture.get());
+        }
+        for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
+            assertSuccessful(snapshotFuture);
+        }
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

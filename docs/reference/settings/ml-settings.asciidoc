@@ -29,7 +29,7 @@ file.
 ==== General machine learning settings
 
 `node.ml`::
-deprecated:[7.9.0,Use <<modules-node,`node.roles`>> instead.]
+deprecated:[7.9.0,"Use <<modules-node,node.roles>> instead."]
 Set to `true` (default) to identify the node as a _machine learning node_. +
 +
 If set to `false` in `elasticsearch.yml`, the node cannot run jobs. If set to

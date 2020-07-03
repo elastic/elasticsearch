@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.flattened.mapper;
 
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
@@ -28,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -232,13 +229,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
                                         boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, hasDocValues,
+                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
+                meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            if (splitQueriesOnWhitespace == false) {
-                setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            } else {
-                setSearchAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
-            }
             this.key = key;
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
@@ -483,14 +477,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
                                        boolean splitQueriesOnWhitespace) {
-            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, hasDocValues,
+                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            if (splitQueriesOnWhitespace) {
-                setSearchAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
-            } else {
-                setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            }
         }
 
         private RootFlatObjectFieldType(RootFlatObjectFieldType ref) {

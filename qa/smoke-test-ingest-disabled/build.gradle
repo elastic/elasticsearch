@@ -22,7 +22,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testImplementation project(path: ':modules:ingest-common', configuration: 'runtime')
+  testImplementation project(':modules:ingest-common')
 }
 
 testClusters.integTest {

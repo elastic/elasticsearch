@@ -64,6 +64,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -83,11 +84,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -112,7 +111,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
  */
 public class MetadataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -380,7 +379,7 @@ public class MetadataCreateIndexService {
      * @param silent a boolean for whether logging should be at a lower or higher level
      * @param sourceMetadata when recovering from an existing index, metadata that should be copied to the new index
      * @param temporaryIndexMeta metadata for the new index built from templates, source metadata, and request settings
-     * @param mappings a map of mappings for the new index
+     * @param mappings a list of all mapping definitions to apply, in order
      * @param aliasSupplier a function that takes the real {@link IndexService} and returns a list of {@link AliasMetadata} aliases
      * @param templatesApplied a list of the names of the templates applied, for logging
      * @param metadataTransformer if provided, a function that may alter cluster metadata in the same cluster state update that
@@ -392,7 +391,7 @@ public class MetadataCreateIndexService {
                                                               final boolean silent,
                                                               final IndexMetadata sourceMetadata,
                                                               final IndexMetadata temporaryIndexMeta,
-                                                              final Map<String, Object> mappings,
+                                                              final List<Map<String, Object>> mappings,
                                                               final Function<IndexService, List<AliasMetadata>> aliasSupplier,
                                                               final List<String> templatesApplied,
                                                               final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
@@ -417,9 +416,8 @@ public class MetadataCreateIndexService {
                 throw e;
             }
 
-            logger.log(silent ? Level.DEBUG : Level.INFO, "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
-                request.index(), request.cause(), templatesApplied, indexMetadata.getNumberOfShards(),
-                indexMetadata.getNumberOfReplicas(), mappings.keySet());
+            logger.log(silent ? Level.DEBUG : Level.INFO, "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}]",
+                request.index(), request.cause(), templatesApplied, indexMetadata.getNumberOfShards(), indexMetadata.getNumberOfReplicas());
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(),
                 indexMetadata.getSettings());
@@ -474,7 +472,7 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
+        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, List.of(mappings),
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -491,13 +489,24 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        final Map<String, Object> mappings = resolveV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
+        final List<Map<String, Object>> mappings = collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
 
         if (request.dataStreamName() != null) {
+            String timestampField;
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
-                dataStream.getTimeStampField().insertTimestampFieldMapping(mappings);
+                // Data stream already exists and a new backing index gets added. For example during rollover.
+                timestampField = dataStream.getTimeStampField().getName();
+                // Use the timestamp field mapping as was recorded at the time the data stream was created
+                mappings.add(dataStream.getTimeStampField().getTimestampFieldMapping());
+            } else {
+                // The data stream doesn't yet exist and the first backing index gets created. Resolve ts field from template.
+                // (next time, the data stream instance does exist)
+                ComposableIndexTemplate template = currentState.metadata().templatesV2().get(templateName);
+                timestampField = template.getDataStreamTemplate().getTimestampField();
             }
+            // Add mapping for timestamp field mapper last, so that it can't be overwritten:
+            mappings.add(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", timestampField))));
         }
 
         final Settings aggregatedIndexSettings =
@@ -516,15 +525,22 @@ public class MetadataCreateIndexService {
             Collections.singletonList(templateName), metadataTransformer);
     }
 
-    public static Map<String, Object> resolveV2Mappings(final String requestMappings,
-                                                        final ClusterState currentState,
-                                                        final String templateName,
-                                                        final NamedXContentRegistry xContentRegistry) throws Exception {
-        final Map<String, Object> mappings = Collections.unmodifiableMap(parseV2Mappings(requestMappings,
-            MetadataIndexTemplateService.resolveMappings(currentState, templateName), xContentRegistry));
-        return mappings;
-    }
+    public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
+                                                              final ClusterState currentState,
+                                                              final String templateName,
+                                                              final NamedXContentRegistry xContentRegistry) throws Exception {
+        List<Map<String, Object>> result = new ArrayList<>();
 
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName);
+        for (CompressedXContent templateMapping : templateMappings) {
+            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
+            result.add(parsedTemplateMapping);
+        }
+
+        Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
+        result.add(parsedRequestMappings);
+        return result;
+    }
     private ClusterState applyCreateIndexRequestWithExistingMetadata(final ClusterState currentState,
                                                                      final CreateIndexClusterStateUpdateRequest request,
                                                                      final boolean silent,
@@ -544,117 +560,13 @@ public class MetadataCreateIndexService {
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
+        return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, List.of(mappings),
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newQueryShardContext(0, null, () -> 0L, null)),
             List.of(), metadataTransformer);
-    }
-
-    /**
-     * Parses the provided mappings json and the inheritable mappings from the templates (if any)
-     * into a map.
-     *
-     * The template mappings are applied in the order they are encountered in the list, with the
-     * caveat that mapping fields are only merged at the top-level, meaning that field settings are
-     * not merged, instead they replace any previous field definition.
-     */
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> parseV2Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
-                                               NamedXContentRegistry xContentRegistry) throws Exception {
-        Map<String, Object> requestMappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
-        // apply templates, merging the mappings into the request mapping if exists
-        Map<String, Object> properties = new HashMap<>();
-        Map<String, Object> nonProperties = new HashMap<>();
-        for (CompressedXContent mapping : templateMappings) {
-            if (mapping != null) {
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
-                if (templateMapping.isEmpty()) {
-                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
-                    // tripping the below assertion, we can safely ignore it
-                    continue;
-                }
-                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
-                if (templateMapping.get(MapperService.SINGLE_MAPPING_NAME) instanceof Map == false) {
-                    throw new IllegalStateException("invalid mapping definition, expected a single map underneath [" +
-                        MapperService.SINGLE_MAPPING_NAME + "] but it was: [" + templateMapping + "]");
-                }
-
-                Map<String, Object> innerTemplateMapping = (Map<String, Object>) templateMapping.get(MapperService.SINGLE_MAPPING_NAME);
-                Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
-                Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
-
-                nonProperties = mergeFailingOnReplacement(nonProperties, innerTemplateNonProperties);
-
-                if (maybeProperties != null) {
-                    properties = mergeFailingOnReplacement(properties, maybeProperties);
-                }
-            }
-        }
-
-        if (requestMappings.get(MapperService.SINGLE_MAPPING_NAME) != null) {
-            Map<String, Object> innerRequestMappings = (Map<String, Object>) requestMappings.get(MapperService.SINGLE_MAPPING_NAME);
-            Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
-            Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
-
-            nonProperties = mergeFailingOnReplacement(nonProperties, innerRequestNonProperties);
-
-            if (maybeRequestProperties != null) {
-                properties = mergeFailingOnReplacement(properties, maybeRequestProperties);
-            }
-        }
-
-        Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
-        finalMappings.put("properties", properties);
-        return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
-    }
-
-    /**
-     * Parses the `dynamic_templates` from the provided mappings, if any are configured, and returns a mappings map containing dynamic
-     * templates with unique names.
-     *
-     * The later templates in the provided mapping's `dynamic_templates` array will override the templates with the same name defined
-     * earlier in the `dynamic_templates` array.
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> dedupDynamicTemplates(Map<String, Object> mappings) {
-        Objects.requireNonNull(mappings, "deduping the dynamic templates a non-null mapping");
-        Map<String, Object> results = new HashMap<>(mappings);
-        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) mappings.get("dynamic_templates");
-        if (dynamicTemplates == null) {
-            return results;
-        }
-
-        LinkedHashMap<String, Map<String, Object>> dedupedDynamicTemplates = new LinkedHashMap<>(dynamicTemplates.size(), 1f);
-        for (Map<String, Object> dynamicTemplate : dynamicTemplates) {
-            dedupedDynamicTemplates.put(dynamicTemplate.keySet().iterator().next(), dynamicTemplate);
-        }
-
-        results.put("dynamic_templates", new ArrayList<>(dedupedDynamicTemplates.values()));
-        return results;
-    }
-
-    /**
-     * Add the objects in the second map to the first, A duplicated field is treated as illegal and
-     * an exception is thrown.
-     */
-    static Map<String, Object> mergeFailingOnReplacement(Map<String, Object> first, Map<String, Object> second) {
-        Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
-        Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
-        Map<String, Object> results = new HashMap<>(first);
-        Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
-        List<String> matchedPrefixes = results.keySet().stream().filter(k -> prefixes.contains(prefix(k))).collect(Collectors.toList());
-        if (matchedPrefixes.size() > 0) {
-            throw new IllegalArgumentException("mapping fields " + matchedPrefixes + " cannot be replaced during template composition");
-        }
-        results.putAll(second);
-        return results;
-    }
-
-    private static String prefix(String s) {
-        return s.split("\\.", 2)[0];
     }
 
     /**
@@ -939,12 +851,13 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(IndexService indexService, Map<String, Object> mappings,
+    private static void updateIndexMappingsAndBuildSortOrder(IndexService indexService, List<Map<String, Object>> mappings,
                                                              @Nullable IndexMetadata sourceMetadata) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        if (!mappings.isEmpty()) {
-            assert mappings.size() == 1 : mappings;
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+        for (Map<String, Object> mapping : mappings) {
+            if (!mapping.isEmpty()) {
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+            }
         }
 
         if (sourceMetadata == null) {

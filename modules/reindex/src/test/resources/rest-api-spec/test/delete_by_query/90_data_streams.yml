@@ -30,7 +30,9 @@
         index:   simple-data-stream1
         id:      1
         op_type: create
-        body:    { "text": "test" }
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
 
   - do:
       indices.refresh:

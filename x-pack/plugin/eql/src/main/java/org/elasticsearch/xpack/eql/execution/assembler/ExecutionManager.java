@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
-import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,27 +43,55 @@ public class ExecutionManager {
                                Attribute timestamp,
                                Attribute tiebreaker,
                                OrderDirection direction,
+                               TimeValue maxSpan,
                                Limit limit) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
         
-        List<Criterion> criteria = new ArrayList<>(plans.size() - 1);
+        boolean descending = direction == OrderDirection.DESC;
+
+        // fields
+        HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
+        HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
+        // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
+        String timestampName = Expressions.name(timestamp);
+        String tiebreakerName = Expressions.isPresent(tiebreaker) ? Expressions.name(tiebreaker) : null;
+
+        // secondary criteria
+        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
         
         // build a criterion for each query
-        for (int i = 0; i < plans.size() - 1; i++) {
+        for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
-            // fields
-            HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
-            HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
 
             PhysicalPlan query = plans.get(i);
             // search query
-            // TODO: this could be generalized into an exec only query
-            Check.isTrue(query instanceof EsQueryExec, "Expected a query but got [{}]", query.getClass());
-            QueryRequest request = ((EsQueryExec) query).queryRequest(session);
-            criteria.add(new Criterion(request.searchSource(), keyExtractors, tsExtractor, tbExtractor));
+            if (query instanceof EsQueryExec) {
+                QueryRequest original = ((EsQueryExec) query).queryRequest(session);
+                
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
+                Criterion<BoxedQueryRequest> criterion =
+                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i> 0 && descending);
+                criteria.add(criterion);
+            } else {
+                // until
+                if (i != plans.size() - 1) {
+                    throw new EqlIllegalArgumentException("Expected a query but got [{}]", query.getClass());
+                } else {
+                    criteria.add(null);
+                }
+            }
         }
-        return new SequenceRuntime(criteria, new BasicQueryClient(session), direction == OrderDirection.DESC, limit);
+        
+        int completionStage = criteria.size() - 1;
+        Matcher matcher = new Matcher(completionStage, maxSpan, limit);
+
+        TumblingWindow w = new TumblingWindow(new BasicQueryClient(session),
+                criteria.subList(0, completionStage),
+                criteria.get(completionStage),
+                matcher);
+
+        return w;
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

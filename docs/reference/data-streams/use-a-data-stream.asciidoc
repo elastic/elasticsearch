@@ -10,6 +10,7 @@ the following:
 * <<open-closed-backing-indices>>
 * <<reindex-with-a-data-stream>>
 * <<update-delete-docs-in-a-data-stream>>
+* <<update-delete-docs-in-a-backing-index>>
 
 ////
 [source,console]
@@ -32,7 +33,31 @@ PUT /_index_template/logs_data_stream
 }
 
 PUT /_data_stream/logs
+
+POST /logs/_rollover/
+
+POST /logs/_rollover/
+
+PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z",
+  "user": {
+    "id": "yWIumJd7"
+  },
+  "message": "Login successful"
+}
+
+PUT /_data_stream/logs_alt
 ----
+// TESTSETUP
+
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+----
+// TEARDOWN
 ////
 
 [discrete]
@@ -65,8 +90,11 @@ POST /logs/_doc/
   "message": "Login successful"
 }
 ----
-// TEST[continued]
 ====
+
+IMPORTANT: You cannot add new documents to a data stream using the index API's
+`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
+`PUT /<target>/_create/<_id>` format instead.
 --
 
 * A <<docs-bulk,bulk API>> request using the `create` action. Specify the data
@@ -84,14 +112,13 @@ the `logs` data stream. Note that only the `create` action is used.
 [source,console]
 ----
 PUT /logs/_bulk?refresh
-{"create":{"_index" : "logs"}}
+{"create":{ }}
 { "@timestamp": "2020-12-08T11:04:05.000Z", "user": { "id": "vlb44hny" }, "message": "Login attempt failed" }
-{"create":{"_index" : "logs"}}
+{"create":{ }}
 { "@timestamp": "2020-12-08T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
-{"create":{"_index" : "logs"}}
+{"create":{ }}
 { "@timestamp": "2020-12-09T11:07:08.000Z", "user": { "id": "l7gk7f82" }, "message": "Logout successful" }
 ----
-// TEST[continued]
 ====
 --
 
@@ -139,7 +166,6 @@ GET /logs/_search
   }
 }
 ----
-// TEST[continued]
 ====
 
 You can use a comma-separated list or wildcard (`*`) expression to search
@@ -148,14 +174,6 @@ multiple data streams, indices, and index aliases in the same request.
 .*Example*
 [%collapsible]
 ====
-////
-[source,console]
-----
-PUT /_data_stream/logs_alt
-----
-// TEST[continued]
-////
-
 The following request searches the `logs` and `logs_alt` data streams, which are
 specified as a comma-separated list in the request path.
 
@@ -170,8 +188,6 @@ GET /logs,logs_alt/_search
   }
 }
 ----
-// TEST[continued]
-
 The following request uses the `logs*` wildcard expression to search any data
 stream, index, or index alias beginning with `logs`.
 
@@ -186,7 +202,6 @@ GET /logs*/_search
   }
 }
 ----
-// TEST[continued]
 
 The following search request omits a target in the request path. The request
 searches all data streams and indices in the cluster.
@@ -202,7 +217,6 @@ GET /_search
   }
 }
 ----
-// TEST[continued]
 ====
 
 [discrete]
@@ -233,7 +247,6 @@ rollover request for the `logs` data stream.
 ----
 POST /logs/_rollover/
 ----
-// TEST[continued]
 ====
 
 [discrete]
@@ -255,18 +268,15 @@ by sending an open request directly to the stream.
 .*Example*
 [%collapsible]
 ====
+The following <<cat-indices,cat indices>> API request retrieves the status for
+the `logs` data stream's backing indices.
+
 ////
 [source,console]
 ----
-POST /logs/_rollover/
-
 POST /.ds-logs-000001,.ds-logs-000002/_close/
 ----
-// TEST[continued]
 ////
-
-The following <<cat-indices,cat indices>> API request retrieves the status for
-the `logs` data stream's backing indices.
 
 [source,console]
 ----
@@ -378,7 +388,6 @@ POST /_aliases
   ]
 }
 ----
-// TEST[continued]
 ////
 
 [source,console]
@@ -426,12 +435,66 @@ POST /_reindex
 [[update-delete-docs-in-a-data-stream]]
 === Update or delete documents in a data stream
 
-Data streams are designed to be <<data-streams-append-only,append-only>>. This
-means you cannot send update or deletion requests for existing documents to a
-data stream. However, you can send update or deletion requests to the backing
-index containing the document.
+You can update or delete documents in a data stream using the following
+requests:
 
-To delete or update a document in a data stream, you first need to get:
+* An <<docs-update-by-query,update by query API>> request
++
+.*Example*
+[%collapsible]
+====
+The following update by query API request updates documents in the `logs` data
+stream with a `user.id` of `l7gk7f82`. The request uses a
+<<modules-scripting-using,script>> to assign matching documents a new `user.id`
+value of `XgdX0NoX`.
+
+[source,console]
+----
+POST /logs/_update_by_query
+{
+  "query": {
+    "match": {
+      "user.id": "l7gk7f82"
+    }
+  },
+  "script": {
+    "source": "ctx._source.user.id = params.new_id",
+    "params": {
+      "new_id": "XgdX0NoX"
+    }
+  }
+}
+----
+====
+
+* A <<docs-delete-by-query,delete by query API>> request
++
+.*Example*
+[%collapsible]
+====
+The following delete by query API request deletes documents in the `logs` data
+stream with a `user.id` of `vlb44hny`.
+
+[source,console]
+----
+POST /logs/_delete_by_query
+{
+  "query": {
+    "match": {
+      "user.id": "vlb44hny"
+    }
+  }
+}
+----
+====
+
+[discrete]
+[[update-delete-docs-in-a-backing-index]]
+=== Update or delete documents in a backing index
+
+Alternatively, you can update or delete documents in a data stream by sending
+the update or deletion request to the backing index containing the document. To
+do this, you first need to get:
 
 * The <<mapping-id-field,document ID>>
 * The name of the backing index that contains the document
@@ -445,21 +508,6 @@ information.
 .*Example*
 [%collapsible]
 ====
-////
-[source,console]
-----
-PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
-{
-  "@timestamp": "2020-12-07T11:06:07.000Z",
-  "user": {
-    "id": "yWIumJd7"
-  },
-  "message": "Login successful"
-}
-----
-// TEST[continued]
-////
-
 The following search request retrieves documents in the `logs` data stream with
 a `user.id` of `yWIumJd7`. By default, this search returns the document ID and
 backing index for any matching documents.
@@ -480,7 +528,6 @@ GET /logs/_search
   }
 }
 ----
-// TEST[continued]
 
 The API returns the following response. The `hits.hits` property contains
 information for any documents matching the search.
@@ -506,7 +553,7 @@ information for any documents matching the search.
       {
         "_index": ".ds-logs-000003",                <1>
         "_id": "bfspvnIBr7VVZlfp2lqX",              <2>
-        "_seq_no": 4,                               <3>
+        "_seq_no": 0,                               <3>
         "_primary_term": 1,                         <4>
         "_score": 0.2876821,
         "_source": {
@@ -522,6 +569,8 @@ information for any documents matching the search.
 }
 ----
 // TESTRESPONSE[s/"took": 20/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 0.2876821/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.2876821/"_score": $body.hits.hits.0._score/]
 
 <1> Backing index containing the matching document
 <2> Document ID for the document
@@ -546,7 +595,7 @@ contains a new JSON source for the document.
 
 [source,console]
 ----
-PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=4&if_primary_term=1
+PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_term=1
 {
   "@timestamp": "2020-12-07T11:06:07.000Z",
   "user": {
@@ -555,7 +604,6 @@ PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=4&if_primary_term=1
   "message": "Login successful"
 }
 ----
-// TEST[continued]
 ====
 
 You use the <<docs-delete,delete API>> to delete individual documents. Deletion
@@ -572,7 +620,6 @@ stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
 ----
 DELETE /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
-// TEST[continued]
 ====
 
 You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
@@ -585,21 +632,6 @@ arguments.
 .*Example*
 [%collapsible]
 ====
-////
-[source,console]
-----
-PUT /logs/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
-{
-  "@timestamp": "2020-12-07T11:06:07.000Z",
-  "user": {
-    "id": "yWIumJd7"
-  },
-  "message": "Login successful"
-}
-----
-// TEST[continued]
-////
-
 The following bulk API request uses an `index` action to update an existing
 document in the `logs` data stream.
 
@@ -611,20 +643,8 @@ parameters.
 [source,console]
 ----
 PUT /_bulk?refresh
-{ "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 4, "if_primary_term": 1 } }
+{ "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
 { "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
-// TEST[continued]
 ====
 
-////
-[source,console]
-----
-DELETE /_data_stream/logs
-
-DELETE /_data_stream/logs_alt
-
-DELETE /_index_template/logs_data_stream
-----
-// TEST[continued]
-////

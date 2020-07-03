@@ -83,7 +83,8 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             categoryLabels = randomList(2, randomIntBetween(3, 10), () -> randomAlphaOfLength(10));
         }
 
-        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ? new WeightedSum(weights) :
+        OutputAggregator outputAggregator = targetType == TargetType.REGRESSION ?
+            randomFrom(new WeightedSum(weights), new Exponent(weights)) :
             randomFrom(
                 new WeightedMode(
                     weights,

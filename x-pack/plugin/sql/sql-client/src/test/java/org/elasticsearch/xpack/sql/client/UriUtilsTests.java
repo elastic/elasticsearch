@@ -11,6 +11,7 @@ import java.net.URI;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.sql.client.UriUtils.CredentialsRedaction.REDACTION_CHAR;
+import static org.elasticsearch.xpack.sql.client.StringUtils.repeatString;
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
 import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
 import static org.elasticsearch.xpack.sql.client.UriUtils.CredentialsRedaction.redactCredentialsInConnectionString;
@@ -173,8 +174,8 @@ public class UriUtilsTests extends ESTestCase {
         final String user = "user=" + userVal;
         final String passVal = randomAlphaOfLengthBetween(1, 2 + randomInt(50));
         final String pass = "password=" + passVal;
-        final String redactedUser = "user=" + String.valueOf(REDACTION_CHAR).repeat(userVal.length());
-        final String redactedPass = "password=" + String.valueOf(REDACTION_CHAR).repeat(passVal.length());
+        final String redactedUser = "user=" + repeatString(String.valueOf(REDACTION_CHAR), userVal.length());
+        final String redactedPass = "password=" + repeatString(String.valueOf(REDACTION_CHAR), passVal.length());
 
         String connStr, expectRedact, expectParse, creds = StringUtils.EMPTY;
         if (randomBoolean() && host.length() > 0) {
@@ -183,7 +184,7 @@ public class UriUtilsTests extends ESTestCase {
                 creds += ":" + passVal;
             }
             connStr = scheme + creds + "@" + host + path;
-            expectRedact = scheme + String.valueOf(REDACTION_CHAR).repeat(creds.length()) + "@" + host + path;
+            expectRedact = scheme + repeatString(String.valueOf(REDACTION_CHAR), creds.length()) + "@" + host + path;
         } else {
             connStr = scheme + host + path;
             expectRedact = scheme + host + path;

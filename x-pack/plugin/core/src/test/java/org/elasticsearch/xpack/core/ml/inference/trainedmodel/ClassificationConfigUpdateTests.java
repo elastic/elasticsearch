@@ -80,7 +80,7 @@ public class ClassificationConfigUpdateTests extends AbstractBWCSerializationTes
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new ClassificationConfigUpdate(5, "foo", "foo", 1, PredictionFieldType.BOOLEAN));
 
-        assertEquals("Cannot apply inference config. More than one field is configured as [foo]", e.getMessage());
+        assertEquals("Invalid inference config. More than one field is configured as [foo]", e.getMessage());
     }
 
     public void testDuplicateWithResultsField() {

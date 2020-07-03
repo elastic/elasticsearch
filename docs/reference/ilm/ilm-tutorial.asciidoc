@@ -57,7 +57,7 @@ Note that this value is relative to the rollover time, not the index creation ti
 
 You can create the policy through {kib} Management or with the 
 <<ilm-put-lifecycle, put policy>> API. 
-To create the policy from {kib}, go to **Management > Elasticsearch > Index Lifecycle Policies**.
+To create the policy from {kib}, go to Management and click **Index Lifecycle Policies**.
 
 [role="screenshot"]
 image:images/ilm/create-policy.png[]
@@ -317,8 +317,8 @@ that match the index pattern.
 when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. 
-To access the wizard, go to **Management > Elasticsearch > Index Management**
-and select the Index Templates view. 
+To access the wizard, go to Management, click **Index Management**,
+and select the **Index Templates** view. 
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[]

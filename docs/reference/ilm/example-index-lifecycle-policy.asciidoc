@@ -64,7 +64,7 @@ is enabled automatically if you’re using the default `filebeat.yml` and index 
 
 To view the default policy in {kib}:
 
-. Go to Stack Management and select *Index Lifecycle Policies*.
+. Go to Management and select *Index Lifecycle Policies*.
 . Search for _filebeat_
 . Select the _filebeat-version_ policy.
 
@@ -82,31 +82,31 @@ The default policy is enough to prevent the creation of many tiny daily indices.
 You can modify the policy to meet more complex requirements.
 
 . Activate the warm phase.
-
 +
-. Set either of the following options to control when the index moves to the warm phase:
+--
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to add warm phase"]
 
-** Provide a value for *Timing for warm phase*. Setting this to *15* keeps the
+.. Set one of the following options to control when the index moves to the warm phase:
+
+*** Provide a value for *Timing for warm phase*. Setting this to *15* keeps the
 indices on hot nodes for a range of  15-45 days, depending on when the initial
 rollover occurred.
 
-** Enable *Move to warm phase on rollover*. The index might move to the warm phase
+*** Enable *Move to warm phase on rollover*. The index might move to the warm phase
 more quickly than intended if it reaches the *Maximum index size* before the
 the *Maximum age*.
 
-. In the *Select a node attribute to control shard allocation* dropdown, select
+.. In the *Select a node attribute to control shard allocation* dropdown, select
 *data:warm(2)* to migrate shards to warm data nodes.
 
-. Change *Number of replicas* to *1*.
+.. Change *Number of replicas* to *1*.
 
-. Enable *Force merge data* and set *Number of segments* to *1*.
-+
+.. Enable *Force merge data* and set *Number of segments* to *1*.
+
 NOTE:  When rollover is enabled in the hot phase, action timing in the other phases
 is based on the rollover date.
-
-+
-[role="screenshot"]
-image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to add warm phase"]
+--
 
 . Activate the delete phase and set *Timing for delete phase* to *90* days.
 +
@@ -121,62 +121,44 @@ custom policy.  For this option, you use {filebeat} daily indices without
 rollover.
 
 To create a custom policy:
-. Go to Stack Management and select *Index Lifecycle Policies*.
+
+. Go to Management and select *Index Lifecycle Policies*.
 . Click *Create policy*.
 . Activate the warm phase and configure it as follows:
 +
-|===
-|*Setting* |*Value*
+--
+**Timing for warm phase**: 30 days from index creation
 
-|Timing for warm phase
-|30 days from index creation
+**Node attribute**: `data:warm`
 
-|Node attribute
-|`data:warm`
+**Number of replicas**: 1
 
-|Number of replicas
-|1
+**Force merge data**: enable
 
-|Force merge data
-|enable
+**Number of segments**: 1
 
-|Number of segments
-|1
-|===
-
-+
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-custom-policy.png["Modify the custom policy to add a warm phase"]
+--
 
-
-+
-. Activate the delete phase and set the timing.
-+
-|===
-|*Setting* |*Value*
-|Timing for delete phase
-|90
-|===
-
+. Activate the delete phase and set the timing to 90 days.
 +
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-phase-creation.png["Delete phase"]
 
 To configure the index to use the new policy:
-. Go to Stack Management and select *Index Lifecycle Policies*.
+
+. Go to Management and select *Index Lifecycle Policies*.
 . Find your {ilm-init} policy and click its *Actions* link.
 . Choose *Add policy to index template*.
 . Select your {filebeat} index template name from the *Index template* list. For example, `filebeat-7.5.x`.
 . Click *Add Policy* to save the changes.
-
 +
 NOTE: If you initially used the default {filebeat} {ilm-init} policy, you will
 see a notice that the template already has a policy associated with it. Confirm
 that you want to overwrite that configuration.
 
-+
-+
-TIP: When you change the policy associated with the index template, the active
+When you change the policy associated with the index template, the active
 index will continue to use the policy it was associated with at index creation
 unless you manually update it. The next new index will use the updated policy.
 For more reasons that your {ilm-init} policy changes might be delayed, see

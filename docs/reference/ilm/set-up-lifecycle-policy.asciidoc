@@ -28,7 +28,7 @@ bootstrap an initial index.
 === Create lifecycle policy
 
 To create lifecycle policies through {kib} Management
-go to **Management > Elasticsearch > Index Lifecycle Policies**.
+go to Management and click **Index Lifecycle Policies**.
 
 [role="screenshot"]
 image:images/ilm/create-policy.png[]
@@ -77,12 +77,12 @@ you need to configure the policy in the index template used to create each new i
 You specify the name of the policy and the alias used to reference the rolling indices.
 
 To use the Create template wizard to create a template from {kib} Management,
-go to **Management > Elasticsearch > Index Management** and select the Index Templates view.
+go to Management, click **Index Management** and select the **Index Templates** view.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[]
 
-The <<indices-put-template,put template API>> is invoked to add templates to a cluster.
+The wizard invokes the <<indices-put-template,put template API>> to add templates to a cluster.
 
 .API example
 [%collapsible]
@@ -157,13 +157,16 @@ index exceeds 25GB.
 [[apply-policy-manually]]
 === Apply lifecycle policy manually
 
-When you apply a policy to an existing index through {kib} Management,
-or specify a policy when you create an index, 
-{ilm-init} immediately starts managing the index.
+You can specify a policy when you create an index or
+apply a policy to an existing index through {kib} Management or
+the <<indices-update-settings, update settings API>>. 
+When you apply a policy, {ilm-init} immediately starts managing the index.
 
 IMPORTANT: Do not manually apply a policy that uses the rollover action.
 Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
 Otherwise, the policy is not carried forward when the rollover action creates a new index.
+
+The `index.lifecycle.name` setting specifies an index's policy.
 
 .API example
 [%collapsible]

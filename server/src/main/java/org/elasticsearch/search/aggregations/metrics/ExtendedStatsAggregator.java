@@ -138,7 +138,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     double m2 = m2Array.get(bucket);
                     m2Calculator.reset(m2, originalCount, sum);
 
-
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
                         compensatedSum.add(value);
@@ -227,10 +226,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             return Double.NaN;
         }
         return m2 / count;
-        /*double sum = sums.get(owningBucketOrd);
-        long count = counts.get(owningBucketOrd);
-        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;*/
     }
 
     private double varianceSampling(long owningBucketOrd) {
@@ -241,10 +236,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             return Double.NaN;
         }
         return m2 / (count - 1);
-        /*double sum = sums.get(owningBucketOrd);
-        long count = counts.get(owningBucketOrd);
-        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;*/
     }
 
     @Override

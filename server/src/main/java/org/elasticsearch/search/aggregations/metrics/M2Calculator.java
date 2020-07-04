@@ -19,58 +19,55 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-
 public class M2Calculator {
 
     private static final double NO_CORRECTION = 0.0;
 
-    private double m2;
     private long count;
+    private double m2;
     private double mean;
 
     /**
-     * Used to calculate sums using the Welford's online algorithm.
+     * Used to calculate sums vairance using Welford's online algorithm.
+     * M2 aggregates the squared distance from the mean
      *
-     * @param m2 the M2
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm">
+     *         Welford's_online_algorithm</a>
      */
-    public M2Calculator(double m2, long count, double compensatedSum) {
+    public M2Calculator(double m2, long count, double sum) {
         this.m2 = m2;
         this.count = count;
-        this.mean = count > 0 ? compensatedSum/count : 0;
+        this.mean = count > 0 ? sum / count : 0;
     }
 
-    /**
-     * M2 value.
-     */
+
     public double value() {
         return m2;
     }
 
     /**
-     * Resets the internal state to use the new value and compensation delta
+     * Resets the internal state to use the new value
      */
-    public void reset(double value, long count, double compensatedSum) {
-        this.m2 = value;
+    public void reset(double m2, long count, double sum) {
+        this.m2 = m2;
         this.count = count;
-        this.mean = count > 0 ? compensatedSum/count : 0;
+        this.mean = count > 0 ? sum / count : 0;
     }
 
     public M2Calculator add(double newValue) {
         if (Double.isFinite(newValue) == false) {
             this.m2 = newValue + this.m2;
-        }
-
-        else {
+        } else {
             this.count = count + 1;
             double delta = newValue - this.mean;
-            this.mean += delta/count;
+            this.mean += delta / count;
             double delta2 = newValue - this.mean;
             this.m2 += delta * delta2;
         }
         return this;
 
     }
-
 
 }
 

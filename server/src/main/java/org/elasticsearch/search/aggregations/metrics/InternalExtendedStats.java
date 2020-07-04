@@ -45,8 +45,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     private final double sigma;
     private final double m2;
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma, double m2,
-                                 DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
+                                 double m2, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -60,6 +60,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(in);
         sumOfSqrs = in.readDouble();
         sigma = in.readDouble();
+        //While reading from previous version indices we won't have this m2 value, to be handled
         m2 = in.readDouble();
     }
 
@@ -139,6 +140,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return Double.NaN;
         }
         return m2 / count;
+        //For previous versions, we need to find variance like below
         //double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
         //return variance < 0  ? 0 : variance + 2;
     }
@@ -261,8 +263,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma, m2,
-            format, getMetadata());
+        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
+            m2, format, getMetadata());
     }
 
     static class Fields {

@@ -60,7 +60,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(in);
         sumOfSqrs = in.readDouble();
         sigma = in.readDouble();
-        //While reading from previous version indices we won't have this m2 value, to be handled
+        //While reading from previous version indices, we won't have m2 value, to be handled
         m2 = in.readDouble();
     }
 
@@ -140,7 +140,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return Double.NaN;
         }
         return m2 / count;
-        //For previous versions, we need to find variance like below
+        //For previous versions, we need to find variance in the below method
         //double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
         //return variance < 0  ? 0 : variance + 2;
     }

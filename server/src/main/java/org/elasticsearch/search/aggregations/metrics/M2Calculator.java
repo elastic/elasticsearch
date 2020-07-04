@@ -19,6 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+/**
+ * Used to calculate sums vairance using Welford's online algorithm.
+ * M2 aggregates the squared distance from the mean
+ *
+ *
+ * @see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm">
+ *         Welford's_online_algorithm</a>
+ */
 public class M2Calculator {
 
     private static final double NO_CORRECTION = 0.0;
@@ -27,14 +35,6 @@ public class M2Calculator {
     private double m2;
     private double mean;
 
-    /**
-     * Used to calculate sums vairance using Welford's online algorithm.
-     * M2 aggregates the squared distance from the mean
-     *
-     *
-     * @see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm">
-     *         Welford's_online_algorithm</a>
-     */
     public M2Calculator(double m2, long count, double sum) {
         this.m2 = m2;
         this.count = count;
@@ -66,7 +66,6 @@ public class M2Calculator {
             this.m2 += delta * delta2;
         }
         return this;
-
     }
 
 }

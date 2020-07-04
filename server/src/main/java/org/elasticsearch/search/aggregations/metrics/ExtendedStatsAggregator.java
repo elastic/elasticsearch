@@ -120,7 +120,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-
                     long originalCount = counts.get(bucket);
                     counts.increment(bucket, valuesCount);
                     double min = mins.get(bucket);
@@ -221,21 +220,13 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     private double variancePopulation(long owningBucketOrd) {
         double m2 =  m2Array.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
-
-        if(count < 1){
-            return Double.NaN;
-        }
-        return m2 / count;
+        return count < 1 ? 0d : m2 / count;
     }
 
     private double varianceSampling(long owningBucketOrd) {
         double m2 =  m2Array.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
-
-        if(count < 2){
-            return Double.NaN;
-        }
-        return m2 / (count - 1);
+        return count < 2 ? 0d: m2 / (count - 1);
     }
 
     @Override

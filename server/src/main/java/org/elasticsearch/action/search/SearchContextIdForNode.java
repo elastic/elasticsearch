@@ -20,9 +20,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
-final class SearchContextIdForNode {
+import java.io.IOException;
+
+final class SearchContextIdForNode implements Writeable {
     private final String node;
     private final ShardSearchContextId searchContextId;
     private final String clusterAlias;
@@ -31,6 +36,19 @@ final class SearchContextIdForNode {
         this.node = node;
         this.clusterAlias = clusterAlias;
         this.searchContextId = searchContextId;
+    }
+
+    SearchContextIdForNode(StreamInput in) throws IOException {
+        this.node = in.readString();
+        this.clusterAlias = in.readOptionalString();
+        this.searchContextId = new ShardSearchContextId(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(node);
+        out.writeOptionalString(clusterAlias);
+        searchContextId.writeTo(out);
     }
 
     public String getNode() {

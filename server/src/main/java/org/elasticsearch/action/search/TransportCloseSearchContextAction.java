@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -31,19 +32,22 @@ public class TransportCloseSearchContextAction extends HandledTransportAction<Cl
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     @Inject
     public TransportCloseSearchContextAction(TransportService transportService, ClusterService clusterService,
-                                             ActionFilters actionFilters, SearchTransportService searchTransportService) {
+                                             ActionFilters actionFilters, SearchTransportService searchTransportService,
+                                             NamedWriteableRegistry namedWriteableRegistry) {
         super(CloseSearchContextAction.NAME, transportService, actionFilters, CloseSearchContextRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
     protected void doExecute(Task task, CloseSearchContextRequest request, ActionListener<CloseSearchContextResponse> listener) {
         Runnable runnable = new ClearSearchContextController(
-            request, listener, clusterService.state().nodes(), logger, searchTransportService);
+            request, listener, clusterService.state().nodes(), logger, searchTransportService, namedWriteableRegistry);
         runnable.run();
     }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -103,12 +104,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
                                  SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                  ClusterService clusterService, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver, NamedWriteableRegistry namedWriteableRegistry) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
         this.searchPhaseController = searchPhaseController;
@@ -118,6 +120,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
@@ -218,7 +221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
             if (searchRequest.searchContextBuilder() != null) {
-                searchContext = SearchContextId.decode(searchRequest.searchContextBuilder().getId());
+                searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.searchContextBuilder().getId());
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
             } else {
                 searchContext = null;

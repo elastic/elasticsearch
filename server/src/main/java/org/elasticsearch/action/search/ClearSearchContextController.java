@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
@@ -69,12 +70,13 @@ final class ClearSearchContextController implements Runnable {
     }
 
     ClearSearchContextController(CloseSearchContextRequest closeSearchContextRequest, ActionListener<CloseSearchContextResponse> listener,
-                                 DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService) {
+                                 DiscoveryNodes nodes, Logger logger, SearchTransportService searchTransportService,
+                                 NamedWriteableRegistry namedWriteableRegistry) {
         this.nodes = nodes;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.listener = listener;
-        final SearchContextId context = SearchContextId.decode(closeSearchContextRequest.getId());
+        final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, closeSearchContextRequest.getId());
         expectedOps = new CountDown(context.shards().size());
         runner = () -> cleanReaderIds(context.shards().values());
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.M2Calculator;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.util.Map;
@@ -32,6 +33,8 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     private double min = Double.POSITIVE_INFINITY;
     private double max = Double.NEGATIVE_INFINITY;
     private double sumOfSqrs = 1;
+
+    private M2Calculator m2Calculator;
 
     ExtendedStatsBucketPipelineAggregator(String name, String[] bucketsPaths, double sigma, GapPolicy gapPolicy,
                                                     DocValueFormat formatter, Map<String, Object> metadata) {
@@ -46,6 +49,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         min = Double.POSITIVE_INFINITY;
         max = Double.NEGATIVE_INFINITY;
         sumOfSqrs = 0;
+        m2Calculator = new M2Calculator(0d, count, sum);
     }
 
     @Override
@@ -55,10 +59,12 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         max = Math.max(max, bucketValue);
         count += 1;
         sumOfSqrs += bucketValue * bucketValue;
+        m2Calculator.add(bucketValue);
     }
 
     @Override
     protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
-        return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, format, metadata);
+        return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma,
+            m2Calculator.value(), format, metadata);
     }
 }

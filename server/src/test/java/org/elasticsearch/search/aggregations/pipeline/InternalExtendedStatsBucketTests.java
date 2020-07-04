@@ -34,7 +34,8 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
                                                          double max, double sumOfSqrs,
                                                          double sigma, DocValueFormat formatter,
                                                          Map<String, Object> metadata) {
-        return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, formatter, metadata);
+        //need to handle tests
+        return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, 0d, formatter, metadata);
     }
 
     @Override

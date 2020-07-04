@@ -136,7 +136,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     compensatedSumOfSqr.reset(sumOfSqr, compensationOfSqr);
 
                     double m2 = m2Array.get(bucket);
-                    m2Calculator.reset(m2, originalCount, sumOfSqr);
+                    m2Calculator.reset(m2, originalCount, sum);
 
 
                     for (int i = 0; i < valuesCount; i++) {
@@ -253,13 +253,13 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             return buildEmptyAggregation();
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
-                mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
+                mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, m2Array.get(bucket), format,
                 metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, 0d, format, metadata());
     }
 
     @Override

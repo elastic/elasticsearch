@@ -24,7 +24,7 @@ public class M2Calculator {
 
     private static final double NO_CORRECTION = 0.0;
 
-    private double value;
+    private double m2;
     private long count;
     private double mean;
 
@@ -34,7 +34,7 @@ public class M2Calculator {
      * @param m2 the M2
      */
     public M2Calculator(double m2, long count, double compensatedSum) {
-        this.value = m2;
+        this.m2 = m2;
         this.count = count;
         this.mean = count > 0 ? compensatedSum/count : 0;
     }
@@ -43,29 +43,29 @@ public class M2Calculator {
      * M2 value.
      */
     public double value() {
-        return value;
+        return m2;
     }
 
     /**
      * Resets the internal state to use the new value and compensation delta
      */
     public void reset(double value, long count, double compensatedSum) {
-        this.value = value;
+        this.m2 = value;
         this.count = count;
         this.mean = count > 0 ? compensatedSum/count : 0;
     }
 
-    public M2Calculator add(double value) {
-        if (Double.isFinite(value) == false) {
-            this.value = value + this.value;
+    public M2Calculator add(double newValue) {
+        if (Double.isFinite(newValue) == false) {
+            this.m2 = newValue + this.m2;
         }
 
         else {
             this.count = count + 1;
-            double delta = value - this.mean;
+            double delta = newValue - this.mean;
             this.mean += delta/count;
-            double delta2 = value - this.mean;
-            this.value += delta * delta2;
+            double delta2 = newValue - this.mean;
+            this.m2 += delta * delta2;
         }
         return this;
 

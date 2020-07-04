@@ -43,12 +43,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     private final double sumOfSqrs;
     private final double sigma;
+    private final double m2;
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma, double m2,
                                  DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
+        this.m2 = m2;
     }
 
     /**
@@ -58,12 +60,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         super(in);
         sumOfSqrs = in.readDouble();
         sigma = in.readDouble();
+        m2 = in.readDouble();
     }
 
     @Override
     protected void writeOtherStatsTo(StreamOutput out) throws IOException {
         out.writeDouble(sumOfSqrs);
         out.writeDouble(sigma);
+        out.writeDouble(m2);
     }
 
     @Override
@@ -131,14 +135,22 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariancePopulation() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        if(count < 1){
+            return Double.NaN;
+        }
+        return m2 / count;
+        //double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
+        //return variance < 0  ? 0 : variance + 2;
     }
 
     @Override
     public double getVarianceSampling() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        if(count < 2){
+            return Double.NaN;
+        }
+        return m2 / (count - 1);
+        //double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+        //return variance < 0  ? 0 : variance;
     }
 
     @Override
@@ -249,7 +261,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
+        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma, m2,
             format, getMetadata());
     }
 

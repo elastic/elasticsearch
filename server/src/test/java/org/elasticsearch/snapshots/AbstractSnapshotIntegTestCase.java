@@ -21,12 +21,16 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,6 +43,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -274,6 +279,19 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(repoName, type, Settings.builder().put("location", location));
     }
 
+    protected void createRepository(String repoName, String type) {
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        if (rarely()) {
+            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        }
+        createRepository(repoName, type, settings);
+    }
+
+    protected static Settings.Builder indexSettingsZeroReplicas(int shards) {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+    }
+
     /**
      * Randomly write an empty snapshot of an older version to an empty repository to simulate an older repository metadata format.
      */
@@ -321,5 +339,31 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
+    }
+
+    protected void createIndexWithSomeData(String indexName, int docCount) throws InterruptedException {
+        createIndex(indexName);
+        ensureGreen();
+        indexSomeData(indexName, docCount);
+    }
+
+    protected void indexSomeData(String index, int numdocs) throws InterruptedException {
+        logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh(index);
+        assertDocCount(index, numdocs);
+    }
+
+    protected long getCountForIndex(String indexName) {
+        return client().search(new SearchRequest(new SearchRequest(indexName).source(
+            new SearchSourceBuilder().size(0).trackTotalHits(true)))).actionGet().getHits().getTotalHits().value;
+    }
+
+    protected void assertDocCount(String index, long count) {
+        assertEquals(getCountForIndex(index), count);
     }
 }

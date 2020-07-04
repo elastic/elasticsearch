@@ -49,6 +49,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -97,6 +98,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -1199,6 +1201,67 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testPendingConnectListeners() throws IOException, InterruptedException {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                final Settings settings = Settings.builder()
+                    .put(RemoteClusterConnection.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1).build();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, "test-cluster",
+                    seedNodes(seedNode), service, Integer.MAX_VALUE, n -> true, null, profile)) {
+                    ConnectionManager connectionManager = connection.getConnectionManager();
+                    CountDownLatch connectionOpenedLatch = new CountDownLatch(1);
+                    CountDownLatch connectionBlockedLatch = new CountDownLatch(1);
+                    connectionManager.addListener(new TransportConnectionListener() {
+                        @Override
+                        public void onConnectionOpened(Transport.Connection connection) {
+                            connectionOpenedLatch.countDown();
+                            try {
+                                connectionBlockedLatch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }
+                    });
+
+                    Thread thread = new Thread(() -> connection.ensureConnected(ActionListener.wrap(() -> {})));
+                    thread.start();
+                    connectionOpenedLatch.await();
+                    connection.ensureConnected(ActionListener.wrap(() -> {}));
+                    try {
+                        int pendingConnections = randomIntBetween(1, 5);
+                        for (int i = 0; i < pendingConnections; i++) {
+                            AtomicReference<Exception> error = new AtomicReference<>();
+                            connection.ensureConnected(new ActionListener<Void>() {
+                                @Override
+                                public void onResponse(Void aVoid) {
+
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    error.set(e);
+                                }
+                            });
+                            assertThat(error.get(), not(nullValue()));
+                            assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
+                        }
+                    } finally {
+                        connectionBlockedLatch.countDown();
+                        thread.join();
+                    }
                 }
             }
         }

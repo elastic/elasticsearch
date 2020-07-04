@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.TemplateScript;
@@ -22,7 +21,6 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
 
     private final ShapeRelation shapeRelation;
     private final GeometryParser parser;
-    private final GeoShapeIndexer decomposer;
 
     GeoMatchProcessor(
         String tag,
@@ -40,7 +38,6 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
         parser = new GeometryParser(true, true, true);
-        decomposer = new GeoShapeIndexer(true, "field");
     }
 
     /** used in tests **/
@@ -61,12 +58,11 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         this.shapeRelation = shapeRelation;
         // TODO: What to do with orientation?
         parser = new GeometryParser(true, true, true);
-        decomposer = new GeoShapeIndexer(true, "field");
     }
 
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
-        final Geometry queryGeometry = decomposer.prepareForIndexing(parser.parseGeometry(fieldValue));
+        final Geometry queryGeometry = parser.parseGeometry(fieldValue);
         GeoShapeQueryBuilder shapeQuery = new GeoShapeQueryBuilder(matchField, queryGeometry);
         shapeQuery.relation(shapeRelation);
         return shapeQuery;

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -33,6 +32,7 @@ import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecurityTestsUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1048,8 +1046,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        final Authentication authentication = SecurityT createApiKeyAuthentication(apiKeyService, Collections.singleton(new RoleDescriptor(
-                "user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)), null);
+        final Authentication authentication = SecurityTestsUtils.createApiKeyAuthentication(apiKeyService, createAuthentication(),
+                Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)), null);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
@@ -1093,7 +1091,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        final Authentication authentication = createApiKeyAuthentication(apiKeyService,
+        final Authentication authentication = SecurityTestsUtils.createApiKeyAuthentication(apiKeyService, createAuthentication(),
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
                 Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[]{"monitor"}, null, null)));
 

@@ -81,7 +81,7 @@ public final class LimitedRole extends Role {
     @Override
     public Automaton allowedActionsMatcher(String index) {
         final Automaton allowedMatcher = super.allowedActionsMatcher(index);
-        final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
+        final Automaton limitedByMatcher = limitedBy.allowedActionsMatcher(index);
         return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
 

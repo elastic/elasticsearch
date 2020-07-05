@@ -66,7 +66,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -319,8 +319,7 @@ public class ApiKeyService {
         }
     }
 
-    // public for test
-    public static Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
+    public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
         if (false == authResult.isAuthenticated()) {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }

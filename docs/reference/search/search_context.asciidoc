@@ -1,15 +1,16 @@
 [[search-context]]
 ==== Search Context
 
-By default, a search request executes against the latest point in time readers of the
-target indices. Sometimes it's more preferred to execute multiple search requests using
-the same point in time readers. For example, the combined result of the initial and
-subsequent search_after requests would be more consistent if they use the same point
-in time readers. This can be done by using a single search context for all search requests.
+A search request by default executes using the most recent searchers of the target indices.
+In some cases, it's preferred to perform multiple search requests using the same searchers.
+For example, if <<indices-refresh,refreshes>> happen between search_after requests,
+then the results of those requests might not be consistent as changes happening between
+searches are only visible to the more recent searchers. Search context is introduced to
+allow performing multiple search requests using the same searchers.
 
-A search context must be opened in a separate step before being used in subsequent
-search requests. The keep_alive parameter tells Elasticsearch how long it should keep
-the seach context alive, e.g. `?keep_alive=5m`.
+A search context must be opened explicitly before being used in search requests. The
+keep_alive parameter tells Elasticsearch how long it should keep the seach context alive,
+e.g. `?keep_alive=5m`.
 
 [source,console]
 --------------------------------------------------

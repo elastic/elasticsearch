@@ -89,7 +89,7 @@ public class SecurityTestsUtils {
                 userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
         Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
         PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
-        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id", new SecureString("secret".toCharArray())),
+        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id", new SecureString("pass".toCharArray())),
                 Clock.systemUTC(), authenticationResultFuture);
         return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
     }

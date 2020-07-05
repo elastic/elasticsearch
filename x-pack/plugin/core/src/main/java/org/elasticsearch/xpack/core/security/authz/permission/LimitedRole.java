@@ -29,7 +29,8 @@ import java.util.function.Predicate;
 public final class LimitedRole extends Role {
     private final Role limitedBy;
 
-    LimitedRole(ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs, Role limitedBy) {
+    LimitedRole(ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs,
+                Role limitedBy) {
         super(Objects.requireNonNull(limitedBy, "limiting role is required").names(), cluster, indices, application, runAs);
         this.limitedBy = limitedBy;
     }

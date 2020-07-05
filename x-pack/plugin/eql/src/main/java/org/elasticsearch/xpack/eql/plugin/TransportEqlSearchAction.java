@@ -115,7 +115,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
-            .implicitJoinKey(request.implicitJoinKeyField());
+            .implicitJoinKey(request.implicitJoinKeyField())
+            .fetchSize(request.fetchSize());
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
             includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);

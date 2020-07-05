@@ -68,22 +68,6 @@ setup:
               }
             ]
           }
-  - do:
-      catch: /\[inference_config\] required property is missing/
-      ingest.put_pipeline:
-        id: "regression-model-pipeline"
-        body:  >
-          {
-            "processors": [
-              {
-                "inference" : {
-                  "model_id" : "a-perfect-regression-model",
-                  "target_field": "regression_field",
-                  "field_map": {}
-                }
-              }
-            ]
-          }
 ---
 "Test create processor with deprecated fields":
   - skip:
@@ -124,7 +108,6 @@ setup:
               {
                 "inference" : {
                   "model_id" : "a-perfect-regression-model",
-                  "inference_config": {"regression": {}},
                   "target_field": "regression_field",
                   "field_map": {}
                 }
@@ -144,8 +127,7 @@ setup:
                 "inference" : {
                   "model_id" : "a-perfect-regression-model",
                   "inference_config": {"regression": {"results_field": "value"}},
-                  "target_field": "regression_field",
-                  "field_map": {}
+                  "target_field": "regression_field"
                 }
               }
             ]},

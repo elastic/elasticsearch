@@ -50,6 +50,7 @@ public class LimitedRoleTests extends ESTestCase {
         Role limitedByRole = Role.builder("limited-role").build();
         Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
         assertNotNull(role);
+        assertThat(role.names(), is(limitedByRole.names()));
 
         NullPointerException npe = expectThrows(NullPointerException.class, () -> LimitedRole.createLimitedRole(fromRole, null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));

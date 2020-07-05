@@ -162,7 +162,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.PseudoHuberMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -3573,7 +3573,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // Evaluation metrics // <4>
                     new MeanSquaredErrorMetric(), // <5>
                     new MeanSquaredLogarithmicErrorMetric(1.0), // <6>
-                    new PseudoHuberMetric(1.0), // <7>
+                    new HuberMetric(1.0), // <7>
                     new RSquaredMetric()); // <8>
             // end::evaluate-data-frame-evaluation-regression
 
@@ -3582,14 +3582,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::evaluate-data-frame-results-regression
             MeanSquaredErrorMetric.Result meanSquaredErrorResult = response.getMetricByName(MeanSquaredErrorMetric.NAME); // <1>
-            double meanSquaredError = meanSquaredErrorResult.getError(); // <2>
+            double meanSquaredError = meanSquaredErrorResult.getValue(); // <2>
 
             MeanSquaredLogarithmicErrorMetric.Result meanSquaredLogarithmicErrorResult =
                 response.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME); // <3>
-            double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getError(); // <4>
+            double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getValue(); // <4>
 
-            PseudoHuberMetric.Result pseudoHuberResult = response.getMetricByName(PseudoHuberMetric.NAME); // <5>
-            double pseudoHuber = pseudoHuberResult.getValue(); // <6>
+            HuberMetric.Result huberResult = response.getMetricByName(HuberMetric.NAME); // <5>
+            double huber = huberResult.getValue(); // <6>
 
             RSquaredMetric.Result rSquaredResult = response.getMetricByName(RSquaredMetric.NAME); // <7>
             double rSquared = rSquaredResult.getValue(); // <8>
@@ -3597,7 +3597,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertThat(meanSquaredError, closeTo(0.021, 1e-3));
             assertThat(meanSquaredLogarithmicError, closeTo(0.003, 1e-3));
-            assertThat(pseudoHuber, closeTo(0.01, 1e-3));
+            assertThat(huber, closeTo(0.01, 1e-3));
             assertThat(rSquared, closeTo(0.941, 1e-3));
         }
     }

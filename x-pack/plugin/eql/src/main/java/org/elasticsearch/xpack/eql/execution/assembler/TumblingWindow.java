@@ -143,14 +143,18 @@ public class TumblingWindow implements Executable {
 
         client.query(request, wrap(p -> {
             List<SearchHit> hits = p.values();
-            // no more results in this window so continue in another window
+            // no more results in this window
             if (hits.isEmpty()) {
-                log.info("Advancing window...");
-                advance(listener);
-                return;
+                // if there are no previous matches, the rest of the queries don't matter
+                if (matcher.hasCandidates(criterion.stage()) == false) {
+                    log.info("Advancing window...");
+                    advance(listener);
+                    return;
+                }
+                // otherwise let the other queries run
             }
             // if the limit has been reached, return what's available
-            if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+            else if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
                 listener.onResponse(payload());
                 return;
             }

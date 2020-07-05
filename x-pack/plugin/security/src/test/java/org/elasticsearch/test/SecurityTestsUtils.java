@@ -83,13 +83,14 @@ public class SecurityTestsUtils {
         assertAuthorizationException(securityException, messageMatcher);
     }
 
-    public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication userAuthentication) throws Exception {
-        XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", userAuthentication,
+    public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication authentication) throws Exception {
+        XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
                 Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), null, Version.CURRENT);
         Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
         PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
-        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id", new SecureString("secret".toCharArray())),
+        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id",
+                        new SecureString("secret".toCharArray())),
                 Clock.systemUTC(), authenticationResultFuture);
         return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
     }

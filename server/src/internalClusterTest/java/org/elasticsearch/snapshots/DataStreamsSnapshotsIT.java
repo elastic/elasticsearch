@@ -212,7 +212,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get());
 
         // delete data stream
-        client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).actionGet();
+        client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"ds"})).actionGet();
 
         // restore data stream attempting to rename the backing index
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()

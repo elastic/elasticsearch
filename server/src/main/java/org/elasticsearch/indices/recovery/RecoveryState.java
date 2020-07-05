@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -698,9 +699,41 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class Index extends Timer implements ToXContentFragment, Writeable {
-
+    public static class RecoveryFilesDetails {
         private final Map<String, File> fileDetails = new HashMap<>();
+
+        public File addFileDetails(String name, File file) {
+            return fileDetails.put(name, file);
+        }
+
+        public void addRecoveredBytesToFile(String name, long bytes) {
+            File file = fileDetails.get(name);
+            file.addRecoveredBytes(bytes);
+        }
+
+        public File get(String name) {
+            return fileDetails.get(name);
+        }
+
+        public int size() {
+            return fileDetails.size();
+        }
+
+        public boolean isEmpty() {
+            return fileDetails.isEmpty();
+        }
+
+        public void clear() {
+            fileDetails.clear();
+        }
+
+        public Collection<File> values() {
+            return fileDetails.values();
+        }
+    }
+
+    public static class Index extends Timer implements ToXContentFragment, Writeable {
+        private final RecoveryFilesDetails fileDetails = new RecoveryFilesDetails();
         private boolean fileDetailsComplete;
 
         public static final long UNKNOWN = -1L;
@@ -716,7 +749,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 File file = new File(in);
-                fileDetails.put(file.name, file);
+                fileDetails.addFileDetails(file.name, file);
             }
             if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 fileDetailsComplete = in.readBoolean();
@@ -761,7 +794,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void addFileDetail(String name, long length, boolean reused) {
             assert fileDetailsComplete == false : "addFileDetail for [" + name + "] when file details are already complete";
             File file = new File(name, length, reused);
-            File existing = fileDetails.put(name, file);
+            File existing = fileDetails.addFileDetails(name, file);
             assert existing == null : "file [" + name + "] is already reported";
         }
 
@@ -770,8 +803,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
-            File file = fileDetails.get(name);
-            file.addRecoveredBytes(bytes);
+            fileDetails.addRecoveredBytesToFile(name, bytes);
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {
@@ -817,7 +849,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             }
             return total;
         }
-
 
         /**
          * number of file that were recovered (excluding on ongoing files)

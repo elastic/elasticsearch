@@ -6,20 +6,12 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig.RESULTS_FIELD;
 
 /**
  * A config update that sets the results field only.
@@ -27,18 +19,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionC
  */
 public class ResultsFieldUpdate implements InferenceConfigUpdate {
 
-    public static final ParseField NAME = new ParseField("field_update");
-
-    private static final ConstructingObjectParser<ResultsFieldUpdate, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), args -> new ResultsFieldUpdate((String) args[0]));
-
-    static {
-        PARSER.declareString(constructorArg(), RESULTS_FIELD);
-    }
-
-    public static ResultsFieldUpdate fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
+    public static final String NAME = "field_update";
 
     private final String resultsField;
 
@@ -86,25 +67,12 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
-    }
-
-    @Override
-    public String getName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
-        builder.endObject();
-        return builder;
     }
 
     @Override

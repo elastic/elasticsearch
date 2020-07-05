@@ -30,6 +30,7 @@ import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable;
@@ -114,6 +115,11 @@ public class SFunction extends ANode {
      */
     public boolean isAutoReturnEnabled() {
         return isAutoReturnEnabled;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitFunction(this, input);
     }
 
     void buildClassScope(ScriptScope scriptScope) {

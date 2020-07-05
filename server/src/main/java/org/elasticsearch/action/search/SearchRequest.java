@@ -348,6 +348,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
      * Defaults to <code>true</code>.

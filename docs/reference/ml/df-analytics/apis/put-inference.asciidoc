@@ -27,7 +27,7 @@ experimental[]
 [[ml-put-inference-prereq]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `machine_learning_admin`
@@ -38,15 +38,15 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 [[ml-put-inference-desc]]
 ==== {api-description-title}
 
-The create {infer} trained model API enables you to supply a trained model that 
-is not created by {dfanalytics}. 
+The create {infer} trained model API enables you to supply a trained model that
+is not created by {dfanalytics}.
 
 
 [[ml-put-inference-path-params]]
 ==== {api-path-parms-title}
 
 `<model_id>`::
-(Required, string) 
+(Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [role="child_attributes"]
@@ -54,14 +54,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 ==== {api-request-body-title}
 
 `compressed_definition`::
-(Required, string) 
-The compressed (GZipped and Base64 encoded) {infer} definition of the model. 
+(Required, string)
+The compressed (GZipped and Base64 encoded) {infer} definition of the model.
 If `compressed_definition` is specified, then `definition` cannot be specified.
 
 //Begin definition
 `definition`::
-(Required, object) 
-The {infer} definition for the model. If `definition` is specified, then 
+(Required, object)
+The {infer} definition for the model. If `definition` is specified, then
 `compressed_definition` cannot be specified.
 +
 .Properties of `definition`
@@ -77,58 +77,58 @@ Collection of preprocessors. See <<ml-put-inference-preprocessor-example>>.
 =====
 //Begin frequency encoding
 `frequency_encoding`::
-(Required, object) 
+(Required, object)
 Defines a frequency encoding for a field.
 +
 .Properties of `frequency_encoding`
 [%collapsible%open]
 ======
 `feature_name`::
-(Required, string) 
+(Required, string)
 The name of the resulting feature.
 
 `field`::
-(Required, string) 
+(Required, string)
 The field name to encode.
 
 `frequency_map`::
-(Required, object map of string:double) 
+(Required, object map of string:double)
 Object that maps the field value to the frequency encoded value.
 ======
 //End frequency encoding
 
 //Begin one hot encoding
 `one_hot_encoding`::
-(Required, object) 
+(Required, object)
 Defines a one hot encoding map for a field.
 +
 .Properties of `one_hot_encoding`
 [%collapsible%open]
 ======
 `field`::
-(Required, string) 
+(Required, string)
 The field name to encode.
 
 `hot_map`::
-(Required, object map of strings) 
+(Required, object map of strings)
 String map of "field_value: one_hot_column_name".
 ======
 //End one hot encoding
 
 //Begin target mean encoding
 `target_mean_encoding`::
-(Required, object) 
+(Required, object)
 Defines a target mean encoding for a field.
 +
 .Properties of `target_mean_encoding`
 [%collapsible%open]
 ======
 `default_value`:::
-(Required, double) 
+(Required, double)
 The feature value if the field value is not in the `target_map`.
 
 `feature_name`:::
-(Required, string) 
+(Required, string)
 The name of the resulting feature.
 
 `field`:::
@@ -136,7 +136,7 @@ The name of the resulting feature.
 The field name to encode.
 
 `target_map`:::
-(Required, object map of string:double) 
+(Required, object map of string:double)
 Object that maps the field value to the target mean value.
 ======
 //End target mean encoding
@@ -145,7 +145,7 @@ Object that maps the field value to the target mean value.
 
 //Begin trained model
 `trained_model`::
-(Required, object) 
+(Required, object)
 The definition of the trained model.
 +
 .Properties of `trained_model`
@@ -153,14 +153,14 @@ The definition of the trained model.
 =====
 //Begin tree
 `tree`::
-(Required, object) 
+(Required, object)
 The definition for a binary decision tree.
 +
 .Properties of `tree`
 [%collapsible%open]
 ======
 `classification_labels`:::
-(Optional, string) An array of classification labels (used for 
+(Optional, string) An array of classification labels (used for
 `classification`).
 
 `feature_names`:::
@@ -168,26 +168,26 @@ The definition for a binary decision tree.
 Features expected by the tree, in their expected order.
 
 `target_type`:::
-(Required, string) 
+(Required, string)
 String indicating the model target type; `regression` or `classification`.
 
 `tree_structure`:::
-(Required, object) 
-An array of `tree_node` objects. The nodes must be in ordinal order by their 
+(Required, object)
+An array of `tree_node` objects. The nodes must be in ordinal order by their
 `tree_node.node_index` value.
 ======
 //End tree
 
 //Begin tree node
 `tree_node`::
-(Required, object) 
+(Required, object)
 The definition of a node in a tree.
 +
 --
 There are two major types of nodes: leaf nodes and not-leaf nodes.
 
 * Leaf nodes only need `node_index` and `leaf_value` defined.
-* All other nodes need `split_feature`, `left_child`, `right_child`, 
+* All other nodes need `split_feature`, `left_child`, `right_child`,
   `threshold`, `decision_type`, and `default_left` defined.
 --
 +
@@ -195,41 +195,41 @@ There are two major types of nodes: leaf nodes and not-leaf nodes.
 [%collapsible%open]
 ======
 `decision_type`::
-(Optional, string) 
-Indicates the positive value (in other words, when to choose the left node) 
+(Optional, string)
+Indicates the positive value (in other words, when to choose the left node)
 decision type. Supported `lt`, `lte`, `gt`, `gte`. Defaults to `lte`.
 
 `default_left`::
-(Optional, boolean) 
-Indicates whether to default to the left when the feature is missing. Defaults 
+(Optional, boolean)
+Indicates whether to default to the left when the feature is missing. Defaults
 to `true`.
 
 `leaf_value`::
-(Optional, double) 
-The leaf value of the of the node, if the value is a leaf (in other words, no 
+(Optional, double)
+The leaf value of the of the node, if the value is a leaf (in other words, no
 children).
 
 `left_child`::
-(Optional, integer) 
+(Optional, integer)
 The index of the left child.
 
 `node_index`::
-(Integer) 
+(Integer)
 The index of the current node.
 
 `right_child`::
-(Optional, integer) 
+(Optional, integer)
 The index of the right child.
 
 `split_feature`::
-(Optional, integer) 
+(Optional, integer)
 The index of the feature value in the feature array.
 
 `split_gain`::
 (Optional, double) The information gain from the split.
 
 `threshold`::
-(Optional, double) 
+(Optional, double)
 The decision threshold with which to compare the feature value.
 ======
 //End tree node
@@ -244,9 +244,9 @@ The definition for an ensemble model. See <<ml-put-inference-model-example>>.
 ======
 //Begin aggregate output
 `aggregate_output`::
-(Required, object) 
-An aggregated output object that defines how to aggregate the outputs of the 
-`trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and 
+(Required, object)
+An aggregated output object that defines how to aggregate the outputs of the
+`trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and
 `logistic_regression`. See <<ml-put-inference-aggregated-output-example>>.
 +
 .Properties of `aggregate_output`
@@ -254,65 +254,82 @@ An aggregated output object that defines how to aggregate the outputs of the
 =======
 //Begin logistic regression
 `logistic_regression`::
-(Optional, object) 
-This `aggregated_output` type works with binary classification (classification 
-for values [0, 1]). It multiplies the outputs (in the case of the `ensemble` 
-model, the inference model values) by the supplied `weights`. The resulting 
-vector is summed and passed to a 
-https://en.wikipedia.org/wiki/Sigmoid_function[`sigmoid` function]. The result 
-of the `sigmoid` function is considered the probability of class 1 (`P_1`), 
-consequently, the probability of class 0 is `1 - P_1`. The class with the 
-highest probability (either 0 or 1) is then returned. For more information about 
-logistic regression, see 
+(Optional, object)
+This `aggregated_output` type works with binary classification (classification
+for values [0, 1]). It multiplies the outputs (in the case of the `ensemble`
+model, the inference model values) by the supplied `weights`. The resulting
+vector is summed and passed to a
+https://en.wikipedia.org/wiki/Sigmoid_function[`sigmoid` function]. The result
+of the `sigmoid` function is considered the probability of class 1 (`P_1`),
+consequently, the probability of class 0 is `1 - P_1`. The class with the
+highest probability (either 0 or 1) is then returned. For more information about
+logistic regression, see
 https://en.wikipedia.org/wiki/Logistic_regression[this wiki article].
 +
 .Properties of `logistic_regression`
 [%collapsible%open]
 ========
 `weights`:::
-(Required, double) 
-The weights to multiply by the input values (the inference values of the trained 
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
 models).
 ========
 //End logistic regression
 
 //Begin weighted sum
 `weighted_sum`::
-(Optional, object) 
-This `aggregated_output` type works with regression. The weighted sum of the 
+(Optional, object)
+This `aggregated_output` type works with regression. The weighted sum of the
 input values.
 +
 .Properties of `weighted_sum`
 [%collapsible%open]
 ========
 `weights`:::
-(Required, double) 
-The weights to multiply by the input values (the inference values of the trained 
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
 models).
 ========
 //End weighted sum
 
 //Begin weighted mode
 `weighted_mode`::
-(Optional, object) 
-This `aggregated_output` type works with regression or classification. It takes 
-a weighted vote of the input values. The most common input value (taking the 
+(Optional, object)
+This `aggregated_output` type works with regression or classification. It takes
+a weighted vote of the input values. The most common input value (taking the
 weights into account) is returned.
 +
 .Properties of `weighted_mode`
 [%collapsible%open]
 ========
 `weights`:::
-(Required, double) 
-The weights to multiply by the input values (the inference values of the trained 
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
 models).
 ========
 //End weighted mode
+
+//Begin exponent
+`exponent`::
+(Optional, object)
+This `aggregated_output` type works with regression. It takes a weighted sum of
+the input values and passes the result to an exponent function
+(`e^x` where `x` is the sum of the weighted values).
++
+.Properties of `exponent`
+[%collapsible%open]
+========
+`weights`:::
+(Required, double)
+The weights to multiply by the input values (the inference values of the trained
+models).
+========
+//End exponent
 =======
 //End aggregate output
 
 `classification_labels`::
-(Optional, string) 
+(Optional, string)
 An array of classification labels.
 
 `feature_names`::
@@ -320,12 +337,12 @@ An array of classification labels.
 Features expected by the ensemble, in their expected order.
 
 `target_type`::
-(Required, string) 
+(Required, string)
 String indicating the model target type; `regression` or `classification.`
 
 `trained_models`::
 (Required, object)
-An array of `trained_model` objects. Supported trained models are `tree` and 
+An array of `trained_model` objects. Supported trained models are `tree` and
 `ensemble`.
 ======
 //End ensemble
@@ -337,7 +354,7 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 //End definition
 
 `description`::
-(Optional, string) 
+(Optional, string)
 A human-readable description of the {infer} trained model.
 
 //Begin inference_config
@@ -398,24 +415,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification
 
 //Begin input
 `input`::
-(Required, object) 
+(Required, object)
 The input field names for the model definition.
 +
 .Properties of `input`
 [%collapsible%open]
 ====
 `field_names`:::
-(Required, string) 
+(Required, string)
 An array of input field names for the model.
 ====
 //End input
 
 `metadata`::
-(Optional, object) 
+(Optional, object)
 An object map that contains metadata about the model.
 
 `tags`::
-(Optional, string) 
+(Optional, string)
 An array of tags to organize the model.
 
 
@@ -451,10 +468,10 @@ The next example shows a `one_hot_encoding` preprocessor object:
 
 [source,js]
 ----------------------------------
-{ 
-   "one_hot_encoding":{ 
+{
+   "one_hot_encoding":{
       "field":"FlightDelayType",
-      "hot_map":{ 
+      "hot_map":{
          "Carrier Delay":"FlightDelayType_Carrier Delay",
          "NAS Delay":"FlightDelayType_NAS Delay",
          "No Delay":"FlightDelayType_No Delay",
@@ -521,7 +538,7 @@ The first example shows a `trained_model` object:
             "left_child":1,
             "right_child":2
          },
-         ...         
+         ...
          {
             "node_index":9,
             "leaf_value":-27.68987349695448
@@ -615,8 +632,21 @@ Example of a `weighted_mode` object:
 //NOTCONSOLE
 
 
+Example of an `exponent` object:
+
+[source,js]
+----------------------------------
+"aggregate_output" : {
+  "exponent" : {
+    "weights" : [1.0, 1.0, 1.0, 1.0, 1.0]
+  }
+}
+----------------------------------
+//NOTCONSOLE
+
+
 [[ml-put-inference-json-schema]]
 ===== {infer-cap} JSON schema
 
-For the full JSON schema of model {infer}, 
+For the full JSON schema of model {infer},
 https://github.com/elastic/ml-json-schemas[click here].

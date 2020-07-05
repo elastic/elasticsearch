@@ -111,24 +111,27 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
                 final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
-                assertThat(inputStats.getCachedBytesWritten(), notNullValue());
-                assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
-                assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
-                assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
-                assertThat(
-                    inputStats.getCachedBytesWritten().max(),
-                    (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
-                );
-                assertThat(
-                    inputStats.getCachedBytesWritten().totalNanoseconds(),
-                    allOf(
-                        // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
-                        greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
+                // cache writes are executed in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertThat(inputStats.getCachedBytesWritten(), notNullValue());
+                    assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
+                    assertThat(inputStats.getCachedBytesWritten().count(), equalTo(cachedBytesWriteCount));
+                    assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
+                    assertThat(
+                        inputStats.getCachedBytesWritten().max(),
+                        (length < rangeSize.getBytes()) ? equalTo(length) : equalTo(rangeSize.getBytes())
+                    );
+                    assertThat(
+                        inputStats.getCachedBytesWritten().totalNanoseconds(),
+                        allOf(
+                            // each read takes at least FAKE_CLOCK_ADVANCE_NANOS time
+                            greaterThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount),
 
-                        // worst case: we start all reads before finishing any of them
-                        lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
-                    )
-                );
+                            // worst case: we start all reads before finishing any of them
+                            lessThanOrEqualTo(FAKE_CLOCK_ADVANCE_NANOS * cachedBytesWriteCount * cachedBytesWriteCount)
+                        )
+                    );
+                });
 
                 assertThat(inputStats.getCachedBytesRead(), notNullValue());
                 assertThat(inputStats.getCachedBytesRead().total(), greaterThanOrEqualTo(length));
@@ -145,7 +148,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                 assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });
@@ -336,15 +339,17 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     }
                 }
 
-                // cache file has been written in a single chunk
-                assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
-                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                // cache file has been written in a single chunk in a different thread pool and can take some time to be processed
+                assertBusy(() -> {
+                    assertCounter(inputStats.getCachedBytesWritten(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                });
 
                 assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
         });

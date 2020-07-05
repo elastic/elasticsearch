@@ -22,11 +22,12 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
 public abstract class IRNode {
 
-    /* begin node data */
+    /* ---- begin node data ---- */
 
     protected Location location;
 
@@ -38,7 +39,16 @@ public abstract class IRNode {
         return location;
     }
 
-    /* end node data */
+    /* ---- end node data, begin visitor ---- */
+
+    /**
+     * Callback to visit an ir tree node.
+     */
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        throw new UnsupportedOperationException("cannot visit ir node type [" + getClass().getCanonicalName() + "]");
+    }
+
+    /* ---- end visitor ---- */
 
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         throw new UnsupportedOperationException();

@@ -162,7 +162,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = bulkRequest.ramBytesUsed();
-        final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
+        final Releasable releasable = writeMemoryLimits.markWriteOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             doInternalExecute(task, bulkRequest, releasingListener);
@@ -721,7 +721,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, includeDataStreams);
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
+                    false, includeDataStreams);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

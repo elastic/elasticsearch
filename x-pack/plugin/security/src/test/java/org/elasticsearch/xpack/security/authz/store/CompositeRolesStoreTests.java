@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -1049,7 +1048,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        final Authentication authentication = createApiKeyAuthentication(apiKeyService, Collections.singleton(new RoleDescriptor(
+        final Authentication authentication = SecurityT createApiKeyAuthentication(apiKeyService, Collections.singleton(new RoleDescriptor(
                 "user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)), null);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -1200,17 +1199,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         return new Authentication(user, new RealmRef("authRealm", "test", "foo"), lookedUpBy,
                 Version.CURRENT, randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
-    }
-
-    private Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Set<RoleDescriptor> userRoles,
-                                                      List<RoleDescriptor> keyRoles) throws Exception {
-        XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", createAuthentication(),
-                userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
-        Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
-        PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
-        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id", new SecureString("secret".toCharArray())),
-                Clock.systemUTC(), authenticationResultFuture);
-        return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
     }
 
     private CompositeRolesStore buildCompositeRolesStore(Settings settings,

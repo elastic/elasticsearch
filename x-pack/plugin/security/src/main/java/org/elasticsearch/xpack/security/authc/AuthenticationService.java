@@ -346,7 +346,7 @@ public class AuthenticationService {
         private void checkForApiKey() {
             apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated()) {
-                        final Authentication authentication = createApiKeyAuthentication(authResult, nodeName);
+                        final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
                         this.authenticatedBy = authentication.getAuthenticatedBy();
                         writeAuthToContext(authentication);
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
@@ -698,17 +698,6 @@ public class AuthenticationService {
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
         }
-    }
-
-    // public for test
-    public static Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
-        if (false == authResult.isAuthenticated()) {
-            throw new IllegalArgumentException("API Key authn result must be successful");
-        }
-        final User user = authResult.getUser();
-        final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
-        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
-                authResult.getMetadata());
     }
 
     abstract static class AuditableRequest {

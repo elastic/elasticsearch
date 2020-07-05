@@ -54,8 +54,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.SecurityTestsUtils.createApiKeyAuthentication;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

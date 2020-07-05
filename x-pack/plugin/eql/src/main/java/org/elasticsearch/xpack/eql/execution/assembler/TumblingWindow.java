@@ -158,13 +158,16 @@ public class TumblingWindow implements Executable {
                 }
                 // otherwise let the other queries run to allow potential matches with the existing candidates
             }
-            // if the limit has been reached, return what's available
-            else if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
-                listener.onResponse(payload());
-                return;
+            else {
+                // prepare the query for the next search
+                request.nextAfter(criterion.ordinal(hits.get(hits.size() - 1)));
+
+                // if the limit has been reached, return what's available
+                if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+                    listener.onResponse(payload());
+                    return;
+                }
             }
-            // prepare the query for the next search
-            request.nextAfter(criterion.ordinal(hits.get(hits.size() - 1)));
 
             // keep running the query runs out of the results (essentially returns less than what we want)
             if (hits.size() == windowSize) {

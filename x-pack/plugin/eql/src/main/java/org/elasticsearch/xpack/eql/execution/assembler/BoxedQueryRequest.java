@@ -44,23 +44,25 @@ public class BoxedQueryRequest implements QueryRequest {
     }
 
     @Override
-    public void next(Ordinal ordinal) {
-        // reset existing constraints
-        timestampRange.gte(null).lte(null);
+    public void nextAfter(Ordinal ordinal) {
         if (tiebreakerRange != null) {
-            tiebreakerRange.gte(null).lte(null);
+            tiebreakerRange.gt(ordinal.tiebreaker());
+            timestampRange.gte(ordinal.timestamp());
+        } else {
+            timestampRange.gt(ordinal.timestamp());
         }
         // and leave only search_after
         searchSource.searchAfter(ordinal.toArray());
     }
 
-    public BoxedQueryRequest between(Ordinal begin, Ordinal end) {
-        timestampRange.gte(begin.timestamp()).lte(end.timestamp());
-
+    /**
+     * Sets the upper boundary for the query. Can be removed (when the query in unbounded) through null.
+     */
+    public BoxedQueryRequest until(Ordinal end) {
+        timestampRange.lte(end != null ? end.timestamp() : null);
         if (tiebreakerRange != null) {
-            tiebreakerRange.gte(begin.tiebreaker()).lte(end.tiebreaker());
+            tiebreakerRange.lte(end != null ? end.tiebreaker() : null);
         }
-
         return this;
     }
 

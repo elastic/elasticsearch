@@ -1,5 +1,5 @@
 [[get-snapshot-api]]
-==== Get snapshot API
+=== Get snapshot API
 ++++
 <titleabbrev>Get snapshot</titleabbrev>
 ++++
@@ -37,7 +37,7 @@ GET /_snapshot/my_repository/my_snapshot
 [[get-snapshot-api-desc]]
 ==== {api-description-title}
 
-Use the get snapshot API to return information about a snapshot, including start and end time, version of {es} that created the snapshot, the list of included indices, the current state of the snapshot, and the list of failures that occurred during the snapshot.
+Use the get snapshot API to return information about one or more snapshots, including start and end time, version of {es} that created the snapshot, the list of included indices, the current state of the snapshot, and the list of failures that occurred during the snapshot.
 
 [[get-snapshot-api-path-params]]
 ==== {api-path-parms-title}
@@ -54,7 +54,8 @@ cluster, omit this parameter or use `*` or `_all`.
 (Required, string)
 Comma-separated list of snapshot names to return. Also accepts wildcards (`*`).
 +
-To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
+* To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
+* To get information about any snapshots that are currently running, omit this parameter and use `_current`.
 +
 NOTE: Using `_all` in a request fails if any snapshots are unavailable. Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
@@ -65,7 +66,7 @@ NOTE: Using `_all` in a request fails if any snapshots are unavailable. Set <<ge
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::
 (Optional, boolean)
-If `false`, the request returns an error for any snapshot that are unavailable. Defaults to `false`.
+If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
 +
 If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
 
@@ -73,7 +74,7 @@ If `true`, the request ignores snapshots that are unavailable, such as those tha
 (Optional, boolean)
 If `true`, returns all available information about a snapshot. Defaults to `true`.
 +
-If `false`, omits additional information about the snapshot, such as status information and the number of snapshotted shards.
+If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
 
 [[get-snapshot-api-example]]
 ==== {api-examples-title}
@@ -87,6 +88,7 @@ GET _snapshot/my_repository/snapshot_2
 
 The API returns the following response:
 
+[source,console-result]
 ----
 {
   "snapshot": {
@@ -124,3 +126,24 @@ The API returns the following response:
 // TESTRESPONSE[s/"end_time": "2020-06-25T14:00:28.850Z"/"end_time": $body.snapshot.end_time/]
 // TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshot.end_time_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshot.duration_in_millis/]
+
+The snapshot `state` can be one of the following values:
+
+[horizontal]
+`IN_PROGRESS`::
+  The snapshot is currently running.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
+
+`FAILED`::
+  The snapshot finished with an error and failed to store any data.
+
+`PARTIAL`::
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The `failures` section of the response contains more detailed information about shards
+  that were not processed correctly.
+
+`INCOMPATIBLE`::
+  The snapshot was created with an old version of {es} and is incompatible with
+  the current version of the cluster.

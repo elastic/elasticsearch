@@ -301,7 +301,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (oss == false) {
           into('tools/security-cli') {
             from { project(':x-pack:plugin:security:cli').jar }
-            from { project(':x-pack:plugin:security:cli').configurations.compileClasspath }
+            from { project(':x-pack:plugin:security:cli').configurations.runtimeClasspath }
           }
         }
       }

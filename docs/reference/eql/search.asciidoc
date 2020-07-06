@@ -37,8 +37,8 @@ PUT /sec_logs/_bulk?refresh
 [TIP]
 =====
 You also can set up {beats-ref}/getting-started.html[{beats}], such as
-{auditbeat-ref}/auditbeat-getting-started.html[{auditbeat}] or
-{winlogbeat-ref}/winlogbeat-getting-started.html[{winlogbeat}], to automatically
+{auditbeat-ref}/auditbeat-installation-configuration.html[{auditbeat}] or
+{winlogbeat-ref}/winlogbeat-installation-configuration.html[{winlogbeat}], to automatically
 send and index your event data in {es}. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
 =====

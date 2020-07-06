@@ -27,6 +27,7 @@ import org.elasticsearch.painless.ir.ComparisonNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -62,6 +63,11 @@ public class EComp extends AExpression {
 
     public Operation getOperation() {
         return operation;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitComp(this, input);
     }
 
     @Override

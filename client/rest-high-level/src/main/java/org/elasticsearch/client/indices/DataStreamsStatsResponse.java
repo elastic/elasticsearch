@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -51,12 +52,13 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
     private static final ParseField DATA_STREAM_COUNT = new ParseField("data_stream_count");
     private static final ParseField BACKING_INDICES = new ParseField("backing_indices");
-    private static final ParseField TOTAL_STORE_SIZE = new ParseField("total_store_size");
+    private static final ParseField TOTAL_STORE_SIZE_BYTES = new ParseField("total_store_size_bytes");
     private static final ParseField DATA_STREAMS = new ParseField("data_streams");
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
-    private static final ParseField STORE_SIZE = new ParseField("store_size");
+    private static final ParseField STORE_SIZE_BYTES = new ParseField("store_size_bytes");
     private static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamsStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
         "data_streams_stats", true, arg -> {
         Shards shards = (Shards) arg[0];
@@ -64,7 +66,7 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
         Integer backingIndices = ((Integer) arg[2]);
         ByteSizeValue totalStoreSize = ((ByteSizeValue) arg[3]);
         Map<String, DataStreamStats> dataStreams = new HashMap<>();
-        for (DataStreamStats dataStreamStats : ((DataStreamStats[]) arg[4])) {
+        for (DataStreamStats dataStreamStats : ((List<DataStreamStats>) arg[4])) {
             dataStreams.put(dataStreamStats.dataStream, dataStreamStats);
         }
         return new DataStreamsStatsResponse(shards, dataStreamCount, backingIndices, totalStoreSize, dataStreams);
@@ -75,7 +77,7 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
         String dataStream = ((String) arg[0]);
         Integer backingIndices = ((Integer) arg[1]);
         ByteSizeValue storeSize = ((ByteSizeValue) arg[2]);
-        Long maximumTimestamp = ((Long) arg[4]);
+        Long maximumTimestamp = ((Long) arg[3]);
         return new DataStreamStats(dataStream, backingIndices, storeSize, maximumTimestamp);
     });
 
@@ -83,13 +85,13 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
         declareShardsField(PARSER);
         PARSER.declareInt(constructorArg(), DATA_STREAM_COUNT);
         PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        PARSER.declareField(constructorArg(), (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), TOTAL_STORE_SIZE.getPreferredName()),
-            TOTAL_STORE_SIZE, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), TOTAL_STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE);
         PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, DATA_STREAMS);
         ENTRY_PARSER.declareString(constructorArg(), DATA_STREAM);
         ENTRY_PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        ENTRY_PARSER.declareField(constructorArg(), (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), STORE_SIZE.getPreferredName()),
-            STORE_SIZE, ObjectParser.ValueType.VALUE);
+        ENTRY_PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE);
         ENTRY_PARSER.declareLong(constructorArg(), MAXIMUM_TIMESTAMP);
     }
 

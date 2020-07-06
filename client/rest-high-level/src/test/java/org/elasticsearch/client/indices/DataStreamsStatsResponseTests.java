@@ -61,7 +61,8 @@ public class DataStreamsStatsResponseTests extends AbstractResponseTestCase<Data
         int failedShards = totalShards - successfulShards;
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
         for (int i = 0; i < failedShards; i++) {
-            exceptions.add(new DefaultShardOperationFailedException(new ElasticsearchException("boom")));
+            exceptions.add(new DefaultShardOperationFailedException(randomAlphaOfLength(8).toLowerCase(Locale.getDefault()),
+                randomInt(totalShards), new ElasticsearchException("boom")));
         }
         return new DataStreamsStatsAction.Response(totalShards, successfulShards, failedShards, exceptions,
             dataStreamCount, backingIndicesTotal, new ByteSizeValue(totalStoreSize),

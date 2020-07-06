@@ -110,6 +110,7 @@ public abstract class AggregationBuilder
      */
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 
+    @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);

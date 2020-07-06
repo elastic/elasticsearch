@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -60,9 +61,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService) {
+                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
         return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService));
+                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, clusterService,
+                    recoverySettings));
     }
 
     @Override

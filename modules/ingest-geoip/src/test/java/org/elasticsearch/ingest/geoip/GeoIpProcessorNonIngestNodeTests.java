@@ -33,6 +33,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.StreamsUtils;
 
 import java.io.ByteArrayInputStream;
@@ -45,6 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -82,7 +84,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         }
         return Settings.builder()
                 .put("ingest.geoip.database_path", databasePath)
-                .put("node.ingest", false)
+                .put(nonIngestNode())
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
@@ -145,7 +147,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 
         // start an ingest node
-        final String ingestNode = internalCluster().startNode(Settings.builder().put("node.ingest", true).build());
+        final String ingestNode = internalCluster().startNode(NodeRoles.ingestNode());
         internalCluster().getInstance(IngestService.class, ingestNode);
         // the geo-IP database should not be loaded yet as we have no indexed any documents using a pipeline that has a geo-IP processor
         assertDatabaseLoadStatus(ingestNode, false);

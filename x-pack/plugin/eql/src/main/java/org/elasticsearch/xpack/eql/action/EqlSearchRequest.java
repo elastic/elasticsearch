@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,6 +39,9 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false,
         false, true, false);
@@ -51,6 +56,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String query;
     private boolean isCaseSensitive = false;
 
+    // Async settings
+    private TimeValue waitForCompletionTimeout = null;
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    private boolean keepOnCompletion;
+
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
@@ -59,6 +69,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_SIZE = "size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
+    static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
+    static final String KEY_KEEP_ALIVE = "keep_alive";
+    static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
     static final String KEY_CASE_SENSITIVE = "case_sensitive";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
@@ -69,6 +82,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField SIZE = new ParseField(KEY_SIZE);
     static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
     static final ParseField QUERY = new ParseField(KEY_QUERY);
+    static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
+    static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
+    static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
     static final ParseField CASE_SENSITIVE = new ParseField(KEY_CASE_SENSITIVE);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
@@ -89,6 +105,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         fetchSize = in.readVInt();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         query = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            this.waitForCompletionTimeout = in.readOptionalTimeValue();
+            this.keepAlive = in.readOptionalTimeValue();
+            this.keepOnCompletion = in.readBoolean();
+        }
         isCaseSensitive = in.readBoolean();
     }
 
@@ -131,6 +152,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("size must be greater than 0", validationException);
         }
 
+        if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException =
+                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+        }
+
         return validationException;
     }
 
@@ -154,6 +180,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
 
         builder.field(KEY_QUERY, query);
+        if (waitForCompletionTimeout != null) {
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+        }
+        if (keepAlive != null) {
+            builder.field(KEY_KEEP_ALIVE, keepAlive);
+        }
+        builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.field(KEY_CASE_SENSITIVE, isCaseSensitive);
 
         return builder;
@@ -175,6 +208,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
             ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareString(EqlSearchRequest::query, QUERY);
+        parser.declareField(EqlSearchRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT), WAIT_FOR_COMPLETION_TIMEOUT,
+            ObjectParser.ValueType.VALUE);
+        parser.declareField(EqlSearchRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
+        parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
         return parser;
     }
@@ -251,6 +290,33 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public EqlSearchRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public EqlSearchRequest keepOnCompletion(boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+        return this;
+    }
+
     public boolean isCaseSensitive() { return this.isCaseSensitive; }
 
     public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
@@ -271,6 +337,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(fetchSize);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(query);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
+            out.writeOptionalTimeValue(waitForCompletionTimeout);
+            out.writeOptionalTimeValue(keepAlive);
+            out.writeBoolean(keepOnCompletion);
+        }
         out.writeBoolean(isCaseSensitive);
     }
 
@@ -293,6 +364,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+                Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(isCaseSensitive, that.isCaseSensitive);
     }
 
@@ -309,6 +382,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             implicitJoinKeyField,
             searchAfterBuilder,
             query,
+            waitForCompletionTimeout,
+            keepAlive,
             isCaseSensitive);
     }
 
@@ -329,13 +404,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new EqlSearchTask(id, type, action, () -> {
-            StringBuilder sb = new StringBuilder();
-            sb.append("indices[");
-            Strings.arrayToDelimitedString(indices, ",", sb);
-            sb.append("], ");
-            sb.append(query);
-            return sb.toString();
-        }, parentTaskId, headers);
+        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
+    }
+
+    @Override
+    public String getDescription() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("indices[");
+        Strings.arrayToDelimitedString(indices, ",", sb);
+        sb.append("], ");
+        sb.append(query);
+        return sb.toString();
     }
 }

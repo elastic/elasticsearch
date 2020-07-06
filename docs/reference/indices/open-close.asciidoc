@@ -4,7 +4,8 @@
 <titleabbrev>Open index</titleabbrev>
 ++++
 
-Opens a closed index.
+Opens a closed index. For data streams, the API
+opens any closed backing indices.
 
 [source,console]
 --------------------------------------------------
@@ -17,13 +18,14 @@ POST /twitter/_open
 [[open-index-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_open`
+`POST /<target>/_open`
 
 
 [[open-index-api-desc]]
 ==== {api-description-title}
 
-You use the open index API to re-open closed indices.
+You can use the open index API to re-open closed indices. If the request targets
+a data stream, the request re-opens any of the stream's closed backing indices.
 
 // tag::closed-index[]
 
@@ -61,22 +63,33 @@ the current write index, the data stream must first be
 <<rollover-data-stream-ex,rolled over>> so that a new write index is created
 and then the previous write index can be closed.
 
+// end::closed-index[]
+
+[[open-index-api-wait-for-active-shards]]
 ===== Wait For active shards
+
+// tag::wait-for-active-shards[]
 
 Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the `_open` and `_close` index actions as well.
 
-// end::closed-index[]
+// end::wait-for-active-shards[]
+
+
 
 
 [[open-index-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard (`*`) expressions are supported.
 +
-To open all indices, use `_all` or `*`.
-To disallow the opening of indices with `_all` or wildcard expressions,
+To target all data streams and indices, use `_all` or `*`.
++
+To disallow use of `_all` or wildcard expressions,
 change the `action.destructive_requires_name` cluster setting to `true`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
@@ -103,7 +116,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[open-index-api-example]]
 ==== {api-examples-title}
 
-A closed index can be re-opened like this:
+The following request re-opens a closed index named `my_index`.
 
 [source,console]
 --------------------------------------------------

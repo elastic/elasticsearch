@@ -120,10 +120,8 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testBlendTerms() {
-        FakeFieldType ft1 = new FakeFieldType();
-        ft1.setName("foo");
-        FakeFieldType ft2 = new FakeFieldType();
-        ft2.setName("bar");
+        FakeFieldType ft1 = new FakeFieldType("foo");
+        FakeFieldType ft2 = new FakeFieldType("bar");
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {2, 3};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
@@ -134,11 +132,9 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testBlendTermsWithFieldBoosts() {
-        FakeFieldType ft1 = new FakeFieldType();
-        ft1.setName("foo");
+        FakeFieldType ft1 = new FakeFieldType("foo");
         ft1.setBoost(100);
-        FakeFieldType ft2 = new FakeFieldType();
-        ft2.setName("bar");
+        FakeFieldType ft2 = new FakeFieldType("bar");
         ft2.setBoost(10);
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {200, 30};
@@ -150,15 +146,13 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testBlendTermsUnsupportedValueWithLenient() {
-        FakeFieldType ft1 = new FakeFieldType();
-        ft1.setName("foo");
-        FakeFieldType ft2 = new FakeFieldType() {
+        FakeFieldType ft1 = new FakeFieldType("foo");
+        FakeFieldType ft2 = new FakeFieldType("bar") {
             @Override
             public Query termQuery(Object value, QueryShardContext context) {
                 throw new IllegalArgumentException();
             }
         };
-        ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
         Query expected = new DisjunctionMaxQuery(Arrays.asList(
@@ -172,28 +166,25 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testBlendTermsUnsupportedValueWithoutLenient() {
-        FakeFieldType ft = new FakeFieldType() {
+        FakeFieldType ft = new FakeFieldType("bar") {
             @Override
             public Query termQuery(Object value, QueryShardContext context) {
                 throw new IllegalArgumentException();
             }
         };
-        ft.setName("bar");
         expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
             indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
             new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft, 1))));
     }
 
     public void testBlendNoTermQuery() {
-        FakeFieldType ft1 = new FakeFieldType();
-        ft1.setName("foo");
-        FakeFieldType ft2 = new FakeFieldType() {
+        FakeFieldType ft1 = new FakeFieldType("foo");
+        FakeFieldType ft2 = new FakeFieldType("bar") {
             @Override
             public Query termQuery(Object value, QueryShardContext context) {
                 return new MatchAllDocsQuery();
             }
         };
-        ft2.setName("bar");
         Term[] terms = new Term[] { new Term("foo", "baz") };
         float[] boosts = new float[] {2};
         Query expectedDisjunct1 = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);

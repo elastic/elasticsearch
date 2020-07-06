@@ -6,14 +6,14 @@ apply plugin: 'elasticsearch.rest-test'
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk'
+    includeCore '_common', 'bulk', 'indices'
     includeXpack 'eql'
   }
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('eql'), configuration: 'runtime')
-  testImplementation project(path: xpackModule('eql:qa:common'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('eql:qa:common'))
 }
 
 testClusters.integTest {

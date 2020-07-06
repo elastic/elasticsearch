@@ -133,12 +133,12 @@ public class GetSettingsActionTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -106,7 +107,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalAvg> verify) throws IOException {
-        testCase(avg("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType(FIELD_NAME));
+        testCase(avg("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
@@ -147,9 +148,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
         return new AvgAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType(String fieldName) {
-        MappedFieldType fieldType = new HistogramFieldMapper.Builder("field").fieldType();
-        fieldType.setName("field");
-        return fieldType;
+    private MappedFieldType defaultFieldType() {
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedAvgAggregatorTests.FIELD_NAME, true, Collections.emptyMap());
     }
 }

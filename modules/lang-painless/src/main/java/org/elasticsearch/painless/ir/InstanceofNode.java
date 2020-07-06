@@ -22,7 +22,8 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Type;
 
 public class InstanceofNode extends UnaryNode {
@@ -65,11 +66,18 @@ public class InstanceofNode extends UnaryNode {
         return isPrimitiveResult;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        getChildNode().write(classWriter, methodWriter, scopeTable);
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitInstanceof(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        getChildNode().write(classWriter, methodWriter, writeScope);
 
         // primitive types
         if (isPrimitiveResult) {

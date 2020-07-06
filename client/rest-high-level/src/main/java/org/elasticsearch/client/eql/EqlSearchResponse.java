@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -32,43 +33,56 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class EqlSearchResponse {
 
     private final Hits hits;
     private final long tookInMillis;
     private final boolean isTimeout;
+    private final String asyncExecutionId;
+    private final boolean isRunning;
+    private final boolean isPartial;
 
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
         static final String HITS = "hits";
+        static final String ID = "id";
+        static final String IS_RUNNING = "is_running";
+        static final String IS_PARTIAL = "is_partial";
     }
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
     private static final ParseField HITS = new ParseField(Fields.HITS);
+    private static final ParseField ID = new ParseField(Fields.ID);
+    private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
+    private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
 
-    private static final ConstructingObjectParser<EqlSearchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("eql/search_response", true,
-            args -> {
-                int i = 0;
-                Hits hits = (Hits) args[i++];
-                Long took = (Long) args[i++];
-                Boolean timeout = (Boolean) args[i];
-                return new EqlSearchResponse(hits, took, timeout);
-            });
-
+    private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOOK);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), TIMED_OUT);
+        InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser =
+            InstantiatingObjectParser.builder("eql/search_response", true, EqlSearchResponse.class);
+        parser.declareObject(constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
+        parser.declareLong(constructorArg(), TOOK);
+        parser.declareBoolean(constructorArg(), TIMED_OUT);
+        parser.declareString(optionalConstructorArg(), ID);
+        parser.declareBoolean(constructorArg(), IS_RUNNING);
+        parser.declareBoolean(constructorArg(), IS_PARTIAL);
+        PARSER = parser.build();
     }
 
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout) {
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, String asyncExecutionId,
+                             boolean isRunning, boolean isPartial) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
         this.tookInMillis = tookInMillis;
         this.isTimeout = isTimeout;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isRunning = isRunning;
+        this.isPartial = isPartial;
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -85,6 +99,18 @@ public class EqlSearchResponse {
 
     public Hits hits() {
         return hits;
+    }
+
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public boolean isPartial() {
+        return isPartial;
     }
 
     @Override

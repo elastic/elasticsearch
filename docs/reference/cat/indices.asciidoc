@@ -4,13 +4,14 @@
 <titleabbrev>cat indices</titleabbrev>
 ++++
 
-Returns high-level information about indices in a cluster.
+Returns high-level information about indices in a cluster, including backing
+indices for data streams.
 
 
 [[cat-indices-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/indices/<index>`
+`GET /_cat/indices/<target>`
 
 `GET /_cat/indices`
 
@@ -39,8 +40,13 @@ To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
 [[cat-indices-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[cat-indices-api-query-params]]
 ==== {api-query-parms-title}

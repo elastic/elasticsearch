@@ -22,8 +22,9 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Opcodes;
 
 public class DeclarationNode extends StatementNode {
@@ -44,7 +45,6 @@ public class DeclarationNode extends StatementNode {
 
     protected String name;
     protected Class<?> declarationType;
-    protected boolean requiresDefault;
 
     public void setName(String name) {
         this.name = name;
@@ -66,41 +66,38 @@ public class DeclarationNode extends StatementNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
     }
 
-    public void setRequiresDefault(boolean requiresDefault) {
-        this.requiresDefault = requiresDefault;
-    }
-
-    public boolean requiresDefault() {
-        return requiresDefault;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitDeclaration(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeStatementOffset(location);
 
-        Variable variable = scopeTable.defineVariable(declarationType, name);
+        Variable variable = writeScope.defineVariable(declarationType, name);
 
         if (expressionNode == null) {
-            if (requiresDefault) {
-                Class<?> sort = variable.getType();
+            Class<?> sort = variable.getType();
 
-                if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                        sort == short.class || sort == char.class || sort == int.class) {
-                    methodWriter.push(0);
-                } else if (sort == long.class) {
-                    methodWriter.push(0L);
-                } else if (sort == float.class) {
-                    methodWriter.push(0F);
-                } else if (sort == double.class) {
-                    methodWriter.push(0D);
-                } else {
-                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
-                }
+            if (sort == void.class || sort == boolean.class || sort == byte.class ||
+                    sort == short.class || sort == char.class || sort == int.class) {
+                methodWriter.push(0);
+            } else if (sort == long.class) {
+                methodWriter.push(0L);
+            } else if (sort == float.class) {
+                methodWriter.push(0F);
+            } else if (sort == double.class) {
+                methodWriter.push(0D);
+            } else {
+                methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expressionNode.write(classWriter, methodWriter, scopeTable);
+            expressionNode.write(classWriter, methodWriter, writeScope);
         }
 
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());

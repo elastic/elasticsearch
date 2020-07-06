@@ -22,7 +22,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -70,6 +70,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             builder = this;
         }
 
+        // TODO we should ban setting 'index' on constant keyword
+
         public Builder setValue(String value) {
             this.value = value;
             return this;
@@ -78,8 +80,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public ConstantKeywordFieldMapper build(BuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                    name, fieldType, new ConstantKeywordFieldType(buildFullName(context), value, meta),
-                    context.indexSettings());
+                    name, fieldType, new ConstantKeywordFieldType(buildFullName(context), value, meta));
         }
     }
 
@@ -151,6 +152,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+        
+        @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }        
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
@@ -238,9 +244,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                 Settings indexSettings) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -269,8 +274,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(
-                    simpleName(), fieldType, newFieldType, context.indexSettings().getSettings());
+            Mapper update = new ConstantKeywordFieldMapper(simpleName(), fieldType, newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +

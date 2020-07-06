@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 public final class TransportPutFollowAction
@@ -124,14 +125,28 @@ public final class TransportPutFollowAction
             return;
         }
 
-        final Settings.Builder settingsBuilder = Settings.builder()
+        final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
+        if (replicatedRequestSettings.isEmpty() == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "can not put follower index that could override leader settings %s",
+                replicatedRequestSettings
+            );
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+
+        final Settings overrideSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
-            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(request.getSettings())
+            .build();
+
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
         final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
-            .indexSettings(settingsBuilder);
+            .indexSettings(overrideSettings);
 
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {

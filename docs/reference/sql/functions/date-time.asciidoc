@@ -520,7 +520,7 @@ https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/Da
 If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
-If the parsing pattern contains date units (e.g. 'dd/MM/uuuu', 'dd-MM HH:mm:ss', etc.) an error is returned
+If the parsing pattern contains only date units (e.g. 'dd/MM/uuuu') an error is returned
 as the function needs to return a value of `time` type which will contain only time.
 
 [source, sql]

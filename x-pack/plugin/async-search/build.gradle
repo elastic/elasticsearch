@@ -31,9 +31,5 @@ dependencies {
   testImplementation project(path: xpackModule('async'))
 }
 
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
-}
-
 integTest.enabled = false
 

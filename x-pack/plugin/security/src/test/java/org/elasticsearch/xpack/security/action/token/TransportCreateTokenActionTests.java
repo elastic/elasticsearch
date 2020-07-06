@@ -169,7 +169,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         this.license = mock(XPackLicenseState.class);
         when(license.isSecurityEnabled()).thenReturn(true);
-        when(license.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(license.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
     }
 
     @After

@@ -52,7 +52,7 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "doc_values", "store");
+        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
     }
 
     @Before

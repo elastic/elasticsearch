@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingTestCase<CompositeAggCursor> {
     public static CompositeAggCursor randomCompositeCursor() {
         int extractorsSize = between(1, 20);
-        ZoneId id = randomSafeZone();
+        ZoneId id = randomZone();
         List<BucketExtractor> extractors = new ArrayList<>(extractorsSize);
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomBucketExtractor(id));
@@ -70,7 +70,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
                 return zoneId;
             }
         }
-        return randomSafeZone();
+        return randomZone();
     }
 
     static BitSet randomBitSet(int size) {

@@ -1,8 +1,8 @@
 ---
 "Put index template":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -27,7 +27,9 @@
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          'timestamp': '2020-12-12'
+          foo: bar
 
   - do:
       search:
@@ -41,7 +43,7 @@
       indices.get_data_stream:
         name: logs-foobar
   - match: { 0.name: logs-foobar }
-  - match: { 0.timestamp_field: 'timestamp' }
+  - match: { 0.timestamp_field.name: 'timestamp' }
   - length: { 0.indices: 1 }
   - match: { 0.indices.0.index_name: '.ds-logs-foobar-000001' }
 

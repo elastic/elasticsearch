@@ -75,7 +75,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-        // TODO figure out how to use runtimeValues here
+        // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }
 

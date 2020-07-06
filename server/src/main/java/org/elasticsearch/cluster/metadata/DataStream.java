@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +55,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation) {
         this.name = name;
         this.timeStampField = timeStampField;
-        this.indices = indices;
+        this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
         assert indices.size() > 0;
         assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
@@ -234,12 +235,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 "invalid type defined for mapping of timestamp_field";
 
             this.name = name;
-            this.fieldMapping = fieldMapping;
+            this.fieldMapping = Collections.unmodifiableMap(fieldMapping);
         }
 
         public TimestampField(StreamInput in) throws IOException {
-            this.name = in.readString();
-            this.fieldMapping = in.readMap();
+            this(in.readString(), in.readMap());
         }
 
         /**

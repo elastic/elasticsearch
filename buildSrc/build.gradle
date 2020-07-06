@@ -101,7 +101,7 @@ dependencies {
   api "org.elasticsearch:jna:5.5.0"
   api 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
   api 'de.thetaphi:forbiddenapis:3.0'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.12.1'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
@@ -174,6 +174,8 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
     distribution project(':distribution:archives:oss-linux-aarch64-tar')
+
+    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project

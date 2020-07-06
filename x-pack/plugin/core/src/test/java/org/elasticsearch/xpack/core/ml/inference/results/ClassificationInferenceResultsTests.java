@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -31,21 +32,24 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             FeatureImportanceTests::randomClassification :
             FeatureImportanceTests::randomRegression;
 
-        return new ClassificationInferenceResults(randomDouble(),
+        ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
+        Double value = randomDouble();
+        if (config.getPredictionFieldType() == PredictionFieldType.BOOLEAN) {
+            // value must be close to 0 or 1
+            value = randomBoolean() ? 0.0 : 1.0;
+        }
+
+        return new ClassificationInferenceResults(value,
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null :
-                Stream.generate(ClassificationInferenceResultsTests::createRandomClassEntry)
+                Stream.generate(TopClassEntryTests::createRandomTopClassEntry)
                     .limit(randomIntBetween(0, 10))
                     .collect(Collectors.toList()),
             randomBoolean() ? null :
                 Stream.generate(featureImportanceCtor)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
-            ClassificationConfigTests.randomClassificationConfig());
-    }
-
-    private static ClassificationInferenceResults.TopClassEntry createRandomClassEntry() {
-        return new ClassificationInferenceResults.TopClassEntry(randomAlphaOfLength(10), randomDouble(), randomDouble());
+            config);
     }
 
     public void testWriteResultsWithClassificationLabel() {
@@ -70,10 +74,10 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
 
     @SuppressWarnings("unchecked")
     public void testWriteResultsWithTopClasses() {
-        List<ClassificationInferenceResults.TopClassEntry> entries = Arrays.asList(
-            new ClassificationInferenceResults.TopClassEntry("foo", 0.7, 0.7),
-            new ClassificationInferenceResults.TopClassEntry("bar", 0.2, 0.2),
-            new ClassificationInferenceResults.TopClassEntry("baz", 0.1, 0.1));
+        List<TopClassEntry> entries = Arrays.asList(
+            new TopClassEntry("foo", 0.7, 0.7),
+            new TopClassEntry("bar", 0.2, 0.2),
+            new TopClassEntry("baz", 0.1, 0.1));
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0,
             "foo",
             entries,
@@ -84,8 +88,8 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         List<?> list = document.getFieldValue("result_field.bar", List.class);
         assertThat(list.size(), equalTo(3));
 
-        for(int i = 0; i < 3; i++) {
-            Map<String, Object> map = (Map<String, Object>)list.get(i);
+        for (int i = 0; i < 3; i++) {
+            Map<String, Object> map = (Map<String, Object>) list.get(i);
             assertThat(map, equalTo(entries.get(i).asValueMap()));
         }
 
@@ -110,11 +114,11 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>)document.getFieldValue(
+        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>) document.getFieldValue(
             "result_field.feature_importance",
             List.class);
         assertThat(writtenImportance, hasSize(3));
-        importanceList.sort((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
+        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
             FeatureImportance importance = importanceList.get(i);
@@ -134,5 +138,40 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     @Override
     protected Writeable.Reader<ClassificationInferenceResults> instanceReader() {
         return ClassificationInferenceResults::new;
+    }
+
+    public void testToXContent() {
+        ClassificationConfig toStringConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.STRING);
+        ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, null, toStringConfig);
+        String stringRep = Strings.toString(result);
+        String expected = "{\"predicted_value\":\"1.0\"}";
+        assertEquals(expected, stringRep);
+
+        ClassificationConfig toDoubleConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.NUMBER);
+        result = new ClassificationInferenceResults(1.0, null, null, toDoubleConfig);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":1.0}";
+        assertEquals(expected, stringRep);
+
+        ClassificationConfig boolFieldConfig = new ClassificationConfig(1, null, null, null, PredictionFieldType.BOOLEAN);
+        result = new ClassificationInferenceResults(1.0, null, null, boolFieldConfig);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":true}";
+        assertEquals(expected, stringRep);
+
+        ClassificationConfig config = new ClassificationConfig(1);
+        result = new ClassificationInferenceResults(1.0, "label1", null, config);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":\"label1\"}";
+        assertEquals(expected, stringRep);
+
+        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
+        TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
+        result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
+            Collections.singletonList(fi), config);
+        stringRep = Strings.toString(result);
+        expected = "{\"predicted_value\":\"label1\"," +
+            "\"top_classes\":[{\"class_name\":\"class\",\"class_probability\":1.0,\"class_score\":1.0}]}";
+        assertEquals(expected, stringRep);
     }
 }

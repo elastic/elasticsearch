@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
-public class MoreExpressionTests extends ESIntegTestCase {
+public class MoreExpressionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

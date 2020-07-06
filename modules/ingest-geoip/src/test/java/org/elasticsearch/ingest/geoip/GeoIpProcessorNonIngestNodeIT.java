@@ -50,7 +50,7 @@ import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
+public class GeoIpProcessorNonIngestNodeIT extends ESIntegTestCase {
 
     public static class IngestGeoIpSettingsPlugin extends Plugin {
 

@@ -63,3 +63,4 @@ testClusters.all {
     "http://snapshot.test*,http://${urlFixture.addressAndPort}"
   }, PropertyNormalization.IGNORE_VALUE
 }
+

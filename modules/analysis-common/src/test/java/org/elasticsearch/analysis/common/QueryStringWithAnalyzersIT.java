@@ -32,7 +32,7 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
+public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);

@@ -46,3 +46,5 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search', 'msearch'
   }
 }
+
+integTest.enabled = false

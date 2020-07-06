@@ -27,3 +27,6 @@ esplugin {
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+integTest.enabled = false
+test.enabled = false

@@ -36,7 +36,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
-public class StoredExpressionTests extends ESIntegTestCase {
+public class StoredExpressionIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));

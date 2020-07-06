@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1414,10 +1415,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createComposableTemplate(client(), "dst", "ds", template);
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
-            indexRequest.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("f", "v").endObject()));
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
+                .field("f", "v")
+                .field("@timestamp", new Date())
+                .endObject();
+            indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
-        
+
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
         assertOK(response);
@@ -1426,7 +1431,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
-        assertEquals("@timestamp", ds.get("timestamp_field"));
         assertEquals(1, indices.size());
         assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);

@@ -14,14 +14,18 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -44,6 +48,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -107,6 +112,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -114,6 +120,7 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.Authent
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
 public class ApiKeyService {
 
@@ -219,17 +226,21 @@ public class ApiKeyService {
 
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
+
+
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                    ActionListener.wrap(
-                            indexResponse -> listener.onResponse(
-                                    new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                            listener::onFailure)));
+                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
+                        indexResponse -> listener.onResponse(
+                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                        listener::onFailure))));
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -340,14 +351,26 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
-                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
+                    validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
                 } else {
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                 }
             },
-            e -> listener.onResponse(AuthenticationResult.unsuccessful(
-                "apikey authentication for id " + credentials.getId() + " encountered a failure", e))),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful(
+                        "apikey authentication for id " + credentials.getId() + " encountered a failure",e));
+                }
+            }),
             client::get);
     }
 
@@ -510,23 +533,30 @@ public class ApiKeyService {
                         }, listener::onFailure),
                         threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    final boolean verified = verifyKeyAgainstHash(apiKeyDoc.hash, credentials);
-                    listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
-                    if (verified) {
-                        // move on
-                        validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                    } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                    }
+                    verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(
+                        verified -> {
+                            listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
+                            if (verified) {
+                                // move on
+                                validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                            } else {
+                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            }
+                        }, listener::onFailure
+                    ));
                 }
             } else {
-                final boolean verified = verifyKeyAgainstHash(apiKeyDoc.hash, credentials);
-                if (verified) {
-                    // move on
-                    validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
-                } else {
-                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                }
+                verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(
+                    verified -> {
+                        if (verified) {
+                            // move on
+                            validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                        } else {
+                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        }
+                    },
+                    listener::onFailure
+                ));
             }
         }
     }
@@ -590,14 +620,16 @@ public class ApiKeyService {
     }
 
     // Protected instance method so this can be mocked
-    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
-        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
-        try {
+    protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-            return hasher.verify(credentials.getKey(), apiKeyHashChars);
-        } finally {
-            Arrays.fill(apiKeyHashChars, (char) 0);
-        }
+            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+            try {
+                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {

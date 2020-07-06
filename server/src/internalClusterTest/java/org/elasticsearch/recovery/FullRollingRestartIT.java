@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -93,8 +94,11 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
         for (int i = 2000; i < 3000; i++) {
+            Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
+                .put("test", "value" + i)
+                .put("@timestamp", new Date()).map();
             client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).put("@timestamp", new Date()).map()).execute().actionGet();
+                .setSource(source).execute().actionGet();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
@@ -102,8 +106,11 @@ public class FullRollingRestartIT extends ESIntegTestCase {
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
         for (int i = 3000; i < 4000; i++) {
+            Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
+                .put("test", "value" + i)
+                .put("@timestamp", new Date()).map();
             client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).put("@timestamp", new Date()).map()).execute().actionGet();
+                .setSource(source).execute().actionGet();
         }
 
         logger.info("--> now start adding nodes");

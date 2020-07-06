@@ -259,12 +259,9 @@ xpack.ml.enabled: true <1>
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
-{transform-cap} nodes run {transforms} and handle {transform} API requests.
-
-By default, data nodes are also transform nodes. If you want to use {transforms}
-in clients (including {kib}), coordinating nodes must also have the
-`transform` role. If you have the {oss-dist}, do not use these settings. For
-more information, see <<transform-settings>>.
+{transform-cap} nodes run {transforms} and handle {transform} API requests. By
+default, data nodes are also transform nodes. If you have the {oss-dist}, do not
+use these settings. For more information, see <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 

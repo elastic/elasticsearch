@@ -79,10 +79,11 @@ public class TumblingWindow implements Executable {
 
     private void advance(int baseStage, ActionListener<Payload> listener) {
         // initialize
-        log.info("Querying base stage [{}]" + baseStage);
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         // remove any potential upper limit (if a criteria has been promoted)
-        base.queryRequest().until(null);
+        base.queryRequest().to(null);
+
+        log.info("Querying base stage [{}] {}", base.stage(), base.queryRequest());
 
         client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
@@ -118,6 +119,8 @@ public class TumblingWindow implements Executable {
         // update current query for the next request
         base.queryRequest().nextAfter(end);
 
+        log.info("Found base [{}] window {} {}", base.stage(), begin, end);
+
         // find until ordinals
         //NB: not currently implemented
 
@@ -131,25 +134,39 @@ public class TumblingWindow implements Executable {
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
         final Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
-        log.info("Querying (secondary) stage {}", criterion.stage());
 
-        // first box the query
         final BoxedQueryRequest request = criterion.queryRequest();
         Criterion<BoxedQueryRequest> base = criteria.get(window.baseStage);
 
-        // if the base has a different direction, swap begin/end
-        // set upper limit of secondary query - the start was set on the previous run
+        // first box the query
+        // only the first base can be descending
+        // all subsequence queries are ascending
         if (criterion.reverse() != base.reverse()) {
-            request.until(window.begin);
+            if (window.end.equals(request.from()) == false) {
+                // if that's the case, set the starting point
+                request.from(window.end);
+                // reposition the pointer
+                request.nextAfter(window.end);
+            }
         } else {
-            request.until(window.end);
+            // otherwise just the upper limit
+            request.to(window.end);
         }
+
+        log.info("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, wrap(p -> {
             List<SearchHit> hits = p.values();
 
             // no more results for this query
             if (hits.isEmpty()) {
+                // put the markers in place before the next call
+                if (criterion.reverse() != base.reverse()) {
+                    request.to(window.end);
+                } else {
+                    request.from(window.end);
+                }
+
                 // if there are no candidates, advance the window
                 if (matcher.hasCandidates(criterion.stage()) == false) {
                     log.info("Advancing window...");

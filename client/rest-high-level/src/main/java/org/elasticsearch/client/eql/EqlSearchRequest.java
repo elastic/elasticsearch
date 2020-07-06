@@ -43,7 +43,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String implicitJoinKeyField = "agent.id";
     private boolean isCaseSensitive = true;
 
-    private int fetchSize = 50;
+    private int size = 10;
+    private int fetchSize = 1000;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private String tiebreakerField;
@@ -60,6 +61,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_CASE_SENSITIVE = "case_sensitive";
     static final String KEY_SIZE = "size";
+    static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
@@ -85,7 +87,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
         }
-        builder.field(KEY_SIZE, fetchSize());
+        builder.field(KEY_SIZE, size());
+        builder.field(KEY_FETCH_SIZE, fetchSize());
 
         if (searchAfterBuilder != null) {
             builder.array(KEY_SEARCH_AFTER, searchAfterBuilder.getSortValues());
@@ -172,14 +175,26 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
+    public int size() {
+        return this.size;
+    }
+
+    public EqlSearchRequest size(int size) {
+        this.size = size;
+        if (fetchSize <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
+        return this;
+    }
+
     public int fetchSize() {
         return this.fetchSize;
     }
 
     public EqlSearchRequest fetchSize(int size) {
         this.fetchSize = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+        if (fetchSize < 2) {
+            throw new IllegalArgumentException("fetch size must be greater than 1");
         }
         return this;
     }
@@ -246,7 +261,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return fetchSize == that.fetchSize &&
+        return size == that.size &&
+                fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
@@ -268,6 +284,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             Arrays.hashCode(indices),
             indicesOptions,
             filter,
+            size,
             fetchSize,
             timestampField,
             tiebreakerField,
